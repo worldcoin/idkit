@@ -1,0 +1,65 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# Build outputs
+/swift/IDKitFFI.xcframework/
+/kotlin/idkit/src/commonMain/kotlin/uniffi/
+/kotlin/idkit/src/androidMain/jniLibs/
+
+# IDEs
+.vscode/
+*.swp
+*.swo
+*~
+
+# JavaScript / Node
+node_modules/
+dist/
+build/
+*.log
+.pnpm-store/
+.turbo/
+.next/
+.nuxt/
+
+# Swift
+.build/
+.swiftpm/
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Kotlin / Android
+*.iml
+.gradle/
+local.properties
+*/build/
+captures/
+.externalNativeBuild
+.cxx
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+.env.local
+*.pem
+*.key
+
+# Test outputs
+coverage/
+*.profraw
+*.profdata
+
+.idea
+.claude
+.cursor
+.DS_Store

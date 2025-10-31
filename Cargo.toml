@@ -1,0 +1,63 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "rust/core",
+    "rust/uniffi-bindings",
+    "rust/wasm",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/worldcoin/idkit"
+authors = ["Tools for Humanity"]
+
+[workspace.dependencies]
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Cryptography
+ring = "0.17"
+tiny-keccak = { version = "2.0", features = ["keccak"] }
+
+# Encoding
+base64 = "0.22"
+hex = "0.4"
+
+# Async
+tokio = { version = "1.40", features = ["full"] }
+reqwest = { version = "0.12", features = ["json"] }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# UUID
+uuid = { version = "1.10", features = ["v4", "serde"] }
+
+# URL handling
+url = "2.5"
+
+# UniFFI
+uniffi = "0.28"
+
+# WASM
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Crypto", "SubtleCrypto"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+lto = true
+codegen-units = 1
