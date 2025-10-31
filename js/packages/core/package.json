@@ -1,0 +1,35 @@
+{
+  "name": "@worldcoin/idkit-core",
+  "version": "3.0.0",
+  "description": "Core IDKit SDK powered by Rust/WASM",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "echo 'Building core package with WASM bindings - TODO'",
+    "dev": "echo 'Development mode - TODO'",
+    "test": "echo 'Tests - TODO'"
+  },
+  "keywords": [
+    "worldcoin",
+    "world-id",
+    "identity",
+    "proof-of-personhood",
+    "zkp"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/worldcoin/idkit"
+  }
+}
