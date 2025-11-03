@@ -4,9 +4,13 @@
 *.pdb
 
 # Build outputs
+# Swift build outputs are not committed to this repo (following walletkit model)
+/swift/Sources/IDKit/
 /swift/IDKitFFI.xcframework/
-/kotlin/idkit/src/commonMain/kotlin/uniffi/
-/kotlin/idkit/src/androidMain/jniLibs/
+
+# Kotlin build outputs are not committed to this repo (following walletkit model)
+/kotlin/src/main/kotlin/uniffi/
+/kotlin/src/main/jniLibs/
 
 # IDEs
 .vscode/

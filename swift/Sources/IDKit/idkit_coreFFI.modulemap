@@ -1,4 +1,0 @@
-module idkit_coreFFI {
-    header "idkit_coreFFI.h"
-    export *
-}
