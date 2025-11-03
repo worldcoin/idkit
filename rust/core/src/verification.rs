@@ -80,7 +80,7 @@ pub async fn verify_proof(
     let client = reqwest::Client::new();
     let response = client
         .post(format!(
-            "https://developer.worldcoin.org/api/v2/verify/{}",
+            "https://developer.world.org/api/v2/verify/{}",
             app_id.as_str()
         ))
         .header("User-Agent", "idkit-core/3.0.0")

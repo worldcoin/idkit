@@ -14,7 +14,7 @@ export enum Credential {
 }
 
 /**
- * Legacy verification levels (for backward compatibility)
+ * Verification levels (for backward compatibility)
  */
 export enum VerificationLevel {
   Orb = 'orb',

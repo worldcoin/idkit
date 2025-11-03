@@ -80,7 +80,7 @@ pub struct IdkitSession {
 
 #[uniffi::export]
 impl IdkitSession {
-    /// Creates a new session from verification level (legacy API)
+    /// Creates a new session from verification level
     #[uniffi::constructor]
     pub fn from_verification_level(
         app_id: String,

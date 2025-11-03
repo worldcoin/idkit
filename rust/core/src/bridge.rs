@@ -213,7 +213,7 @@ impl BridgeClient {
         })
     }
 
-    /// Returns the connect URL for the World App
+    /// Returns the connect URL for World App
     #[must_use]
     pub fn connect_url(&self) -> String {
         let key_b64 = base64_encode(&self.key_bytes);
@@ -227,7 +227,7 @@ impl BridgeClient {
         };
 
         format!(
-            "https://worldcoin.org/verify?t=wld&i={}&k={}{}",
+            "https://world.org/verify?t=wld&i={}&k={}{}",
             self.request_id,
             urlencoding::encode(&key_b64),
             bridge_param

@@ -26,8 +26,8 @@ fun main() = runBlocking {
     println("   Connect URL: $connectUrl")
     println("   Scan this QR code with World App to verify")
 
-    // Example 2: New API with credential requests
-    println("\n2. Creating session with credential requests (new API)")
+    // Example 2: API with credential requests
+    println("\n2. Creating session with credential requests")
     val requests = listOf(
         RequestConfig(
             credentialType = Credential.ORB,

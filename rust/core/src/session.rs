@@ -82,9 +82,9 @@ impl SessionConfig {
         self
     }
 
-    /// Creates a session config from a legacy verification level
+    /// Creates a session config from a verification level
     ///
-    /// This provides backward compatibility with the old API
+    /// This provides backward compatibility with prior idkit versions
     #[must_use]
     pub fn from_verification_level(
         app_id: AppId,

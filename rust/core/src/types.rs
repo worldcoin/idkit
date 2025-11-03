@@ -220,7 +220,7 @@ impl<'de> Deserialize<'de> for BridgeUrl {
     }
 }
 
-/// Legacy verification level (for backward compatibility)
+/// Verification level (for backward compatibility)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "uniffi-bindings", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]

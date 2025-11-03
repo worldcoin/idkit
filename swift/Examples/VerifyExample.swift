@@ -11,8 +11,8 @@ struct VerifyExample {
         print("IDKit Swift Example - World ID Verification")
         print("=" * 50)
 
-        // Example 1: Legacy API with verification level
-        print("\n1. Creating session with verification level (legacy)")
+        // Example 1: API with verification level
+        print("\n1. Creating session with verification level")
         let session1 = try IdkitSession.fromVerificationLevel(
             appId: "app_staging_1234567890abcdef",
             action: "verify-human",
@@ -24,8 +24,8 @@ struct VerifyExample {
         print("   Connect URL: \(connectUrl)")
         print("   Scan this QR code with World App to verify")
 
-        // Example 2: New API with credential requests
-        print("\n2. Creating session with credential requests (new API)")
+        // Example 2: API with credential requests
+        print("\n2. Creating session with credential requests")
         let requests = [
             RequestConfig(
                 credentialType: .orb,

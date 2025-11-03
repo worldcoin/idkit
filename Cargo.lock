@@ -1290,7 +1290,7 @@ dependencies = [
 
 [[package]]
 name = "idkit-core"
-version = "0.1.0"
+version = "3.0.0"
 dependencies = [
  "alloy-sol-types",
  "anyhow",
@@ -1318,7 +1318,7 @@ dependencies = [
 
 [[package]]
 name = "idkit-uniffi"
-version = "0.1.0"
+version = "3.0.0"
 dependencies = [
  "idkit-core",
  "thiserror 1.0.69",
@@ -1328,7 +1328,7 @@ dependencies = [
 
 [[package]]
 name = "idkit-wasm"
-version = "0.1.0"
+version = "3.0.0"
 dependencies = [
  "idkit-core",
  "js-sys",

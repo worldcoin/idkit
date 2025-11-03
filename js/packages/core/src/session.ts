@@ -101,7 +101,7 @@ export class Session {
   }
 
   /**
-   * Create a session from verification level (legacy API)
+   * Create a session from verification level
    */
   static async fromVerificationLevel(
     appId: string,
@@ -128,7 +128,7 @@ export class Session {
     const keyBase64 = btoa(String.fromCharCode(...this.key));
     const encodedKey = encodeURIComponent(keyBase64);
 
-    let url = `https://worldcoin.org/verify?t=wld&i=${this.requestId}&k=${encodedKey}`;
+    let url = `https://world.org/verify?t=wld&i=${this.requestId}&k=${encodedKey}`;
 
     if (this.bridgeUrl !== DEFAULT_BRIDGE_URL) {
       const encodedBridge = encodeURIComponent(this.bridgeUrl);

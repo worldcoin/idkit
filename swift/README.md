@@ -50,7 +50,7 @@ init()
 
 ### Create a Verification Session
 
-**Option 1: Legacy API with Verification Level**
+**Option 1: API with Verification Level**
 
 ```swift
 let session = try IdkitSession.fromVerificationLevel(
@@ -61,7 +61,7 @@ let session = try IdkitSession.fromVerificationLevel(
 )
 ```
 
-**Option 2: New API with Credential Requests** (Recommended)
+**Option 2: API with Credential Requests**
 
 ```swift
 let requests = [
@@ -84,7 +84,7 @@ let session = try IdkitSession.withRequests(
 ```swift
 let connectUrl = session.connectUrl()
 print(connectUrl)
-// https://worldcoin.org/verify?t=wld&i=...&k=...
+// https://world.org/verify?t=wld&i=...&k=...
 
 // Generate QR code from connectUrl and display to user
 ```
@@ -151,8 +151,8 @@ func handleProof(_ proof: Proof) {
 Main session interface for World ID verification.
 
 **Constructors:**
-- `fromVerificationLevel(appId:action:verificationLevel:signal:)` - Legacy API
-- `withRequests(appId:action:requests:)` - New API with credential requests
+- `fromVerificationLevel(appId:action:verificationLevel:signal:)` - Verification levels API
+- `withRequests(appId:action:requests:)` - API with credential requests
 
 **Methods:**
 - `connectUrl() -> String` - Get the World App connect URL
@@ -168,9 +168,9 @@ Verification credential types:
 - `.document` - Document verification
 - `.device` - Device verification
 
-#### `VerificationLevel` (Legacy)
+#### `VerificationLevel`
 
-Legacy verification levels for backward compatibility:
+Verification levels for backward compatibility:
 - `.orb`
 - `.face`
 - `.device`
@@ -226,7 +226,7 @@ swift Examples/VerifyExample.swift
 
 1. Install UniFFI bindgen:
    ```bash
-   pip3 install uniffi-bindgen==0.28.3
+   pip3 install uniffi-bindgen==0.30.0
    ```
 
 2. Build Rust library:
@@ -247,19 +247,6 @@ swift Examples/VerifyExample.swift
    - `target/release/libidkit.dylib` - Native library (macOS)
    - `target/release/libidkit.a` - Static library
 
-## Platform Support
-
-- ✅ iOS 13.0+
-- ✅ macOS 10.15+
-- ✅ tvOS 13.0+
-- ✅ watchOS 6.0+
-
 ## License
 
 MIT
-
-## Support
-
-- Documentation: https://docs.worldcoin.org
-- Issues: https://github.com/worldcoin/idkit/issues
-- Discord: https://discord.gg/worldcoin

@@ -9,7 +9,7 @@ Add to your `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.worldcoin:idkit:0.1.0")
+    implementation("com.worldcoin:idkit:3.0.0")
 }
 ```
 
@@ -17,7 +17,7 @@ Or `build.gradle`:
 
 ```groovy
 dependencies {
-    implementation 'com.worldcoin:idkit:0.1.0'
+    implementation 'com.worldcoin:idkit:3.0.0'
 }
 ```
 
@@ -77,7 +77,7 @@ val session = IdkitSession.withRequests(
 ```kotlin
 val connectUrl = session.connectUrl()
 println(connectUrl)
-// https://worldcoin.org/verify?t=wld&i=...&k=...
+// https://world.org/verify?t=wld&i=...&k=...
 
 // Generate QR code from connectUrl and display to user
 ```

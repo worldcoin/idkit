@@ -85,7 +85,7 @@ describe('Session', () => {
     });
   });
 
-  describe('Legacy API Compatibility', () => {
+  describe('Verification Level Compatibility', () => {
     it('should convert orb verification level', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
@@ -149,7 +149,7 @@ describe('Session', () => {
 
       const url = session.connectUrl();
       
-      expect(url).toContain('https://worldcoin.org/verify');
+      expect(url).toContain('https://world.org/verify');
       expect(url).toContain('t=wld');
       expect(url).toContain('i=abc123');
       expect(url).toContain('k=');
