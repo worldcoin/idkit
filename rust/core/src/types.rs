@@ -1,7 +1,6 @@
-//! Core types for the IDKit protocol
+//! Core types for the `IDKit` protocol
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 
 /// Credential types that can be requested
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -35,7 +34,7 @@ impl Credential {
 
     /// Returns the credential as a string
     #[must_use]
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Orb => "orb",
             Self::Face => "face",
@@ -65,7 +64,7 @@ pub struct Request {
 impl Request {
     /// Creates a new request
     #[must_use]
-    pub fn new(credential_type: Credential, signal: String) -> Self {
+    pub const fn new(credential_type: Credential, signal: String) -> Self {
         Self {
             credential_type,
             signal,
@@ -75,7 +74,7 @@ impl Request {
 
     /// Adds face authentication requirement
     #[must_use]
-    pub fn with_face_auth(mut self, face_auth: bool) -> Self {
+    pub const fn with_face_auth(mut self, face_auth: bool) -> Self {
         self.face_auth = Some(face_auth);
         self
     }
@@ -84,9 +83,9 @@ impl Request {
     ///
     /// # Errors
     ///
-    /// Returns an error if face_auth is set for an incompatible credential type
+    /// Returns an error if `face_auth` is set for an incompatible credential type
     pub fn validate(&self) -> crate::Result<()> {
-        if let Some(true) = self.face_auth {
+        if self.face_auth == Some(true) {
             match self.credential_type {
                 Credential::Orb | Credential::Face => Ok(()),
                 _ => Err(crate::Error::InvalidConfiguration(format!(
@@ -122,11 +121,11 @@ pub struct Proof {
 pub struct AppId(String);
 
 impl AppId {
-    /// Creates a new AppId
+    /// Creates a new `AppId`
     ///
     /// # Errors
     ///
-    /// Returns an error if the app_id doesn't start with "app_"
+    /// Returns an error if the `app_id` doesn't start with "app_"
     pub fn new(app_id: impl Into<String>) -> crate::Result<Self> {
         let app_id = app_id.into();
         if !app_id.starts_with("app_") {
@@ -177,12 +176,6 @@ impl BridgeUrl {
         Ok(Self(url))
     }
 
-    /// Returns the default bridge URL
-    #[must_use]
-    pub fn default() -> Self {
-        Self(Self::DEFAULT.to_string())
-    }
-
     /// Returns the URL as a string
     #[must_use]
     pub fn as_str(&self) -> &str {
@@ -204,7 +197,7 @@ impl BridgeUrl {
 
 impl Default for BridgeUrl {
     fn default() -> Self {
-        Self::default()
+        Self(Self::DEFAULT.to_string())
     }
 }
 

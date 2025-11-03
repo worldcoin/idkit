@@ -39,7 +39,8 @@ struct ErrorResponse {
     /// Error detail
     detail: String,
 
-    /// Optional attribute that caused the error
+    /// Optional attribute that caused the error (unused but part of API response)
+    #[allow(dead_code)]
     attribute: Option<String>,
 }
 

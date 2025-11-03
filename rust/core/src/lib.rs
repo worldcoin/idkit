@@ -1,4 +1,4 @@
-//! # IDKit Core
+//! # `IDKit` Core
 //!
 //! Core Rust implementation of the World ID SDK for Relying Parties.
 //! This library provides the fundamental types and logic for interacting with

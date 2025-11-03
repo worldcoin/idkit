@@ -1,7 +1,7 @@
-//! Bridge client for communicating with the World App Bridge
+//! Client for communicating with the [Wallet Bridge](https://github.com/worldcoin/wallet-bridge).
 
 use crate::{
-    crypto::{base64_decode, base64_encode, decrypt, encrypt, encode_signal_str},
+    crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
     types::{AppId, BridgeUrl, Credential, Proof, Request},
     Constraints,
@@ -131,7 +131,6 @@ pub struct BridgeConfig {
 pub struct BridgeClient {
     config: BridgeConfig,
     key: Vec<u8>,
-    iv: Vec<u8>,
     request_id: Uuid,
     client: reqwest::Client,
 }
@@ -194,7 +193,6 @@ impl BridgeClient {
         Ok(Self {
             config,
             key,
-            iv,
             request_id: create_response.request_id,
             client,
         })
@@ -207,7 +205,10 @@ impl BridgeClient {
         let bridge_param = if self.config.bridge_url == BridgeUrl::default() {
             String::new()
         } else {
-            format!("&b={}", urlencoding::encode(self.config.bridge_url.as_str()))
+            format!(
+                "&b={}",
+                urlencoding::encode(self.config.bridge_url.as_str())
+            )
         };
 
         format!(
@@ -226,7 +227,11 @@ impl BridgeClient {
     pub async fn poll_status(&self) -> Result<Status> {
         let response = self
             .client
-            .get(self.config.bridge_url.join(&format!("/response/{}", self.request_id))?)
+            .get(
+                self.config
+                    .bridge_url
+                    .join(&format!("/response/{}", self.request_id))?,
+            )
             .send()
             .await?;
 
@@ -240,9 +245,7 @@ impl BridgeClient {
             "initialized" => Ok(Status::WaitingForConnection),
             "retrieved" => Ok(Status::AwaitingConfirmation),
             "completed" => {
-                let encrypted = poll_response
-                    .response
-                    .ok_or(Error::UnexpectedResponse)?;
+                let encrypted = poll_response.response.ok_or(Error::UnexpectedResponse)?;
 
                 let iv = base64_decode(&encrypted.iv)?;
                 let ciphertext = base64_decode(&encrypted.payload)?;
@@ -262,7 +265,7 @@ impl BridgeClient {
 
     /// Returns the request ID
     #[must_use]
-    pub fn request_id(&self) -> Uuid {
+    pub const fn request_id(&self) -> Uuid {
         self.request_id
     }
 }
@@ -270,7 +273,7 @@ impl BridgeClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::Credential;
+    use crate::{crypto::encode_signal_str, types::Credential};
 
     #[test]
     fn test_bridge_request_payload_serialization() {

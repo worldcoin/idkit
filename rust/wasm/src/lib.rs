@@ -7,7 +7,7 @@
 //! Network operations (Session, Bridge) are handled by JavaScript fetch API.
 
 use idkit_core::{
-    AppId, Constraints, ConstraintNode, Credential, Proof, Request, VerificationLevel,
+    AppId, Constraints, ConstraintNode, Credential, Request,
 };
 use wasm_bindgen::prelude::*;
 use std::collections::HashSet;

@@ -1,4 +1,4 @@
-//! Cryptographic utilities for IDKit
+//! Cryptographic utilities for `IDKit`
 
 use crate::{Error, Result};
 use tiny_keccak::{Hasher, Keccak};
@@ -13,6 +13,11 @@ use ring::{
     rand::{SecureRandom, SystemRandom},
 };
 
+/// Generates a random encryption key and initialization vector
+///
+/// # Errors
+///
+/// Returns an error if the random number generator fails
 #[cfg(feature = "native-crypto")]
 pub fn generate_key() -> Result<(Vec<u8>, Vec<u8>)> {
     let rng = SystemRandom::new();
@@ -28,6 +33,11 @@ pub fn generate_key() -> Result<(Vec<u8>, Vec<u8>)> {
     Ok((key_bytes, iv))
 }
 
+/// Encrypts plaintext using AES-256-GCM
+///
+/// # Errors
+///
+/// Returns an error if the key is invalid, IV length is incorrect, or encryption fails
 #[cfg(feature = "native-crypto")]
 pub fn encrypt(key: &[u8], iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
     let unbound_key = UnboundKey::new(&aead::AES_256_GCM, key)
@@ -46,6 +56,11 @@ pub fn encrypt(key: &[u8], iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
     Ok(ciphertext)
 }
 
+/// Decrypts ciphertext using AES-256-GCM
+///
+/// # Errors
+///
+/// Returns an error if the key is invalid, IV length is incorrect, or decryption fails
 #[cfg(feature = "native-crypto")]
 pub fn decrypt(key: &[u8], iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
     let unbound_key = UnboundKey::new(&aead::AES_256_GCM, key)
@@ -113,9 +128,7 @@ pub fn hash_to_field(input: &[u8]) -> [u8; 32] {
 
     // Shift right by 8 bits (1 byte) to fit within the field prime
     let mut result = [0u8; 32];
-    for i in 0..31 {
-        result[i] = output[i + 1];
-    }
+    result[..31].copy_from_slice(&output[1..32]);
 
     result
 }
@@ -146,7 +159,8 @@ pub fn encode_action(action: &str) -> String {
 /// Base64 encodes bytes
 #[must_use]
 pub fn base64_encode(input: &[u8]) -> String {
-    base64::encode(input)
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    STANDARD.encode(input)
 }
 
 /// Base64 decodes a string
@@ -155,7 +169,8 @@ pub fn base64_encode(input: &[u8]) -> String {
 ///
 /// Returns an error if the input is not valid base64
 pub fn base64_decode(input: &str) -> Result<Vec<u8>> {
-    Ok(base64::decode(input)?)
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    Ok(STANDARD.decode(input)?)
 }
 
 #[cfg(test)]

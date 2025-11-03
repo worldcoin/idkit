@@ -2,9 +2,12 @@
 
 use crate::{
     bridge::{BridgeClient, BridgeConfig, Status},
-    types::{AppId, BridgeUrl, Credential, Proof, Request, VerificationLevel},
+    types::{AppId, BridgeUrl, Proof, Request, VerificationLevel},
     Constraints, ConstraintNode, Error, Result,
 };
+
+#[cfg(test)]
+use crate::types::Credential;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -133,7 +136,7 @@ impl Session {
             action_description: config.action_description,
             requests: config.requests,
             constraints: config.constraints,
-            bridge_url: config.bridge_url.unwrap_or_else(BridgeUrl::default),
+            bridge_url: config.bridge_url.unwrap_or_default(),
         };
 
         let client = BridgeClient::create(bridge_config).await?;

@@ -32,19 +32,19 @@ pub enum ConstraintNode {
 impl ConstraintNode {
     /// Creates an Any constraint from credentials
     #[must_use]
-    pub fn any(nodes: Vec<ConstraintNode>) -> Self {
+    pub const fn any(nodes: Vec<Self>) -> Self {
         Self::Any { any: nodes }
     }
 
     /// Creates an All constraint from credentials
     #[must_use]
-    pub fn all(nodes: Vec<ConstraintNode>) -> Self {
+    pub const fn all(nodes: Vec<Self>) -> Self {
         Self::All { all: nodes }
     }
 
     /// Creates a credential node
     #[must_use]
-    pub fn credential(cred: Credential) -> Self {
+    pub const fn credential(cred: Credential) -> Self {
         Self::Credential(cred)
     }
 
@@ -171,7 +171,7 @@ pub struct Constraints {
 impl Constraints {
     /// Creates new constraints from a node
     #[must_use]
-    pub fn new(root: ConstraintNode) -> Self {
+    pub const fn new(root: ConstraintNode) -> Self {
         Self { root }
     }
 

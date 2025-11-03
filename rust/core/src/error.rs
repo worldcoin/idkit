@@ -1,11 +1,11 @@
-//! Error types for IDKit
+//! Error types for `IDKit`
 
 use thiserror::Error;
 
-/// Result type alias for IDKit operations
+/// Result type alias for `IDKit` operations
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Errors that can occur when using IDKit
+/// Errors that can occur when using `IDKit`
 #[derive(Debug, Error)]
 pub enum Error {
     /// Invalid configuration provided
