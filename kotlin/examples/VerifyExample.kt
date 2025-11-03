@@ -13,8 +13,8 @@ fun main() = runBlocking {
     println("IDKit Kotlin Example - World ID Verification")
     println("=".repeat(50))
 
-    // Example 1: Legacy API with verification level
-    println("\n1. Creating session with verification level (legacy)")
+    // Example 1: API with verification level
+    println("\n1. Creating session with verification level")
     val session1 = IdkitSession.fromVerificationLevel(
         appId = "app_staging_1234567890abcdef",
         action = "verify-human",

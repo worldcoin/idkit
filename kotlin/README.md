@@ -1,14 +1,6 @@
 # IDKit Kotlin
 
 Kotlin bindings for the World ID SDK, built with Rust and UniFFI.
-
-## Features
-
-- 🦀 **Rust-powered**: Core logic written in Rust for performance and safety
-- 🤖 **Native Kotlin API**: Idiomatic Kotlin interface with coroutine support
-- 🔐 **AES-256-GCM encryption**: Secure communication with World App
-- ✅ **Type-safe**: Full type safety with Kotlin sealed classes and data classes
-
 ## Installation
 
 ### Gradle (Android/JVM)
@@ -17,7 +9,7 @@ Add to your `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.worldcoin:idkit:3.0.0")
+    implementation("com.worldcoin:idkit:0.1.0")
 }
 ```
 
@@ -25,7 +17,7 @@ Or `build.gradle`:
 
 ```groovy
 dependencies {
-    implementation 'com.worldcoin:idkit:3.0.0'
+    implementation 'com.worldcoin:idkit:0.1.0'
 }
 ```
 
@@ -51,7 +43,7 @@ init()
 
 ### Create a Verification Session
 
-**Option 1: Legacy API with Verification Level**
+**Option 1: API with Verification Level**
 
 ```kotlin
 val session = IdkitSession.fromVerificationLevel(
@@ -62,7 +54,7 @@ val session = IdkitSession.fromVerificationLevel(
 )
 ```
 
-**Option 2: New API with Credential Requests** (Recommended)
+**Option 2: API with Credential Requests** 
 
 ```kotlin
 val requests = listOf(
@@ -92,7 +84,7 @@ println(connectUrl)
 
 ### Wait for Proof
 
-**Option 1: Poll for Status** (Recommended for Android)
+**Option 1: Poll for Status**
 
 ```kotlin
 import kotlinx.coroutines.*
@@ -121,7 +113,7 @@ CoroutineScope(Dispatchers.IO).launch {
 }
 ```
 
-**Option 2: Wait for Proof (Blocking)**
+**Option 2: Wait for Proof**
 
 ```kotlin
 try {
@@ -157,8 +149,8 @@ fun handleProof(proof: Proof) {
 Main session interface for World ID verification.
 
 **Constructors:**
-- `fromVerificationLevel(appId, action, verificationLevel, signal)` - Legacy API
-- `withRequests(appId, action, requests)` - New API with credential requests
+- `fromVerificationLevel(appId, action, verificationLevel, signal)` - Verification level API
+- `withRequests(appId, action, requests)` - API with specific credential requests
 
 **Methods:**
 - `connectUrl(): String` - Get the World App connect URL
@@ -169,14 +161,14 @@ Main session interface for World ID verification.
 
 Verification credential types:
 - `Credential.ORB` - Orb verification
-- `Credential.FACE` - Face authentication
+- `Credential.FACE` - Face check
 - `Credential.SECURE_DOCUMENT` - Secure document verification
 - `Credential.DOCUMENT` - Document verification
 - `Credential.DEVICE` - Device verification
 
-#### `VerificationLevel` (Legacy)
+#### `VerificationLevel`
 
-Legacy verification levels for backward compatibility:
+Verification levels for backward compatibility:
 - `VerificationLevel.ORB`
 - `VerificationLevel.FACE`
 - `VerificationLevel.DEVICE`
@@ -320,7 +312,7 @@ java -jar example.jar
 
 1. Install UniFFI bindgen:
    ```bash
-   pip3 install uniffi-bindgen==0.28.3
+   pip3 install uniffi-bindgen==0.30.0
    ```
 
 2. Build Rust library:
@@ -353,13 +345,3 @@ If using ProGuard/R8 for Android, add these rules:
 -keep class uniffi.idkit.** { *; }
 -keepclassmembers class uniffi.idkit.** { *; }
 ```
-
-## License
-
-MIT
-
-## Support
-
-- Documentation: https://docs.worldcoin.org
-- Issues: https://github.com/worldcoin/idkit/issues
-- Discord: https://discord.gg/worldcoin

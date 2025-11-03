@@ -65,7 +65,7 @@ pub async fn verify_proof(
     let signal_hash = if signal.is_empty() {
         None
     } else {
-        Some(format!("0x{}", hex::encode(hash_to_field(signal))))
+        Some(format!("0x{:064x}", hash_to_field(signal)))
     };
 
     let request = VerificationRequest {

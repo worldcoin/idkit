@@ -96,7 +96,8 @@ pub fn encode_signal(signal: String) -> String {
 
 #[wasm_bindgen(js_name = hashToField)]
 pub fn hash_to_field(input: &[u8]) -> Vec<u8> {
-    idkit_core::crypto::hash_to_field(input).to_vec()
+    let hash = idkit_core::crypto::hash_to_field(input);
+    hash.to_be_bytes_vec()
 }
 
 // Export credential enum

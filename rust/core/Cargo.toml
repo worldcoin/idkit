@@ -20,8 +20,10 @@ thiserror = { workspace = true }
 anyhow = { workspace = true }
 uuid = { workspace = true }
 url = { workspace = true }
-urlencoding = "2.1"
+urlencoding = { workspace = true }
 getrandom = { version = "0.2", features = ["js"] }
+alloy-sol-types = { workspace = true }
+ruint = { workspace = true }
 uniffi = { workspace = true, optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

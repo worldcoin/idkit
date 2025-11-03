@@ -9,6 +9,9 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[cfg(feature = "native-crypto")]
+use crate::crypto::CryptoKey;
+
 /// Bridge request payload sent to initialize a session
 #[derive(Debug, Serialize)]
 struct BridgeRequestPayload {
@@ -130,7 +133,9 @@ pub struct BridgeConfig {
 /// Bridge client for managing World ID verification sessions
 pub struct BridgeClient {
     config: BridgeConfig,
-    key: Vec<u8>,
+    #[cfg(feature = "native-crypto")]
+    key: CryptoKey,
+    key_bytes: Vec<u8>,
     request_id: Uuid,
     client: reqwest::Client,
 }
@@ -152,7 +157,11 @@ impl BridgeClient {
         }
 
         // Generate encryption key and IV
-        let (key, iv) = crate::crypto::generate_key()?;
+        #[cfg(feature = "native-crypto")]
+        let (key_bytes, iv_bytes, key, nonce) = crate::crypto::generate_key()?;
+
+        #[cfg(not(feature = "native-crypto"))]
+        let (key_bytes, iv_bytes) = crate::crypto::generate_key()?;
 
         // Prepare the payload
         let payload = BridgeRequestPayload {
@@ -166,10 +175,14 @@ impl BridgeClient {
         let payload_json = serde_json::to_vec(&payload)?;
 
         // Encrypt the payload
-        let encrypted = encrypt(&key, &iv, &payload_json)?;
+        #[cfg(feature = "native-crypto")]
+        let encrypted = encrypt(&key, nonce, &payload_json)?;
+
+        #[cfg(not(feature = "native-crypto"))]
+        let encrypted = encrypt(&key_bytes, &iv_bytes, &payload_json)?;
 
         let encrypted_payload = EncryptedPayload {
-            iv: base64_encode(&iv),
+            iv: base64_encode(&iv_bytes),
             payload: base64_encode(&encrypted),
         };
 
@@ -192,7 +205,9 @@ impl BridgeClient {
 
         Ok(Self {
             config,
+            #[cfg(feature = "native-crypto")]
             key,
+            key_bytes,
             request_id: create_response.request_id,
             client,
         })
@@ -201,7 +216,7 @@ impl BridgeClient {
     /// Returns the connect URL for the World App
     #[must_use]
     pub fn connect_url(&self) -> String {
-        let key_b64 = base64_encode(&self.key);
+        let key_b64 = base64_encode(&self.key_bytes);
         let bridge_param = if self.config.bridge_url == BridgeUrl::default() {
             String::new()
         } else {
@@ -250,7 +265,11 @@ impl BridgeClient {
                 let iv = base64_decode(&encrypted.iv)?;
                 let ciphertext = base64_decode(&encrypted.payload)?;
 
+                #[cfg(feature = "native-crypto")]
                 let plaintext = decrypt(&self.key, &iv, &ciphertext)?;
+
+                #[cfg(not(feature = "native-crypto"))]
+                let plaintext = decrypt(&self.key_bytes, &iv, &ciphertext)?;
 
                 let bridge_response: BridgeResponse = serde_json::from_slice(&plaintext)?;
 
@@ -293,24 +312,50 @@ mod tests {
 
     #[test]
     fn test_encrypted_payload() {
-        let (key, iv) = crate::crypto::generate_key().unwrap();
-        let plaintext = b"test payload";
+        #[cfg(feature = "native-crypto")]
+        {
+            let (_key_bytes, iv_bytes, key, nonce) = crate::crypto::generate_key().unwrap();
+            let plaintext = b"test payload";
 
-        let encrypted = encrypt(&key, &iv, plaintext).unwrap();
+            let encrypted = encrypt(&key, nonce, plaintext).unwrap();
 
-        let payload = EncryptedPayload {
-            iv: base64_encode(&iv),
-            payload: base64_encode(&encrypted),
-        };
+            let payload = EncryptedPayload {
+                iv: base64_encode(&iv_bytes),
+                payload: base64_encode(&encrypted),
+            };
 
-        assert!(!payload.iv.is_empty());
-        assert!(!payload.payload.is_empty());
+            assert!(!payload.iv.is_empty());
+            assert!(!payload.payload.is_empty());
 
-        // Verify we can decrypt
-        let decrypted_iv = base64_decode(&payload.iv).unwrap();
-        let decrypted_cipher = base64_decode(&payload.payload).unwrap();
-        let decrypted = decrypt(&key, &decrypted_iv, &decrypted_cipher).unwrap();
+            // Verify we can decrypt
+            let decrypted_iv = base64_decode(&payload.iv).unwrap();
+            let decrypted_cipher = base64_decode(&payload.payload).unwrap();
+            let decrypted = decrypt(&key, &decrypted_iv, &decrypted_cipher).unwrap();
 
-        assert_eq!(decrypted, plaintext);
+            assert_eq!(decrypted, plaintext);
+        }
+
+        #[cfg(not(feature = "native-crypto"))]
+        {
+            let (key, iv) = crate::crypto::generate_key().unwrap();
+            let plaintext = b"test payload";
+
+            let encrypted = encrypt(&key, &iv, plaintext).unwrap();
+
+            let payload = EncryptedPayload {
+                iv: base64_encode(&iv),
+                payload: base64_encode(&encrypted),
+            };
+
+            assert!(!payload.iv.is_empty());
+            assert!(!payload.payload.is_empty());
+
+            // Verify we can decrypt
+            let decrypted_iv = base64_decode(&payload.iv).unwrap();
+            let decrypted_cipher = base64_decode(&payload.payload).unwrap();
+            let decrypted = decrypt(&key, &decrypted_iv, &decrypted_cipher).unwrap();
+
+            assert_eq!(decrypted, plaintext);
+        }
     }
 }
