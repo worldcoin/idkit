@@ -1,10 +1,12 @@
-rootProject.name = "idkit"
-
 pluginManagement {
     repositories {
-        google()
         gradlePluginPortal()
+        google()
         mavenCentral()
+    }
+    plugins {
+        id("com.android.library") version "8.3.0"
+        id("org.jetbrains.kotlin.android") version "2.0.0"
     }
 }
 
@@ -14,3 +16,6 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
+
+rootProject.name = "idkit"
+include("lib")
