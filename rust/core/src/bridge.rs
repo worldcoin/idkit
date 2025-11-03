@@ -90,6 +90,7 @@ impl From<BridgeProof> for Proof {
 
 /// Status of a verification request
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi-bindings", derive(uniffi::Enum))]
 pub enum Status {
     /// Waiting for World App to retrieve the request
     WaitingForConnection,

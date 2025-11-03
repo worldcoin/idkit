@@ -1,21 +1,13 @@
 # IDKit - World ID SDK (Rust-Core Monorepo)
 
-A unified, Rust-powered SDK for integrating World ID verification into your applications. This monorepo consolidates all IDKit implementations (JavaScript, Swift, Kotlin) with a shared Rust core, ensuring consistency, performance, and maintainability across all platforms.
+IDKit is the toolkit for identity online. With IDKit you can easily interact with the [World ID Protocol](https://world.org/world-id).
 
-## 🚀 Features
+IDKit has multi-language support, facilitated by this monorepo which uses a common Rust core.
 
-- **Single Source of Truth**: Core logic implemented once in Rust, shared across all platforms
-- **New Declarative API**: Flexible constraint system for requesting credentials with AND/OR logic
-- **Multi-Platform**: Native bindings for Swift (iOS/macOS), Kotlin (Android/JVM), and JavaScript (Browser/Node.js)
-- **Type-Safe**: Strong typing across all platforms via UniFFI and WASM
-- **Performance**: Rust-powered cryptography and proof verification
-- **Face Auth Support**: Request face authentication with orb or face credentials
-- **Backward Compatible**: Helpers for migrating from the old `verification_level` API
-
-## 📦 Packages
+## Packages
 
 ### Rust Core
-- **`idkit-core`**: Core Rust implementation with all business logic
+- **`idkit-core`**: Core Rust implementation
 - **`idkit-uniffi`**: UniFFI bindings generator for Swift and Kotlin
 - **`idkit-wasm`**: WebAssembly bindings for browsers
 
@@ -34,26 +26,26 @@ A unified, Rust-powered SDK for integrating World ID verification into your appl
 ┌─────────────────────────────────────────────────┐
 │              Platform UIs & Wrappers            │
 │  (React, React Native, Swift UI, Compose)       │
-└────────────┬─────────────┬──────────────────────┘
-             │             │
-    ┌────────┴────┐   ┌────┴──────┐
-    │  UniFFI     │   │   WASM    │
-    │  Bindings   │   │  Bindings │
-    │(Swift/Kotlin)│  │(Browser/  │
-    └────────┬────┘   │ Node.js)  │
-             │        └─────┬─────┘
-             │              │
-        ┌────┴──────────────┴─────┐
-        │    Rust Core (idkit-core)│
-        │  • Types & Constraints   │
-        │  • Bridge Protocol       │
-        │  • Cryptography          │
-        │  • Session Management    │
-        │  • Proof Verification    │
-        └──────────────────────────┘
+└─────────────────┬──────────────┬────────────────┘
+                  │              │
+         ┌────────┴─────┐   ┌────┴──────┐
+         │  UniFFI      │   │   WASM    │
+         │  Bindings    │   │  Bindings │
+         │(Swift/Kotlin)│   │(Browser/  │
+         └────────┬─────┘   │ Node.js)  │
+                  │         └─────┬─────┘
+                  │               │
+             ┌────┴───────────────┴─────┐
+             │   Rust IDKit Core        │
+             │  • Types & Constraints   │
+             │  • Bridge interactions   │
+             │  • Cryptography          │
+             │  • Session Management    │
+             │  • Proof Verification    │
+             └──────────────────────────┘
 ```
 
-## 🎯 New API Design
+## API Design
 
 ### Declarative Credential Requests
 
@@ -99,7 +91,7 @@ Constraints::new(ConstraintNode::Any {
 })
 ```
 
-## 🚦 Getting Started
+## Getting Started
 
 ### Rust
 
@@ -214,49 +206,10 @@ cargo test --workspace
 cd js && pnpm test
 ```
 
-## 📚 Documentation
+## Documentation
 
-- [API Reference](./docs/API.md)
-- [Migration Guide](./docs/MIGRATION.md)
-- [Architecture](./docs/ARCHITECTURE.md)
-- [Building & Deployment](./docs/BUILD.md)
+All the technical docs for the World ID SDK, World ID Protocol, examples, guides can be found at https://docs.world.org/
 
-## 🔄 Migration from v2.x
-
-The new API is a breaking change from v2.x. See the [Migration Guide](./docs/MIGRATION.md) for details.
-
-**Quick migration:**
-
-```rust
-// Old API (v2.x)
-Session::new(
-    app_id,
-    "action",
-    VerificationLevel::Orb,
-    bridge_url,
-    "signal",
-    None
-).await
-
-// New API (v3.0)
-SessionConfig::from_verification_level(
-    app_id,
-    "action",
-    VerificationLevel::Orb,
-    "signal"
-)
-```
-
-## 📄 License
+## License
 
 MIT License - see [LICENSE](./LICENSE) for details.
-
-## 🙏 Contributing
-
-Contributions are welcome! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
-
-## 🔗 Links
-
-- [World ID Documentation](https://docs.world.org/world-id)
-- [Developer Portal](https://developer.worldcoin.org)
-- [Discord Community](https://discord.gg/worldcoin)

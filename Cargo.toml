@@ -42,7 +42,7 @@ uuid = { version = "1.10", features = ["v4", "serde"] }
 url = "2.5"
 
 # UniFFI
-uniffi = "0.28"
+uniffi = "0.30"
 
 # WASM
 wasm-bindgen = "0.2"

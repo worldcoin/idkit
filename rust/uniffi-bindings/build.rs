@@ -1,3 +1,3 @@
-fn main() {
-    uniffi::generate_scaffolding("src/idkit.udl").unwrap();
-}
+// No build script needed with proc macros!
+// UniFFI scaffolding is generated automatically via uniffi::setup_scaffolding!()
+fn main() {}

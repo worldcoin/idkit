@@ -5,6 +5,7 @@ use std::collections::HashSet;
 
 /// Credential types that can be requested
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi-bindings", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum Credential {
     /// Orb credential
@@ -47,6 +48,7 @@ impl Credential {
 
 /// A single credential request
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi-bindings", derive(uniffi::Record))]
 pub struct Request {
     /// The type of credential being requested
     #[serde(rename = "type")]
@@ -100,6 +102,7 @@ impl Request {
 
 /// The proof of verification returned by the World ID protocol
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi-bindings", derive(uniffi::Record))]
 pub struct Proof {
     /// The Zero-knowledge proof of the verification (hex string, ABI encoded)
     pub proof: String,
@@ -226,6 +229,7 @@ impl<'de> Deserialize<'de> for BridgeUrl {
 
 /// Legacy verification level (for backward compatibility)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "uniffi-bindings", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum VerificationLevel {
     /// Orb-only verification

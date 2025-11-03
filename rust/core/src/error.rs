@@ -14,7 +14,13 @@ pub enum Error {
 
     /// Bridge communication error
     #[error("Bridge error: {0}")]
+    #[cfg(feature = "bridge-client")]
     Bridge(#[from] reqwest::Error),
+
+    /// Bridge communication error (WASM)
+    #[error("Bridge error: {0}")]
+    #[cfg(not(feature = "bridge-client"))]
+    BridgeError(String),
 
     /// JSON serialization/deserialization error
     #[error("JSON error: {0}")]
@@ -55,6 +61,7 @@ pub enum Error {
 
 /// Errors returned by the World App
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "uniffi-bindings", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum AppError {
     /// User rejected the request

@@ -1,142 +1,181 @@
 //! UniFFI bindings for IDKit
 //!
 //! This crate generates Swift and Kotlin bindings for the core IDKit library.
+//!
+//! Note: This uses a blocking runtime wrapper to make async Session work with UniFFI.
 
 use idkit_core::{
-    AppId, BridgeUrl, Constraints, ConstraintNode, Credential, Error, Proof, Request, Session,
-    SessionConfig, VerificationLevel,
+    bridge::Status as CoreStatus,
+    session::{Session, SessionConfig},
+    AppId, Proof, Request, VerificationLevel,
 };
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use tokio::runtime::Runtime;
 
-// Re-export types for UniFFI
-pub use idkit_core::bridge::Status;
+/// Error type for UniFFI
+#[derive(Debug, thiserror::Error, uniffi::Error)]
+#[uniffi(flat_error)]
+pub enum IdkitError {
+    #[error("Invalid configuration: {0}")]
+    InvalidConfiguration(String),
+    #[error("Network error: {0}")]
+    NetworkError(String),
+    #[error("Cryptography error: {0}")]
+    CryptoError(String),
+    #[error("Application error: {0}")]
+    AppError(String),
+    #[error("Timeout")]
+    Timeout,
+    #[error("Invalid proof: {0}")]
+    InvalidProof(String),
+}
 
-uniffi::setup_scaffolding!();
+impl From<idkit_core::Error> for IdkitError {
+    fn from(e: idkit_core::Error) -> Self {
+        match e {
+            idkit_core::Error::InvalidConfiguration(s) => IdkitError::InvalidConfiguration(s),
+            idkit_core::Error::Timeout => IdkitError::Timeout,
+            idkit_core::Error::InvalidProof(s) => IdkitError::InvalidProof(s),
+            idkit_core::Error::AppError(e) => IdkitError::AppError(e.to_string()),
+            _ => IdkitError::NetworkError(e.to_string()),
+        }
+    }
+}
 
-/// Initialize the UniFFI library
+/// Request configuration for UniFFI (wrapper around core Request)
+#[derive(Clone, uniffi::Record)]
+pub struct RequestConfig {
+    pub credential_type: idkit_core::Credential,
+    pub signal: String,
+    pub face_auth: Option<bool>,
+}
+
+impl From<RequestConfig> for Request {
+    fn from(config: RequestConfig) -> Self {
+        let mut request = Request::new(config.credential_type, config.signal);
+        if let Some(fa) = config.face_auth {
+            request = request.with_face_auth(fa);
+        }
+        request
+    }
+}
+
+/// Session status
+#[derive(Clone, uniffi::Enum)]
+pub enum SessionStatus {
+    WaitingForConnection,
+    AwaitingConfirmation,
+    Confirmed { proof: Proof },
+    Failed { error: String },
+}
+
+/// IDKit session for verification
+///
+/// This wraps the async Session in a blocking interface for UniFFI compatibility.
+#[derive(uniffi::Object)]
+pub struct IdkitSession {
+    runtime: Arc<Mutex<Runtime>>,
+    session: Arc<Session>,
+}
+
 #[uniffi::export]
-fn init() {
+impl IdkitSession {
+    /// Creates a new session from verification level (legacy API)
+    #[uniffi::constructor]
+    pub fn from_verification_level(
+        app_id: String,
+        action: String,
+        verification_level: VerificationLevel,
+        signal: String,
+    ) -> Result<Self, IdkitError> {
+        let app_id = AppId::new(app_id)?;
+        let config = SessionConfig::from_verification_level(app_id, action, verification_level, signal);
+
+        // Create runtime for blocking async operations
+        let runtime = Runtime::new().map_err(|e| {
+            IdkitError::InvalidConfiguration(format!("Failed to create runtime: {}", e))
+        })?;
+
+        // Create session using blocking runtime
+        let session = runtime.block_on(Session::create(config))?;
+
+        Ok(Self {
+            runtime: Arc::new(Mutex::new(runtime)),
+            session: Arc::new(session),
+        })
+    }
+
+    /// Creates a new session with requests
+    #[uniffi::constructor]
+    pub fn with_requests(
+        app_id: String,
+        action: String,
+        requests: Vec<RequestConfig>,
+    ) -> Result<Self, IdkitError> {
+        let app_id = AppId::new(app_id)?;
+
+        let mut config = SessionConfig::new(app_id, action);
+        for req in requests {
+            config = config.with_request(req.into());
+        }
+
+        // Create runtime for blocking async operations
+        let runtime = Runtime::new().map_err(|e| {
+            IdkitError::InvalidConfiguration(format!("Failed to create runtime: {}", e))
+        })?;
+
+        // Create session using blocking runtime
+        let session = runtime.block_on(Session::create(config))?;
+
+        Ok(Self {
+            runtime: Arc::new(Mutex::new(runtime)),
+            session: Arc::new(session),
+        })
+    }
+
+    /// Get the connect URL for the World App
+    pub fn connect_url(&self) -> String {
+        self.session.connect_url()
+    }
+
+    /// Poll for the current status (blocking)
+    pub fn poll(&self) -> Result<SessionStatus, IdkitError> {
+        let runtime = self.runtime.lock().unwrap();
+        let status = runtime.block_on(self.session.poll())?;
+
+        Ok(match status {
+            CoreStatus::WaitingForConnection => SessionStatus::WaitingForConnection,
+            CoreStatus::AwaitingConfirmation => SessionStatus::AwaitingConfirmation,
+            CoreStatus::Confirmed(proof) => SessionStatus::Confirmed { proof },
+            CoreStatus::Failed(err) => SessionStatus::Failed {
+                error: err.to_string(),
+            },
+        })
+    }
+
+    /// Wait for a proof (blocking, with optional timeout in milliseconds)
+    pub fn wait_for_proof(&self, timeout_ms: Option<u64>) -> Result<Proof, IdkitError> {
+        let runtime = self.runtime.lock().unwrap();
+
+        let proof = if let Some(ms) = timeout_ms {
+            runtime.block_on(
+                self.session
+                    .wait_for_proof_with_timeout(std::time::Duration::from_millis(ms)),
+            )?
+        } else {
+            // Default 2 minute timeout
+            runtime.block_on(self.session.wait_for_proof())?
+        };
+
+        Ok(proof)
+    }
+}
+
+/// Initialize the library
+#[uniffi::export]
+pub fn init() {
     // Initialization logic if needed
 }
 
-/// Creates a new AppId
-#[uniffi::export]
-fn create_app_id(app_id: String) -> Result<Arc<AppId>, String> {
-    AppId::new(app_id)
-        .map(Arc::new)
-        .map_err(|e| e.to_string())
-}
-
-/// Creates a new Request
-#[uniffi::export]
-fn create_request(
-    credential_type: Credential,
-    signal: String,
-    face_auth: Option<bool>,
-) -> Arc<Request> {
-    let mut request = Request::new(credential_type, signal);
-    if let Some(fa) = face_auth {
-        request = request.with_face_auth(fa);
-    }
-    Arc::new(request)
-}
-
-/// Creates an "any" constraint (OR logic)
-#[uniffi::export]
-fn create_any_constraint(credentials: Vec<Credential>) -> Arc<Constraints> {
-    Arc::new(Constraints::any(credentials))
-}
-
-/// Creates an "all" constraint (AND logic)
-#[uniffi::export]
-fn create_all_constraint(credentials: Vec<Credential>) -> Arc<Constraints> {
-    Arc::new(Constraints::all(credentials))
-}
-
-/// Creates a session config from verification level (backward compatibility)
-#[uniffi::export]
-fn create_session_config_from_verification_level(
-    app_id: Arc<AppId>,
-    action: String,
-    verification_level: VerificationLevel,
-    signal: String,
-) -> Arc<SessionConfig> {
-    Arc::new(SessionConfig::from_verification_level(
-        (*app_id).clone(),
-        action,
-        verification_level,
-        signal,
-    ))
-}
-
-/// Creates a new session config
-#[uniffi::export]
-fn create_session_config(app_id: Arc<AppId>, action: String) -> Arc<SessionConfig> {
-    Arc::new(SessionConfig::new((*app_id).clone(), action))
-}
-
-/// Adds a request to a session config
-#[uniffi::export]
-fn session_config_add_request(
-    config: Arc<SessionConfig>,
-    request: Arc<Request>,
-) -> Arc<SessionConfig> {
-    let mut new_config = (*config).clone();
-    new_config.requests.push((*request).clone());
-    Arc::new(new_config)
-}
-
-/// Sets constraints on a session config
-#[uniffi::export]
-fn session_config_set_constraints(
-    config: Arc<SessionConfig>,
-    constraints: Arc<Constraints>,
-) -> Arc<SessionConfig> {
-    let mut new_config = (*config).clone();
-    new_config.constraints = Some((*constraints).clone());
-    Arc::new(new_config)
-}
-
-/// Creates a session
-#[uniffi::export(async_runtime = "tokio")]
-async fn create_session(config: Arc<SessionConfig>) -> Result<Arc<Session>, String> {
-    Session::create((*config).clone())
-        .await
-        .map(Arc::new)
-        .map_err(|e| e.to_string())
-}
-
-/// Gets the connect URL for a session
-#[uniffi::export]
-fn session_connect_url(session: Arc<Session>) -> String {
-    session.connect_url()
-}
-
-/// Polls a session for status
-#[uniffi::export(async_runtime = "tokio")]
-async fn session_poll(session: Arc<Session>) -> Result<Status, String> {
-    session.poll().await.map_err(|e| e.to_string())
-}
-
-/// Waits for a proof from a session
-#[uniffi::export(async_runtime = "tokio")]
-async fn session_wait_for_proof(session: Arc<Session>) -> Result<Arc<Proof>, String> {
-    session
-        .wait_for_proof()
-        .await
-        .map(Arc::new)
-        .map_err(|e| e.to_string())
-}
-
-/// Verifies a proof using the Developer Portal API
-#[uniffi::export(async_runtime = "tokio")]
-async fn verify_proof(
-    proof: Arc<Proof>,
-    app_id: Arc<AppId>,
-    action: String,
-    signal: String,
-) -> Result<(), String> {
-    idkit_core::verify_proof((*proof).clone(), &*app_id, &action, signal.as_bytes())
-        .await
-        .map_err(|e| e.to_string())
-}
+// Generate UniFFI scaffolding
+uniffi::setup_scaffolding!();

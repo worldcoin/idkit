@@ -1,17 +1,19 @@
 //! Cryptographic utilities for IDKit
 
 use crate::{Error, Result};
+use tiny_keccak::{Hasher, Keccak};
+
+// ============================================================================
+// Native (non-WASM) implementation using ring
+// ============================================================================
+
+#[cfg(feature = "native-crypto")]
 use ring::{
     aead::{self, LessSafeKey, Nonce, UnboundKey},
     rand::{SecureRandom, SystemRandom},
 };
-use tiny_keccak::{Hasher, Keccak};
 
-/// Generates a secure random AES-256-GCM key and initialization vector
-///
-/// # Errors
-///
-/// Returns an error if random number generation fails
+#[cfg(feature = "native-crypto")]
 pub fn generate_key() -> Result<(Vec<u8>, Vec<u8>)> {
     let rng = SystemRandom::new();
 
@@ -26,11 +28,7 @@ pub fn generate_key() -> Result<(Vec<u8>, Vec<u8>)> {
     Ok((key_bytes, iv))
 }
 
-/// Encrypts a payload using AES-256-GCM
-///
-/// # Errors
-///
-/// Returns an error if encryption fails
+#[cfg(feature = "native-crypto")]
 pub fn encrypt(key: &[u8], iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
     let unbound_key = UnboundKey::new(&aead::AES_256_GCM, key)
         .map_err(|_| Error::Crypto("Failed to create key".to_string()))?;
@@ -48,11 +46,7 @@ pub fn encrypt(key: &[u8], iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
     Ok(ciphertext)
 }
 
-/// Decrypts a payload using AES-256-GCM
-///
-/// # Errors
-///
-/// Returns an error if decryption fails
+#[cfg(feature = "native-crypto")]
 pub fn decrypt(key: &[u8], iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
     let unbound_key = UnboundKey::new(&aead::AES_256_GCM, key)
         .map_err(|_| Error::Crypto("Failed to create key".to_string()))?;
@@ -69,6 +63,43 @@ pub fn decrypt(key: &[u8], iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
 
     Ok(decrypted.to_vec())
 }
+
+// ============================================================================
+// WASM implementation using getrandom
+// ============================================================================
+
+#[cfg(all(target_arch = "wasm32", not(feature = "native-crypto")))]
+pub fn generate_key() -> Result<(Vec<u8>, Vec<u8>)> {
+    use getrandom::getrandom;
+
+    let mut key_bytes = vec![0u8; 32]; // 256 bits
+    getrandom(&mut key_bytes)
+        .map_err(|e| Error::Crypto(format!("Failed to generate key: {}", e)))?;
+
+    let mut iv = vec![0u8; 12]; // AES-GCM nonce length
+    getrandom(&mut iv)
+        .map_err(|e| Error::Crypto(format!("Failed to generate IV: {}", e)))?;
+
+    Ok((key_bytes, iv))
+}
+
+#[cfg(all(target_arch = "wasm32", not(feature = "native-crypto")))]
+pub fn encrypt(_key: &[u8], _iv: &[u8], _plaintext: &[u8]) -> Result<Vec<u8>> {
+    // Note: Encryption is not used in WASM (client-side only needs to receive encrypted data)
+    // If needed in the future, implement using Web Crypto API
+    Err(Error::Crypto("Encryption not supported in WASM build".to_string()))
+}
+
+#[cfg(all(target_arch = "wasm32", not(feature = "native-crypto")))]
+pub fn decrypt(_key: &[u8], _iv: &[u8], _ciphertext: &[u8]) -> Result<Vec<u8>> {
+    // Note: Decryption is not used in WASM (client-side only needs to send encrypted data)
+    // If needed in the future, implement using Web Crypto API
+    Err(Error::Crypto("Decryption not supported in WASM build".to_string()))
+}
+
+// ============================================================================
+// Common implementations (work on both native and WASM)
+// ============================================================================
 
 /// Hashes a value to a field element using Keccak256
 ///
@@ -135,9 +166,18 @@ mod tests {
     fn test_generate_key() {
         let (key, iv) = generate_key().unwrap();
         assert_eq!(key.len(), 32);
-        assert_eq!(iv.len(), aead::NONCE_LEN);
+        #[cfg(feature = "native-crypto")]
+        {
+            use ring::aead;
+            assert_eq!(iv.len(), aead::NONCE_LEN);
+        }
+        #[cfg(not(feature = "native-crypto"))]
+        {
+            assert_eq!(iv.len(), 12);
+        }
     }
 
+    #[cfg(feature = "native-crypto")]
     #[test]
     fn test_encrypt_decrypt() {
         let (key, iv) = generate_key().unwrap();
