@@ -1114,7 +1114,6 @@ dependencies = [
  "base64",
  "getrandom 0.2.16",
  "hex",
- "js-sys",
  "ruint",
  "serde",
  "serde_json",
@@ -1122,9 +1121,6 @@ dependencies = [
  "tiny-keccak",
  "uniffi",
  "url",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]

@@ -1,6 +1,7 @@
 //! Cryptographic utilities for `IDKit`
 
 use crate::{Error, Result};
+use getrandom::getrandom;
 use ruint::aliases::U256;
 use tiny_keccak::{Hasher, Keccak};
 
@@ -16,21 +17,17 @@ use aes_gcm::{
 
 /// Generates a random encryption key and nonce for AES-256-GCM
 ///
-/// Returns a tuple of (`key_bytes`, `nonce_bytes`) where both can be used
-/// for serialization and transmission
+/// Returns a tuple of (`key_bytes`, `nonce_bytes`) as fixed-size arrays
 ///
 /// # Errors
 ///
 /// Returns an error if the random number generator fails
 #[cfg(feature = "native-crypto")]
-pub fn generate_key() -> Result<(Vec<u8>, Vec<u8>)> {
-    use getrandom::getrandom;
+pub fn generate_key() -> Result<([u8; 32], [u8; 12])> {
+    let mut key_bytes = [0u8; 32]; // 256 bits
+    getrandom(&mut key_bytes).map_err(|e| Error::Crypto(format!("Failed to generate key: {e}")))?;
 
-    let mut key_bytes = vec![0u8; 32]; // 256 bits
-    getrandom(&mut key_bytes)
-        .map_err(|e| Error::Crypto(format!("Failed to generate key: {e}")))?;
-
-    let mut nonce_bytes = vec![0u8; 12]; // AES-GCM standard nonce length
+    let mut nonce_bytes = [0u8; 12]; // AES-GCM standard nonce length
     getrandom(&mut nonce_bytes)
         .map_err(|e| Error::Crypto(format!("Failed to generate nonce: {e}")))?;
 
@@ -94,126 +91,81 @@ pub fn decrypt(key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
 }
 
 // ============================================================================
-// WASM implementation using getrandom
+// WASM implementation using RustCrypto (pure Rust, same as native)
 // ============================================================================
 
 #[cfg(all(target_arch = "wasm32", feature = "wasm-crypto"))]
-pub fn generate_key() -> Result<(Vec<u8>, Vec<u8>)> {
-    use getrandom::getrandom;
+use aes_gcm::{
+    aead::{Aead, KeyInit},
+    Aes256Gcm, Nonce,
+};
 
-    let mut key_bytes = vec![0u8; 32]; // 256 bits
-    getrandom(&mut key_bytes)
-        .map_err(|e| Error::Crypto(format!("Failed to generate key: {e}")))?;
+#[cfg(all(target_arch = "wasm32", feature = "wasm-crypto"))]
+pub fn generate_key() -> Result<([u8; 32], [u8; 12])> {
+    let mut key_bytes = [0u8; 32]; // 256 bits
+    getrandom(&mut key_bytes).map_err(|e| Error::Crypto(format!("Failed to generate key: {e}")))?;
 
-    let mut iv = vec![0u8; 12]; // AES-GCM nonce length
-    getrandom(&mut iv)
-        .map_err(|e| Error::Crypto(format!("Failed to generate IV: {e}")))?;
+    let mut nonce_bytes = [0u8; 12]; // AES-GCM nonce length
+    getrandom(&mut nonce_bytes)
+        .map_err(|e| Error::Crypto(format!("Failed to generate nonce: {e}")))?;
 
-    Ok((key_bytes, iv))
+    Ok((key_bytes, nonce_bytes))
 }
 
-/// Encrypts plaintext using AES-256-GCM via Web Crypto API
+/// Encrypts plaintext using AES-256-GCM (pure Rust implementation)
 ///
 /// # Errors
 ///
-/// Returns an error if encryption fails or Web Crypto API is not available
+/// Returns an error if encryption fails
 #[cfg(all(target_arch = "wasm32", feature = "wasm-crypto"))]
-pub async fn encrypt(key: &[u8], iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
-    use js_sys::{Object, Reflect, Uint8Array};
-    use wasm_bindgen::JsValue;
-    use wasm_bindgen_futures::JsFuture;
-    use web_sys::window;
+pub fn encrypt(key: &[u8], nonce: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
+    if key.len() != 32 {
+        return Err(Error::Crypto("Key must be 32 bytes".to_string()));
+    }
+    if nonce.len() != 12 {
+        return Err(Error::Crypto("Nonce must be 12 bytes".to_string()));
+    }
 
-    let window = window().ok_or_else(|| Error::Crypto("Window not available".to_string()))?;
-    let crypto = window
-        .crypto()
-        .map_err(|_| Error::Crypto("Crypto API not available".to_string()))?;
-    let subtle = crypto.subtle();
+    let cipher = Aes256Gcm::new_from_slice(key)
+        .map_err(|_| Error::Crypto("Invalid key length".to_string()))?;
 
-    // Import key
-    let key_array = Uint8Array::from(key);
-    let key_obj = Object::new();
-    Reflect::set(&key_obj, &"name".into(), &"AES-GCM".into())
-        .map_err(|_| Error::Crypto("Failed to create key object".to_string()))?;
+    // Convert slice to array and then to GenericArray
+    let nonce_array: [u8; 12] = nonce
+        .try_into()
+        .map_err(|_| Error::Crypto("Nonce must be exactly 12 bytes".to_string()))?;
+    let nonce_ref = Nonce::from(nonce_array);
 
-    let crypto_key = JsFuture::from(
-        subtle
-            .import_key_with_object("raw", &key_array, &key_obj, false, &js_sys::Array::of1(&"encrypt".into()))
-            .map_err(|_| Error::Crypto("Failed to import key".to_string()))?,
-    )
-    .await
-    .map_err(|_| Error::Crypto("Failed to import key".to_string()))?;
-
-    // Encrypt
-    let algorithm = Object::new();
-    Reflect::set(&algorithm, &"name".into(), &"AES-GCM".into())
-        .map_err(|_| Error::Crypto("Failed to create algorithm object".to_string()))?;
-    Reflect::set(&algorithm, &"iv".into(), &Uint8Array::from(iv))
-        .map_err(|_| Error::Crypto("Failed to set IV".to_string()))?;
-
-    let plaintext_array = Uint8Array::from(plaintext);
-    let encrypted = JsFuture::from(
-        subtle
-            .encrypt_with_object_and_u8_array(&algorithm, &crypto_key.into(), &plaintext_array)
-            .map_err(|_| Error::Crypto("Encryption failed".to_string()))?,
-    )
-    .await
-    .map_err(|_| Error::Crypto("Encryption failed".to_string()))?;
-
-    let result = Uint8Array::new(&encrypted);
-    Ok(result.to_vec())
+    cipher
+        .encrypt(&nonce_ref, plaintext)
+        .map_err(|_| Error::Crypto("Encryption failed".to_string()))
 }
 
-/// Decrypts ciphertext using AES-256-GCM via Web Crypto API
+/// Decrypts ciphertext using AES-256-GCM (pure Rust implementation)
 ///
 /// # Errors
 ///
-/// Returns an error if decryption fails or Web Crypto API is not available
+/// Returns an error if the nonce is invalid or decryption fails
 #[cfg(all(target_arch = "wasm32", feature = "wasm-crypto"))]
-pub async fn decrypt(key: &[u8], iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
-    use js_sys::{Object, Reflect, Uint8Array};
-    use wasm_bindgen::JsValue;
-    use wasm_bindgen_futures::JsFuture;
-    use web_sys::window;
+pub fn decrypt(key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
+    if key.len() != 32 {
+        return Err(Error::Crypto("Key must be 32 bytes".to_string()));
+    }
+    if nonce.len() != 12 {
+        return Err(Error::Crypto("Nonce must be 12 bytes".to_string()));
+    }
 
-    let window = window().ok_or_else(|| Error::Crypto("Window not available".to_string()))?;
-    let crypto = window
-        .crypto()
-        .map_err(|_| Error::Crypto("Crypto API not available".to_string()))?;
-    let subtle = crypto.subtle();
+    let cipher = Aes256Gcm::new_from_slice(key)
+        .map_err(|_| Error::Crypto("Invalid key length".to_string()))?;
 
-    // Import key
-    let key_array = Uint8Array::from(key);
-    let key_obj = Object::new();
-    Reflect::set(&key_obj, &"name".into(), &"AES-GCM".into())
-        .map_err(|_| Error::Crypto("Failed to create key object".to_string()))?;
+    // Convert slice to array and then to GenericArray
+    let nonce_array: [u8; 12] = nonce
+        .try_into()
+        .map_err(|_| Error::Crypto("Nonce must be exactly 12 bytes".to_string()))?;
+    let nonce_ref = Nonce::from(nonce_array);
 
-    let crypto_key = JsFuture::from(
-        subtle
-            .import_key_with_object("raw", &key_array, &key_obj, false, &js_sys::Array::of1(&"decrypt".into()))
-            .map_err(|_| Error::Crypto("Failed to import key".to_string()))?,
-    )
-    .await
-    .map_err(|_| Error::Crypto("Failed to import key".to_string()))?;
-
-    // Decrypt
-    let algorithm = Object::new();
-    Reflect::set(&algorithm, &"name".into(), &"AES-GCM".into())
-        .map_err(|_| Error::Crypto("Failed to create algorithm object".to_string()))?;
-    Reflect::set(&algorithm, &"iv".into(), &Uint8Array::from(iv))
-        .map_err(|_| Error::Crypto("Failed to set IV".to_string()))?;
-
-    let ciphertext_array = Uint8Array::from(ciphertext);
-    let decrypted = JsFuture::from(
-        subtle
-            .decrypt_with_object_and_u8_array(&algorithm, &crypto_key.into(), &ciphertext_array)
-            .map_err(|_| Error::Crypto("Decryption failed".to_string()))?,
-    )
-    .await
-    .map_err(|_| Error::Crypto("Decryption failed".to_string()))?;
-
-    let result = Uint8Array::new(&decrypted);
-    Ok(result.to_vec())
+    cipher
+        .decrypt(&nonce_ref, ciphertext)
+        .map_err(|_| Error::Crypto("Decryption failed".to_string()))
 }
 
 // ============================================================================
@@ -231,8 +183,8 @@ pub fn hash_to_field(input: &[u8]) -> U256 {
     hasher.finalize(&mut output);
 
     // Convert to U256 and shift right by 8 bits (1 byte) to fit within the field prime
-    let n = U256::try_from_be_slice(&output)
-        .unwrap_or_else(|| unreachable!("32 bytes fit in U256"));
+    let n =
+        U256::try_from_be_slice(&output).unwrap_or_else(|| unreachable!("32 bytes fit in U256"));
 
     n >> 8
 }
@@ -269,7 +221,7 @@ pub fn encode_action(action: &str) -> String {
 /// Base64 encodes bytes
 #[must_use]
 pub fn base64_encode(input: &[u8]) -> String {
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
     STANDARD.encode(input)
 }
 
@@ -279,7 +231,7 @@ pub fn base64_encode(input: &[u8]) -> String {
 ///
 /// Returns an error if the input is not valid base64
 pub fn base64_decode(input: &str) -> Result<Vec<u8>> {
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
     Ok(STANDARD.decode(input)?)
 }
 

@@ -21,14 +21,8 @@ alloy-sol-types = { workspace = true }
 ruint = { workspace = true }
 uniffi = { workspace = true, optional = true }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-web-sys = { version = "0.3", features = ["Window", "Crypto", "SubtleCrypto", "CryptoKey"], optional = true }
-js-sys = { version = "0.3", optional = true }
-wasm-bindgen = { version = "0.2", optional = true }
-wasm-bindgen-futures = { version = "0.4", optional = true }
-
 [features]
 default = ["native-crypto"]
 native-crypto = ["aes-gcm"]
-wasm-crypto = ["dep:web-sys", "dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures"]
+wasm-crypto = ["aes-gcm"]
 uniffi-bindings = ["uniffi"]
