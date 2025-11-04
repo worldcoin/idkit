@@ -154,7 +154,7 @@ pub async fn encrypt(key: &[u8], iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>>
     let plaintext_array = Uint8Array::from(plaintext);
     let encrypted = JsFuture::from(
         subtle
-            .encrypt_with_object_and_u8_array(&algorithm, &crypto_key.into(), plaintext)
+            .encrypt_with_object_and_u8_array(&algorithm, &crypto_key.into(), &plaintext_array)
             .map_err(|_| Error::Crypto("Encryption failed".to_string()))?,
     )
     .await
@@ -206,7 +206,7 @@ pub async fn decrypt(key: &[u8], iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>
     let ciphertext_array = Uint8Array::from(ciphertext);
     let decrypted = JsFuture::from(
         subtle
-            .decrypt_with_object_and_u8_array(&algorithm, &crypto_key.into(), ciphertext)
+            .decrypt_with_object_and_u8_array(&algorithm, &crypto_key.into(), &ciphertext_array)
             .map_err(|_| Error::Crypto("Decryption failed".to_string()))?,
     )
     .await
