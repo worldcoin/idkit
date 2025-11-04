@@ -105,14 +105,16 @@ pub fn generate_key() -> Result<(Vec<u8>, Vec<u8>)> {
 
 #[cfg(all(target_arch = "wasm32", not(feature = "native-crypto")))]
 pub fn encrypt(_key: &[u8], _iv: &[u8], _plaintext: &[u8]) -> Result<Vec<u8>> {
-    // Note: Encryption is not used in WASM (client-side only needs to receive encrypted data)
+    // Note: Encryption not implemented in WASM build (Phase 1)
+    // Client-side encryption/decryption will be added when bridge client is implemented
     // If needed in the future, implement using Web Crypto API
     Err(Error::Crypto("Encryption not supported in WASM build".to_string()))
 }
 
 #[cfg(all(target_arch = "wasm32", not(feature = "native-crypto")))]
 pub fn decrypt(_key: &[u8], _iv: &[u8], _ciphertext: &[u8]) -> Result<Vec<u8>> {
-    // Note: Decryption is not used in WASM (client-side only needs to send encrypted data)
+    // Note: Decryption not implemented in WASM build (Phase 1)
+    // Client-side encryption/decryption will be added when bridge client is implemented
     // If needed in the future, implement using Web Crypto API
     Err(Error::Crypto("Decryption not supported in WASM build".to_string()))
 }

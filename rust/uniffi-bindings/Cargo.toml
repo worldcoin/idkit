@@ -19,5 +19,3 @@ serde_json = { workspace = true }
 
 [build-dependencies]
 uniffi = { workspace = true, features = ["build"] }
-
-# Using cargo-installed uniffi-bindgen CLI tool instead of custom binary
