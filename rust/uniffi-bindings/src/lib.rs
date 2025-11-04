@@ -82,6 +82,7 @@ impl From<idkit_core::Error> for IdkitError {
             idkit_core::Error::UnexpectedResponse => Self::UnexpectedResponse,
             idkit_core::Error::ConnectionFailed => Self::ConnectionFailed,
             idkit_core::Error::Timeout => Self::Timeout,
+            idkit_core::Error::Http(e) => Self::BridgeError { message: e.to_string() },
         }
     }
 }

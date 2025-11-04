@@ -20,9 +20,16 @@ url = { workspace = true }
 alloy-sol-types = { workspace = true }
 ruint = { workspace = true }
 uniffi = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+urlencoding = { workspace = true, optional = true }
 
 [features]
-default = ["native-crypto"]
+default = ["native-crypto", "bridge", "session", "verification"]
 native-crypto = ["aes-gcm"]
 wasm-crypto = ["aes-gcm"]
 uniffi-bindings = ["uniffi"]
+bridge = ["uuid", "reqwest", "tokio", "urlencoding"]
+session = ["tokio", "bridge"]
+verification = ["reqwest", "tokio"]

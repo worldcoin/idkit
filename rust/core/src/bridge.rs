@@ -158,10 +158,13 @@ impl BridgeClient {
 
         // Generate encryption key and IV
         #[cfg(feature = "native-crypto")]
-        let (key_bytes, iv_bytes, key, nonce) = crate::crypto::generate_key()?;
+        let (key_bytes, nonce_bytes) = crate::crypto::generate_key()?;
+
+        #[cfg(feature = "native-crypto")]
+        let key = CryptoKey::new(key_bytes, nonce_bytes);
 
         #[cfg(not(feature = "native-crypto"))]
-        let (key_bytes, iv_bytes) = crate::crypto::generate_key()?;
+        let (key_bytes, nonce_bytes) = crate::crypto::generate_key()?;
 
         // Prepare the payload
         let payload = BridgeRequestPayload {
@@ -176,13 +179,13 @@ impl BridgeClient {
 
         // Encrypt the payload
         #[cfg(feature = "native-crypto")]
-        let encrypted = encrypt(&key, nonce, &payload_json)?;
+        let encrypted = encrypt(&key_bytes, &nonce_bytes, &payload_json)?;
 
         #[cfg(not(feature = "native-crypto"))]
-        let encrypted = encrypt(&key_bytes, &iv_bytes, &payload_json)?;
+        let encrypted = encrypt(&key_bytes, &nonce_bytes, &payload_json)?;
 
         let encrypted_payload = EncryptedPayload {
-            iv: base64_encode(&iv_bytes),
+            iv: base64_encode(&nonce_bytes),
             payload: base64_encode(&encrypted),
         };
 
@@ -207,7 +210,7 @@ impl BridgeClient {
             config,
             #[cfg(feature = "native-crypto")]
             key,
-            key_bytes,
+            key_bytes: key_bytes.to_vec(),
             request_id: create_response.request_id,
             client,
         })
@@ -262,11 +265,11 @@ impl BridgeClient {
             "completed" => {
                 let encrypted = poll_response.response.ok_or(Error::UnexpectedResponse)?;
 
-                let iv = base64_decode(&encrypted.iv)?;
+                let _iv = base64_decode(&encrypted.iv)?;
                 let ciphertext = base64_decode(&encrypted.payload)?;
 
                 #[cfg(feature = "native-crypto")]
-                let plaintext = decrypt(&self.key, &iv, &ciphertext)?;
+                let plaintext = decrypt(&self.key.key, &self.key.nonce, &ciphertext)?;
 
                 #[cfg(not(feature = "native-crypto"))]
                 let plaintext = decrypt(&self.key_bytes, &iv, &ciphertext)?;
@@ -292,11 +295,11 @@ impl BridgeClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{crypto::encode_signal_str, types::Credential};
+    use crate::types::{Credential, Signal};
 
     #[test]
     fn test_bridge_request_payload_serialization() {
-        let request = Request::new(Credential::Orb, encode_signal_str("test"));
+        let request = Request::new(Credential::Orb, Some(Signal::from_string("test")));
         let payload = BridgeRequestPayload {
             app_id: "app_test".to_string(),
             action: "test_action".to_string(),
@@ -314,13 +317,13 @@ mod tests {
     fn test_encrypted_payload() {
         #[cfg(feature = "native-crypto")]
         {
-            let (_key_bytes, iv_bytes, key, nonce) = crate::crypto::generate_key().unwrap();
+            let (key_bytes, nonce_bytes) = crate::crypto::generate_key().unwrap();
             let plaintext = b"test payload";
 
-            let encrypted = encrypt(&key, nonce, plaintext).unwrap();
+            let encrypted = encrypt(&key_bytes, &nonce_bytes, plaintext).unwrap();
 
             let payload = EncryptedPayload {
-                iv: base64_encode(&iv_bytes),
+                iv: base64_encode(&nonce_bytes),
                 payload: base64_encode(&encrypted),
             };
 
@@ -330,7 +333,7 @@ mod tests {
             // Verify we can decrypt
             let decrypted_iv = base64_decode(&payload.iv).unwrap();
             let decrypted_cipher = base64_decode(&payload.payload).unwrap();
-            let decrypted = decrypt(&key, &decrypted_iv, &decrypted_cipher).unwrap();
+            let decrypted = decrypt(&key_bytes, &decrypted_iv, &decrypted_cipher).unwrap();
 
             assert_eq!(decrypted, plaintext);
         }
@@ -353,7 +356,7 @@ mod tests {
             // Verify we can decrypt
             let decrypted_iv = base64_decode(&payload.iv).unwrap();
             let decrypted_cipher = base64_decode(&payload.payload).unwrap();
-            let decrypted = decrypt(&key, &decrypted_iv, &decrypted_cipher).unwrap();
+            let decrypted = decrypt(&key_bytes, &decrypted_iv, &decrypted_cipher).unwrap();
 
             assert_eq!(decrypted, plaintext);
         }

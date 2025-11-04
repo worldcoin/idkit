@@ -101,6 +101,35 @@ pub fn decrypt(key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
 // Common implementations (work on both native and WASM)
 // ============================================================================
 
+/// Cryptographic key wrapper for encryption/decryption
+#[cfg(any(feature = "native-crypto", feature = "wasm-crypto"))]
+#[derive(Debug, Clone)]
+pub struct CryptoKey {
+    /// AES-256 key (32 bytes)
+    pub key: [u8; 32],
+    /// Nonce for AES-GCM (12 bytes)
+    pub nonce: [u8; 12],
+}
+
+#[cfg(any(feature = "native-crypto", feature = "wasm-crypto"))]
+impl CryptoKey {
+    /// Creates a new crypto key from bytes
+    #[must_use]
+    pub const fn new(key: [u8; 32], nonce: [u8; 12]) -> Self {
+        Self { key, nonce }
+    }
+
+    /// Generates a random crypto key
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if random generation fails
+    pub fn generate() -> Result<Self> {
+        let (key, nonce) = generate_key()?;
+        Ok(Self { key, nonce })
+    }
+}
+
 /// Hashes a value to a field element using Keccak256
 ///
 /// The output is shifted right by 8 bits to fit within the field prime
@@ -134,6 +163,12 @@ pub fn encode_signal_abi<V: alloy_sol_types::SolValue>(signal: &V) -> U256 {
 pub fn encode_signal(signal: &crate::Signal) -> String {
     let hash = hash_to_field(signal.as_bytes());
     format!("{hash:#066x}")
+}
+
+/// Encodes a string signal
+#[must_use]
+pub fn encode_signal_str(signal: &str) -> String {
+    signal.to_string()
 }
 
 /// Encodes an action

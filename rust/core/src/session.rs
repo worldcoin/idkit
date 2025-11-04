@@ -2,7 +2,7 @@
 
 use crate::{
     bridge::{BridgeClient, BridgeConfig, Status},
-    types::{AppId, BridgeUrl, Proof, Request, VerificationLevel},
+    types::{AppId, BridgeUrl, Proof, Request, Signal, VerificationLevel},
     Constraints, ConstraintNode, Error, Result,
 };
 
@@ -97,7 +97,7 @@ impl SessionConfig {
 
         let requests = credentials
             .iter()
-            .map(|cred| Request::new(*cred, crate::crypto::encode_signal_str(&signal_str)))
+            .map(|cred| Request::new(*cred, Some(Signal::from_string(signal_str.clone()))))
             .collect();
 
         let constraints = Constraints::new(ConstraintNode::any(
@@ -211,7 +211,7 @@ mod tests {
             .with_description("Test description")
             .with_request(Request::new(
                 Credential::Orb,
-                crate::crypto::encode_signal_str("test"),
+                Some(Signal::from_string("test")),
             ))
             .with_constraints(Constraints::any(vec![Credential::Orb]));
 
