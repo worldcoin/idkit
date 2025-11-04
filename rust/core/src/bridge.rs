@@ -265,11 +265,13 @@ impl BridgeClient {
             "completed" => {
                 let encrypted = poll_response.response.ok_or(Error::UnexpectedResponse)?;
 
-                let _iv = base64_decode(&encrypted.iv)?;
+                let iv = base64_decode(&encrypted.iv)?;
                 let ciphertext = base64_decode(&encrypted.payload)?;
 
+                // Both paths use the IV from the encrypted response (not stored nonce)
+                // because the server encrypts with its own nonce
                 #[cfg(feature = "native-crypto")]
-                let plaintext = decrypt(&self.key.key, &self.key.nonce, &ciphertext)?;
+                let plaintext = decrypt(&self.key.key, &iv, &ciphertext)?;
 
                 #[cfg(not(feature = "native-crypto"))]
                 let plaintext = decrypt(&self.key_bytes, &iv, &ciphertext)?;
@@ -356,7 +358,7 @@ mod tests {
             // Verify we can decrypt
             let decrypted_iv = base64_decode(&payload.iv).unwrap();
             let decrypted_cipher = base64_decode(&payload.payload).unwrap();
-            let decrypted = decrypt(&key_bytes, &decrypted_iv, &decrypted_cipher).unwrap();
+            let decrypted = decrypt(&key, &decrypted_iv, &decrypted_cipher).unwrap();
 
             assert_eq!(decrypted, plaintext);
         }

@@ -83,7 +83,9 @@ impl From<idkit_core::Error> for IdkitError {
             idkit_core::Error::ConnectionFailed => Self::ConnectionFailed,
             idkit_core::Error::Timeout => Self::Timeout,
             #[allow(unreachable_patterns)]
-            _ => Self::BridgeError { message: format!("{e}") },
+            _ => Self::BridgeError {
+                message: format!("Unmapped error: {e}"),
+            },
         }
     }
 }

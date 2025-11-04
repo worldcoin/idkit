@@ -165,18 +165,6 @@ pub fn encode_signal(signal: &crate::Signal) -> String {
     format!("{hash:#066x}")
 }
 
-/// Encodes a string signal
-#[must_use]
-pub fn encode_signal_str(signal: &str) -> String {
-    signal.to_string()
-}
-
-/// Encodes an action
-#[must_use]
-pub fn encode_action(action: &str) -> String {
-    action.to_string()
-}
-
 /// Base64 encodes bytes
 #[must_use]
 pub fn base64_encode(input: &[u8]) -> String {
