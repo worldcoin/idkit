@@ -6,7 +6,13 @@
 #![deny(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::module_name_repetitions)]
 
-use idkit_core::{Credential, Proof, Request};
+use idkit_core::{Credential, Proof, Request as CoreRequest};
+
+/// Opaque request handle for `UniFFI`
+///
+/// This wraps the core `Request` type to work around `UniFFI` limitations with custom types.
+#[derive(Debug, Clone, uniffi::Object)]
+pub struct Request(CoreRequest);
 
 /// Error type for `UniFFI` bindings
 #[derive(Debug, thiserror::Error, uniffi::Error)]
@@ -76,85 +82,94 @@ impl From<idkit_core::Error> for IdkitError {
 
 // Request constructors and methods
 
-/// Creates a new credential request with a string signal
-///
-/// # Arguments
-/// * `credential_type` - The type of credential to request (Orb, Face, Device, etc.)
-/// * `signal` - User-specific signal for the proof (pass empty string for no signal)
-#[must_use]
 #[uniffi::export]
-pub fn request_with_signal(credential_type: Credential, signal: String) -> Request {
-    if signal.is_empty() {
-        Request::without_signal(credential_type)
-    } else {
-        Request::with_signal(credential_type, signal)
+impl Request {
+    /// Creates a new credential request with a string signal
+    ///
+    /// # Arguments
+    /// * `credential_type` - The type of credential to request (Orb, Face, Device, etc.)
+    /// * `signal` - User-specific signal for the proof (pass empty string for no signal)
+    #[must_use]
+    #[uniffi::constructor]
+    pub fn with_signal(credential_type: Credential, signal: String) -> Self {
+        if signal.is_empty() {
+            Self(CoreRequest::without_signal(credential_type))
+        } else {
+            Self(CoreRequest::with_signal(credential_type, signal))
+        }
     }
-}
 
-/// Creates a new credential request with a signal from arbitrary bytes
-///
-/// This is useful for on-chain use cases where RPs need to provide custom-encoded signals.
-/// The bytes are hex-encoded internally for storage and transmission.
-///
-/// # Arguments
-/// * `credential_type` - The type of credential to request
-/// * `signal_bytes` - Raw bytes for the signal
-#[must_use]
-#[uniffi::export]
-pub fn request_with_signal_bytes(credential_type: Credential, signal_bytes: &[u8]) -> Request {
-    Request::with_signal_bytes(credential_type, signal_bytes)
-}
+    /// Creates a new credential request with a signal from arbitrary bytes
+    ///
+    /// This is useful for on-chain use cases where RPs need to provide custom-encoded signals.
+    /// The bytes are hex-encoded internally for storage and transmission.
+    ///
+    /// # Arguments
+    /// * `credential_type` - The type of credential to request
+    /// * `signal_bytes` - Raw bytes for the signal
+    #[must_use]
+    #[uniffi::constructor]
+    pub fn with_signal_bytes(credential_type: Credential, signal_bytes: &[u8]) -> Self {
+        Self(CoreRequest::with_signal_bytes(credential_type, signal_bytes))
+    }
 
-/// Creates a new credential request without a signal
-///
-/// # Arguments
-/// * `credential_type` - The type of credential to request
-#[must_use]
-#[allow(clippy::missing_const_for_fn)] // UniFFI doesn't support const fn
-#[uniffi::export]
-pub fn request_without_signal(credential_type: Credential) -> Request {
-    Request::without_signal(credential_type)
-}
+    /// Creates a new credential request without a signal
+    ///
+    /// # Arguments
+    /// * `credential_type` - The type of credential to request
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)] // UniFFI doesn't support const fn
+    #[uniffi::constructor]
+    pub fn without_signal(credential_type: Credential) -> Self {
+        Self(CoreRequest::without_signal(credential_type))
+    }
 
-/// Sets the face authentication requirement on a request
-///
-/// Returns a new request with the face auth set
-#[must_use]
-#[uniffi::export]
-pub fn request_with_face_auth(request: &Request, face_auth: bool) -> Request {
-    let mut new_request = request.clone();
-    new_request.face_auth = Some(face_auth);
-    new_request
-}
+    /// Sets the face authentication requirement on a request
+    ///
+    /// Returns a new request with the face auth set
+    #[must_use]
+    pub fn with_face_auth(&self, face_auth: bool) -> Self {
+        let mut new_request = self.0.clone();
+        new_request.face_auth = Some(face_auth);
+        Self(new_request)
+    }
 
-/// Gets the signal as raw bytes from a request
-///
-/// # Errors
-///
-/// Returns an error if the signal cannot be decoded
-#[uniffi::export]
-pub fn request_get_signal_bytes(request: &Request) -> Result<Option<Vec<u8>>, IdkitError> {
-    request.signal_bytes().map_err(Into::into)
-}
+    /// Gets the signal as raw bytes from a request
+    #[must_use]
+    pub fn get_signal_bytes(&self) -> Option<Vec<u8>> {
+        self.0.signal_bytes()
+    }
 
-/// Serializes a request to JSON
-///
-/// # Errors
-///
-/// Returns an error if JSON serialization fails
-#[uniffi::export]
-pub fn request_to_json(request: &Request) -> Result<String, IdkitError> {
-    serde_json::to_string(request).map_err(|e| IdkitError::JsonError { message: e.to_string() })
-}
+    /// Gets the credential type
+    #[must_use]
+    pub const fn credential_type(&self) -> Credential {
+        self.0.credential_type
+    }
 
-/// Deserializes a request from JSON
-///
-/// # Errors
-///
-/// Returns an error if JSON deserialization fails
-#[uniffi::export]
-pub fn request_from_json(json: &str) -> Result<Request, IdkitError> {
-    serde_json::from_str(json).map_err(|e| IdkitError::JsonError { message: e.to_string() })
+    /// Gets the `face_auth` setting
+    #[must_use]
+    pub const fn face_auth(&self) -> Option<bool> {
+        self.0.face_auth
+    }
+
+    /// Serializes a request to JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if JSON serialization fails
+    pub fn to_json(&self) -> Result<String, IdkitError> {
+        serde_json::to_string(&self.0).map_err(|e| IdkitError::JsonError { message: e.to_string() })
+    }
+
+    /// Deserializes a request from JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if JSON deserialization fails
+    #[uniffi::constructor]
+    pub fn from_json(json: &str) -> Result<Self, IdkitError> {
+        serde_json::from_str(json).map(Self).map_err(|e| IdkitError::JsonError { message: e.to_string() })
+    }
 }
 
 // Proof methods
@@ -203,76 +218,75 @@ mod tests {
 
     #[test]
     fn test_create_request() {
-        let request = request_with_signal(Credential::Orb, "test_signal".to_string());
-        assert_eq!(request.credential_type, Credential::Orb);
-        assert_eq!(request.signal, Some("test_signal".to_string()));
-        assert_eq!(request.face_auth, None);
+        let request = Request::with_signal(Credential::Orb, "test_signal".to_string());
+        assert_eq!(request.credential_type(), Credential::Orb);
+        assert!(request.get_signal_bytes().is_some());
+        assert_eq!(request.get_signal_bytes().unwrap(), b"test_signal");
+        assert_eq!(request.face_auth(), None);
 
-        let with_face_auth = request_with_face_auth(&request, true);
-        assert_eq!(with_face_auth.face_auth, Some(true));
+        let with_face_auth = request.with_face_auth(true);
+        assert_eq!(with_face_auth.face_auth(), Some(true));
     }
 
     #[test]
     fn test_create_request_empty_signal() {
-        let request = request_with_signal(Credential::Face, String::new());
-        assert_eq!(request.credential_type, Credential::Face);
-        assert_eq!(request.signal, None);
-        assert_eq!(request.face_auth, None);
+        let request = Request::with_signal(Credential::Face, String::new());
+        assert_eq!(request.credential_type(), Credential::Face);
+        assert_eq!(request.get_signal_bytes(), None);
+        assert_eq!(request.face_auth(), None);
     }
 
     #[test]
     fn test_create_request_without_signal() {
-        let request = request_without_signal(Credential::Device);
-        assert_eq!(request.credential_type, Credential::Device);
-        assert_eq!(request.signal, None);
-        assert_eq!(request.face_auth, None);
+        let request = Request::without_signal(Credential::Device);
+        assert_eq!(request.credential_type(), Credential::Device);
+        assert_eq!(request.get_signal_bytes(), None);
+        assert_eq!(request.face_auth(), None);
     }
 
     #[test]
     fn test_create_request_with_bytes() {
         let bytes = vec![0xFF, 0xFE, 0xFD, 0x00, 0x01];
-        let request = request_with_signal_bytes(Credential::Orb, &bytes);
+        let request = Request::with_signal_bytes(Credential::Orb, &bytes);
 
-        assert_eq!(request.credential_type, Credential::Orb);
-
-        // Verify signal is hex-encoded
-        let expected_hex = hex::encode(&bytes);
-        assert_eq!(request.signal, Some(expected_hex));
+        assert_eq!(request.credential_type(), Credential::Orb);
+        assert!(request.get_signal_bytes().is_some());
 
         // Verify we can get bytes back
-        let decoded = request_get_signal_bytes(&request).unwrap().unwrap();
+        let decoded = request.get_signal_bytes().unwrap();
         assert_eq!(decoded, bytes);
 
-        let with_face_auth = request_with_face_auth(&request, true);
-        assert_eq!(with_face_auth.face_auth, Some(true));
+        let with_face_auth = request.with_face_auth(true);
+        assert_eq!(with_face_auth.face_auth(), Some(true));
     }
 
     #[test]
     fn test_get_signal_bytes_string() {
-        let request = request_with_signal(Credential::Face, "my_signal".to_string());
-        let bytes = request_get_signal_bytes(&request).unwrap().unwrap();
+        let request = Request::with_signal(Credential::Face, "my_signal".to_string());
+        let bytes = request.get_signal_bytes().unwrap();
         assert_eq!(bytes, b"my_signal");
     }
 
     #[test]
     fn test_get_signal_bytes_none() {
-        let request = request_without_signal(Credential::Device);
-        let bytes = request_get_signal_bytes(&request).unwrap();
+        let request = Request::without_signal(Credential::Device);
+        let bytes = request.get_signal_bytes();
         assert_eq!(bytes, None);
     }
 
     #[test]
     fn test_request_json_roundtrip() {
-        let request = request_with_signal(Credential::Face, "signal_123".to_string());
+        let request = Request::with_signal(Credential::Face, "signal_123".to_string());
 
-        let json = request_to_json(&request).unwrap();
+        let json = request.to_json().unwrap();
         assert!(json.contains("face"));
         assert!(json.contains("signal_123"));
 
-        let parsed = request_from_json(&json).unwrap();
-        assert_eq!(parsed.credential_type, Credential::Face);
-        assert_eq!(parsed.signal, Some("signal_123".to_string()));
-        assert_eq!(parsed.face_auth, None);
+        let parsed = Request::from_json(&json).unwrap();
+        assert_eq!(parsed.credential_type(), Credential::Face);
+        assert!(parsed.get_signal_bytes().is_some());
+        assert_eq!(parsed.get_signal_bytes().unwrap(), b"signal_123");
+        assert_eq!(parsed.face_auth(), None);
     }
 
     #[test]

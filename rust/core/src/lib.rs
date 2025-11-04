@@ -15,7 +15,7 @@ pub mod types;
 // Re-export main types for convenience
 pub use constraints::{ConstraintNode, Constraints};
 pub use error::{Error, Result};
-pub use types::{AppId, BridgeUrl, Credential, Proof, Request, VerificationLevel};
+pub use types::{AppId, BridgeUrl, Credential, Proof, Request, Signal, VerificationLevel};
 
 // UniFFI scaffolding for core types
 #[cfg(feature = "uniffi-bindings")]

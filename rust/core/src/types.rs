@@ -131,14 +131,16 @@ impl<'de> Deserialize<'de> for Signal {
 
 /// A single credential request
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "uniffi-bindings", derive(uniffi::Record))]
 pub struct Request {
     /// The type of credential being requested
     #[serde(rename = "type")]
     pub credential_type: Credential,
 
     /// The signal to be included in the proof (unique per request)
-    /// If None, no signal is included in the proof
+    /// If `None`, no signal is included in the proof
+    ///
+    /// Note: When using `UniFFI` bindings, this field is not exposed directly.
+    /// Use the provided accessor functions in the bindings layer instead.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signal: Option<Signal>,
 

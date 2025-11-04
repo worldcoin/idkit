@@ -1,7 +1,6 @@
 //! Cryptographic utilities for `IDKit`
 
-use crate::{Error, Result};
-use getrandom::getrandom;
+use crate::Result;
 use ruint::aliases::U256;
 use tiny_keccak::{Hasher, Keccak};
 
@@ -10,9 +9,12 @@ use tiny_keccak::{Hasher, Keccak};
 // ============================================================================
 
 #[cfg(feature = "native-crypto")]
-use aes_gcm::{
-    aead::{Aead, KeyInit},
-    Aes256Gcm, Nonce,
+use {
+    aes_gcm::{
+        aead::{Aead, KeyInit},
+        Aes256Gcm, Nonce,
+    },
+    getrandom::getrandom,
 };
 
 /// Generates a random encryption key and nonce for AES-256-GCM
@@ -24,6 +26,8 @@ use aes_gcm::{
 /// Returns an error if the random number generator fails
 #[cfg(feature = "native-crypto")]
 pub fn generate_key() -> Result<([u8; 32], [u8; 12])> {
+    use crate::Error;
+
     let mut key_bytes = [0u8; 32]; // 256 bits
     getrandom(&mut key_bytes).map_err(|e| Error::Crypto(format!("Failed to generate key: {e}")))?;
 
@@ -41,6 +45,8 @@ pub fn generate_key() -> Result<([u8; 32], [u8; 12])> {
 /// Returns an error if encryption fails
 #[cfg(feature = "native-crypto")]
 pub fn encrypt(key: &[u8], nonce: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
+    use crate::Error;
+
     if key.len() != 32 {
         return Err(Error::Crypto("Key must be 32 bytes".to_string()));
     }
@@ -69,6 +75,8 @@ pub fn encrypt(key: &[u8], nonce: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
 /// Returns an error if the nonce is invalid or decryption fails
 #[cfg(feature = "native-crypto")]
 pub fn decrypt(key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
+    use crate::Error;
+
     if key.len() != 32 {
         return Err(Error::Crypto("Key must be 32 bytes".to_string()));
     }
@@ -95,13 +103,18 @@ pub fn decrypt(key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
 // ============================================================================
 
 #[cfg(all(target_arch = "wasm32", feature = "wasm-crypto"))]
-use aes_gcm::{
-    aead::{Aead, KeyInit},
-    Aes256Gcm, Nonce,
+use {
+    aes_gcm::{
+        aead::{Aead, KeyInit},
+        Aes256Gcm, Nonce,
+    },
+    getrandom::getrandom,
 };
 
 #[cfg(all(target_arch = "wasm32", feature = "wasm-crypto"))]
 pub fn generate_key() -> Result<([u8; 32], [u8; 12])> {
+    use crate::Error;
+
     let mut key_bytes = [0u8; 32]; // 256 bits
     getrandom(&mut key_bytes).map_err(|e| Error::Crypto(format!("Failed to generate key: {e}")))?;
 
@@ -119,6 +132,8 @@ pub fn generate_key() -> Result<([u8; 32], [u8; 12])> {
 /// Returns an error if encryption fails
 #[cfg(all(target_arch = "wasm32", feature = "wasm-crypto"))]
 pub fn encrypt(key: &[u8], nonce: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
+    use crate::Error;
+
     if key.len() != 32 {
         return Err(Error::Crypto("Key must be 32 bytes".to_string()));
     }
@@ -147,6 +162,8 @@ pub fn encrypt(key: &[u8], nonce: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
 /// Returns an error if the nonce is invalid or decryption fails
 #[cfg(all(target_arch = "wasm32", feature = "wasm-crypto"))]
 pub fn decrypt(key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
+    use crate::Error;
+
     if key.len() != 32 {
         return Err(Error::Crypto("Key must be 32 bytes".to_string()));
     }
