@@ -64,7 +64,8 @@ pub struct Request {
 impl Request {
     /// Creates a new request
     #[must_use]
-    pub const fn new(credential_type: Credential, signal: String) -> Self {
+    #[allow(clippy::missing_const_for_fn)] // Cannot be const fn - takes ownership of String
+    pub fn new(credential_type: Credential, signal: String) -> Self {
         Self {
             credential_type,
             signal,
@@ -74,7 +75,8 @@ impl Request {
 
     /// Adds face authentication requirement
     #[must_use]
-    pub const fn with_face_auth(mut self, face_auth: bool) -> Self {
+    #[allow(clippy::missing_const_for_fn)] // Cannot be const fn - mutates self
+    pub fn with_face_auth(mut self, face_auth: bool) -> Self {
         self.face_auth = Some(face_auth);
         self
     }
