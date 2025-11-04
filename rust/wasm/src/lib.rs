@@ -1,108 +1,107 @@
-//! WASM bindings for IDKit
+//! WASM bindings for `IDKit`
 //!
-//! This crate provides WebAssembly bindings for the core IDKit library,
+//! This crate provides WebAssembly bindings for the core `IDKit` library,
 //! allowing it to be used in browser environments.
-//!
-//! Note: This WASM build provides type definitions and constraint evaluation.
-//! Network operations (Session, Bridge) are handled by JavaScript fetch API.
 
-use idkit_core::{
-    AppId, Constraints, ConstraintNode, Credential, Request,
-};
+#![deny(clippy::all, clippy::pedantic, clippy::nursery)]
+#![allow(clippy::module_name_repetitions)]
+
+use idkit_core::{Credential, Signal};
 use wasm_bindgen::prelude::*;
-use std::collections::HashSet;
 
 #[wasm_bindgen]
-pub struct WasmAppId(AppId);
+pub struct Request(idkit_core::Request);
 
 #[wasm_bindgen]
-impl WasmAppId {
+impl Request {
+    /// Creates a new request
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the credential type cannot be deserialized
+    ///
+    /// # Arguments
+    /// * `credential_type` - The type of credential to request
+    /// * `signal` - Optional signal string. Pass `null` or `undefined` for no signal.
     #[wasm_bindgen(constructor)]
-    pub fn new(app_id: String) -> Result<WasmAppId, JsValue> {
-        AppId::new(app_id)
-            .map(WasmAppId)
-            .map_err(|e| JsValue::from_str(&e.to_string()))
-    }
-
-    #[wasm_bindgen(getter)]
-    pub fn is_staging(&self) -> bool {
-        self.0.is_staging()
-    }
-
-    #[wasm_bindgen(js_name = asString)]
-    pub fn as_string(&self) -> String {
-        self.0.as_str().to_string()
-    }
-}
-
-#[wasm_bindgen]
-pub struct WasmRequest(Request);
-
-#[wasm_bindgen]
-impl WasmRequest {
-    #[wasm_bindgen(constructor)]
-    pub fn new(credential_type: JsValue, signal: String) -> Result<WasmRequest, JsValue> {
+    pub fn new(credential_type: JsValue, signal: Option<String>) -> Result<Self, JsValue> {
         let cred: Credential = serde_wasm_bindgen::from_value(credential_type)?;
-        Ok(WasmRequest(Request::new(cred, signal)))
+        let signal_opt = signal.map(Signal::from_string);
+        Ok(Self(idkit_core::Request::new(cred, signal_opt)))
     }
 
-    #[wasm_bindgen(js_name = withFaceAuth)]
-    pub fn with_face_auth(self, face_auth: bool) -> WasmRequest {
-        WasmRequest(self.0.with_face_auth(face_auth))
+    /// Creates a new request with ABI-encoded bytes for the signal
+    ///
+    /// This is useful for on-chain use cases where RPs need ABI-encoded signals
+    /// according to Solidity encoding rules.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the credential type cannot be deserialized
+    #[wasm_bindgen(js_name = withBytes)]
+    pub fn with_bytes(credential_type: JsValue, signal_bytes: &[u8]) -> Result<Self, JsValue> {
+        let cred: Credential = serde_wasm_bindgen::from_value(credential_type)?;
+        Ok(Self(idkit_core::Request::new(cred, Some(Signal::from_abi_encoded(signal_bytes)))))
     }
 
+    /// Gets the signal as raw bytes
+    #[must_use]
+    #[wasm_bindgen(js_name = getSignalBytes)]
+    pub fn get_signal_bytes(&self) -> Option<Vec<u8>> {
+        self.0.signal_bytes()
+    }
+
+    /// Converts the request to JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization fails
     #[wasm_bindgen(js_name = toJSON)]
     pub fn to_json(&self) -> Result<JsValue, JsValue> {
-        serde_wasm_bindgen::to_value(&self.0)
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+        serde_wasm_bindgen::to_value(&self.0).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 }
 
 #[wasm_bindgen]
-pub struct WasmConstraints(Constraints);
+pub struct Proof(idkit_core::Proof);
 
 #[wasm_bindgen]
-impl WasmConstraints {
+impl Proof {
+    /// Creates a new proof
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the verification level cannot be deserialized
     #[wasm_bindgen(constructor)]
-    pub fn new(root: JsValue) -> Result<WasmConstraints, JsValue> {
-        let node: ConstraintNode = serde_wasm_bindgen::from_value(root)?;
-        Ok(WasmConstraints(Constraints::new(node)))
+    pub fn new(
+        proof: String,
+        merkle_root: String,
+        nullifier_hash: String,
+        verification_level: JsValue,
+    ) -> Result<Self, JsValue> {
+        let cred: Credential = serde_wasm_bindgen::from_value(verification_level)?;
+        Ok(Self(idkit_core::Proof {
+            proof,
+            merkle_root,
+            nullifier_hash,
+            verification_level: cred,
+        }))
     }
 
-    #[wasm_bindgen]
-    pub fn evaluate(&self, available: JsValue) -> Result<bool, JsValue> {
-        let creds: Vec<Credential> = serde_wasm_bindgen::from_value(available)?;
-        let available_set: HashSet<Credential> = creds.into_iter().collect();
-        Ok(self.0.evaluate(&available_set))
+    /// Converts the proof to JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization fails
+    #[wasm_bindgen(js_name = toJSON)]
+    pub fn to_json(&self) -> Result<JsValue, JsValue> {
+        serde_wasm_bindgen::to_value(&self.0).map_err(|e| JsValue::from_str(&e.to_string()))
     }
-
-    #[wasm_bindgen(js_name = firstSatisfying)]
-    pub fn first_satisfying(&self, available: JsValue) -> Result<JsValue, JsValue> {
-        let creds: Vec<Credential> = serde_wasm_bindgen::from_value(available)?;
-        let available_set: HashSet<Credential> = creds.into_iter().collect();
-        match self.0.first_satisfying(&available_set) {
-            Some(cred) => serde_wasm_bindgen::to_value(&cred)
-                .map_err(|e| JsValue::from_str(&e.to_string())),
-            None => Ok(JsValue::NULL),
-        }
-    }
-}
-
-// Crypto utilities
-#[wasm_bindgen(js_name = encodeSignal)]
-pub fn encode_signal(signal: String) -> String {
-    idkit_core::crypto::encode_signal_str(&signal)
-}
-
-#[wasm_bindgen(js_name = hashToField)]
-pub fn hash_to_field(input: &[u8]) -> Vec<u8> {
-    let hash = idkit_core::crypto::hash_to_field(input);
-    hash.to_be_bytes_vec()
 }
 
 // Export credential enum
 #[wasm_bindgen(typescript_custom_section)]
-const TS_CREDENTIAL: &'static str = r#"
+const TS_CREDENTIAL: &str = r#"
 export enum Credential {
     Orb = "orb",
     Face = "face",
@@ -110,25 +109,4 @@ export enum Credential {
     Document = "document",
     Device = "device"
 }
-"#;
-
-// Export verification level enum
-#[wasm_bindgen(typescript_custom_section)]
-const TS_VERIFICATION_LEVEL: &'static str = r#"
-export enum VerificationLevel {
-    Orb = "orb",
-    Face = "face",
-    Device = "device",
-    Document = "document",
-    SecureDocument = "secure_document"
-}
-"#;
-
-// Export constraint node type
-#[wasm_bindgen(typescript_custom_section)]
-const TS_CONSTRAINT_NODE: &'static str = r#"
-export type ConstraintNode =
-    | Credential
-    | { any: ConstraintNode[] }
-    | { all: ConstraintNode[] };
 "#;

@@ -14,12 +14,6 @@ pub enum Error {
 
     /// Bridge communication error
     #[error("Bridge error: {0}")]
-    #[cfg(feature = "bridge-client")]
-    Bridge(#[from] reqwest::Error),
-
-    /// Bridge communication error (WASM)
-    #[error("Bridge error: {0}")]
-    #[cfg(not(feature = "bridge-client"))]
     BridgeError(String),
 
     /// JSON serialization/deserialization error
@@ -60,50 +54,43 @@ pub enum Error {
 }
 
 /// Errors returned by the World App
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "uniffi-bindings", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum AppError {
     /// User rejected the request
+    #[error("User rejected the request")]
     UserRejected,
 
     /// Credential unavailable
+    #[error("Requested credential is not available")]
     CredentialUnavailable,
 
     /// Malformed request
+    #[error("Request is malformed")]
     MalformedRequest,
 
     /// Invalid network
+    #[error("Invalid network")]
     InvalidNetwork,
 
     /// Inclusion proof pending
+    #[error("Inclusion proof is still pending")]
     InclusionProofPending,
 
     /// Inclusion proof failed
+    #[error("Inclusion proof failed")]
     InclusionProofFailed,
 
     /// Unexpected response
+    #[error("Unexpected response from World App")]
     UnexpectedResponse,
 
     /// Connection failed
+    #[error("Failed to connect to World App")]
     ConnectionFailed,
 
     /// Generic error
+    #[error("An error occurred")]
     GenericError,
-}
-
-impl std::fmt::Display for AppError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::UserRejected => write!(f, "User rejected the request"),
-            Self::CredentialUnavailable => write!(f, "Requested credential is not available"),
-            Self::MalformedRequest => write!(f, "Request is malformed"),
-            Self::InvalidNetwork => write!(f, "Invalid network"),
-            Self::InclusionProofPending => write!(f, "Inclusion proof is still pending"),
-            Self::InclusionProofFailed => write!(f, "Inclusion proof failed"),
-            Self::UnexpectedResponse => write!(f, "Unexpected response from World App"),
-            Self::ConnectionFailed => write!(f, "Failed to connect to World App"),
-            Self::GenericError => write!(f, "An error occurred"),
-        }
-    }
 }

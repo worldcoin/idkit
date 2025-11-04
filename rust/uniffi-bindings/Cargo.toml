@@ -12,12 +12,11 @@ crate-type = ["staticlib", "cdylib"]
 name = "idkit"
 
 [dependencies]
-idkit-core = { path = "../core", features = ["uniffi-bindings"] }
+idkit-core = { path = "../core", default-features = false, features = ["uniffi-bindings", "native-crypto"] }
 uniffi = { workspace = true }
-tokio = { workspace = true }
 thiserror = { workspace = true }
+serde_json = { workspace = true }
+hex = { workspace = true }
 
 [build-dependencies]
 uniffi = { workspace = true, features = ["build"] }
-
-# Using cargo-installed uniffi-bindgen CLI tool instead of custom binary

@@ -10,35 +10,19 @@ description = "Core Rust implementation of IDKit - World ID SDK for Relying Part
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
-ring = { workspace = true, optional = true }
+aes-gcm = { workspace = true, optional = true }
+getrandom = { workspace = true }
 tiny-keccak = { workspace = true }
 base64 = { workspace = true }
 hex = { workspace = true }
-tokio = { workspace = true, optional = true }
-reqwest = { workspace = true, optional = true }
 thiserror = { workspace = true }
-anyhow = { workspace = true }
-uuid = { workspace = true }
 url = { workspace = true }
-urlencoding = { workspace = true }
-getrandom = { version = "0.2", features = ["js"] }
 alloy-sol-types = { workspace = true }
 ruint = { workspace = true }
 uniffi = { workspace = true, optional = true }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-web-sys = { version = "0.3", features = ["Window", "Crypto", "SubtleCrypto", "CryptoKey"] }
-js-sys = "0.3"
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
-uuid = { version = "1.10", features = ["v4", "serde", "js"] }
-
 [features]
-default = ["native-crypto", "bridge-client"]
-native-crypto = ["ring"]
-wasm-crypto = []
-bridge-client = ["tokio", "reqwest"]
+default = ["native-crypto"]
+native-crypto = ["aes-gcm"]
+wasm-crypto = ["aes-gcm"]
 uniffi-bindings = ["uniffi"]
-
-[dev-dependencies]
-tokio-test = "0.4"

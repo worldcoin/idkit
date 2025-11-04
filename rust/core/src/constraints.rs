@@ -32,19 +32,22 @@ pub enum ConstraintNode {
 impl ConstraintNode {
     /// Creates an Any constraint from credentials
     #[must_use]
-    pub const fn any(nodes: Vec<Self>) -> Self {
+    #[allow(clippy::missing_const_for_fn)] // Vec parameters cannot be const
+    pub fn any(nodes: Vec<Self>) -> Self {
         Self::Any { any: nodes }
     }
 
     /// Creates an All constraint from credentials
     #[must_use]
-    pub const fn all(nodes: Vec<Self>) -> Self {
+    #[allow(clippy::missing_const_for_fn)] // Vec parameters cannot be const
+    pub fn all(nodes: Vec<Self>) -> Self {
         Self::All { all: nodes }
     }
 
     /// Creates a credential node
     #[must_use]
-    pub const fn credential(cred: Credential) -> Self {
+    #[allow(clippy::missing_const_for_fn)] // Kept non-const for consistency with any() and all()
+    pub fn credential(cred: Credential) -> Self {
         Self::Credential(cred)
     }
 
@@ -171,7 +174,8 @@ pub struct Constraints {
 impl Constraints {
     /// Creates new constraints from a node
     #[must_use]
-    pub const fn new(root: ConstraintNode) -> Self {
+    #[allow(clippy::missing_const_for_fn)] // Kept non-const for consistency with other constructors
+    pub fn new(root: ConstraintNode) -> Self {
         Self { root }
     }
 
@@ -312,9 +316,8 @@ mod tests {
     }
 
     #[test]
-    fn test_mars_example() {
-        // Mars example: Any(orb with face_auth, face with face_auth)
-        // For constraint purposes, we just test credential selection
+    fn test_face_orb_example() {
+        // Any(orb with face_auth, face with face_auth)
         let node = ConstraintNode::any(vec![
             ConstraintNode::credential(Credential::Orb),
             ConstraintNode::credential(Credential::Face),
@@ -334,7 +337,7 @@ mod tests {
 
     #[test]
     fn test_credential_categories_example() {
-        // Example: Orb AND (secure_document OR mnc OR document)
+        // Example: Orb AND (secure_document OR document)
         let node = ConstraintNode::all(vec![
             ConstraintNode::credential(Credential::Orb),
             ConstraintNode::any(vec![
