@@ -88,7 +88,7 @@ pub fn decrypt(key: &LessSafeKey, iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8
 // WASM implementation using getrandom
 // ============================================================================
 
-#[cfg(all(target_arch = "wasm32", not(feature = "native-crypto")))]
+#[cfg(all(target_arch = "wasm32", feature = "wasm-crypto"))]
 pub fn generate_key() -> Result<(Vec<u8>, Vec<u8>)> {
     use getrandom::getrandom;
 
@@ -108,7 +108,7 @@ pub fn generate_key() -> Result<(Vec<u8>, Vec<u8>)> {
 /// # Errors
 ///
 /// Returns an error if encryption fails or Web Crypto API is not available
-#[cfg(all(target_arch = "wasm32", not(feature = "native-crypto")))]
+#[cfg(all(target_arch = "wasm32", feature = "wasm-crypto"))]
 pub async fn encrypt(key: &[u8], iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
     use js_sys::{Object, Reflect, Uint8Array};
     use wasm_bindgen::JsValue;
@@ -160,7 +160,7 @@ pub async fn encrypt(key: &[u8], iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>>
 /// # Errors
 ///
 /// Returns an error if decryption fails or Web Crypto API is not available
-#[cfg(all(target_arch = "wasm32", not(feature = "native-crypto")))]
+#[cfg(all(target_arch = "wasm32", feature = "wasm-crypto"))]
 pub async fn decrypt(key: &[u8], iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
     use js_sys::{Object, Reflect, Uint8Array};
     use wasm_bindgen::JsValue;
@@ -281,20 +281,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_generate_key() {
-        #[cfg(feature = "native-crypto")]
-        {
-            use ring::aead;
-            let (key_bytes, iv_bytes, _key, _nonce) = generate_key().unwrap();
-            assert_eq!(key_bytes.len(), 32);
-            assert_eq!(iv_bytes.len(), aead::NONCE_LEN);
-        }
-        #[cfg(not(feature = "native-crypto"))]
-        {
-            let (key, iv) = generate_key().unwrap();
-            assert_eq!(key.len(), 32);
-            assert_eq!(iv.len(), 12);
-        }
+    #[cfg(feature = "native-crypto")]
+    fn test_generate_key_native() {
+        use ring::aead;
+        let (key_bytes, iv_bytes, _key, _nonce) = generate_key().unwrap();
+        assert_eq!(key_bytes.len(), 32);
+        assert_eq!(iv_bytes.len(), aead::NONCE_LEN);
+    }
+
+    #[test]
+    #[cfg(all(feature = "wasm-crypto", not(feature = "native-crypto")))]
+    fn test_generate_key_wasm() {
+        let (key, iv) = generate_key().unwrap();
+        assert_eq!(key.len(), 32);
+        assert_eq!(iv.len(), 12);
     }
 
     #[cfg(feature = "native-crypto")]
