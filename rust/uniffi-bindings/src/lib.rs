@@ -1,7 +1,6 @@
 //! UniFFI bindings for IDKit
 //!
 //! This crate generates Swift and Kotlin bindings for the core IDKit library.
-//! Phase 1: Basic types and scaffolding only.
 
 use idkit_core::{Credential, Proof, Request};
 

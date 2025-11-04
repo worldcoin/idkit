@@ -2,8 +2,6 @@
 //!
 //! This crate provides WebAssembly bindings for the core IDKit library,
 //! allowing it to be used in browser environments.
-//!
-//! Phase 1: Basic types and serialization only.
 
 use idkit_core::{Credential, Proof, Request};
 use wasm_bindgen::prelude::*;
@@ -25,8 +23,7 @@ impl WasmRequest {
 
     #[wasm_bindgen(js_name = toJSON)]
     pub fn to_json(&self) -> Result<JsValue, JsValue> {
-        serde_wasm_bindgen::to_value(&self.0)
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+        serde_wasm_bindgen::to_value(&self.0).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 }
 
@@ -53,8 +50,7 @@ impl WasmProof {
 
     #[wasm_bindgen(js_name = toJSON)]
     pub fn to_json(&self) -> Result<JsValue, JsValue> {
-        serde_wasm_bindgen::to_value(&self.0)
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+        serde_wasm_bindgen::to_value(&self.0).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 }
 

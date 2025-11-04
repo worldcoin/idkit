@@ -1,38 +1,19 @@
 # IDKit - World ID SDK (Rust Core)
 
-> **Phase 1**: This branch contains the foundational Rust core with basic types and UniFFI scaffolding. Multi-language bindings (Swift, Kotlin, JavaScript) will be added in Phase 2.
-
 IDKit is the toolkit for identity online. With IDKit you can easily interact with the [World ID Protocol](https://world.org/world-id).
 
-## Packages (Phase 1)
+## Packages
 
 ### Rust Core
 - **`idkit-core`**: Core Rust types (Credential, Request, Proof)
 - **`idkit-uniffi`**: UniFFI bindings scaffolding for future Swift/Kotlin support
 - **`idkit-wasm`**: WebAssembly bindings scaffolding for future browser support
 
-### What's in Phase 1
-✅ Basic type definitions (Credential enum, Request/Proof structs)
-✅ Serialization/deserialization support
-✅ UniFFI scaffolding that proves bindings generation works
-✅ WASM scaffolding for browser support
-✅ Minimal error handling
-✅ Comprehensive tests
-
-### What's Coming in Phase 2
-🚧 Full constraint system (AND/OR logic for credential requests)
-🚧 Session management (bridge interactions)
-🚧 Proof verification
-🚧 Cryptographic utilities
-🚧 Swift SDK (iOS/macOS)
-🚧 Kotlin SDK (Android/JVM)
-🚧 JavaScript SDK (browsers/Node.js)
-
-## 🏗️ Architecture (Phase 1)
+## 🏗️ Architecture
 
 ```
 ┌──────────────────────────────────┐
-│   Rust IDKit Core (Phase 1)     │
+│   Rust IDKit Core                │
 │  • Basic Types                   │
 │    - Credential enum             │
 │    - Request struct              │
@@ -45,7 +26,7 @@ IDKit is the toolkit for identity online. With IDKit you can easily interact wit
 
 ## Getting Started
 
-### Basic Types (Phase 1)
+### Basic Types
 
 ```rust
 use idkit_core::{Credential, Request, Proof};
