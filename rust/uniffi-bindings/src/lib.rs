@@ -13,6 +13,24 @@ pub enum IdkitError {
     InvalidConfiguration(String),
     #[error("JSON serialization error: {0}")]
     JsonError(String),
+    #[error("Cryptography error: {0}")]
+    CryptoError(String),
+    #[error("Base64 error: {0}")]
+    Base64Error(String),
+    #[error("URL error: {0}")]
+    UrlError(String),
+    #[error("Invalid proof: {0}")]
+    InvalidProof(String),
+    #[error("Bridge error: {0}")]
+    BridgeError(String),
+    #[error("App error: {0}")]
+    AppError(String),
+    #[error("Unexpected response from bridge")]
+    UnexpectedResponse,
+    #[error("Connection to bridge failed")]
+    ConnectionFailed,
+    #[error("Request timed out")]
+    Timeout,
 }
 
 impl From<idkit_core::Error> for IdkitError {
@@ -20,6 +38,15 @@ impl From<idkit_core::Error> for IdkitError {
         match e {
             idkit_core::Error::InvalidConfiguration(s) => Self::InvalidConfiguration(s),
             idkit_core::Error::Json(e) => Self::JsonError(e.to_string()),
+            idkit_core::Error::Crypto(s) => Self::CryptoError(s),
+            idkit_core::Error::Base64(e) => Self::Base64Error(e.to_string()),
+            idkit_core::Error::Url(e) => Self::UrlError(e.to_string()),
+            idkit_core::Error::InvalidProof(s) => Self::InvalidProof(s),
+            idkit_core::Error::BridgeError(s) => Self::BridgeError(s),
+            idkit_core::Error::AppError(app_err) => Self::AppError(app_err.to_string()),
+            idkit_core::Error::UnexpectedResponse => Self::UnexpectedResponse,
+            idkit_core::Error::ConnectionFailed => Self::ConnectionFailed,
+            idkit_core::Error::Timeout => Self::Timeout,
         }
     }
 }
