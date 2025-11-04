@@ -9,21 +9,6 @@ IDKit is the toolkit for identity online. With IDKit you can easily interact wit
 - **`idkit-uniffi`**: UniFFI bindings scaffolding for future Swift/Kotlin support
 - **`idkit-wasm`**: WebAssembly bindings scaffolding for future browser support
 
-## 🏗️ Architecture
-
-```
-┌──────────────────────────────────┐
-│   Rust IDKit Core                │
-│  • Basic Types                   │
-│    - Credential enum             │
-│    - Request struct              │
-│    - Proof struct                │
-│  • Serialization/Deserialization │
-│  • UniFFI scaffolding            │
-│  • WASM scaffolding              │
-└──────────────────────────────────┘
-```
-
 ## Getting Started
 
 ### Basic Types

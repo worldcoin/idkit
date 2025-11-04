@@ -14,9 +14,14 @@ impl WasmRequest {
     #[wasm_bindgen(constructor)]
     pub fn new(credential_type: JsValue, signal: String) -> Result<WasmRequest, JsValue> {
         let cred: Credential = serde_wasm_bindgen::from_value(credential_type)?;
+        let signal_opt = if signal.is_empty() {
+            None
+        } else {
+            Some(signal)
+        };
         Ok(WasmRequest(Request {
             credential_type: cred,
-            signal,
+            signal: signal_opt,
             face_auth: None,
         }))
     }

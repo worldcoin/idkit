@@ -103,20 +103,108 @@ pub fn generate_key() -> Result<(Vec<u8>, Vec<u8>)> {
     Ok((key_bytes, iv))
 }
 
+/// Encrypts plaintext using AES-256-GCM via Web Crypto API
+///
+/// # Errors
+///
+/// Returns an error if encryption fails or Web Crypto API is not available
 #[cfg(all(target_arch = "wasm32", not(feature = "native-crypto")))]
-pub fn encrypt(_key: &[u8], _iv: &[u8], _plaintext: &[u8]) -> Result<Vec<u8>> {
-    // Note: Encryption not implemented in WASM build (Phase 1)
-    // Client-side encryption/decryption will be added when bridge client is implemented
-    // If needed in the future, implement using Web Crypto API
-    Err(Error::Crypto("Encryption not supported in WASM build".to_string()))
+pub async fn encrypt(key: &[u8], iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
+    use js_sys::{Object, Reflect, Uint8Array};
+    use wasm_bindgen::JsValue;
+    use wasm_bindgen_futures::JsFuture;
+    use web_sys::window;
+
+    let window = window().ok_or_else(|| Error::Crypto("Window not available".to_string()))?;
+    let crypto = window
+        .crypto()
+        .map_err(|_| Error::Crypto("Crypto API not available".to_string()))?;
+    let subtle = crypto.subtle();
+
+    // Import key
+    let key_array = Uint8Array::from(key);
+    let key_obj = Object::new();
+    Reflect::set(&key_obj, &"name".into(), &"AES-GCM".into())
+        .map_err(|_| Error::Crypto("Failed to create key object".to_string()))?;
+
+    let crypto_key = JsFuture::from(
+        subtle
+            .import_key_with_object("raw", &key_array, &key_obj, false, &js_sys::Array::of1(&"encrypt".into()))
+            .map_err(|_| Error::Crypto("Failed to import key".to_string()))?,
+    )
+    .await
+    .map_err(|_| Error::Crypto("Failed to import key".to_string()))?;
+
+    // Encrypt
+    let algorithm = Object::new();
+    Reflect::set(&algorithm, &"name".into(), &"AES-GCM".into())
+        .map_err(|_| Error::Crypto("Failed to create algorithm object".to_string()))?;
+    Reflect::set(&algorithm, &"iv".into(), &Uint8Array::from(iv))
+        .map_err(|_| Error::Crypto("Failed to set IV".to_string()))?;
+
+    let plaintext_array = Uint8Array::from(plaintext);
+    let encrypted = JsFuture::from(
+        subtle
+            .encrypt_with_object_and_u8_array(&algorithm, &crypto_key.into(), plaintext)
+            .map_err(|_| Error::Crypto("Encryption failed".to_string()))?,
+    )
+    .await
+    .map_err(|_| Error::Crypto("Encryption failed".to_string()))?;
+
+    let result = Uint8Array::new(&encrypted);
+    Ok(result.to_vec())
 }
 
+/// Decrypts ciphertext using AES-256-GCM via Web Crypto API
+///
+/// # Errors
+///
+/// Returns an error if decryption fails or Web Crypto API is not available
 #[cfg(all(target_arch = "wasm32", not(feature = "native-crypto")))]
-pub fn decrypt(_key: &[u8], _iv: &[u8], _ciphertext: &[u8]) -> Result<Vec<u8>> {
-    // Note: Decryption not implemented in WASM build (Phase 1)
-    // Client-side encryption/decryption will be added when bridge client is implemented
-    // If needed in the future, implement using Web Crypto API
-    Err(Error::Crypto("Decryption not supported in WASM build".to_string()))
+pub async fn decrypt(key: &[u8], iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
+    use js_sys::{Object, Reflect, Uint8Array};
+    use wasm_bindgen::JsValue;
+    use wasm_bindgen_futures::JsFuture;
+    use web_sys::window;
+
+    let window = window().ok_or_else(|| Error::Crypto("Window not available".to_string()))?;
+    let crypto = window
+        .crypto()
+        .map_err(|_| Error::Crypto("Crypto API not available".to_string()))?;
+    let subtle = crypto.subtle();
+
+    // Import key
+    let key_array = Uint8Array::from(key);
+    let key_obj = Object::new();
+    Reflect::set(&key_obj, &"name".into(), &"AES-GCM".into())
+        .map_err(|_| Error::Crypto("Failed to create key object".to_string()))?;
+
+    let crypto_key = JsFuture::from(
+        subtle
+            .import_key_with_object("raw", &key_array, &key_obj, false, &js_sys::Array::of1(&"decrypt".into()))
+            .map_err(|_| Error::Crypto("Failed to import key".to_string()))?,
+    )
+    .await
+    .map_err(|_| Error::Crypto("Failed to import key".to_string()))?;
+
+    // Decrypt
+    let algorithm = Object::new();
+    Reflect::set(&algorithm, &"name".into(), &"AES-GCM".into())
+        .map_err(|_| Error::Crypto("Failed to create algorithm object".to_string()))?;
+    Reflect::set(&algorithm, &"iv".into(), &Uint8Array::from(iv))
+        .map_err(|_| Error::Crypto("Failed to set IV".to_string()))?;
+
+    let ciphertext_array = Uint8Array::from(ciphertext);
+    let decrypted = JsFuture::from(
+        subtle
+            .decrypt_with_object_and_u8_array(&algorithm, &crypto_key.into(), ciphertext)
+            .map_err(|_| Error::Crypto("Decryption failed".to_string()))?,
+    )
+    .await
+    .map_err(|_| Error::Crypto("Decryption failed".to_string()))?;
+
+    let result = Uint8Array::new(&decrypted);
+    Ok(result.to_vec())
 }
 
 // ============================================================================

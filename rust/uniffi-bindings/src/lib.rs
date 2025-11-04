@@ -51,11 +51,11 @@ impl From<idkit_core::Error> for IdkitError {
     }
 }
 
-/// Creates a new credential request
+/// Creates a new credential request with a signal
 ///
 /// # Arguments
 /// * `credential_type` - The type of credential to request (Orb, Face, Device, etc.)
-/// * `signal` - User-specific signal for the proof
+/// * `signal` - User-specific signal for the proof (pass empty string for no signal)
 /// * `face_auth` - Optional face authentication requirement
 #[uniffi::export]
 pub fn create_request(
@@ -63,9 +63,14 @@ pub fn create_request(
     signal: String,
     face_auth: Option<bool>,
 ) -> Request {
+    let signal_opt = if signal.is_empty() {
+        None
+    } else {
+        Some(signal)
+    };
     Request {
         credential_type,
-        signal,
+        signal: signal_opt,
         face_auth,
     }
 }
@@ -117,8 +122,16 @@ mod tests {
     fn test_create_request() {
         let request = create_request(Credential::Orb, "test_signal".to_string(), Some(true));
         assert_eq!(request.credential_type, Credential::Orb);
-        assert_eq!(request.signal, "test_signal");
+        assert_eq!(request.signal, Some("test_signal".to_string()));
         assert_eq!(request.face_auth, Some(true));
+    }
+
+    #[test]
+    fn test_create_request_empty_signal() {
+        let request = create_request(Credential::Face, "".to_string(), None);
+        assert_eq!(request.credential_type, Credential::Face);
+        assert_eq!(request.signal, None);
+        assert_eq!(request.face_auth, None);
     }
 
     #[test]
@@ -131,7 +144,7 @@ mod tests {
 
         let parsed = request_from_json(json).unwrap();
         assert_eq!(parsed.credential_type, Credential::Face);
-        assert_eq!(parsed.signal, "signal_123");
+        assert_eq!(parsed.signal, Some("signal_123".to_string()));
         assert_eq!(parsed.face_auth, None);
     }
 
