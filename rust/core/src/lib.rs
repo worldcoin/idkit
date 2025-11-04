@@ -5,7 +5,7 @@
 //! the World ID protocol, including constraint evaluation, proof verification,
 //! and cryptographic operations.
 
-#![warn(clippy::all, clippy::pedantic, clippy::nursery)]
+#![deny(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::module_name_repetitions)]
 
 pub mod constraints;

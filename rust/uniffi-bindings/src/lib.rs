@@ -1,11 +1,14 @@
-//! UniFFI bindings for IDKit
+//! `UniFFI` bindings for `IDKit`
 //!
-//! This crate generates Swift and Kotlin bindings for the core IDKit library.
+//! This crate generates Swift and Kotlin bindings for the core `IDKit` library.
 //! Provides a mobile-friendly API for creating and validating World ID requests and proofs.
+
+#![deny(clippy::all, clippy::pedantic, clippy::nursery)]
+#![allow(clippy::module_name_repetitions)]
 
 use idkit_core::{Credential, Proof, Request};
 
-/// Error type for UniFFI bindings
+/// Error type for `UniFFI` bindings
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 #[uniffi(flat_error)]
 pub enum IdkitError {
@@ -57,6 +60,7 @@ impl From<idkit_core::Error> for IdkitError {
 /// * `credential_type` - The type of credential to request (Orb, Face, Device, etc.)
 /// * `signal` - User-specific signal for the proof (pass empty string for no signal)
 /// * `face_auth` - Optional face authentication requirement
+#[must_use]
 #[uniffi::export]
 pub fn create_request(
     credential_type: Credential,
@@ -76,30 +80,47 @@ pub fn create_request(
 }
 
 /// Serializes a request to JSON for transmission
+///
+/// # Errors
+///
+/// Returns an error if JSON serialization fails
 #[uniffi::export]
 pub fn request_to_json(request: &Request) -> Result<String, IdkitError> {
     serde_json::to_string(request).map_err(|e| IdkitError::JsonError(e.to_string()))
 }
 
 /// Deserializes a request from JSON
+///
+/// # Errors
+///
+/// Returns an error if JSON deserialization fails
 #[uniffi::export]
-pub fn request_from_json(json: String) -> Result<Request, IdkitError> {
-    serde_json::from_str(&json).map_err(|e| IdkitError::JsonError(e.to_string()))
+pub fn request_from_json(json: &str) -> Result<Request, IdkitError> {
+    serde_json::from_str(json).map_err(|e| IdkitError::JsonError(e.to_string()))
 }
 
 /// Serializes a proof to JSON for verification
+///
+/// # Errors
+///
+/// Returns an error if JSON serialization fails
 #[uniffi::export]
 pub fn proof_to_json(proof: &Proof) -> Result<String, IdkitError> {
     serde_json::to_string(proof).map_err(|e| IdkitError::JsonError(e.to_string()))
 }
 
 /// Deserializes a proof from JSON
+///
+/// # Errors
+///
+/// Returns an error if JSON deserialization fails
 #[uniffi::export]
-pub fn proof_from_json(json: String) -> Result<Proof, IdkitError> {
-    serde_json::from_str(&json).map_err(|e| IdkitError::JsonError(e.to_string()))
+pub fn proof_from_json(json: &str) -> Result<Proof, IdkitError> {
+    serde_json::from_str(json).map_err(|e| IdkitError::JsonError(e.to_string()))
 }
 
 /// Gets the string representation of a credential type
+#[must_use]
 #[uniffi::export]
 pub fn credential_to_string(credential: Credential) -> String {
     match credential {
@@ -128,7 +149,7 @@ mod tests {
 
     #[test]
     fn test_create_request_empty_signal() {
-        let request = create_request(Credential::Face, "".to_string(), None);
+        let request = create_request(Credential::Face, String::new(), None);
         assert_eq!(request.credential_type, Credential::Face);
         assert_eq!(request.signal, None);
         assert_eq!(request.face_auth, None);
@@ -142,7 +163,7 @@ mod tests {
         assert!(json.contains("face"));
         assert!(json.contains("signal_123"));
 
-        let parsed = request_from_json(json).unwrap();
+        let parsed = request_from_json(&json).unwrap();
         assert_eq!(parsed.credential_type, Credential::Face);
         assert_eq!(parsed.signal, Some("signal_123".to_string()));
         assert_eq!(parsed.face_auth, None);
@@ -158,7 +179,7 @@ mod tests {
         };
 
         let json = proof_to_json(&proof).unwrap();
-        let parsed = proof_from_json(json).unwrap();
+        let parsed = proof_from_json(&json).unwrap();
 
         assert_eq!(parsed.proof, "0x123");
         assert_eq!(parsed.merkle_root, "0x456");

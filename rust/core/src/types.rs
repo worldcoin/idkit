@@ -74,26 +74,6 @@ impl Request {
         }
     }
 
-    /// Creates a new request from a string signal
-    #[must_use]
-    pub fn with_signal(credential_type: Credential, signal: impl Into<String>) -> Self {
-        Self {
-            credential_type,
-            signal: Some(signal.into()),
-            face_auth: None,
-        }
-    }
-
-    /// Creates a new request without a signal
-    #[must_use]
-    pub const fn without_signal(credential_type: Credential) -> Self {
-        Self {
-            credential_type,
-            signal: None,
-            face_auth: None,
-        }
-    }
-
     /// Adds face authentication requirement
     #[must_use]
     pub const fn with_face_auth(mut self, face_auth: bool) -> Self {
@@ -300,14 +280,14 @@ mod tests {
 
     #[test]
     fn test_request_validation() {
-        let valid = Request::with_signal(Credential::Orb, "signal").with_face_auth(true);
+        let valid = Request::new(Credential::Orb, Some("signal".to_string())).with_face_auth(true);
         assert!(valid.validate().is_ok());
 
-        let invalid = Request::with_signal(Credential::Device, "signal").with_face_auth(true);
+        let invalid = Request::new(Credential::Device, Some("signal".to_string())).with_face_auth(true);
         assert!(invalid.validate().is_err());
 
         // Test without signal
-        let no_signal = Request::without_signal(Credential::Face);
+        let no_signal = Request::new(Credential::Face, None);
         assert!(no_signal.validate().is_ok());
         assert_eq!(no_signal.signal, None);
     }
