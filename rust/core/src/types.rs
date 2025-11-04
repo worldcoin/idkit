@@ -45,17 +45,17 @@ impl Credential {
     }
 }
 
-/// A signal value that can be either UTF-8 string or arbitrary bytes
+/// A signal value that can be either a UTF-8 string or ABI-encoded data
 ///
 /// Signals are used to create unique proofs. They can be:
-/// - UTF-8 strings (common case)
-/// - Arbitrary bytes hex-encoded (for on-chain use cases)
+/// - UTF-8 strings (common case for off-chain usage)
+/// - ABI-encoded bytes (for on-chain use cases)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Signal {
     /// UTF-8 string signal
     String(String),
-    /// Arbitrary bytes, stored as hex for JSON compatibility
-    Bytes(Vec<u8>),
+    /// ABI-encoded signal data (hex-encoded for JSON serialization)
+    AbiEncoded(Vec<u8>),
 }
 
 impl Signal {
@@ -65,18 +65,23 @@ impl Signal {
         Self::String(s.into())
     }
 
-    /// Creates a signal from arbitrary bytes
+    /// Creates a signal from ABI-encoded bytes
+    ///
+    /// Use this for on-chain use cases where the signal needs to be ABI-encoded
+    /// according to Solidity encoding rules.
     #[must_use]
-    pub fn from_bytes(bytes: impl Into<Vec<u8>>) -> Self {
-        Self::Bytes(bytes.into())
+    pub fn from_abi_encoded(bytes: impl Into<Vec<u8>>) -> Self {
+        Self::AbiEncoded(bytes.into())
     }
 
-    /// Gets the signal as bytes
+    /// Gets the raw bytes of the signal
+    ///
+    /// For strings, returns UTF-8 bytes. For ABI-encoded signals, returns the encoded bytes.
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         match self {
             Self::String(s) => s.as_bytes(),
-            Self::Bytes(b) => b,
+            Self::AbiEncoded(b) => b,
         }
     }
 
@@ -91,7 +96,7 @@ impl Signal {
     pub fn as_str(&self) -> Option<&str> {
         match self {
             Self::String(s) => Some(s),
-            Self::Bytes(_) => None,
+            Self::AbiEncoded(_) => None,
         }
     }
 }
@@ -103,7 +108,7 @@ impl Serialize for Signal {
     {
         match self {
             Self::String(s) => serializer.serialize_str(s),
-            Self::Bytes(b) => serializer.serialize_str(&hex::encode(b)),
+            Self::AbiEncoded(b) => serializer.serialize_str(&format!("0x{}", hex::encode(b))),
         }
     }
 }
@@ -115,16 +120,14 @@ impl<'de> Deserialize<'de> for Signal {
     {
         let s = String::deserialize(deserializer)?;
 
-        // Try to decode as hex first (0x-prefixed or plain hex)
+        // Only decode as ABI-encoded if it has the "0x" prefix
         if let Some(stripped) = s.strip_prefix("0x") {
             if let Ok(bytes) = hex::decode(stripped) {
-                return Ok(Self::Bytes(bytes));
+                return Ok(Self::AbiEncoded(bytes));
             }
-        } else if let Ok(bytes) = hex::decode(&s) {
-            return Ok(Self::Bytes(bytes));
         }
 
-        // Fall back to UTF-8 string
+        // Else, treat as a UTF-8 string
         Ok(Self::String(s))
     }
 }
@@ -138,9 +141,6 @@ pub struct Request {
 
     /// The signal to be included in the proof (unique per request)
     /// If `None`, no signal is included in the proof
-    ///
-    /// Note: When using `UniFFI` bindings, this field is not exposed directly.
-    /// Use the provided accessor functions in the bindings layer instead.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signal: Option<Signal>,
 
@@ -156,39 +156,6 @@ impl Request {
         Self {
             credential_type,
             signal,
-            face_auth: None,
-        }
-    }
-
-    /// Creates a new request with a signal from arbitrary bytes
-    ///
-    /// The bytes are hex-encoded for storage and transmission.
-    /// This is useful for on-chain use cases where RPs need custom encoding.
-    #[must_use]
-    pub fn with_signal_bytes(credential_type: Credential, signal_bytes: &[u8]) -> Self {
-        Self {
-            credential_type,
-            signal: Some(Signal::from_bytes(signal_bytes)),
-            face_auth: None,
-        }
-    }
-
-    /// Creates a new request with a string signal
-    #[must_use]
-    pub fn with_signal(credential_type: Credential, signal: impl Into<String>) -> Self {
-        Self {
-            credential_type,
-            signal: Some(Signal::from_string(signal)),
-            face_auth: None,
-        }
-    }
-
-    /// Creates a new request without a signal
-    #[must_use]
-    pub const fn without_signal(credential_type: Credential) -> Self {
-        Self {
-            credential_type,
-            signal: None,
             face_auth: None,
         }
     }
@@ -354,7 +321,6 @@ impl<'de> Deserialize<'de> for BridgeUrl {
 pub enum VerificationLevel {
     /// Orb-only verification
     Orb,
-    /// TODO(gabe) should we include face in verification levels?
     /// Face or Orb verification
     Face,
     /// Device verification (orb or device)
@@ -418,15 +384,15 @@ mod tests {
     }
 
     #[test]
-    fn test_request_with_signal_bytes() {
-        // Test creating request with arbitrary bytes
+    fn test_request_with_abi_encoded_signal() {
+        // Test creating request with ABI-encoded bytes
         let bytes = b"arbitrary\x00\xFF\xFE data";
-        let request = Request::with_signal_bytes(Credential::Orb, bytes);
+        let request = Request::new(Credential::Orb, Some(Signal::from_abi_encoded(bytes)));
 
-        // Verify signal is stored as bytes
+        // Verify signal is stored as ABI-encoded
         assert!(request.signal.is_some());
         let signal = request.signal.as_ref().unwrap();
-        assert_eq!(signal, &Signal::from_bytes(bytes));
+        assert_eq!(signal, &Signal::from_abi_encoded(bytes));
 
         // Verify we can decode back to bytes
         let decoded = request.signal_bytes().unwrap();
@@ -436,7 +402,7 @@ mod tests {
     #[test]
     fn test_request_with_string_signal() {
         // Test creating request with string signal
-        let request = Request::with_signal(Credential::Face, "my_signal");
+        let request = Request::new(Credential::Face, Some(Signal::from_string("my_signal")));
         assert_eq!(request.signal, Some(Signal::from_string("my_signal")));
 
         // String signals should also be retrievable as bytes
@@ -446,7 +412,7 @@ mod tests {
 
     #[test]
     fn test_request_without_signal() {
-        let request = Request::without_signal(Credential::Device);
+        let request = Request::new(Credential::Device, None);
         assert_eq!(request.signal, None);
         assert_eq!(request.signal_bytes(), None);
     }
@@ -458,26 +424,35 @@ mod tests {
         let json = serde_json::to_string(&signal).unwrap();
         assert_eq!(json, r#""test_signal""#);
 
-        // Test bytes signal serialization (hex-encoded)
-        let bytes_signal = Signal::from_bytes(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]); // "Hello"
-        let json = serde_json::to_string(&bytes_signal).unwrap();
-        assert_eq!(json, r#""48656c6c6f""#);
+        // Test ABI-encoded signal serialization (hex-encoded with 0x prefix)
+        let abi_signal = Signal::from_abi_encoded(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]); // "Hello" bytes
+        let json = serde_json::to_string(&abi_signal).unwrap();
+        assert_eq!(json, r#""0x48656c6c6f""#);
     }
 
     #[test]
     fn test_signal_deserialization() {
-        // Test 0x-prefixed hex deserialization
+        // Test 0x-prefixed hex deserialization (treated as ABI-encoded)
         let signal: Signal = serde_json::from_str(r#""0x48656c6c6f""#).unwrap();
         assert_eq!(signal.as_bytes(), b"Hello");
+        assert!(matches!(signal, Signal::AbiEncoded(_)));
 
-        // Test non-prefixed hex deserialization
+        // Test non-prefixed hex is treated as a plain string (not ABI-encoded)
+        // This prevents ambiguity with strings like "cafe" or "deadbeef"
         let signal: Signal = serde_json::from_str(r#""48656c6c6f""#).unwrap();
-        assert_eq!(signal.as_bytes(), b"Hello");
+        assert_eq!(signal.as_str(), Some("48656c6c6f"));
+        assert!(matches!(signal, Signal::String(_)));
 
-        // Test UTF-8 string deserialization (fallback)
+        // Test UTF-8 string deserialization
         let signal: Signal = serde_json::from_str(r#""plaintext""#).unwrap();
         assert_eq!(signal.as_str(), Some("plaintext"));
         assert_eq!(signal.as_bytes(), b"plaintext");
+        assert!(matches!(signal, Signal::String(_)));
+
+        // Test that ambiguous hex strings like "cafe" are treated as strings
+        let signal: Signal = serde_json::from_str(r#""cafe""#).unwrap();
+        assert_eq!(signal.as_str(), Some("cafe"));
+        assert!(matches!(signal, Signal::String(_)));
     }
 
     #[test]

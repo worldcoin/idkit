@@ -12,7 +12,7 @@ pub mod constraints;
 pub mod crypto;
 pub mod error;
 pub mod types;
-// Re-export main types for convenience
+
 pub use constraints::{ConstraintNode, Constraints};
 pub use error::{Error, Result};
 pub use types::{AppId, BridgeUrl, Credential, Proof, Request, Signal, VerificationLevel};

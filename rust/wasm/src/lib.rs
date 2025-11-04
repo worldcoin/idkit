@@ -19,24 +19,21 @@ impl Request {
     /// # Errors
     ///
     /// Returns an error if the credential type cannot be deserialized
+    ///
+    /// # Arguments
+    /// * `credential_type` - The type of credential to request
+    /// * `signal` - Optional signal string. Pass `null` or `undefined` for no signal.
     #[wasm_bindgen(constructor)]
-    pub fn new(credential_type: JsValue, signal: String) -> Result<Self, JsValue> {
+    pub fn new(credential_type: JsValue, signal: Option<String>) -> Result<Self, JsValue> {
         let cred: Credential = serde_wasm_bindgen::from_value(credential_type)?;
-        let signal_opt = if signal.is_empty() {
-            None
-        } else {
-            Some(Signal::from_string(signal))
-        };
-        Ok(Self(idkit_core::Request {
-            credential_type: cred,
-            signal: signal_opt,
-            face_auth: None,
-        }))
+        let signal_opt = signal.map(Signal::from_string);
+        Ok(Self(idkit_core::Request::new(cred, signal_opt)))
     }
 
-    /// Creates a new request with arbitrary bytes for the signal
+    /// Creates a new request with ABI-encoded bytes for the signal
     ///
-    /// This is useful for on-chain use cases where RPs need custom-encoded signals.
+    /// This is useful for on-chain use cases where RPs need ABI-encoded signals
+    /// according to Solidity encoding rules.
     ///
     /// # Errors
     ///
@@ -44,7 +41,7 @@ impl Request {
     #[wasm_bindgen(js_name = withBytes)]
     pub fn with_bytes(credential_type: JsValue, signal_bytes: &[u8]) -> Result<Self, JsValue> {
         let cred: Credential = serde_wasm_bindgen::from_value(credential_type)?;
-        Ok(Self(idkit_core::Request::with_signal_bytes(cred, signal_bytes)))
+        Ok(Self(idkit_core::Request::new(cred, Some(Signal::from_abi_encoded(signal_bytes)))))
     }
 
     /// Gets the signal as raw bytes

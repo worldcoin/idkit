@@ -5,10 +5,9 @@ use ruint::aliases::U256;
 use tiny_keccak::{Hasher, Keccak};
 
 // ============================================================================
-// Native (non-WASM) implementation using RustCrypto
+// AES-256-GCM encryption (unified implementation for native and WASM)
 // ============================================================================
-
-#[cfg(feature = "native-crypto")]
+#[cfg(any(feature = "native-crypto", feature = "wasm-crypto"))]
 use {
     aes_gcm::{
         aead::{Aead, KeyInit},
@@ -24,7 +23,7 @@ use {
 /// # Errors
 ///
 /// Returns an error if the random number generator fails
-#[cfg(feature = "native-crypto")]
+#[cfg(any(feature = "native-crypto", feature = "wasm-crypto"))]
 pub fn generate_key() -> Result<([u8; 32], [u8; 12])> {
     use crate::Error;
 
@@ -43,7 +42,7 @@ pub fn generate_key() -> Result<([u8; 32], [u8; 12])> {
 /// # Errors
 ///
 /// Returns an error if encryption fails
-#[cfg(feature = "native-crypto")]
+#[cfg(any(feature = "native-crypto", feature = "wasm-crypto"))]
 pub fn encrypt(key: &[u8], nonce: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
     use crate::Error;
 
@@ -73,94 +72,7 @@ pub fn encrypt(key: &[u8], nonce: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
 /// # Errors
 ///
 /// Returns an error if the nonce is invalid or decryption fails
-#[cfg(feature = "native-crypto")]
-pub fn decrypt(key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
-    use crate::Error;
-
-    if key.len() != 32 {
-        return Err(Error::Crypto("Key must be 32 bytes".to_string()));
-    }
-    if nonce.len() != 12 {
-        return Err(Error::Crypto("Nonce must be 12 bytes".to_string()));
-    }
-
-    let cipher = Aes256Gcm::new_from_slice(key)
-        .map_err(|_| Error::Crypto("Invalid key length".to_string()))?;
-
-    // Convert slice to array and then to GenericArray
-    let nonce_array: [u8; 12] = nonce
-        .try_into()
-        .map_err(|_| Error::Crypto("Nonce must be exactly 12 bytes".to_string()))?;
-    let nonce_ref = Nonce::from(nonce_array);
-
-    cipher
-        .decrypt(&nonce_ref, ciphertext)
-        .map_err(|_| Error::Crypto("Decryption failed".to_string()))
-}
-
-// ============================================================================
-// WASM implementation using RustCrypto (pure Rust, same as native)
-// ============================================================================
-
-#[cfg(all(target_arch = "wasm32", feature = "wasm-crypto"))]
-use {
-    aes_gcm::{
-        aead::{Aead, KeyInit},
-        Aes256Gcm, Nonce,
-    },
-    getrandom::getrandom,
-};
-
-#[cfg(all(target_arch = "wasm32", feature = "wasm-crypto"))]
-pub fn generate_key() -> Result<([u8; 32], [u8; 12])> {
-    use crate::Error;
-
-    let mut key_bytes = [0u8; 32]; // 256 bits
-    getrandom(&mut key_bytes).map_err(|e| Error::Crypto(format!("Failed to generate key: {e}")))?;
-
-    let mut nonce_bytes = [0u8; 12]; // AES-GCM nonce length
-    getrandom(&mut nonce_bytes)
-        .map_err(|e| Error::Crypto(format!("Failed to generate nonce: {e}")))?;
-
-    Ok((key_bytes, nonce_bytes))
-}
-
-/// Encrypts plaintext using AES-256-GCM (pure Rust implementation)
-///
-/// # Errors
-///
-/// Returns an error if encryption fails
-#[cfg(all(target_arch = "wasm32", feature = "wasm-crypto"))]
-pub fn encrypt(key: &[u8], nonce: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
-    use crate::Error;
-
-    if key.len() != 32 {
-        return Err(Error::Crypto("Key must be 32 bytes".to_string()));
-    }
-    if nonce.len() != 12 {
-        return Err(Error::Crypto("Nonce must be 12 bytes".to_string()));
-    }
-
-    let cipher = Aes256Gcm::new_from_slice(key)
-        .map_err(|_| Error::Crypto("Invalid key length".to_string()))?;
-
-    // Convert slice to array and then to GenericArray
-    let nonce_array: [u8; 12] = nonce
-        .try_into()
-        .map_err(|_| Error::Crypto("Nonce must be exactly 12 bytes".to_string()))?;
-    let nonce_ref = Nonce::from(nonce_array);
-
-    cipher
-        .encrypt(&nonce_ref, plaintext)
-        .map_err(|_| Error::Crypto("Encryption failed".to_string()))
-}
-
-/// Decrypts ciphertext using AES-256-GCM (pure Rust implementation)
-///
-/// # Errors
-///
-/// Returns an error if the nonce is invalid or decryption fails
-#[cfg(all(target_arch = "wasm32", feature = "wasm-crypto"))]
+#[cfg(any(feature = "native-crypto", feature = "wasm-crypto"))]
 pub fn decrypt(key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
     use crate::Error;
 
@@ -214,19 +126,14 @@ pub fn encode_signal_abi<V: alloy_sol_types::SolValue>(signal: &V) -> U256 {
     hash_to_field(&signal.abi_encode_packed())
 }
 
-/// Encodes a signal from raw bytes
+/// Encodes a signal using keccak256 hash
 ///
-/// Takes raw bytes and returns the keccak256 hash, shifted right by 8 bits
+/// Takes a `Signal` (either string or bytes) and returns the keccak256 hash,
+/// shifted right by 8 bits, formatted as a hex string with 0x prefix
 #[must_use]
-pub fn encode_signal(signal: &[u8]) -> String {
-    let hash = hash_to_field(signal);
+pub fn encode_signal(signal: &crate::Signal) -> String {
+    let hash = hash_to_field(signal.as_bytes());
     format!("{hash:#066x}")
-}
-
-/// Encodes a signal from a string
-#[must_use]
-pub fn encode_signal_str(signal: &str) -> String {
-    encode_signal(signal.as_bytes())
 }
 
 /// Encodes an action
@@ -297,10 +204,19 @@ mod tests {
 
     #[test]
     fn test_encode_signal() {
-        let signal = "test_signal";
-        let encoded = encode_signal_str(signal);
+        use crate::Signal;
+
+        // Test string signal
+        let signal = Signal::from_string("test_signal");
+        let encoded = encode_signal(&signal);
         assert!(encoded.starts_with("0x"));
         assert_eq!(encoded.len(), 66); // 0x + 64 hex chars
+
+        // Test ABI-encoded signal
+        let abi_signal = Signal::from_abi_encoded(vec![0x01, 0x02, 0x03]);
+        let encoded_abi = encode_signal(&abi_signal);
+        assert!(encoded_abi.starts_with("0x"));
+        assert_eq!(encoded_abi.len(), 66);
     }
 
     #[test]

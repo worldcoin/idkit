@@ -6,7 +6,13 @@
 #![deny(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::module_name_repetitions)]
 
-use idkit_core::{Credential, Proof, Request as CoreRequest};
+use idkit_core::{Credential, Proof, Request as CoreRequest, Signal as CoreSignal};
+
+/// Signal wrapper for `UniFFI`
+///
+/// Represents a signal that can be either a string or ABI-encoded bytes.
+#[derive(Debug, Clone, uniffi::Object)]
+pub struct Signal(CoreSignal);
 
 /// Opaque request handle for `UniFFI`
 ///
@@ -80,48 +86,54 @@ impl From<idkit_core::Error> for IdkitError {
     }
 }
 
+// Signal constructors
+
+#[uniffi::export]
+impl Signal {
+    /// Creates a signal from a string
+    #[must_use]
+    #[uniffi::constructor]
+    pub fn from_string(s: String) -> Self {
+        Self(CoreSignal::from_string(s))
+    }
+
+    /// Creates a signal from ABI-encoded bytes
+    ///
+    /// Use this for on-chain use cases where the signal needs to be ABI-encoded
+    /// according to Solidity encoding rules.
+    #[must_use]
+    #[uniffi::constructor]
+    pub fn from_abi_encoded(bytes: Vec<u8>) -> Self {
+        Self(CoreSignal::from_abi_encoded(bytes))
+    }
+
+    /// Gets the signal as raw bytes
+    #[must_use]
+    pub fn as_bytes(&self) -> Vec<u8> {
+        self.0.as_bytes().to_vec()
+    }
+
+    /// Gets the signal as a string if it's a UTF-8 string signal
+    #[must_use]
+    pub fn as_string(&self) -> Option<String> {
+        self.0.as_str().map(String::from)
+    }
+}
+
 // Request constructors and methods
 
 #[uniffi::export]
 impl Request {
-    /// Creates a new credential request with a string signal
+    /// Creates a new credential request
     ///
     /// # Arguments
     /// * `credential_type` - The type of credential to request (Orb, Face, Device, etc.)
-    /// * `signal` - User-specific signal for the proof (pass empty string for no signal)
+    /// * `signal` - Optional signal for the proof. Use `Signal::from_string()` or `Signal::from_abi_encoded()`
     #[must_use]
     #[uniffi::constructor]
-    pub fn with_signal(credential_type: Credential, signal: String) -> Self {
-        if signal.is_empty() {
-            Self(CoreRequest::without_signal(credential_type))
-        } else {
-            Self(CoreRequest::with_signal(credential_type, signal))
-        }
-    }
-
-    /// Creates a new credential request with a signal from arbitrary bytes
-    ///
-    /// This is useful for on-chain use cases where RPs need to provide custom-encoded signals.
-    /// The bytes are hex-encoded internally for storage and transmission.
-    ///
-    /// # Arguments
-    /// * `credential_type` - The type of credential to request
-    /// * `signal_bytes` - Raw bytes for the signal
-    #[must_use]
-    #[uniffi::constructor]
-    pub fn with_signal_bytes(credential_type: Credential, signal_bytes: &[u8]) -> Self {
-        Self(CoreRequest::with_signal_bytes(credential_type, signal_bytes))
-    }
-
-    /// Creates a new credential request without a signal
-    ///
-    /// # Arguments
-    /// * `credential_type` - The type of credential to request
-    #[must_use]
-    #[allow(clippy::missing_const_for_fn)] // UniFFI doesn't support const fn
-    #[uniffi::constructor]
-    pub fn without_signal(credential_type: Credential) -> Self {
-        Self(CoreRequest::without_signal(credential_type))
+    pub fn new(credential_type: Credential, signal: Option<std::sync::Arc<Signal>>) -> Self {
+        let signal_opt = signal.map(|s| s.0.clone());
+        Self(CoreRequest::new(credential_type, signal_opt))
     }
 
     /// Sets the face authentication requirement on a request
@@ -218,7 +230,8 @@ mod tests {
 
     #[test]
     fn test_create_request() {
-        let request = Request::with_signal(Credential::Orb, "test_signal".to_string());
+        let signal = Signal::from_string("test_signal".to_string());
+        let request = Request::new(Credential::Orb, Some(std::sync::Arc::new(signal)));
         assert_eq!(request.credential_type(), Credential::Orb);
         assert!(request.get_signal_bytes().is_some());
         assert_eq!(request.get_signal_bytes().unwrap(), b"test_signal");
@@ -229,25 +242,18 @@ mod tests {
     }
 
     #[test]
-    fn test_create_request_empty_signal() {
-        let request = Request::with_signal(Credential::Face, String::new());
-        assert_eq!(request.credential_type(), Credential::Face);
-        assert_eq!(request.get_signal_bytes(), None);
-        assert_eq!(request.face_auth(), None);
-    }
-
-    #[test]
     fn test_create_request_without_signal() {
-        let request = Request::without_signal(Credential::Device);
+        let request = Request::new(Credential::Device, None);
         assert_eq!(request.credential_type(), Credential::Device);
         assert_eq!(request.get_signal_bytes(), None);
         assert_eq!(request.face_auth(), None);
     }
 
     #[test]
-    fn test_create_request_with_bytes() {
+    fn test_create_request_with_abi_encoded() {
         let bytes = vec![0xFF, 0xFE, 0xFD, 0x00, 0x01];
-        let request = Request::with_signal_bytes(Credential::Orb, &bytes);
+        let signal = Signal::from_abi_encoded(bytes.clone());
+        let request = Request::new(Credential::Orb, Some(std::sync::Arc::new(signal)));
 
         assert_eq!(request.credential_type(), Credential::Orb);
         assert!(request.get_signal_bytes().is_some());
@@ -262,21 +268,23 @@ mod tests {
 
     #[test]
     fn test_get_signal_bytes_string() {
-        let request = Request::with_signal(Credential::Face, "my_signal".to_string());
+        let signal = Signal::from_string("my_signal".to_string());
+        let request = Request::new(Credential::Face, Some(std::sync::Arc::new(signal)));
         let bytes = request.get_signal_bytes().unwrap();
         assert_eq!(bytes, b"my_signal");
     }
 
     #[test]
     fn test_get_signal_bytes_none() {
-        let request = Request::without_signal(Credential::Device);
+        let request = Request::new(Credential::Device, None);
         let bytes = request.get_signal_bytes();
         assert_eq!(bytes, None);
     }
 
     #[test]
     fn test_request_json_roundtrip() {
-        let request = Request::with_signal(Credential::Face, "signal_123".to_string());
+        let signal = Signal::from_string("signal_123".to_string());
+        let request = Request::new(Credential::Face, Some(std::sync::Arc::new(signal)));
 
         let json = request.to_json().unwrap();
         assert!(json.contains("face"));
