@@ -1,164 +1,77 @@
-# IDKit - World ID SDK (Rust-Core Monorepo)
+# IDKit - World ID SDK (Rust Core)
+
+> **Phase 1**: This branch contains the foundational Rust core with basic types and UniFFI scaffolding. Multi-language bindings (Swift, Kotlin, JavaScript) will be added in Phase 2.
 
 IDKit is the toolkit for identity online. With IDKit you can easily interact with the [World ID Protocol](https://world.org/world-id).
 
-IDKit has multi-language support, facilitated by this monorepo which uses a common Rust core.
-
-## Packages
+## Packages (Phase 1)
 
 ### Rust Core
-- **`idkit-core`**: Core Rust implementation
-- **`idkit-uniffi`**: UniFFI bindings generator for Swift and Kotlin
-- **`idkit-wasm`**: WebAssembly bindings for browsers
+- **`idkit-core`**: Core Rust types (Credential, Request, Proof)
+- **`idkit-uniffi`**: UniFFI bindings scaffolding for future Swift/Kotlin support
+- **`idkit-wasm`**: WebAssembly bindings scaffolding for future browser support
 
-### Platform SDKs
-- **Swift** (`swift/`): iOS and macOS SDK via UniFFI
-- **Kotlin** (`kotlin/`): Android and JVM SDK via UniFFI
-- **JavaScript** (`js/packages/`):
-  - `@worldcoin/idkit-core`: WASM-powered core for browsers and Node.js
-  - `@worldcoin/idkit-react`: React components and hooks
-  - `@worldcoin/idkit-react-native`: React Native components
-  - `@worldcoin/idkit-standalone`: Standalone widgets
+### What's in Phase 1
+✅ Basic type definitions (Credential enum, Request/Proof structs)
+✅ Serialization/deserialization support
+✅ UniFFI scaffolding that proves bindings generation works
+✅ WASM scaffolding for browser support
+✅ Minimal error handling
+✅ Comprehensive tests
 
-## 🏗️ Architecture
+### What's Coming in Phase 2
+🚧 Full constraint system (AND/OR logic for credential requests)
+🚧 Session management (bridge interactions)
+🚧 Proof verification
+🚧 Cryptographic utilities
+🚧 Swift SDK (iOS/macOS)
+🚧 Kotlin SDK (Android/JVM)
+🚧 JavaScript SDK (browsers/Node.js)
+
+## 🏗️ Architecture (Phase 1)
 
 ```
-┌─────────────────────────────────────────────────┐
-│              Platform UIs & Wrappers            │
-│  (React, React Native, Swift UI, Compose)       │
-└─────────────────┬──────────────┬────────────────┘
-                  │              │
-         ┌────────┴─────┐   ┌────┴──────┐
-         │  UniFFI      │   │   WASM    │
-         │  Bindings    │   │  Bindings │
-         │(Swift/Kotlin)│   │(Browser/  │
-         └────────┬─────┘   │ Node.js)  │
-                  │         └─────┬─────┘
-                  │               │
-             ┌────┴───────────────┴─────┐
-             │   Rust IDKit Core        │
-             │  • Types & Constraints   │
-             │  • Bridge interactions   │
-             │  • Cryptography          │
-             │  • Session Management    │
-             │  • Proof Verification    │
-             └──────────────────────────┘
-```
-
-## API Design
-
-### Declarative Credential Requests
-
-Instead of the old `verification_level` enum, you now declaratively specify which credentials you'll accept:
-
-```rust
-// Single credential (Orb only)
-let requests = vec![
-    Request::new(Credential::Orb, signal)
-];
-
-// Fallback credentials (prefer Orb, fall back to Face)
-let requests = vec![
-    Request::new(Credential::Orb, signal).with_face_auth(true),
-    Request::new(Credential::Face, signal).with_face_auth(true),
-];
-
-let constraints = Constraints::any(vec![Credential::Orb, Credential::Face]);
-```
-
-### Constraints System
-
-The constraint system supports complex AND/OR logic:
-
-```rust
-// ANY: User must have at least one of these
-Constraints::any(vec![Credential::Orb, Credential::Face, Credential::Device])
-
-// ALL: User must have all of these
-Constraints::all(vec![Credential::Orb, Credential::Face])
-
-// Nested: Orb OR (SecureDocument OR Document)
-Constraints::new(ConstraintNode::Any {
-    any: vec![
-        ConstraintNode::Credential(Credential::Orb),
-        ConstraintNode::Any {
-            any: vec![
-                ConstraintNode::Credential(Credential::SecureDocument),
-                ConstraintNode::Credential(Credential::Document),
-            ]
-        }
-    ]
-})
+┌──────────────────────────────────┐
+│   Rust IDKit Core (Phase 1)     │
+│  • Basic Types                   │
+│    - Credential enum             │
+│    - Request struct              │
+│    - Proof struct                │
+│  • Serialization/Deserialization │
+│  • UniFFI scaffolding            │
+│  • WASM scaffolding              │
+└──────────────────────────────────┘
 ```
 
 ## Getting Started
 
-### Rust
+### Basic Types (Phase 1)
 
 ```rust
-use idkit_core::{AppId, Credential, Request, Session, SessionConfig, Constraints};
+use idkit_core::{Credential, Request, Proof};
+use serde_json;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let app_id = AppId::new("app_your_app_id")?;
+// Create a request
+let request = Request {
+    credential_type: Credential::Orb,
+    signal: "user_123".to_string(),
+    face_auth: Some(true),
+};
 
-    let config = SessionConfig::new(app_id, "verify-human")
-        .with_request(Request::new(
-            Credential::Orb,
-            "user_123".to_string()
-        ))
-        .with_constraints(Constraints::any(vec![Credential::Orb]));
+// Serialize to JSON
+let json = serde_json::to_string(&request)?;
+println!("Request JSON: {}", json);
 
-    let session = Session::create(config).await?;
+// Deserialize from JSON
+let parsed: Request = serde_json::from_str(&json)?;
 
-    println!("Connect URL: {}", session.connect_url());
-
-    let proof = session.wait_for_proof().await?;
-    println!("Received proof: {:?}", proof);
-
-    Ok(())
-}
-```
-
-### Swift
-
-```swift
-import IDKit
-
-let appId = try createAppId(appId: "app_your_app_id")
-let config = createSessionConfig(appId: appId, action: "verify-human")
-
-let request = createRequest(
-    credentialType: .orb,
-    signal: "user_123",
-    faceAuth: true
-)
-
-let configWithRequest = sessionConfigAddRequest(config: config, request: request)
-let session = try await createSession(config: configWithRequest)
-
-print("Connect URL: \(sessionConnectUrl(session: session))")
-
-let proof = try await sessionWaitForProof(session: session)
-print("Received proof: \(proof)")
-```
-
-### JavaScript/TypeScript
-
-```typescript
-import { AppId, SessionConfig, Credential, Request } from '@worldcoin/idkit-core';
-
-const appId = new AppId('app_your_app_id');
-const request = new Request(Credential.Orb, 'user_123').withFaceAuth(true);
-
-const config = new SessionConfig(appId, 'verify-human')
-    .withRequest(request);
-
-const session = await Session.create(config);
-console.log('Connect URL:', session.connectUrl());
-
-const proof = await session.waitForProof();
-console.log('Received proof:', proof);
+// Create a proof
+let proof = Proof {
+    proof: "0x123...".to_string(),
+    merkle_root: "0x456...".to_string(),
+    nullifier_hash: "0x789...".to_string(),
+    verification_level: Credential::Orb,
+};
 ```
 
 ## 🔧 Development
@@ -166,44 +79,33 @@ console.log('Received proof:', proof);
 ### Prerequisites
 
 - Rust 1.70+ (`rustup install stable`)
-- Node.js 18+ (for JS packages)
-- Swift 5.9+ (for Swift bindings, macOS only)
-- Kotlin 2.0+ (for Kotlin bindings)
-- Android NDK (for Android builds)
 
 ### Building
 
 ```bash
-# Build Rust core
+# Build all packages
+cargo build
+
+# Build specific packages
 cargo build --package idkit-core
+cargo build --package idkit-uniffi
+cargo build --package idkit-wasm
 
-# Build UniFFI bindings
-cargo build --package idkit-uniffi --release
-
-# Build WASM bindings
-cargo build --package idkit-wasm --target wasm32-unknown-unknown
-
-# Build Swift bindings (macOS only)
-./scripts/build-swift.sh
-
-# Build Kotlin bindings
-./scripts/build-kotlin.sh
-
-# Build JS packages
-cd js && pnpm install && pnpm build
+# Build for release
+cargo build --release
 ```
 
 ### Testing
 
 ```bash
-# Test Rust core
-cargo test --package idkit-core
+# Test all packages
+cargo test
 
-# Test all Rust packages
-cargo test --workspace
+# Test with verbose output
+cargo test -- --nocapture
 
-# Test JS packages
-cd js && pnpm test
+# Run clippy lints
+cargo clippy --all-targets --all-features
 ```
 
 ## Documentation
