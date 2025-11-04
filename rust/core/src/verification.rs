@@ -83,7 +83,7 @@ pub async fn verify_proof(
             "https://developer.world.org/api/v2/verify/{}",
             app_id.as_str()
         ))
-        .header("User-Agent", "idkit-core/3.0.0")
+        .header("User-Agent", &format!("idkit-core/{}", env!("CARGO_PKG_VERSION")))
         .json(&request)
         .send()
         .await?;
