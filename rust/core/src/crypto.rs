@@ -203,7 +203,7 @@ pub fn encode_signal_abi<V: alloy_sol_types::SolValue>(signal: &V) -> U256 {
 #[must_use]
 pub fn encode_signal(signal: &[u8]) -> String {
     let hash = hash_to_field(signal);
-    format!("0x{hash:064x}")
+    format!("{hash:#066x}")
 }
 
 /// Encodes a signal from a string

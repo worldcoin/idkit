@@ -45,6 +45,90 @@ impl Credential {
     }
 }
 
+/// A signal value that can be either UTF-8 string or arbitrary bytes
+///
+/// Signals are used to create unique proofs. They can be:
+/// - UTF-8 strings (common case)
+/// - Arbitrary bytes hex-encoded (for on-chain use cases)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Signal {
+    /// UTF-8 string signal
+    String(String),
+    /// Arbitrary bytes, stored as hex for JSON compatibility
+    Bytes(Vec<u8>),
+}
+
+impl Signal {
+    /// Creates a signal from a string
+    #[must_use]
+    pub fn from_string(s: impl Into<String>) -> Self {
+        Self::String(s.into())
+    }
+
+    /// Creates a signal from arbitrary bytes
+    #[must_use]
+    pub fn from_bytes(bytes: impl Into<Vec<u8>>) -> Self {
+        Self::Bytes(bytes.into())
+    }
+
+    /// Gets the signal as bytes
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            Self::String(s) => s.as_bytes(),
+            Self::Bytes(b) => b,
+        }
+    }
+
+    /// Converts the signal to bytes
+    #[must_use]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.as_bytes().to_vec()
+    }
+
+    /// Gets the signal as a string reference if it's a UTF-8 string
+    #[must_use]
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            Self::String(s) => Some(s),
+            Self::Bytes(_) => None,
+        }
+    }
+}
+
+impl Serialize for Signal {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::String(s) => serializer.serialize_str(s),
+            Self::Bytes(b) => serializer.serialize_str(&hex::encode(b)),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Signal {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+
+        // Try to decode as hex first (0x-prefixed or plain hex)
+        if let Some(stripped) = s.strip_prefix("0x") {
+            if let Ok(bytes) = hex::decode(stripped) {
+                return Ok(Self::Bytes(bytes));
+            }
+        } else if let Ok(bytes) = hex::decode(&s) {
+            return Ok(Self::Bytes(bytes));
+        }
+
+        // Fall back to UTF-8 string
+        Ok(Self::String(s))
+    }
+}
+
 /// A single credential request
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "uniffi-bindings", derive(uniffi::Record))]
@@ -54,9 +138,9 @@ pub struct Request {
     pub credential_type: Credential,
 
     /// The signal to be included in the proof (unique per request)
-    /// If None or empty, no signal is included in the proof
+    /// If None, no signal is included in the proof
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub signal: Option<String>,
+    pub signal: Option<Signal>,
 
     /// Whether face authentication is required (only valid for orb and face credentials)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -66,12 +150,51 @@ pub struct Request {
 impl Request {
     /// Creates a new request with an optional signal
     #[must_use]
-    pub const fn new(credential_type: Credential, signal: Option<String>) -> Self {
+    pub const fn new(credential_type: Credential, signal: Option<Signal>) -> Self {
         Self {
             credential_type,
             signal,
             face_auth: None,
         }
+    }
+
+    /// Creates a new request with a signal from arbitrary bytes
+    ///
+    /// The bytes are hex-encoded for storage and transmission.
+    /// This is useful for on-chain use cases where RPs need custom encoding.
+    #[must_use]
+    pub fn with_signal_bytes(credential_type: Credential, signal_bytes: &[u8]) -> Self {
+        Self {
+            credential_type,
+            signal: Some(Signal::from_bytes(signal_bytes)),
+            face_auth: None,
+        }
+    }
+
+    /// Creates a new request with a string signal
+    #[must_use]
+    pub fn with_signal(credential_type: Credential, signal: impl Into<String>) -> Self {
+        Self {
+            credential_type,
+            signal: Some(Signal::from_string(signal)),
+            face_auth: None,
+        }
+    }
+
+    /// Creates a new request without a signal
+    #[must_use]
+    pub const fn without_signal(credential_type: Credential) -> Self {
+        Self {
+            credential_type,
+            signal: None,
+            face_auth: None,
+        }
+    }
+
+    /// Gets the signal as bytes
+    #[must_use]
+    pub fn signal_bytes(&self) -> Option<Vec<u8>> {
+        self.signal.as_ref().map(Signal::to_bytes)
     }
 
     /// Adds face authentication requirement
@@ -280,16 +403,79 @@ mod tests {
 
     #[test]
     fn test_request_validation() {
-        let valid = Request::new(Credential::Orb, Some("signal".to_string())).with_face_auth(true);
+        let valid = Request::new(Credential::Orb, Some(Signal::from_string("signal"))).with_face_auth(true);
         assert!(valid.validate().is_ok());
 
-        let invalid = Request::new(Credential::Device, Some("signal".to_string())).with_face_auth(true);
+        let invalid = Request::new(Credential::Device, Some(Signal::from_string("signal"))).with_face_auth(true);
         assert!(invalid.validate().is_err());
 
         // Test without signal
         let no_signal = Request::new(Credential::Face, None);
         assert!(no_signal.validate().is_ok());
         assert_eq!(no_signal.signal, None);
+    }
+
+    #[test]
+    fn test_request_with_signal_bytes() {
+        // Test creating request with arbitrary bytes
+        let bytes = b"arbitrary\x00\xFF\xFE data";
+        let request = Request::with_signal_bytes(Credential::Orb, bytes);
+
+        // Verify signal is stored as bytes
+        assert!(request.signal.is_some());
+        let signal = request.signal.as_ref().unwrap();
+        assert_eq!(signal, &Signal::from_bytes(bytes));
+
+        // Verify we can decode back to bytes
+        let decoded = request.signal_bytes().unwrap();
+        assert_eq!(decoded, bytes);
+    }
+
+    #[test]
+    fn test_request_with_string_signal() {
+        // Test creating request with string signal
+        let request = Request::with_signal(Credential::Face, "my_signal");
+        assert_eq!(request.signal, Some(Signal::from_string("my_signal")));
+
+        // String signals should also be retrievable as bytes
+        let bytes = request.signal_bytes().unwrap();
+        assert_eq!(bytes, b"my_signal");
+    }
+
+    #[test]
+    fn test_request_without_signal() {
+        let request = Request::without_signal(Credential::Device);
+        assert_eq!(request.signal, None);
+        assert_eq!(request.signal_bytes(), None);
+    }
+
+    #[test]
+    fn test_signal_serialization() {
+        // Test string signal serialization
+        let signal = Signal::from_string("test_signal");
+        let json = serde_json::to_string(&signal).unwrap();
+        assert_eq!(json, r#""test_signal""#);
+
+        // Test bytes signal serialization (hex-encoded)
+        let bytes_signal = Signal::from_bytes(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]); // "Hello"
+        let json = serde_json::to_string(&bytes_signal).unwrap();
+        assert_eq!(json, r#""48656c6c6f""#);
+    }
+
+    #[test]
+    fn test_signal_deserialization() {
+        // Test 0x-prefixed hex deserialization
+        let signal: Signal = serde_json::from_str(r#""0x48656c6c6f""#).unwrap();
+        assert_eq!(signal.as_bytes(), b"Hello");
+
+        // Test non-prefixed hex deserialization
+        let signal: Signal = serde_json::from_str(r#""48656c6c6f""#).unwrap();
+        assert_eq!(signal.as_bytes(), b"Hello");
+
+        // Test UTF-8 string deserialization (fallback)
+        let signal: Signal = serde_json::from_str(r#""plaintext""#).unwrap();
+        assert_eq!(signal.as_str(), Some("plaintext"));
+        assert_eq!(signal.as_bytes(), b"plaintext");
     }
 
     #[test]

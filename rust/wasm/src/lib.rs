@@ -6,15 +6,15 @@
 #![deny(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::module_name_repetitions)]
 
-use idkit_core::{Credential, Proof, Request};
+use idkit_core::{Credential, Signal};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-pub struct WasmRequest(Request);
+pub struct Request(idkit_core::Request);
 
 #[wasm_bindgen]
-impl WasmRequest {
-    /// Creates a new WASM request wrapper
+impl Request {
+    /// Creates a new request
     ///
     /// # Errors
     ///
@@ -25,13 +25,33 @@ impl WasmRequest {
         let signal_opt = if signal.is_empty() {
             None
         } else {
-            Some(signal)
+            Some(Signal::from_string(signal))
         };
-        Ok(Self(Request {
+        Ok(Self(idkit_core::Request {
             credential_type: cred,
             signal: signal_opt,
             face_auth: None,
         }))
+    }
+
+    /// Creates a new request with arbitrary bytes for the signal
+    ///
+    /// This is useful for on-chain use cases where RPs need custom-encoded signals.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the credential type cannot be deserialized
+    #[wasm_bindgen(js_name = withBytes)]
+    pub fn with_bytes(credential_type: JsValue, signal_bytes: &[u8]) -> Result<Self, JsValue> {
+        let cred: Credential = serde_wasm_bindgen::from_value(credential_type)?;
+        Ok(Self(idkit_core::Request::with_signal_bytes(cred, signal_bytes)))
+    }
+
+    /// Gets the signal as raw bytes
+    #[must_use]
+    #[wasm_bindgen(js_name = getSignalBytes)]
+    pub fn get_signal_bytes(&self) -> Option<Vec<u8>> {
+        self.0.signal_bytes()
     }
 
     /// Converts the request to JSON
@@ -46,11 +66,11 @@ impl WasmRequest {
 }
 
 #[wasm_bindgen]
-pub struct WasmProof(Proof);
+pub struct Proof(idkit_core::Proof);
 
 #[wasm_bindgen]
-impl WasmProof {
-    /// Creates a new WASM proof wrapper
+impl Proof {
+    /// Creates a new proof
     ///
     /// # Errors
     ///
@@ -63,7 +83,7 @@ impl WasmProof {
         verification_level: JsValue,
     ) -> Result<Self, JsValue> {
         let cred: Credential = serde_wasm_bindgen::from_value(verification_level)?;
-        Ok(Self(Proof {
+        Ok(Self(idkit_core::Proof {
             proof,
             merkle_root,
             nullifier_hash,

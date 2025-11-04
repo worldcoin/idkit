@@ -16,6 +16,7 @@ idkit-core = { path = "../core", features = ["uniffi-bindings"] }
 uniffi = { workspace = true }
 thiserror = { workspace = true }
 serde_json = { workspace = true }
+hex = { workspace = true }
 
 [build-dependencies]
 uniffi = { workspace = true, features = ["build"] }
