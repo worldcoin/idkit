@@ -1,6 +1,7 @@
 # IDKit Kotlin
 
 Kotlin bindings for the World ID SDK, built with Rust and UniFFI.
+
 ## Installation
 
 ### Gradle (Android/JVM)
@@ -43,7 +44,7 @@ init()
 
 ### Create a Verification Session
 
-**Option 1: API with Verification Level**
+**API with Verification Level**
 
 ```kotlin
 val session = IdkitSession.fromVerificationLevel(
@@ -54,7 +55,7 @@ val session = IdkitSession.fromVerificationLevel(
 )
 ```
 
-**Option 2: API with Credential Requests** 
+**API with Credential Requests** 
 
 ```kotlin
 val requests = listOf(
@@ -84,7 +85,7 @@ println(connectUrl)
 
 ### Wait for Proof
 
-**Option 1: Poll for Status**
+**Poll for Status**
 
 ```kotlin
 import kotlinx.coroutines.*
@@ -113,7 +114,7 @@ CoroutineScope(Dispatchers.IO).launch {
 }
 ```
 
-**Option 2: Wait for Proof**
+**Wait for Proof**
 
 ```kotlin
 try {

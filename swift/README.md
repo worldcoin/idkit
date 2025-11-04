@@ -2,13 +2,6 @@
 
 Swift bindings for the World ID SDK, built with Rust and UniFFI.
 
-## Features
-
-- 🦀 **Rust-powered**: Core logic written in Rust for performance and safety
-- 📱 **Native Swift API**: Idiomatic Swift interface with async/await support
-- 🔐 **AES-256-GCM encryption**: Secure communication with World App
-- ✅ **Type-safe**: Full type safety with Swift enums and structs
-
 ## Installation
 
 ### Swift Package Manager
@@ -50,7 +43,7 @@ init()
 
 ### Create a Verification Session
 
-**Option 1: API with Verification Level**
+**API with Verification Level**
 
 ```swift
 let session = try IdkitSession.fromVerificationLevel(
@@ -61,7 +54,7 @@ let session = try IdkitSession.fromVerificationLevel(
 )
 ```
 
-**Option 2: API with Credential Requests**
+**API with Credential Requests**
 
 ```swift
 let requests = [
@@ -91,7 +84,7 @@ print(connectUrl)
 
 ### Wait for Proof
 
-**Option 1: Poll for Status**
+**Poll for Status**
 
 ```swift
 while true {
@@ -115,7 +108,7 @@ while true {
 }
 ```
 
-**Option 2: Wait for Proof (Blocking)**
+**Wait for Proof (Blocking)**
 
 ```swift
 do {
