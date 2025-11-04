@@ -1,4 +1,5 @@
-//! High-level session management for World ID verification
+//! High-level session management for World ID verification with
+//! the [Wallet Bridge](https://github.com/worldcoin/wallet-bridge).
 
 use crate::{
     bridge::{BridgeClient, BridgeConfig, Status},
@@ -7,7 +8,7 @@ use crate::{
 };
 
 #[cfg(test)]
-use crate::types::Credential;
+use crate::types::CredentialType;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -23,7 +24,7 @@ pub struct SessionConfig {
     /// Optional action description shown to users
     pub action_description: Option<String>,
 
-    /// Credential requests
+    /// One or more credential requests
     pub requests: Vec<Request>,
 
     /// Optional constraints on which credentials are acceptable
@@ -83,8 +84,6 @@ impl SessionConfig {
     }
 
     /// Creates a session config from a verification level
-    ///
-    /// This provides backward compatibility with prior idkit versions
     #[must_use]
     pub fn from_verification_level(
         app_id: AppId,
@@ -124,6 +123,10 @@ pub struct Session {
 }
 
 impl Session {
+    /// Default bridge timeout, 15m
+    /// See: https://github.com/worldcoin/wallet-bridge/blob/main/src/utils.rs#L7
+    const DEFAULT_TIMEOUT_SECONDS: u64 = 900;
+
     /// Creates a new session from configuration
     ///
     /// # Errors
@@ -165,11 +168,11 @@ impl Session {
     ///
     /// Returns an error if polling fails or the verification fails
     pub async fn wait_for_proof(&self) -> Result<Proof> {
-        self.wait_for_proof_with_timeout(Duration::from_secs(300))
+        self.wait_for_proof_with_timeout(Duration::from_secs(Self::DEFAULT_TIMEOUT_SECONDS))
             .await
     }
 
-    /// Waits for a proof with a timeout
+    /// Waits for a proof with a specific timeout
     ///
     /// # Errors
     ///
@@ -210,10 +213,10 @@ mod tests {
         let config = SessionConfig::new(app_id.clone(), "test_action")
             .with_description("Test description")
             .with_request(Request::new(
-                Credential::Orb,
+                CredentialType::Orb,
                 Some(Signal::from_string("test")),
             ))
-            .with_constraints(Constraints::any(vec![Credential::Orb]));
+            .with_constraints(Constraints::any(vec![CredentialType::Orb]));
 
         assert_eq!(config.action, "test_action");
         assert_eq!(config.action_description, Some("Test description".to_string()));

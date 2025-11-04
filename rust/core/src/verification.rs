@@ -2,7 +2,7 @@
 
 use crate::{
     crypto::hash_to_field,
-    types::{AppId, Credential, Proof},
+    types::{AppId, CredentialType, Proof},
     Error, Result,
 };
 use serde::{Deserialize, Serialize};
@@ -23,7 +23,7 @@ struct VerificationRequest {
     nullifier_hash: String,
 
     /// Verification level (credential type)
-    verification_level: Credential,
+    verification_level: CredentialType,
 
     /// Optional signal hash
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -101,20 +101,6 @@ pub async fn verify_proof(
     }
 }
 
-/// Verifies a proof with a string signal
-///
-/// # Errors
-///
-/// Returns an error if verification fails
-pub async fn verify_proof_with_signal(
-    proof: Proof,
-    app_id: &AppId,
-    action: &str,
-    signal: &str,
-) -> Result<()> {
-    verify_proof(proof, app_id, action, signal.as_bytes()).await
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -126,7 +112,7 @@ mod tests {
             proof: "0x123".to_string(),
             merkle_root: "0x456".to_string(),
             nullifier_hash: "0x789".to_string(),
-            verification_level: Credential::Orb,
+            verification_level: CredentialType::Orb,
             signal_hash: Some("0xabc".to_string()),
         };
 
@@ -142,7 +128,7 @@ mod tests {
             proof: "0x123".to_string(),
             merkle_root: "0x456".to_string(),
             nullifier_hash: "0x789".to_string(),
-            verification_level: Credential::Orb,
+            verification_level: CredentialType::Orb,
             signal_hash: None,
         };
 

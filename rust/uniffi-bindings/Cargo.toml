@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "UniFFI bindings for IDKit - generates Swift and Kotlin bindings"
+description = "UniFFI bindings for IDKit - generates native Swift and Kotlin bindings"
 
 [lib]
 crate-type = ["staticlib", "cdylib"]
@@ -17,6 +17,3 @@ uniffi = { workspace = true }
 thiserror = { workspace = true }
 serde_json = { workspace = true }
 hex = { workspace = true }
-
-[build-dependencies]
-uniffi = { workspace = true, features = ["build"] }

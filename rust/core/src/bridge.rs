@@ -3,7 +3,7 @@
 use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
-    types::{AppId, BridgeUrl, Credential, Proof, Request},
+    types::{AppId, BridgeUrl, CredentialType, Proof, Request},
     Constraints,
 };
 use serde::{Deserialize, Serialize};
@@ -15,17 +15,17 @@ use crate::crypto::CryptoKey;
 /// Bridge request payload sent to initialize a session
 #[derive(Debug, Serialize)]
 struct BridgeRequestPayload {
-    /// Application ID
+    /// Application ID from the Developer Portal
     app_id: String,
 
-    /// Action identifier
+    /// Action ID from the Developer Portal
     action: String,
 
     /// Optional action description
     #[serde(skip_serializing_if = "Option::is_none")]
     action_description: Option<String>,
 
-    /// Requests array
+    /// Set of requests
     requests: Vec<Request>,
 
     /// Optional constraints
@@ -77,7 +77,7 @@ struct BridgeProof {
     proof: String,
     merkle_root: String,
     nullifier_hash: String,
-    verification_level: Credential,
+    verification_level: CredentialType,
 }
 
 impl From<BridgeProof> for Proof {
@@ -295,11 +295,11 @@ impl BridgeClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{Credential, Signal};
+    use crate::types::{CredentialType, Signal};
 
     #[test]
     fn test_bridge_request_payload_serialization() {
-        let request = Request::new(Credential::Orb, Some(Signal::from_string("test")));
+        let request = Request::new(CredentialType::Orb, Some(Signal::from_string("test")));
         let payload = BridgeRequestPayload {
             app_id: "app_test".to_string(),
             action: "test_action".to_string(),

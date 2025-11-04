@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "uniffi-bindings", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
-pub enum Credential {
+pub enum CredentialType {
     /// Orb credential
     Orb,
     /// Face credential
@@ -19,7 +19,7 @@ pub enum Credential {
     Device,
 }
 
-impl Credential {
+impl CredentialType {
     /// Returns all credential types
     #[must_use]
     pub fn all() -> Vec<Self> {
@@ -137,7 +137,7 @@ impl<'de> Deserialize<'de> for Signal {
 pub struct Request {
     /// The type of credential being requested
     #[serde(rename = "type")]
-    pub credential_type: Credential,
+    pub credential_type: CredentialType,
 
     /// The signal to be included in the proof (unique per request)
     /// If `None`, no signal is included in the proof
@@ -153,7 +153,7 @@ impl Request {
     /// Creates a new request with an optional signal
     #[must_use]
     #[allow(clippy::missing_const_for_fn)]
-    pub fn new(credential_type: Credential, signal: Option<Signal>) -> Self {
+    pub fn new(credential_type: CredentialType, signal: Option<Signal>) -> Self {
         Self {
             credential_type,
             signal,
@@ -183,7 +183,7 @@ impl Request {
     pub fn validate(&self) -> crate::Result<()> {
         if self.face_auth == Some(true) {
             match self.credential_type {
-                Credential::Orb | Credential::Face => Ok(()),
+                CredentialType::Orb | CredentialType::Face => Ok(()),
                 _ => Err(crate::Error::InvalidConfiguration(format!(
                     "face_auth is only supported for orb and face credentials, got: {:?}",
                     self.credential_type
@@ -208,8 +208,8 @@ pub struct Proof {
     /// User's unique identifier for the app and action (hex string, ABI encoded)
     pub nullifier_hash: String,
 
-    /// The verification level used
-    pub verification_level: Credential,
+    /// The verification level used to generate the proof
+    pub verification_level: CredentialType,
 }
 
 /// Application ID for World ID
@@ -336,16 +336,16 @@ pub enum VerificationLevel {
 impl VerificationLevel {
     /// Converts a verification level to a list of credential types in priority order
     #[must_use]
-    pub fn to_credentials(&self) -> Vec<Credential> {
+    pub fn to_credentials(&self) -> Vec<CredentialType> {
         match self {
-            Self::Orb => vec![Credential::Orb],
-            Self::Face => vec![Credential::Orb, Credential::Face],
-            Self::Device => vec![Credential::Orb, Credential::Device],
-            Self::SecureDocument => vec![Credential::Orb, Credential::SecureDocument],
+            Self::Orb => vec![CredentialType::Orb],
+            Self::Face => vec![CredentialType::Orb, CredentialType::Face],
+            Self::Device => vec![CredentialType::Orb, CredentialType::Device],
+            Self::SecureDocument => vec![CredentialType::Orb, CredentialType::SecureDocument],
             Self::Document => vec![
-                Credential::Orb,
-                Credential::SecureDocument,
-                Credential::Document,
+                CredentialType::Orb,
+                CredentialType::SecureDocument,
+                CredentialType::Document,
             ],
         }
     }
@@ -373,14 +373,14 @@ mod tests {
 
     #[test]
     fn test_request_validation() {
-        let valid = Request::new(Credential::Orb, Some(Signal::from_string("signal"))).with_face_auth(true);
+        let valid = Request::new(CredentialType::Orb, Some(Signal::from_string("signal"))).with_face_auth(true);
         assert!(valid.validate().is_ok());
 
-        let invalid = Request::new(Credential::Device, Some(Signal::from_string("signal"))).with_face_auth(true);
+        let invalid = Request::new(CredentialType::Device, Some(Signal::from_string("signal"))).with_face_auth(true);
         assert!(invalid.validate().is_err());
 
         // Test without signal
-        let no_signal = Request::new(Credential::Face, None);
+        let no_signal = Request::new(CredentialType::Face, None);
         assert!(no_signal.validate().is_ok());
         assert_eq!(no_signal.signal, None);
     }
@@ -389,7 +389,7 @@ mod tests {
     fn test_request_with_abi_encoded_signal() {
         // Test creating request with ABI-encoded bytes
         let bytes = b"arbitrary\x00\xFF\xFE data";
-        let request = Request::new(Credential::Orb, Some(Signal::from_abi_encoded(bytes)));
+        let request = Request::new(CredentialType::Orb, Some(Signal::from_abi_encoded(bytes)));
 
         // Verify signal is stored as ABI-encoded
         assert!(request.signal.is_some());
@@ -404,7 +404,7 @@ mod tests {
     #[test]
     fn test_request_with_string_signal() {
         // Test creating request with string signal
-        let request = Request::new(Credential::Face, Some(Signal::from_string("my_signal")));
+        let request = Request::new(CredentialType::Face, Some(Signal::from_string("my_signal")));
         assert_eq!(request.signal, Some(Signal::from_string("my_signal")));
 
         // String signals should also be retrievable as bytes
@@ -414,7 +414,7 @@ mod tests {
 
     #[test]
     fn test_request_without_signal() {
-        let request = Request::new(Credential::Device, None);
+        let request = Request::new(CredentialType::Device, None);
         assert_eq!(request.signal, None);
         assert_eq!(request.signal_bytes(), None);
     }
@@ -459,32 +459,32 @@ mod tests {
 
     #[test]
     fn test_credential_serialization() {
-        let cred = Credential::Orb;
+        let cred = CredentialType::Orb;
         let json = serde_json::to_string(&cred).unwrap();
         assert_eq!(json, r#""orb""#);
 
-        let deserialized: Credential = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, Credential::Orb);
+        let deserialized: CredentialType = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, CredentialType::Orb);
     }
 
     #[test]
     fn test_verification_level_to_credentials() {
         assert_eq!(
             VerificationLevel::Orb.to_credentials(),
-            vec![Credential::Orb]
+            vec![CredentialType::Orb]
         );
 
         assert_eq!(
             VerificationLevel::Device.to_credentials(),
-            vec![Credential::Orb, Credential::Device]
+            vec![CredentialType::Orb, CredentialType::Device]
         );
 
         assert_eq!(
             VerificationLevel::Document.to_credentials(),
             vec![
-                Credential::Orb,
-                Credential::SecureDocument,
-                Credential::Document
+                CredentialType::Orb,
+                CredentialType::SecureDocument,
+                CredentialType::Document
             ]
         );
     }
