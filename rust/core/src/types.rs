@@ -227,6 +227,7 @@ impl<'de> Deserialize<'de> for BridgeUrl {
 pub enum VerificationLevel {
     /// Orb-only verification
     Orb,
+    /// TODO(gabe) should we include face in verification levels?
     /// Face or Orb verification
     Face,
     /// Device verification (orb or device)

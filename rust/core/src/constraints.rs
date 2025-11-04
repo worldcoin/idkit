@@ -312,9 +312,8 @@ mod tests {
     }
 
     #[test]
-    fn test_mars_example() {
-        // Mars example: Any(orb with face_auth, face with face_auth)
-        // For constraint purposes, we just test credential selection
+    fn test_face_orb_example() {
+        // Any(orb with face_auth, face with face_auth)
         let node = ConstraintNode::any(vec![
             ConstraintNode::credential(Credential::Orb),
             ConstraintNode::credential(Credential::Face),
@@ -334,7 +333,7 @@ mod tests {
 
     #[test]
     fn test_credential_categories_example() {
-        // Example: Orb AND (secure_document OR mnc OR document)
+        // Example: Orb AND (secure_document OR document)
         let node = ConstraintNode::all(vec![
             ConstraintNode::credential(Credential::Orb),
             ConstraintNode::any(vec![
