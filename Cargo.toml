@@ -12,7 +12,8 @@ version = "3.0.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/worldcoin/idkit"
-authors = ["Tools for Humanity"]
+authors = ["World Contributors"]
+```?
 
 [workspace.dependencies]
 # Serialization
