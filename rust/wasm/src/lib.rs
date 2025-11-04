@@ -61,7 +61,7 @@ impl WasmProof {
 
 // Export credential enum
 #[wasm_bindgen(typescript_custom_section)]
-const TS_CREDENTIAL: &'static str = r#"
+const TS_CREDENTIAL: &str = r#"
 export enum Credential {
     Orb = "orb",
     Face = "face",
