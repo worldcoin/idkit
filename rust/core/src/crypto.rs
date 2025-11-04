@@ -43,7 +43,6 @@ pub fn generate_key() -> Result<(Vec<u8>, Vec<u8>)> {
 ///
 /// Returns an error if encryption fails
 #[cfg(feature = "native-crypto")]
-#[allow(deprecated)] // aes-gcm uses old generic-array version
 pub fn encrypt(key: &[u8], nonce: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
     if key.len() != 32 {
         return Err(Error::Crypto("Key must be 32 bytes".to_string()));
@@ -55,10 +54,14 @@ pub fn encrypt(key: &[u8], nonce: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
     let cipher = Aes256Gcm::new_from_slice(key)
         .map_err(|_| Error::Crypto("Invalid key length".to_string()))?;
 
-    let nonce_array = Nonce::clone_from_slice(nonce);
+    // Convert slice to array and then to GenericArray
+    let nonce_array: [u8; 12] = nonce
+        .try_into()
+        .map_err(|_| Error::Crypto("Nonce must be exactly 12 bytes".to_string()))?;
+    let nonce_ref = Nonce::from(nonce_array);
 
     cipher
-        .encrypt(&nonce_array, plaintext)
+        .encrypt(&nonce_ref, plaintext)
         .map_err(|_| Error::Crypto("Encryption failed".to_string()))
 }
 
@@ -68,7 +71,6 @@ pub fn encrypt(key: &[u8], nonce: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
 ///
 /// Returns an error if the nonce is invalid or decryption fails
 #[cfg(feature = "native-crypto")]
-#[allow(deprecated)] // aes-gcm uses old generic-array version
 pub fn decrypt(key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
     if key.len() != 32 {
         return Err(Error::Crypto("Key must be 32 bytes".to_string()));
@@ -80,10 +82,14 @@ pub fn decrypt(key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
     let cipher = Aes256Gcm::new_from_slice(key)
         .map_err(|_| Error::Crypto("Invalid key length".to_string()))?;
 
-    let nonce_array = Nonce::clone_from_slice(nonce);
+    // Convert slice to array and then to GenericArray
+    let nonce_array: [u8; 12] = nonce
+        .try_into()
+        .map_err(|_| Error::Crypto("Nonce must be exactly 12 bytes".to_string()))?;
+    let nonce_ref = Nonce::from(nonce_array);
 
     cipher
-        .decrypt(&nonce_array, ciphertext)
+        .decrypt(&nonce_ref, ciphertext)
         .map_err(|_| Error::Crypto("Decryption failed".to_string()))
 }
 
