@@ -5,83 +5,86 @@ use ruint::aliases::U256;
 use tiny_keccak::{Hasher, Keccak};
 
 // ============================================================================
-// Native (non-WASM) implementation using ring
+// Native (non-WASM) implementation using RustCrypto
 // ============================================================================
 
 #[cfg(feature = "native-crypto")]
-use ring::{
-    aead::{self, LessSafeKey, Nonce, UnboundKey},
-    rand::{SecureRandom, SystemRandom},
+use aes_gcm::{
+    aead::{Aead, KeyInit},
+    Aes256Gcm, Nonce,
 };
 
-// Re-export ring types for use in other modules
-#[cfg(feature = "native-crypto")]
-pub use ring::aead::{LessSafeKey as CryptoKey, Nonce as CryptoNonce};
-
-/// Generates a random encryption key, `LessSafeKey`, and nonce for AES-256-GCM
+/// Generates a random encryption key and nonce for AES-256-GCM
 ///
-/// Returns a tuple of (`key_bytes`, `iv_bytes`, `LessSafeKey`, Nonce) where:
-/// - `key_bytes` can be used for serialization (e.g., in connect URLs)
-/// - `iv_bytes` can be used for transmission (e.g., in encrypted payloads)
-/// - `LessSafeKey` is used for encryption/decryption
-/// - Nonce is consumed by encryption
+/// Returns a tuple of (`key_bytes`, `nonce_bytes`) where both can be used
+/// for serialization and transmission
 ///
 /// # Errors
 ///
 /// Returns an error if the random number generator fails
 #[cfg(feature = "native-crypto")]
-pub fn generate_key() -> Result<(Vec<u8>, Vec<u8>, LessSafeKey, Nonce)> {
-    let rng = SystemRandom::new();
+pub fn generate_key() -> Result<(Vec<u8>, Vec<u8>)> {
+    use getrandom::getrandom;
 
-    let mut iv = [0u8; aead::NONCE_LEN];
-    rng.fill(&mut iv)
-        .map_err(|_| Error::Crypto("Failed to generate IV".to_string()))?;
+    let mut key_bytes = vec![0u8; 32]; // 256 bits
+    getrandom(&mut key_bytes)
+        .map_err(|e| Error::Crypto(format!("Failed to generate key: {e}")))?;
 
-    let mut key_bytes = [0u8; 32]; // 256 bits
-    rng.fill(&mut key_bytes)
-        .map_err(|_| Error::Crypto("Failed to generate key".to_string()))?;
+    let mut nonce_bytes = vec![0u8; 12]; // AES-GCM standard nonce length
+    getrandom(&mut nonce_bytes)
+        .map_err(|e| Error::Crypto(format!("Failed to generate nonce: {e}")))?;
 
-    let unbound_key = UnboundKey::new(&aead::AES_256_GCM, &key_bytes)
-        .map_err(|_| Error::Crypto("AES-256-GCM is a supported algorithm".to_string()))?;
-
-    Ok((
-        key_bytes.to_vec(),
-        iv.to_vec(),
-        LessSafeKey::new(unbound_key),
-        Nonce::assume_unique_for_key(iv),
-    ))
+    Ok((key_bytes, nonce_bytes))
 }
 
-/// Encrypts plaintext using AES-256-GCM with a provided key and nonce
+/// Encrypts plaintext using AES-256-GCM
 ///
 /// # Errors
 ///
 /// Returns an error if encryption fails
 #[cfg(feature = "native-crypto")]
-pub fn encrypt(key: &LessSafeKey, nonce: Nonce, plaintext: &[u8]) -> Result<Vec<u8>> {
-    let mut ciphertext = plaintext.to_vec();
-    key.seal_in_place_append_tag(nonce, aead::Aad::empty(), &mut ciphertext)
-        .map_err(|_| Error::Crypto("Encryption failed".to_string()))?;
+#[allow(deprecated)] // aes-gcm uses old generic-array version
+pub fn encrypt(key: &[u8], nonce: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
+    if key.len() != 32 {
+        return Err(Error::Crypto("Key must be 32 bytes".to_string()));
+    }
+    if nonce.len() != 12 {
+        return Err(Error::Crypto("Nonce must be 12 bytes".to_string()));
+    }
 
-    Ok(ciphertext)
+    let cipher = Aes256Gcm::new_from_slice(key)
+        .map_err(|_| Error::Crypto("Invalid key length".to_string()))?;
+
+    let nonce_array = Nonce::clone_from_slice(nonce);
+
+    cipher
+        .encrypt(&nonce_array, plaintext)
+        .map_err(|_| Error::Crypto("Encryption failed".to_string()))
 }
 
-/// Decrypts ciphertext using AES-256-GCM with a provided key and nonce
+/// Decrypts ciphertext using AES-256-GCM
 ///
 /// # Errors
 ///
 /// Returns an error if the nonce is invalid or decryption fails
 #[cfg(feature = "native-crypto")]
-pub fn decrypt(key: &LessSafeKey, iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
-    let nonce = Nonce::try_assume_unique_for_key(iv)
-        .map_err(|_| Error::Crypto("Invalid IV length".to_string()))?;
+#[allow(deprecated)] // aes-gcm uses old generic-array version
+pub fn decrypt(key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
+    if key.len() != 32 {
+        return Err(Error::Crypto("Key must be 32 bytes".to_string()));
+    }
+    if nonce.len() != 12 {
+        return Err(Error::Crypto("Nonce must be 12 bytes".to_string()));
+    }
 
-    let mut plaintext = ciphertext.to_vec();
-    let decrypted = key
-        .open_in_place(nonce, aead::Aad::empty(), &mut plaintext)
-        .map_err(|_| Error::Crypto("Decryption failed".to_string()))?;
+    let cipher = Aes256Gcm::new_from_slice(key)
+        .map_err(|_| Error::Crypto("Invalid key length".to_string()))?;
 
-    Ok(decrypted.to_vec())
+    let nonce_array = Nonce::clone_from_slice(nonce);
+
+    cipher
+        .decrypt(&nonce_array, ciphertext)
+        .map_err(|_| Error::Crypto("Decryption failed".to_string()))
 }
 
 // ============================================================================
@@ -94,11 +97,11 @@ pub fn generate_key() -> Result<(Vec<u8>, Vec<u8>)> {
 
     let mut key_bytes = vec![0u8; 32]; // 256 bits
     getrandom(&mut key_bytes)
-        .map_err(|e| Error::Crypto(format!("Failed to generate key: {}", e)))?;
+        .map_err(|e| Error::Crypto(format!("Failed to generate key: {e}")))?;
 
     let mut iv = vec![0u8; 12]; // AES-GCM nonce length
     getrandom(&mut iv)
-        .map_err(|e| Error::Crypto(format!("Failed to generate IV: {}", e)))?;
+        .map_err(|e| Error::Crypto(format!("Failed to generate IV: {e}")))?;
 
     Ok((key_bytes, iv))
 }
@@ -228,7 +231,7 @@ pub fn hash_to_field(input: &[u8]) -> U256 {
     n >> 8
 }
 
-/// Encodes a signal for the World ID protocol using ABI encoding
+/// Encodes a signal using ABI encoding
 ///
 /// Takes any type that implements `alloy_sol_types::SolValue` and returns the keccak256 hash
 #[must_use]
@@ -236,7 +239,7 @@ pub fn encode_signal_abi<V: alloy_sol_types::SolValue>(signal: &V) -> U256 {
     hash_to_field(&signal.abi_encode_packed())
 }
 
-/// Encodes a signal for the World ID protocol from raw bytes
+/// Encodes a signal from raw bytes
 ///
 /// Takes raw bytes and returns the keccak256 hash, shifted right by 8 bits
 #[must_use]
@@ -251,9 +254,7 @@ pub fn encode_signal_str(signal: &str) -> String {
     encode_signal(signal.as_bytes())
 }
 
-/// Encodes an action for the World ID protocol
-///
-/// Actions are kept as-is (no hashing)
+/// Encodes an action
 #[must_use]
 pub fn encode_action(action: &str) -> String {
     action.to_string()
@@ -283,30 +284,29 @@ mod tests {
     #[test]
     #[cfg(feature = "native-crypto")]
     fn test_generate_key_native() {
-        use ring::aead;
-        let (key_bytes, iv_bytes, _key, _nonce) = generate_key().unwrap();
+        let (key_bytes, nonce_bytes) = generate_key().unwrap();
         assert_eq!(key_bytes.len(), 32);
-        assert_eq!(iv_bytes.len(), aead::NONCE_LEN);
+        assert_eq!(nonce_bytes.len(), 12);
     }
 
     #[test]
     #[cfg(all(feature = "wasm-crypto", not(feature = "native-crypto")))]
     fn test_generate_key_wasm() {
-        let (key, iv) = generate_key().unwrap();
+        let (key, nonce) = generate_key().unwrap();
         assert_eq!(key.len(), 32);
-        assert_eq!(iv.len(), 12);
+        assert_eq!(nonce.len(), 12);
     }
 
     #[cfg(feature = "native-crypto")]
     #[test]
     fn test_encrypt_decrypt() {
-        let (_key_bytes, iv_bytes, key, nonce) = generate_key().unwrap();
+        let (key_bytes, nonce_bytes) = generate_key().unwrap();
         let plaintext = b"Hello, World!";
 
-        let ciphertext = encrypt(&key, nonce, plaintext).unwrap();
+        let ciphertext = encrypt(&key_bytes, &nonce_bytes, plaintext).unwrap();
         assert_ne!(ciphertext.as_slice(), plaintext);
 
-        let decrypted = decrypt(&key, &iv_bytes, &ciphertext).unwrap();
+        let decrypted = decrypt(&key_bytes, &nonce_bytes, &ciphertext).unwrap();
         assert_eq!(decrypted.as_slice(), plaintext);
     }
 

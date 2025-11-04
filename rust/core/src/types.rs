@@ -11,7 +11,7 @@ pub enum Credential {
     Orb,
     /// Face credential
     Face,
-    /// Secure NFC document with active or passive authentication, or a Japanese MNC
+    /// Secure NFC document with active or passive authentication, eID, or a Japanese MNC
     SecureDocument,
     /// NFC document without authentication
     Document,
@@ -182,7 +182,7 @@ impl std::fmt::Display for AppId {
 pub struct BridgeUrl(String);
 
 impl BridgeUrl {
-    /// Default production bridge URL
+    /// Default bridge URL
     pub const DEFAULT: &'static str = "https://bridge.worldcoin.org";
 
     /// Creates a new bridge URL

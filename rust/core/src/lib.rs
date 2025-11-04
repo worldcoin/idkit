@@ -1,7 +1,7 @@
 //! # `IDKit` Core
 //!
 //! Core Rust implementation of the World ID SDK for Relying Parties.
-//! This library provides the fundamental types and logic for interacting with
+//! This library provides the core types and logic for interacting with
 //! the World ID protocol, including constraint evaluation, proof verification,
 //! and cryptographic operations.
 
