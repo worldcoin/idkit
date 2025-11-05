@@ -32,21 +32,18 @@ pub enum ConstraintNode {
 impl ConstraintNode {
     /// Creates an Any constraint from credentials
     #[must_use]
-    #[allow(clippy::missing_const_for_fn)]
     pub fn any(nodes: Vec<Self>) -> Self {
         Self::Any { any: nodes }
     }
 
     /// Creates an All constraint from credentials
     #[must_use]
-    #[allow(clippy::missing_const_for_fn)]
     pub fn all(nodes: Vec<Self>) -> Self {
         Self::All { all: nodes }
     }
 
     /// Creates a credential node
     #[must_use]
-    #[allow(clippy::missing_const_for_fn)]
     pub fn credential(cred: CredentialType) -> Self {
         Self::Credential(cred)
     }
@@ -174,7 +171,6 @@ pub struct Constraints {
 impl Constraints {
     /// Creates new constraints from a node
     #[must_use]
-    #[allow(clippy::missing_const_for_fn)]
     pub fn new(root: ConstraintNode) -> Self {
         Self { root }
     }

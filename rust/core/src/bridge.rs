@@ -205,7 +205,13 @@ impl Session {
             .await?;
 
         if !response.status().is_success() {
-            return Err(Error::ConnectionFailed);
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(Error::BridgeError(format!(
+                "Bridge request failed with status {}: {}",
+                status,
+                if body.is_empty() { "no error details" } else { &body }
+            )));
         }
 
         let create_response: BridgeCreateResponse = response.json().await?;
@@ -312,7 +318,7 @@ impl Session {
                 let ciphertext = base64_decode(&encrypted.payload)?;
 
                 // Both paths use the IV from the encrypted response (not stored nonce)
-                // because the server encrypts with its own nonce
+                // because the authenticator encrypts with its own nonce
                 #[cfg(feature = "native-crypto")]
                 let plaintext = decrypt(&self.key.key, &iv, &ciphertext)?;
 

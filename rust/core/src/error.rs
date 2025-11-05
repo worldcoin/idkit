@@ -54,7 +54,7 @@ pub enum Error {
 
     /// HTTP request error
     #[cfg(any(feature = "bridge", feature = "verification"))]
-    #[error("HTTP error: {0}")]
+    #[error(transparent)]
     Http(#[from] reqwest::Error),
 }
 

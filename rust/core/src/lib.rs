@@ -7,6 +7,7 @@
 
 #![deny(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::module_name_repetitions)]
+#![allow(clippy::missing_const_for_fn)]
 
 #[cfg(feature = "bridge")]
 pub mod bridge;
@@ -25,7 +26,7 @@ pub use crypto::CryptoKey;
 pub use error::{Error, Result};
 pub use types::{AppId, BridgeUrl, CredentialType, Proof, Request, Signal, VerificationLevel};
 #[cfg(feature = "verification")]
-pub use verification::verify_proof;
+pub use verification::{verify_proof, verify_proof_with_endpoint};
 
 // UniFFI scaffolding for core types
 #[cfg(feature = "uniffi-bindings")]
