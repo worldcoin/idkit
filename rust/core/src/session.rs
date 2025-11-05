@@ -124,7 +124,7 @@ pub struct Session {
 
 impl Session {
     /// Default bridge timeout, 15m
-    /// See: https://github.com/worldcoin/wallet-bridge/blob/main/src/utils.rs#L7
+    /// See: <https://github.com/worldcoin/wallet-bridge/blob/main/src/utils.rs#L7>
     const DEFAULT_TIMEOUT_SECONDS: u64 = 900;
 
     /// Creates a new session from configuration
@@ -210,7 +210,7 @@ mod tests {
     #[test]
     fn test_session_config_builder() {
         let app_id = AppId::new("app_test").unwrap();
-        let config = SessionConfig::new(app_id.clone(), "test_action")
+        let config = SessionConfig::new(app_id, "test_action")
             .with_description("Test description")
             .with_request(Request::new(
                 CredentialType::Orb,

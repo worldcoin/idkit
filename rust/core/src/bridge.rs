@@ -3,7 +3,7 @@
 use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
-    types::{AppId, BridgeUrl, CredentialType, Proof, Request},
+    types::{AppId, BridgeUrl, Proof, Request},
     Constraints,
 };
 use serde::{Deserialize, Serialize};
@@ -68,27 +68,7 @@ enum BridgeResponse {
     Error { error_code: AppError },
 
     /// Success response with proof
-    Success(BridgeProof),
-}
-
-/// Proof response from bridge
-#[derive(Debug, Deserialize)]
-struct BridgeProof {
-    proof: String,
-    merkle_root: String,
-    nullifier_hash: String,
-    verification_level: CredentialType,
-}
-
-impl From<BridgeProof> for Proof {
-    fn from(bp: BridgeProof) -> Self {
-        Self {
-            proof: bp.proof,
-            merkle_root: bp.merkle_root,
-            nullifier_hash: bp.nullifier_hash,
-            verification_level: bp.verification_level,
-        }
-    }
+    Success(Proof),
 }
 
 /// Status of a verification request
@@ -191,7 +171,7 @@ impl BridgeClient {
 
         // Send to bridge
         let client = reqwest::Client::builder()
-            .user_agent(&format!("idkit-core/{}", env!("CARGO_PKG_VERSION")))
+            .user_agent(format!("idkit-core/{}", env!("CARGO_PKG_VERSION")))
             .build()?;
 
         let response = client
@@ -280,7 +260,7 @@ impl BridgeClient {
 
                 match bridge_response {
                     BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
-                    BridgeResponse::Success(proof) => Ok(Status::Confirmed(proof.into())),
+                    BridgeResponse::Success(proof) => Ok(Status::Confirmed(proof)),
                 }
             }
             _ => Err(Error::UnexpectedResponse),
