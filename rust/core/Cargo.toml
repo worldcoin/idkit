@@ -26,10 +26,15 @@ tokio = { workspace = true, optional = true }
 urlencoding = { workspace = true, optional = true }
 
 [features]
-default = ["native-crypto", "bridge", "session", "verification"]
-native-crypto = ["aes-gcm"]
-wasm-crypto = ["aes-gcm"]
-uniffi-bindings = ["uniffi"]
-bridge = ["uuid", "reqwest", "dep:tokio", "dep:urlencoding"]
-session = ["tokio", "bridge"]
-verification = ["reqwest", "tokio"]
+default = ["native-crypto", "bridge", "verification"]
+
+# Cryptography implementations
+native-crypto = ["aes-gcm"]  # AES-256-GCM encryption for native platforms
+wasm-crypto = ["aes-gcm"]    # AES-256-GCM encryption for WebAssembly
+
+# Language bindings
+uniffi-bindings = ["uniffi"]  # Enable UniFFI scaffolding for Swift/Kotlin bindings
+
+# Protocol features
+bridge = ["uuid", "reqwest", "dep:tokio", "dep:urlencoding"]   # Bridge client and session management for verifications
+verification = ["reqwest", "dep:tokio"]                        # Backend proof verification via Developer Portal API
