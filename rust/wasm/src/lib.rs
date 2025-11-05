@@ -6,7 +6,7 @@
 #![deny(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::module_name_repetitions)]
 
-use idkit_core::{Credential, Signal};
+use idkit_core::{CredentialType, Signal};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -25,7 +25,7 @@ impl Request {
     /// * `signal` - Optional signal string. Pass `null` or `undefined` for no signal.
     #[wasm_bindgen(constructor)]
     pub fn new(credential_type: JsValue, signal: Option<String>) -> Result<Self, JsValue> {
-        let cred: Credential = serde_wasm_bindgen::from_value(credential_type)?;
+        let cred: CredentialType = serde_wasm_bindgen::from_value(credential_type)?;
         let signal_opt = signal.map(Signal::from_string);
         Ok(Self(idkit_core::Request::new(cred, signal_opt)))
     }
@@ -40,7 +40,7 @@ impl Request {
     /// Returns an error if the credential type cannot be deserialized
     #[wasm_bindgen(js_name = withBytes)]
     pub fn with_bytes(credential_type: JsValue, signal_bytes: &[u8]) -> Result<Self, JsValue> {
-        let cred: Credential = serde_wasm_bindgen::from_value(credential_type)?;
+        let cred: CredentialType = serde_wasm_bindgen::from_value(credential_type)?;
         Ok(Self(idkit_core::Request::new(cred, Some(Signal::from_abi_encoded(signal_bytes)))))
     }
 
@@ -79,7 +79,7 @@ impl Proof {
         nullifier_hash: String,
         verification_level: JsValue,
     ) -> Result<Self, JsValue> {
-        let cred: Credential = serde_wasm_bindgen::from_value(verification_level)?;
+        let cred: CredentialType = serde_wasm_bindgen::from_value(verification_level)?;
         Ok(Self(idkit_core::Proof {
             proof,
             merkle_root,

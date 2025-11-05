@@ -4,7 +4,7 @@
 //! declaratively specify which credentials they'll accept, with support for
 //! AND/OR logic and priority ordering.
 
-use crate::types::Credential;
+use crate::types::CredentialType;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -12,8 +12,8 @@ use std::collections::HashSet;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ConstraintNode {
-    /// A leaf node representing a single credential
-    Credential(Credential),
+    /// A leaf node representing a single credential type
+    Credential(CredentialType),
 
     /// An OR node - at least one child must be satisfied
     /// Order matters: earlier credentials have higher priority
@@ -32,28 +32,25 @@ pub enum ConstraintNode {
 impl ConstraintNode {
     /// Creates an Any constraint from credentials
     #[must_use]
-    #[allow(clippy::missing_const_for_fn)] // Vec parameters cannot be const
     pub fn any(nodes: Vec<Self>) -> Self {
         Self::Any { any: nodes }
     }
 
     /// Creates an All constraint from credentials
     #[must_use]
-    #[allow(clippy::missing_const_for_fn)] // Vec parameters cannot be const
     pub fn all(nodes: Vec<Self>) -> Self {
         Self::All { all: nodes }
     }
 
     /// Creates a credential node
     #[must_use]
-    #[allow(clippy::missing_const_for_fn)] // Kept non-const for consistency with any() and all()
-    pub fn credential(cred: Credential) -> Self {
+    pub fn credential(cred: CredentialType) -> Self {
         Self::Credential(cred)
     }
 
     /// Evaluates the constraint against available credentials
     #[must_use]
-    pub fn evaluate(&self, available: &HashSet<Credential>) -> bool {
+    pub fn evaluate(&self, available: &HashSet<CredentialType>) -> bool {
         match self {
             Self::Credential(cred) => available.contains(cred),
             Self::Any { any } => any.iter().any(|node| node.evaluate(available)),
@@ -67,7 +64,7 @@ impl ConstraintNode {
     /// For All nodes, returns None if not all satisfied, or attempts to find a single credential.
     /// For Credential nodes, returns the credential if available.
     #[must_use]
-    pub fn first_satisfying(&self, available: &HashSet<Credential>) -> Option<Credential> {
+    pub fn first_satisfying(&self, available: &HashSet<CredentialType>) -> Option<CredentialType> {
         match self {
             Self::Credential(cred) => {
                 if available.contains(cred) {
@@ -105,13 +102,13 @@ impl ConstraintNode {
 
     /// Collects all credentials mentioned in this constraint tree
     #[must_use]
-    pub fn collect_credentials(&self) -> HashSet<Credential> {
+    pub fn collect_credentials(&self) -> HashSet<CredentialType> {
         let mut result = HashSet::new();
         self.collect_credentials_recursive(&mut result);
         result
     }
 
-    fn collect_credentials_recursive(&self, result: &mut HashSet<Credential>) {
+    fn collect_credentials_recursive(&self, result: &mut HashSet<CredentialType>) {
         match self {
             Self::Credential(cred) => {
                 result.insert(*cred);
@@ -174,14 +171,13 @@ pub struct Constraints {
 impl Constraints {
     /// Creates new constraints from a node
     #[must_use]
-    #[allow(clippy::missing_const_for_fn)] // Kept non-const for consistency with other constructors
     pub fn new(root: ConstraintNode) -> Self {
         Self { root }
     }
 
     /// Creates constraints requiring any of the given credentials
     #[must_use]
-    pub fn any(credentials: Vec<Credential>) -> Self {
+    pub fn any(credentials: Vec<CredentialType>) -> Self {
         Self {
             root: ConstraintNode::any(
                 credentials
@@ -194,7 +190,7 @@ impl Constraints {
 
     /// Creates constraints requiring all of the given credentials
     #[must_use]
-    pub fn all(credentials: Vec<Credential>) -> Self {
+    pub fn all(credentials: Vec<CredentialType>) -> Self {
         Self {
             root: ConstraintNode::all(
                 credentials
@@ -207,13 +203,13 @@ impl Constraints {
 
     /// Evaluates the constraints against available credentials
     #[must_use]
-    pub fn evaluate(&self, available: &HashSet<Credential>) -> bool {
+    pub fn evaluate(&self, available: &HashSet<CredentialType>) -> bool {
         self.root.evaluate(available)
     }
 
     /// Returns the first satisfying credential
     #[must_use]
-    pub fn first_satisfying(&self, available: &HashSet<Credential>) -> Option<Credential> {
+    pub fn first_satisfying(&self, available: &HashSet<CredentialType>) -> Option<CredentialType> {
         self.root.first_satisfying(available)
     }
 
@@ -233,61 +229,61 @@ mod tests {
 
     #[test]
     fn test_credential_node() {
-        let node = ConstraintNode::credential(Credential::Orb);
+        let node = ConstraintNode::credential(CredentialType::Orb);
         let mut available = HashSet::new();
-        available.insert(Credential::Orb);
+        available.insert(CredentialType::Orb);
 
         assert!(node.evaluate(&available));
-        assert_eq!(node.first_satisfying(&available), Some(Credential::Orb));
+        assert_eq!(node.first_satisfying(&available), Some(CredentialType::Orb));
     }
 
     #[test]
     fn test_any_node() {
         let node = ConstraintNode::any(vec![
-            ConstraintNode::credential(Credential::Orb),
-            ConstraintNode::credential(Credential::Face),
-            ConstraintNode::credential(Credential::Device),
+            ConstraintNode::credential(CredentialType::Orb),
+            ConstraintNode::credential(CredentialType::Face),
+            ConstraintNode::credential(CredentialType::Device),
         ]);
 
         let mut available = HashSet::new();
-        available.insert(Credential::Face);
-        available.insert(Credential::Device);
+        available.insert(CredentialType::Face);
+        available.insert(CredentialType::Device);
 
         assert!(node.evaluate(&available));
         // Should return Face because it's first in priority order
-        assert_eq!(node.first_satisfying(&available), Some(Credential::Face));
+        assert_eq!(node.first_satisfying(&available), Some(CredentialType::Face));
     }
 
     #[test]
     fn test_any_node_priority() {
         // Orb has highest priority, Face second
         let node = ConstraintNode::any(vec![
-            ConstraintNode::credential(Credential::Orb),
-            ConstraintNode::credential(Credential::Face),
+            ConstraintNode::credential(CredentialType::Orb),
+            ConstraintNode::credential(CredentialType::Face),
         ]);
 
         let mut available = HashSet::new();
-        available.insert(Credential::Face);
-        available.insert(Credential::Orb);
+        available.insert(CredentialType::Face);
+        available.insert(CredentialType::Orb);
 
         // Even though both are available, Orb should be selected (higher priority)
-        assert_eq!(node.first_satisfying(&available), Some(Credential::Orb));
+        assert_eq!(node.first_satisfying(&available), Some(CredentialType::Orb));
     }
 
     #[test]
     fn test_all_node() {
         let node = ConstraintNode::all(vec![
-            ConstraintNode::credential(Credential::Orb),
-            ConstraintNode::credential(Credential::Face),
+            ConstraintNode::credential(CredentialType::Orb),
+            ConstraintNode::credential(CredentialType::Face),
         ]);
 
         let mut available = HashSet::new();
-        available.insert(Credential::Orb);
+        available.insert(CredentialType::Orb);
 
         // Only one is available, should fail
         assert!(!node.evaluate(&available));
 
-        available.insert(Credential::Face);
+        available.insert(CredentialType::Face);
 
         // Both available, should succeed
         assert!(node.evaluate(&available));
@@ -298,20 +294,20 @@ mod tests {
     fn test_nested_constraints() {
         // Orb OR (secure_document OR document)
         let node = ConstraintNode::any(vec![
-            ConstraintNode::credential(Credential::Orb),
+            ConstraintNode::credential(CredentialType::Orb),
             ConstraintNode::any(vec![
-                ConstraintNode::credential(Credential::SecureDocument),
-                ConstraintNode::credential(Credential::Document),
+                ConstraintNode::credential(CredentialType::SecureDocument),
+                ConstraintNode::credential(CredentialType::Document),
             ]),
         ]);
 
         let mut available = HashSet::new();
-        available.insert(Credential::Document);
+        available.insert(CredentialType::Document);
 
         assert!(node.evaluate(&available));
         assert_eq!(
             node.first_satisfying(&available),
-            Some(Credential::Document)
+            Some(CredentialType::Document)
         );
     }
 
@@ -319,36 +315,36 @@ mod tests {
     fn test_face_orb_example() {
         // Any(orb with face_auth, face with face_auth)
         let node = ConstraintNode::any(vec![
-            ConstraintNode::credential(Credential::Orb),
-            ConstraintNode::credential(Credential::Face),
+            ConstraintNode::credential(CredentialType::Orb),
+            ConstraintNode::credential(CredentialType::Face),
         ]);
 
         let mut available = HashSet::new();
-        available.insert(Credential::Face);
+        available.insert(CredentialType::Face);
 
         // Only face available
         assert!(node.evaluate(&available));
-        assert_eq!(node.first_satisfying(&available), Some(Credential::Face));
+        assert_eq!(node.first_satisfying(&available), Some(CredentialType::Face));
 
         // Both available - orb has priority
-        available.insert(Credential::Orb);
-        assert_eq!(node.first_satisfying(&available), Some(Credential::Orb));
+        available.insert(CredentialType::Orb);
+        assert_eq!(node.first_satisfying(&available), Some(CredentialType::Orb));
     }
 
     #[test]
     fn test_credential_categories_example() {
         // Example: Orb AND (secure_document OR document)
         let node = ConstraintNode::all(vec![
-            ConstraintNode::credential(Credential::Orb),
+            ConstraintNode::credential(CredentialType::Orb),
             ConstraintNode::any(vec![
-                ConstraintNode::credential(Credential::SecureDocument),
-                ConstraintNode::credential(Credential::Document),
+                ConstraintNode::credential(CredentialType::SecureDocument),
+                ConstraintNode::credential(CredentialType::Document),
             ]),
         ]);
 
         let mut available = HashSet::new();
-        available.insert(Credential::Orb);
-        available.insert(Credential::Document);
+        available.insert(CredentialType::Orb);
+        available.insert(CredentialType::Document);
 
         assert!(node.evaluate(&available));
     }
@@ -356,23 +352,23 @@ mod tests {
     #[test]
     fn test_collect_credentials() {
         let node = ConstraintNode::any(vec![
-            ConstraintNode::credential(Credential::Orb),
+            ConstraintNode::credential(CredentialType::Orb),
             ConstraintNode::all(vec![
-                ConstraintNode::credential(Credential::Face),
-                ConstraintNode::credential(Credential::Device),
+                ConstraintNode::credential(CredentialType::Face),
+                ConstraintNode::credential(CredentialType::Device),
             ]),
         ]);
 
         let credentials = node.collect_credentials();
         assert_eq!(credentials.len(), 3);
-        assert!(credentials.contains(&Credential::Orb));
-        assert!(credentials.contains(&Credential::Face));
-        assert!(credentials.contains(&Credential::Device));
+        assert!(credentials.contains(&CredentialType::Orb));
+        assert!(credentials.contains(&CredentialType::Face));
+        assert!(credentials.contains(&CredentialType::Device));
     }
 
     #[test]
     fn test_validation() {
-        let valid = ConstraintNode::any(vec![ConstraintNode::credential(Credential::Orb)]);
+        let valid = ConstraintNode::any(vec![ConstraintNode::credential(CredentialType::Orb)]);
         assert!(valid.validate().is_ok());
 
         let invalid = ConstraintNode::any(vec![]);
@@ -382,8 +378,8 @@ mod tests {
     #[test]
     fn test_serialization() {
         let node = ConstraintNode::any(vec![
-            ConstraintNode::credential(Credential::Orb),
-            ConstraintNode::credential(Credential::Face),
+            ConstraintNode::credential(CredentialType::Orb),
+            ConstraintNode::credential(CredentialType::Face),
         ]);
 
         let json = serde_json::to_string(&node).unwrap();
@@ -393,15 +389,15 @@ mod tests {
 
     #[test]
     fn test_constraints_wrapper() {
-        let constraints = Constraints::any(vec![Credential::Orb, Credential::Device]);
+        let constraints = Constraints::any(vec![CredentialType::Orb, CredentialType::Device]);
 
         let mut available = HashSet::new();
-        available.insert(Credential::Device);
+        available.insert(CredentialType::Device);
 
         assert!(constraints.evaluate(&available));
         assert_eq!(
             constraints.first_satisfying(&available),
-            Some(Credential::Device)
+            Some(CredentialType::Device)
         );
     }
 }

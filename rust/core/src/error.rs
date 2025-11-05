@@ -51,6 +51,11 @@ pub enum Error {
     /// Invalid proof
     #[error("Invalid proof: {0}")]
     InvalidProof(String),
+
+    /// HTTP request error
+    #[cfg(any(feature = "bridge", feature = "verification"))]
+    #[error(transparent)]
+    Http(#[from] reqwest::Error),
 }
 
 /// Errors returned by the World App

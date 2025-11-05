@@ -6,7 +6,7 @@
 #![deny(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::module_name_repetitions)]
 
-use idkit_core::{Credential, Proof, Request as CoreRequest, Signal as CoreSignal};
+use idkit_core::{CredentialType, Proof, Request as CoreRequest, Signal as CoreSignal};
 
 /// Signal wrapper for `UniFFI`
 ///
@@ -82,6 +82,10 @@ impl From<idkit_core::Error> for IdkitError {
             idkit_core::Error::UnexpectedResponse => Self::UnexpectedResponse,
             idkit_core::Error::ConnectionFailed => Self::ConnectionFailed,
             idkit_core::Error::Timeout => Self::Timeout,
+            #[allow(unreachable_patterns)]
+            _ => Self::BridgeError {
+                message: format!("Unmapped error: {e}"),
+            },
         }
     }
 }
@@ -131,7 +135,7 @@ impl Request {
     /// * `signal` - Optional signal for the proof. Use `Signal::from_string()` or `Signal::from_abi_encoded()`
     #[must_use]
     #[uniffi::constructor]
-    pub fn new(credential_type: Credential, signal: Option<std::sync::Arc<Signal>>) -> Self {
+    pub fn new(credential_type: CredentialType, signal: Option<std::sync::Arc<Signal>>) -> Self {
         let signal_opt = signal.map(|s| s.0.clone());
         Self(CoreRequest::new(credential_type, signal_opt))
     }
@@ -154,7 +158,7 @@ impl Request {
 
     /// Gets the credential type
     #[must_use]
-    pub const fn credential_type(&self) -> Credential {
+    pub const fn credential_type(&self) -> CredentialType {
         self.0.credential_type
     }
 
@@ -211,13 +215,13 @@ pub fn proof_from_json(json: &str) -> Result<Proof, IdkitError> {
 /// Gets the string representation of a credential type
 #[must_use]
 #[uniffi::export]
-pub fn credential_to_string(credential: &Credential) -> String {
+pub fn credential_to_string(credential: &CredentialType) -> String {
     match credential {
-        Credential::Orb => "orb".to_string(),
-        Credential::Face => "face".to_string(),
-        Credential::SecureDocument => "secure_document".to_string(),
-        Credential::Document => "document".to_string(),
-        Credential::Device => "device".to_string(),
+        CredentialType::Orb => "orb".to_string(),
+        CredentialType::Face => "face".to_string(),
+        CredentialType::SecureDocument => "secure_document".to_string(),
+        CredentialType::Document => "document".to_string(),
+        CredentialType::Device => "device".to_string(),
     }
 }
 
@@ -231,8 +235,8 @@ mod tests {
     #[test]
     fn test_create_request() {
         let signal = Signal::from_string("test_signal".to_string());
-        let request = Request::new(Credential::Orb, Some(std::sync::Arc::new(signal)));
-        assert_eq!(request.credential_type(), Credential::Orb);
+        let request = Request::new(CredentialType::Orb, Some(std::sync::Arc::new(signal)));
+        assert_eq!(request.credential_type(), CredentialType::Orb);
         assert!(request.get_signal_bytes().is_some());
         assert_eq!(request.get_signal_bytes().unwrap(), b"test_signal");
         assert_eq!(request.face_auth(), None);
@@ -243,8 +247,8 @@ mod tests {
 
     #[test]
     fn test_create_request_without_signal() {
-        let request = Request::new(Credential::Device, None);
-        assert_eq!(request.credential_type(), Credential::Device);
+        let request = Request::new(CredentialType::Device, None);
+        assert_eq!(request.credential_type(), CredentialType::Device);
         assert_eq!(request.get_signal_bytes(), None);
         assert_eq!(request.face_auth(), None);
     }
@@ -253,9 +257,9 @@ mod tests {
     fn test_create_request_with_abi_encoded() {
         let bytes = vec![0xFF, 0xFE, 0xFD, 0x00, 0x01];
         let signal = Signal::from_abi_encoded(bytes.clone());
-        let request = Request::new(Credential::Orb, Some(std::sync::Arc::new(signal)));
+        let request = Request::new(CredentialType::Orb, Some(std::sync::Arc::new(signal)));
 
-        assert_eq!(request.credential_type(), Credential::Orb);
+        assert_eq!(request.credential_type(), CredentialType::Orb);
         assert!(request.get_signal_bytes().is_some());
 
         // Verify we can get bytes back
@@ -269,14 +273,14 @@ mod tests {
     #[test]
     fn test_get_signal_bytes_string() {
         let signal = Signal::from_string("my_signal".to_string());
-        let request = Request::new(Credential::Face, Some(std::sync::Arc::new(signal)));
+        let request = Request::new(CredentialType::Face, Some(std::sync::Arc::new(signal)));
         let bytes = request.get_signal_bytes().unwrap();
         assert_eq!(bytes, b"my_signal");
     }
 
     #[test]
     fn test_get_signal_bytes_none() {
-        let request = Request::new(Credential::Device, None);
+        let request = Request::new(CredentialType::Device, None);
         let bytes = request.get_signal_bytes();
         assert_eq!(bytes, None);
     }
@@ -284,14 +288,14 @@ mod tests {
     #[test]
     fn test_request_json_roundtrip() {
         let signal = Signal::from_string("signal_123".to_string());
-        let request = Request::new(Credential::Face, Some(std::sync::Arc::new(signal)));
+        let request = Request::new(CredentialType::Face, Some(std::sync::Arc::new(signal)));
 
         let json = request.to_json().unwrap();
         assert!(json.contains("face"));
         assert!(json.contains("signal_123"));
 
         let parsed = Request::from_json(&json).unwrap();
-        assert_eq!(parsed.credential_type(), Credential::Face);
+        assert_eq!(parsed.credential_type(), CredentialType::Face);
         assert!(parsed.get_signal_bytes().is_some());
         assert_eq!(parsed.get_signal_bytes().unwrap(), b"signal_123");
         assert_eq!(parsed.face_auth(), None);
@@ -303,7 +307,7 @@ mod tests {
             proof: "0x123".to_string(),
             merkle_root: "0x456".to_string(),
             nullifier_hash: "0x789".to_string(),
-            verification_level: Credential::Orb,
+            verification_level: CredentialType::Orb,
         };
 
         let json = proof_to_json(&proof).unwrap();
@@ -312,15 +316,15 @@ mod tests {
         assert_eq!(parsed.proof, "0x123");
         assert_eq!(parsed.merkle_root, "0x456");
         assert_eq!(parsed.nullifier_hash, "0x789");
-        assert_eq!(parsed.verification_level, Credential::Orb);
+        assert_eq!(parsed.verification_level, CredentialType::Orb);
     }
 
     #[test]
     fn test_credential_to_string() {
-        assert_eq!(credential_to_string(&Credential::Orb), "orb");
-        assert_eq!(credential_to_string(&Credential::Face), "face");
-        assert_eq!(credential_to_string(&Credential::Device), "device");
-        assert_eq!(credential_to_string(&Credential::SecureDocument), "secure_document");
-        assert_eq!(credential_to_string(&Credential::Document), "document");
+        assert_eq!(credential_to_string(&CredentialType::Orb), "orb");
+        assert_eq!(credential_to_string(&CredentialType::Face), "face");
+        assert_eq!(credential_to_string(&CredentialType::Device), "device");
+        assert_eq!(credential_to_string(&CredentialType::SecureDocument), "secure_document");
+        assert_eq!(credential_to_string(&CredentialType::Document), "document");
     }
 }
