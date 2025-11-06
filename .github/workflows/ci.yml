@@ -11,6 +11,8 @@ jobs:
     rust-core:
         name: Rust Core - Build & Test
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
         steps:
             - uses: actions/checkout@v4
 
@@ -47,6 +49,8 @@ jobs:
     js-core:
         name: JavaScript/WASM - Build & Test
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
         steps:
             - uses: actions/checkout@v4
 
