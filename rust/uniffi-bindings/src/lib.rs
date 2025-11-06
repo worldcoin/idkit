@@ -535,6 +535,10 @@ impl Session {
     ///
     /// Mirrors the `idkit-rs` `poll_for_status` helper so higher-level SDKs can
     /// stream updates by repeatedly invoking this method.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request fails or the response is invalid
     pub fn poll_for_status(&self) -> Result<Status, IdkitError> {
         self.runtime
             .block_on(self.inner.poll())
