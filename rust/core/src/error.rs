@@ -53,8 +53,8 @@ pub enum Error {
     InvalidProof(String),
 
     /// HTTP request error
-    #[cfg(feature = "bridge")]
-    #[error("HTTP error: {0}")]
+    #[cfg(any(feature = "bridge", feature = "verification"))]
+    #[error(transparent)]
     Http(#[from] reqwest::Error),
 }
 

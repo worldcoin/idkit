@@ -1,12 +1,14 @@
-//! Client for communicating with the [Wallet Bridge](https://github.com/worldcoin/wallet-bridge).
+//! Session management for World ID verification with the [Wallet Bridge](https://github.com/worldcoin/wallet-bridge).
 
 use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
-    types::{AppId, BridgeUrl, CredentialType, Proof, Request},
-    Constraints,
+    types::{AppId, BridgeUrl, Proof, Request, Signal, VerificationLevel},
+    Constraints, ConstraintNode,
 };
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
+use tokio::time::sleep;
 use uuid::Uuid;
 
 #[cfg(feature = "native-crypto")]
@@ -68,27 +70,7 @@ enum BridgeResponse {
     Error { error_code: AppError },
 
     /// Success response with proof
-    Success(BridgeProof),
-}
-
-/// Proof response from bridge
-#[derive(Debug, Deserialize)]
-struct BridgeProof {
-    proof: String,
-    merkle_root: String,
-    nullifier_hash: String,
-    verification_level: CredentialType,
-}
-
-impl From<BridgeProof> for Proof {
-    fn from(bp: BridgeProof) -> Self {
-        Self {
-            proof: bp.proof,
-            merkle_root: bp.merkle_root,
-            nullifier_hash: bp.nullifier_hash,
-            verification_level: bp.verification_level,
-        }
-    }
+    Success(Proof),
 }
 
 /// Status of a verification request
@@ -108,31 +90,11 @@ pub enum Status {
     Failed(AppError),
 }
 
-/// Bridge client configuration
-#[derive(Debug, Clone)]
-pub struct BridgeConfig {
-    /// Application ID
-    pub app_id: AppId,
-
-    /// Action identifier
-    pub action: String,
-
-    /// Optional action description shown to users
-    pub action_description: Option<String>,
-
-    /// Credential requests
-    pub requests: Vec<Request>,
-
-    /// Optional constraints on which credentials are acceptable
-    pub constraints: Option<Constraints>,
-
-    /// Bridge URL (defaults to production)
-    pub bridge_url: BridgeUrl,
-}
-
-/// Bridge client for managing World ID verification sessions
-pub struct BridgeClient {
-    config: BridgeConfig,
+/// A World ID verification session
+///
+/// Manages the verification flow with World App via the bridge.
+pub struct Session {
+    bridge_url: BridgeUrl,
     #[cfg(feature = "native-crypto")]
     key: CryptoKey,
     key_bytes: Vec<u8>,
@@ -140,21 +102,63 @@ pub struct BridgeClient {
     client: reqwest::Client,
 }
 
-impl BridgeClient {
-    /// Creates a new bridge client and initializes a session
+impl Session {
+    /// Default bridge timeout, 15m
+    /// See: <https://github.com/worldcoin/wallet-bridge/blob/main/src/utils.rs#L7>
+    const DEFAULT_TIMEOUT_SECONDS: u64 = 900;
+
+    /// Creates a new session
+    ///
+    /// # Arguments
+    ///
+    /// * `app_id` - Application ID from the Developer Portal
+    /// * `action` - Action identifier
+    /// * `requests` - One or more credential requests
     ///
     /// # Errors
     ///
-    /// Returns an error if the request fails or the response is invalid
-    pub async fn create(config: BridgeConfig) -> Result<Self> {
-        // Validate configuration
-        for request in &config.requests {
-            request.validate()?;
+    /// Returns an error if the session cannot be created or the request fails
+    pub async fn create(
+        app_id: AppId,
+        action: impl Into<String>,
+        requests: Vec<Request>,
+    ) -> Result<Self> {
+        Self::create_with_options(app_id, action, requests, None, None, None).await
+    }
+
+    /// Creates a new session with optional configuration
+    ///
+    /// # Arguments
+    ///
+    /// * `app_id` - Application ID from the Developer Portal
+    /// * `action` - Action identifier
+    /// * `requests` - One or more credential requests
+    /// * `action_description` - Optional action description shown to users
+    /// * `constraints` - Optional constraints on which credentials are acceptable
+    /// * `bridge_url` - Optional bridge URL (defaults to production)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created or the request fails
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_with_options(
+        app_id: AppId,
+        action: impl Into<String>,
+        requests: Vec<Request>,
+        action_description: Option<String>,
+        constraints: Option<Constraints>,
+        bridge_url: Option<BridgeUrl>,
+    ) -> Result<Self> {
+        // Validate requests
+        for req in &requests {
+            req.validate()?;
         }
 
-        if let Some(ref constraints) = config.constraints {
+        if let Some(ref constraints) = constraints {
             constraints.validate()?;
         }
+
+        let bridge_url = bridge_url.unwrap_or_default();
 
         // Generate encryption key and IV
         #[cfg(feature = "native-crypto")]
@@ -168,11 +172,11 @@ impl BridgeClient {
 
         // Prepare the payload
         let payload = BridgeRequestPayload {
-            app_id: config.app_id.as_str().to_string(),
-            action: config.action.clone(),
-            action_description: config.action_description.clone(),
-            requests: config.requests.clone(),
-            constraints: config.constraints.clone(),
+            app_id: app_id.as_str().to_string(),
+            action: action.into(),
+            action_description,
+            requests: requests.clone(),
+            constraints,
         };
 
         let payload_json = serde_json::to_vec(&payload)?;
@@ -191,23 +195,29 @@ impl BridgeClient {
 
         // Send to bridge
         let client = reqwest::Client::builder()
-            .user_agent("idkit-core/3.0.0")
+            .user_agent(format!("idkit-core/{}", env!("CARGO_PKG_VERSION")))
             .build()?;
 
         let response = client
-            .post(config.bridge_url.join("/request")?)
+            .post(bridge_url.join("/request")?)
             .json(&encrypted_payload)
             .send()
             .await?;
 
         if !response.status().is_success() {
-            return Err(Error::ConnectionFailed);
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(Error::BridgeError(format!(
+                "Bridge request failed with status {}: {}",
+                status,
+                if body.is_empty() { "no error details" } else { &body }
+            )));
         }
 
         let create_response: BridgeCreateResponse = response.json().await?;
 
         Ok(Self {
-            config,
+            bridge_url,
             #[cfg(feature = "native-crypto")]
             key,
             key_bytes: key_bytes.to_vec(),
@@ -216,16 +226,56 @@ impl BridgeClient {
         })
     }
 
+    /// Creates a session from a verification level
+    ///
+    /// This is a convenience method that maps a verification level (like "device" or "orb")
+    /// to the appropriate set of credential requests and constraints.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created or the request fails
+    pub async fn from_verification_level(
+        app_id: AppId,
+        action: impl Into<String>,
+        verification_level: VerificationLevel,
+        signal: impl Into<String>,
+    ) -> Result<Self> {
+        let signal_str = signal.into();
+        let credentials = verification_level.to_credentials();
+
+        let requests = credentials
+            .iter()
+            .map(|cred| Request::new(*cred, Some(Signal::from_string(signal_str.clone()))))
+            .collect();
+
+        let constraints = Constraints::new(ConstraintNode::any(
+            credentials
+                .into_iter()
+                .map(ConstraintNode::credential)
+                .collect(),
+        ));
+
+        Self::create_with_options(
+            app_id,
+            action,
+            requests,
+            None,
+            Some(constraints),
+            None,
+        )
+        .await
+    }
+
     /// Returns the connect URL for World App
     #[must_use]
     pub fn connect_url(&self) -> String {
         let key_b64 = base64_encode(&self.key_bytes);
-        let bridge_param = if self.config.bridge_url == BridgeUrl::default() {
+        let bridge_param = if self.bridge_url == BridgeUrl::default() {
             String::new()
         } else {
             format!(
                 "&b={}",
-                urlencoding::encode(self.config.bridge_url.as_str())
+                urlencoding::encode(self.bridge_url.as_str())
             )
         };
 
@@ -237,17 +287,16 @@ impl BridgeClient {
         )
     }
 
-    /// Polls the bridge for the current status
+    /// Polls the bridge for the current status (non-blocking)
     ///
     /// # Errors
     ///
     /// Returns an error if the request fails or the response is invalid
-    pub async fn poll_status(&self) -> Result<Status> {
+    pub async fn poll(&self) -> Result<Status> {
         let response = self
             .client
             .get(
-                self.config
-                    .bridge_url
+                self.bridge_url
                     .join(&format!("/response/{}", self.request_id))?,
             )
             .send()
@@ -265,11 +314,13 @@ impl BridgeClient {
             "completed" => {
                 let encrypted = poll_response.response.ok_or(Error::UnexpectedResponse)?;
 
-                let _iv = base64_decode(&encrypted.iv)?;
+                let iv = base64_decode(&encrypted.iv)?;
                 let ciphertext = base64_decode(&encrypted.payload)?;
 
+                // Both paths use the IV from the encrypted response (not stored nonce)
+                // because the authenticator encrypts with its own nonce
                 #[cfg(feature = "native-crypto")]
-                let plaintext = decrypt(&self.key.key, &self.key.nonce, &ciphertext)?;
+                let plaintext = decrypt(&self.key.key, &iv, &ciphertext)?;
 
                 #[cfg(not(feature = "native-crypto"))]
                 let plaintext = decrypt(&self.key_bytes, &iv, &ciphertext)?;
@@ -278,14 +329,48 @@ impl BridgeClient {
 
                 match bridge_response {
                     BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
-                    BridgeResponse::Success(proof) => Ok(Status::Confirmed(proof.into())),
+                    BridgeResponse::Success(proof) => Ok(Status::Confirmed(proof)),
                 }
             }
             _ => Err(Error::UnexpectedResponse),
         }
     }
 
-    /// Returns the request ID
+    /// Waits for a proof, polling the bridge until completion with default timeout (15 minutes)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if polling fails, verification fails, or timeout is reached
+    pub async fn wait_for_proof(&self) -> Result<Proof> {
+        self.wait_for_proof_with_timeout(Duration::from_secs(Self::DEFAULT_TIMEOUT_SECONDS))
+            .await
+    }
+
+    /// Waits for a proof with a specific timeout
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if polling fails, verification fails, or timeout is reached
+    pub async fn wait_for_proof_with_timeout(&self, timeout: Duration) -> Result<Proof> {
+        let start = tokio::time::Instant::now();
+        let poll_interval = Duration::from_secs(3);
+
+        loop {
+            if start.elapsed() > timeout {
+                return Err(Error::Timeout);
+            }
+
+            match self.poll().await? {
+                Status::Confirmed(proof) => return Ok(proof),
+                Status::Failed(error) => return Err(Error::AppError(error)),
+                Status::WaitingForConnection | Status::AwaitingConfirmation => {
+                    sleep(poll_interval).await;
+                }
+            }
+        }
+    }
+
+    /// Returns the request ID for this session
     #[must_use]
     pub const fn request_id(&self) -> Uuid {
         self.request_id
@@ -295,7 +380,7 @@ impl BridgeClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{CredentialType, Signal};
+    use crate::types::CredentialType;
 
     #[test]
     fn test_bridge_request_payload_serialization() {
@@ -356,7 +441,7 @@ mod tests {
             // Verify we can decrypt
             let decrypted_iv = base64_decode(&payload.iv).unwrap();
             let decrypted_cipher = base64_decode(&payload.payload).unwrap();
-            let decrypted = decrypt(&key_bytes, &decrypted_iv, &decrypted_cipher).unwrap();
+            let decrypted = decrypt(&key, &decrypted_iv, &decrypted_cipher).unwrap();
 
             assert_eq!(decrypted, plaintext);
         }

@@ -152,7 +152,6 @@ pub struct Request {
 impl Request {
     /// Creates a new request with an optional signal
     #[must_use]
-    #[allow(clippy::missing_const_for_fn)]
     pub fn new(credential_type: CredentialType, signal: Option<Signal>) -> Self {
         Self {
             credential_type,
@@ -169,7 +168,6 @@ impl Request {
 
     /// Adds face authentication requirement
     #[must_use]
-    #[allow(clippy::missing_const_for_fn)]
     pub fn with_face_auth(mut self, face_auth: bool) -> Self {
         self.face_auth = Some(face_auth);
         self

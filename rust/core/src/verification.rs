@@ -44,7 +44,7 @@ struct ErrorResponse {
     attribute: Option<String>,
 }
 
-/// Verifies a World ID proof using the Developer Portal API
+/// Verifies a World ID proof using the Developer Portal API (default endpoint)
 ///
 /// # Arguments
 ///
@@ -56,11 +56,40 @@ struct ErrorResponse {
 /// # Errors
 ///
 /// Returns an error if verification fails or there's a network/API error
-pub async fn verify_proof(
+pub async fn verify_proof(proof: Proof, app_id: &AppId, action: &str, signal: &[u8]) -> Result<()> {
+    verify_proof_with_endpoint(
+        proof,
+        app_id,
+        action,
+        signal,
+        "https://developer.world.org/api/v2/verify",
+    )
+    .await
+}
+
+/// Verifies a World ID proof using a custom verification endpoint
+///
+/// This allows verification against alternative endpoints such as:
+/// - Local dev environments
+/// - Sequencers for on-chain verification
+///
+/// # Arguments
+///
+/// * `proof` - The proof to verify
+/// * `app_id` - Your application ID
+/// * `action` - The action identifier
+/// * `signal` - Optional signal data (if empty, no signal validation is performed)
+/// * `endpoint` - The verification endpoint URL (without the `app_id` path segment)
+///
+/// # Errors
+///
+/// Returns an error if verification fails or there's a network/API error
+pub async fn verify_proof_with_endpoint(
     proof: Proof,
     app_id: &AppId,
     action: &str,
     signal: &[u8],
+    endpoint: &str,
 ) -> Result<()> {
     let signal_hash = if signal.is_empty() {
         None
@@ -78,12 +107,13 @@ pub async fn verify_proof(
     };
 
     let client = reqwest::Client::new();
+    let url = format!("{}/{}", endpoint.trim_end_matches('/'), app_id.as_str());
     let response = client
-        .post(format!(
-            "https://developer.world.org/api/v2/verify/{}",
-            app_id.as_str()
-        ))
-        .header("User-Agent", "idkit-core/3.0.0")
+        .post(&url)
+        .header(
+            "User-Agent",
+            &format!("idkit-core/{}", env!("CARGO_PKG_VERSION")),
+        )
         .json(&request)
         .send()
         .await?;
