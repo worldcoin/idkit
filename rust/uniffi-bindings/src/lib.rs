@@ -5,6 +5,8 @@
 
 #![deny(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::module_name_repetitions)]
+// UniFFI requires specific function signatures for FFI, so we allow these
+#![allow(clippy::needless_pass_by_value)]
 
 use idkit_core::{
     bridge::{Session as CoreSession, Status as CoreStatus},
@@ -409,7 +411,7 @@ impl Session {
     ///
     /// # Arguments
     ///
-    /// * `app_id` - Application ID from the Developer Portal (e.g., "app_123")
+    /// * `app_id` - Application ID from the Developer Portal (e.g., `"app_123"`)
     /// * `action` - Action identifier
     /// * `requests` - One or more credential requests
     ///
@@ -417,7 +419,11 @@ impl Session {
     ///
     /// Returns an error if the session cannot be created or the request fails
     #[uniffi::constructor]
-    pub fn create(app_id: String, action: String, requests: Vec<Arc<Request>>) -> Result<Self, IdkitError> {
+    pub fn create(
+        app_id: String,
+        action: String,
+        requests: Vec<Arc<Request>>,
+    ) -> Result<Self, IdkitError> {
         let runtime = tokio::runtime::Runtime::new().map_err(|e| IdkitError::BridgeError {
             message: format!("Failed to create runtime: {e}"),
         })?;

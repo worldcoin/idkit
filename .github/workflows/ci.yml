@@ -45,3 +45,77 @@ jobs:
 
             - name: Run Rust tests
               run: cargo test --package idkit-core
+
+    swift-bindings:
+        name: Swift Bindings - Build & Test
+        runs-on: ${{ matrix.os }}
+        needs: rust-core
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - os: macos-15
+                      xcode: "16.0"
+                    - os: macos-15
+                      xcode: "16.1"
+        env:
+            DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Rust toolchain
+              uses: actions-rust-lang/setup-rust-toolchain@v1
+              with:
+                  toolchain: stable
+
+            - name: Cache Cargo dependencies
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cargo/bin/
+                      ~/.cargo/registry/index/
+                      ~/.cargo/registry/cache/
+                      ~/.cargo/git/db/
+                      target/
+                  key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-cargo-
+
+            - name: Install uniffi-bindgen
+              run: cargo install uniffi-bindgen --version 0.30.0
+
+            - name: Restore Swift .build cache
+              id: restore-swift-build
+              uses: actions/cache/restore@v4
+              with:
+                  path: swift/.build
+                  restore-keys: "swiftpm-build-${{ runner.os }}-${{ matrix.xcode }}-"
+                  key: "swiftpm-build-${{ runner.os }}-${{ matrix.xcode }}-${{ hashFiles('**/Package.swift', '**/Package.resolved') }}"
+
+            - name: Build Rust library
+              run: cargo build --release --package idkit-uniffi
+
+            - name: Generate Swift bindings
+              run: |
+                  mkdir -p swift/Sources/IDKit/Generated
+                  uniffi-bindgen generate \
+                      --library target/release/libidkit.dylib \
+                      --language swift \
+                      --out-dir swift/Sources/IDKit/Generated
+
+            - name: Build Swift package
+              working-directory: swift
+              run: swift build
+
+            - name: Run Swift tests
+              working-directory: swift
+              run: swift test
+
+            - name: Cache Swift .build
+              if: steps.restore-swift-build.outputs.cache-hit != 'true'
+              uses: actions/cache/save@v4
+              with:
+                  path: swift/.build
+                  key: "swiftpm-build-${{ runner.os }}-${{ matrix.xcode }}-${{ hashFiles('**/Package.swift', '**/Package.resolved') }}"
