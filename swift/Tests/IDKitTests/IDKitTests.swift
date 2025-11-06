@@ -7,17 +7,14 @@ final class IDKitTests: XCTestCase {
 
     func testRequestCreationWithSignal() throws {
         let signal = Signal.fromString(s: "test_signal")
-        let request = Request.new(
-            credentialType: .orb,
-            signal: signal
-        )
+        let request = Request(credentialType: .orb, signal: signal)
 
         XCTAssertEqual(request.credentialType(), .orb)
         XCTAssertNotNil(request.getSignalBytes())
     }
 
     func testRequestCreationWithoutSignal() {
-        let request = Request.new(credentialType: .device, signal: nil)
+        let request = Request(credentialType: .device, signal: nil)
 
         XCTAssertEqual(request.credentialType(), .device)
         XCTAssertNil(request.getSignalBytes())
@@ -25,32 +22,10 @@ final class IDKitTests: XCTestCase {
 
     func testRequestWithFaceAuth() {
         let signal = Signal.fromString(s: "test")
-        let request = Request.new(credentialType: .orb, signal: signal)
+        let request = Request(credentialType: .orb, signal: signal)
         let withAuth = request.withFaceAuth(faceAuth: true)
 
         XCTAssertEqual(withAuth.faceAuth(), true)
-    }
-
-    func testRequestConvenienceInitWithString() throws {
-        // Test the Swift convenience initializer
-        let request = try Request(
-            credentialType: .orb,
-            signal: "test_signal"
-        )
-
-        XCTAssertEqual(request.credentialType(), .orb)
-        XCTAssertNotNil(request.getSignalBytes())
-    }
-
-    func testRequestConvenienceInitWithData() throws {
-        let bytes = Data([0x00, 0x01, 0x02, 0x03])
-        let request = try Request(
-            credentialType: .orb,
-            abiEncodedSignal: bytes
-        )
-
-        XCTAssertEqual(request.credentialType(), .orb)
-        XCTAssertNotNil(request.getSignalBytes())
     }
 
     // MARK: - Signal Tests
@@ -58,21 +33,21 @@ final class IDKitTests: XCTestCase {
     func testSignalFromString() {
         let signal = Signal.fromString(s: "test_signal")
 
-        XCTAssertEqual(signal.string, "test_signal")
-        XCTAssertEqual(String(data: signal.data, encoding: .utf8), "test_signal")
+        XCTAssertEqual(signal.asString(), "test_signal")
+        XCTAssertEqual(String(data: signal.asBytes(), encoding: .utf8), "test_signal")
     }
 
     func testSignalFromAbiEncoded() {
         let bytes: [UInt8] = [0x00, 0x01, 0x02, 0x03]
         let signal = Signal.fromAbiEncoded(bytes: bytes)
 
-        XCTAssertEqual(signal.data, Data(bytes))
-        XCTAssertNil(signal.string)  // Not a valid UTF-8 string
+        XCTAssertEqual(signal.asBytes(), Data(bytes))
+        XCTAssertNil(signal.asString())  // Not a valid UTF-8 string
     }
 
     func testSignalDataProperty() {
         let signal = Signal.fromString(s: "test")
-        let data = signal.data
+        let data = signal.asBytes()
 
         XCTAssertEqual(String(data: data, encoding: .utf8), "test")
     }
@@ -80,7 +55,7 @@ final class IDKitTests: XCTestCase {
     func testSignalStringProperty() {
         let signal = Signal.fromString(s: "hello")
 
-        XCTAssertEqual(signal.string, "hello")
+        XCTAssertEqual(signal.asString(), "hello")
     }
 
     // MARK: - CredentialType Tests
@@ -151,7 +126,7 @@ final class IDKitTests: XCTestCase {
     func testSessionCreationAPIShape() {
         let testCreation = {
             let signal = Signal.fromString(s: "test")
-            let request = Request.new(credentialType: .orb, signal: signal)
+            let request = Request(credentialType: .orb, signal: signal)
 
             // These will throw without valid app_id
             _ = try? Session.create(
@@ -178,26 +153,6 @@ final class IDKitTests: XCTestCase {
         }
 
         XCTAssertNoThrow(testCreation())
-    }
-
-    // MARK: - Session Extensions Tests
-
-    func testSessionVerificationURLProperty() {
-        // Create a mock session (will fail but we just want to test the extension exists)
-        // In real use, this would be called on a valid session
-        let signal = Signal.fromString(s: "test")
-        let request = Request.new(credentialType: .orb, signal: signal)
-
-        if let session = try? Session.create(
-            appId: "app_staging_test",
-            action: "test",
-            requests: [request]
-        ) {
-            // If session creation succeeds (unlikely without valid credentials),
-            // verify the convenience properties work
-            XCTAssertNotNil(session.verificationURL)
-            XCTAssertNotNil(session.requestUUID)
-        }
     }
 
     // MARK: - SDK Version Test

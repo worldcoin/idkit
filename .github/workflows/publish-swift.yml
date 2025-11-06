@@ -1,0 +1,114 @@
+name: Publish Swift Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  publish-swift:
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+    runs-on: macos-15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install uniffi-bindgen
+        run: cargo install uniffi_bindgen --version 0.30.0
+
+      - name: Build Swift artifacts
+        run: scripts/package-swift.sh
+
+      - name: Zip XCFramework
+        run: zip -r IDKitFFI.xcframework.zip IDKitFFI.xcframework
+
+      - name: Compute checksum
+        id: checksum
+        run: |
+          CHECKSUM=$(swift package compute-checksum IDKitFFI.xcframework.zip)
+          echo "checksum=$CHECKSUM" >> "$GITHUB_OUTPUT"
+
+      - name: Determine release version
+        id: version
+        run: |
+          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create draft release in idkit-swift
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: worldcoin/idkit-swift
+          name: ${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.version }}
+          make_latest: false
+          draft: true
+          fail_on_unmatched_files: true
+          files: IDKitFFI.xcframework.zip
+          token: ${{ secrets.GIT_HUB_TOKEN }}
+          body: |
+            Please review https://github.com/worldcoin/idkit/releases/tag/${{ steps.version.outputs.version }} for release notes.
+
+      - name: Checkout idkit-swift repository
+        uses: actions/checkout@v4
+        with:
+          repository: worldcoin/idkit-swift
+          token: ${{ secrets.GIT_HUB_TOKEN }}
+          path: idkit-swift
+
+      - name: Sync generated Swift sources
+        run: |
+          rm -rf idkit-swift/Sources
+          mkdir -p idkit-swift/Sources
+          cp -R swift/Sources/IDKit idkit-swift/Sources/
+          rm -f idkit-swift/Package.resolved
+
+      - name: Update Package.swift metadata
+        run: |
+          ASSET_URL=$(echo '${{ steps.release.outputs.assets }}' | jq -r '.[0].browser_download_url')
+          VERSION=${{ steps.version.outputs.version }}
+          CHECKSUM=${{ steps.checksum.outputs.checksum }}
+
+          python <<PY
+import pathlib
+import re
+
+package = pathlib.Path('idkit-swift/Package.swift')
+text = package.read_text()
+text = re.sub(r'url: "[^"]+"', f'url: "{ASSET_URL}"', text)
+text = re.sub(r'checksum: "[^"]+"', f'checksum: "{CHECKSUM}"', text)
+text = re.sub(r'// Release version: .*', f'// Release version: {VERSION}', text)
+package.write_text(text)
+PY
+
+      - name: Commit and tag release
+        working-directory: idkit-swift
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Package.swift Sources
+          git commit -m "Release ${VERSION}"
+          git tag "${VERSION}"
+          git push origin HEAD
+          git push origin "${VERSION}"
+
+      - name: Publish release notes
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: worldcoin/idkit-swift
+          name: ${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GIT_HUB_TOKEN }}
