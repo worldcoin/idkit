@@ -580,9 +580,7 @@ impl Session {
 
             match self.poll_for_status()? {
                 Status::Confirmed { proof } => return Ok(proof),
-                Status::Failed { error } => {
-                    return Err(IdkitError::AppError { message: error })
-                }
+                Status::Failed { error } => return Err(IdkitError::AppError { message: error }),
                 Status::WaitingForConnection | Status::AwaitingConfirmation => {
                     std::thread::sleep(poll_interval);
                 }
