@@ -328,40 +328,6 @@ impl Session {
         }
     }
 
-    /// Waits for a proof, polling the bridge until completion with default timeout (15 minutes)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if polling fails, verification fails, or timeout is reached
-    pub async fn wait_for_proof(&self) -> Result<Proof> {
-        self.wait_for_proof_with_timeout(Duration::from_secs(Self::DEFAULT_TIMEOUT_SECONDS))
-            .await
-    }
-
-    /// Waits for a proof with a specific timeout
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if polling fails, verification fails, or timeout is reached
-    pub async fn wait_for_proof_with_timeout(&self, timeout: Duration) -> Result<Proof> {
-        let start = tokio::time::Instant::now();
-        let poll_interval = Duration::from_secs(3);
-
-        loop {
-            if start.elapsed() > timeout {
-                return Err(Error::Timeout);
-            }
-
-            match self.poll_for_status().await? {
-                Status::Confirmed(proof) => return Ok(proof),
-                Status::Failed(error) => return Err(Error::AppError(error)),
-                Status::WaitingForConnection | Status::AwaitingConfirmation => {
-                    sleep(poll_interval).await;
-                }
-            }
-        }
-    }
-
     /// Returns the request ID for this session
     #[must_use]
     pub const fn request_id(&self) -> Uuid {
