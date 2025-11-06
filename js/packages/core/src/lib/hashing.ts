@@ -15,15 +15,26 @@ export interface HashFunctionOutput {
  * Hashes an input using the keccak256 hashing function used across the World ID protocol
  * Uses WASM for cross-platform consistency with Swift/Kotlin implementations
  *
- * @param input Any string to hash
+ * @param input String or Uint8Array to hash
  * @returns Hash output with bigint and hex digest
  */
-export function hashToField(input: string): HashFunctionOutput {
+export function hashToField(input: string | Uint8Array): HashFunctionOutput {
 	if (!isInitialized()) {
 		throw new Error('IDKit WASM not initialized. Call initIDKit() first.')
 	}
 
-	const digest = WasmModule.hashSignal(input) as `0x${string}`
+	// Convert Uint8Array to hex string if needed
+	let stringInput: string
+	if (typeof input === 'string') {
+		stringInput = input
+	} else {
+		// Convert bytes to hex string
+		stringInput = Array.from(input)
+			.map((byte) => byte.toString(16).padStart(2, '0'))
+			.join('')
+	}
+
+	const digest = WasmModule.hashSignal(stringInput) as `0x${string}`
 	const hash = BigInt(digest)
 
 	return { hash, digest }
