@@ -4,8 +4,8 @@
 *.pdb
 
 # Build outputs (following walletkit model)
-# Swift build outputs are not committed to this repo
-/swift/Sources/IDKit/
+# Swift generated bindings are not committed to this repo (regenerate with scripts/build-swift.sh)
+/swift/Sources/IDKit/Generated/
 /swift/IDKitFFI.xcframework/
 /ios_build/
 

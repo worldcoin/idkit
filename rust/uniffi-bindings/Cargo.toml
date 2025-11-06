@@ -12,8 +12,9 @@ crate-type = ["staticlib", "cdylib"]
 name = "idkit"
 
 [dependencies]
-idkit-core = { path = "../core", default-features = false, features = ["uniffi-bindings", "native-crypto"] }
+idkit-core = { path = "../core", default-features = false, features = ["uniffi-bindings", "native-crypto", "bridge"] }
 uniffi = { workspace = true }
 thiserror = { workspace = true }
 serde_json = { workspace = true }
 hex = { workspace = true }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }

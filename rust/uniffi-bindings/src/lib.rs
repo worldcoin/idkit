@@ -6,7 +6,13 @@
 #![deny(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::module_name_repetitions)]
 
-use idkit_core::{CredentialType, Proof, Request as CoreRequest, Signal as CoreSignal};
+use idkit_core::{
+    bridge::{Session as CoreSession, Status as CoreStatus},
+    ConstraintNode as CoreConstraintNode, Constraints as CoreConstraints, CredentialType, Proof,
+    Request as CoreRequest, Signal as CoreSignal, VerificationLevel,
+};
+use std::sync::Arc;
+use std::time::Duration;
 
 /// Signal wrapper for `UniFFI`
 ///
@@ -19,6 +25,42 @@ pub struct Signal(CoreSignal);
 /// This wraps the core `Request` type to work around `UniFFI` limitations with custom types.
 #[derive(Debug, Clone, uniffi::Object)]
 pub struct Request(CoreRequest);
+
+/// Constraint node for `UniFFI`
+///
+/// Represents a node in a constraint tree (Credential, Any, or All).
+#[derive(Debug, Clone, uniffi::Object)]
+pub struct ConstraintNode(CoreConstraintNode);
+
+/// Constraints wrapper for `UniFFI`
+///
+/// Represents the top-level constraints for a session.
+#[derive(Debug, Clone, uniffi::Object)]
+pub struct Constraints(CoreConstraints);
+
+/// Session wrapper for `UniFFI`
+///
+/// Manages a World ID verification session.
+#[derive(uniffi::Object)]
+pub struct Session {
+    runtime: tokio::runtime::Runtime,
+    inner: CoreSession,
+}
+
+/// Status enum for `UniFFI`
+///
+/// Represents the status of a verification request.
+#[derive(Debug, Clone, uniffi::Enum)]
+pub enum Status {
+    /// Waiting for World App to retrieve the request
+    WaitingForConnection,
+    /// World App has retrieved the request, waiting for user confirmation
+    AwaitingConfirmation,
+    /// User has confirmed and provided a proof
+    Confirmed { proof: Proof },
+    /// Request has failed
+    Failed { error: String },
+}
 
 /// Error type for `UniFFI` bindings
 #[derive(Debug, thiserror::Error, uniffi::Error)]
@@ -94,6 +136,19 @@ impl From<idkit_core::Error> for IdkitError {
             idkit_core::Error::Timeout => Self::Timeout,
             idkit_core::Error::Http(_) => Self::BridgeError {
                 message: format!("HTTP error: {e}"),
+            },
+        }
+    }
+}
+
+impl From<CoreStatus> for Status {
+    fn from(status: CoreStatus) -> Self {
+        match status {
+            CoreStatus::WaitingForConnection => Self::WaitingForConnection,
+            CoreStatus::AwaitingConfirmation => Self::AwaitingConfirmation,
+            CoreStatus::Confirmed(proof) => Self::Confirmed { proof },
+            CoreStatus::Failed(app_error) => Self::Failed {
+                error: app_error.to_string(),
             },
         }
     }
@@ -227,6 +282,285 @@ pub fn proof_from_json(json: &str) -> Result<Proof, IdkitError> {
     serde_json::from_str(json).map_err(|e| IdkitError::JsonError {
         message: e.to_string(),
     })
+}
+
+// ConstraintNode constructors and methods
+
+#[uniffi::export]
+impl ConstraintNode {
+    /// Creates a credential constraint node
+    #[must_use]
+    #[uniffi::constructor]
+    pub fn credential(credential_type: CredentialType) -> Self {
+        Self(CoreConstraintNode::credential(credential_type))
+    }
+
+    /// Creates an "any" (OR) constraint node
+    ///
+    /// At least one of the child constraints must be satisfied.
+    /// Order matters: earlier constraints have higher priority.
+    #[must_use]
+    #[uniffi::constructor]
+    pub fn any(nodes: Vec<Arc<Self>>) -> Self {
+        let core_nodes = nodes.iter().map(|n| n.0.clone()).collect();
+        Self(CoreConstraintNode::any(core_nodes))
+    }
+
+    /// Creates an "all" (AND) constraint node
+    ///
+    /// All child constraints must be satisfied.
+    #[must_use]
+    #[uniffi::constructor]
+    pub fn all(nodes: Vec<Arc<Self>>) -> Self {
+        let core_nodes = nodes.iter().map(|n| n.0.clone()).collect();
+        Self(CoreConstraintNode::all(core_nodes))
+    }
+
+    /// Serializes a constraint node to JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if JSON serialization fails
+    pub fn to_json(&self) -> Result<String, IdkitError> {
+        serde_json::to_string(&self.0).map_err(|e| IdkitError::JsonError {
+            message: e.to_string(),
+        })
+    }
+
+    /// Deserializes a constraint node from JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if JSON deserialization fails
+    #[uniffi::constructor]
+    pub fn from_json(json: &str) -> Result<Self, IdkitError> {
+        serde_json::from_str(json)
+            .map(Self)
+            .map_err(|e| IdkitError::JsonError {
+                message: e.to_string(),
+            })
+    }
+}
+
+// Constraints constructors and methods
+
+#[uniffi::export]
+impl Constraints {
+    /// Creates constraints from a root node
+    #[must_use]
+    #[uniffi::constructor]
+    pub fn new(root: Arc<ConstraintNode>) -> Self {
+        Self(CoreConstraints::new(root.0.clone()))
+    }
+
+    /// Creates an "any" constraint (at least one credential must match)
+    #[must_use]
+    #[uniffi::constructor]
+    pub fn any(credentials: Vec<CredentialType>) -> Self {
+        let nodes: Vec<CoreConstraintNode> = credentials
+            .into_iter()
+            .map(CoreConstraintNode::credential)
+            .collect();
+        Self(CoreConstraints::new(CoreConstraintNode::any(nodes)))
+    }
+
+    /// Creates an "all" constraint (all credentials must match)
+    #[must_use]
+    #[uniffi::constructor]
+    pub fn all(credentials: Vec<CredentialType>) -> Self {
+        let nodes: Vec<CoreConstraintNode> = credentials
+            .into_iter()
+            .map(CoreConstraintNode::credential)
+            .collect();
+        Self(CoreConstraints::new(CoreConstraintNode::all(nodes)))
+    }
+
+    /// Serializes constraints to JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if JSON serialization fails
+    pub fn to_json(&self) -> Result<String, IdkitError> {
+        serde_json::to_string(&self.0).map_err(|e| IdkitError::JsonError {
+            message: e.to_string(),
+        })
+    }
+
+    /// Deserializes constraints from JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if JSON deserialization fails
+    #[uniffi::constructor]
+    pub fn from_json(json: &str) -> Result<Self, IdkitError> {
+        serde_json::from_str(json)
+            .map(Self)
+            .map_err(|e| IdkitError::JsonError {
+                message: e.to_string(),
+            })
+    }
+}
+
+// Session constructors and methods
+
+#[uniffi::export]
+impl Session {
+    /// Creates a new session
+    ///
+    /// # Arguments
+    ///
+    /// * `app_id` - Application ID from the Developer Portal (e.g., "app_123")
+    /// * `action` - Action identifier
+    /// * `requests` - One or more credential requests
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created or the request fails
+    #[uniffi::constructor]
+    pub fn create(app_id: String, action: String, requests: Vec<Arc<Request>>) -> Result<Self, IdkitError> {
+        let runtime = tokio::runtime::Runtime::new().map_err(|e| IdkitError::BridgeError {
+            message: format!("Failed to create runtime: {e}"),
+        })?;
+
+        let app_id_parsed = idkit_core::types::AppId::new(&app_id)?;
+        let core_requests: Vec<CoreRequest> = requests.iter().map(|r| r.0.clone()).collect();
+
+        let inner = runtime
+            .block_on(CoreSession::create(app_id_parsed, action, core_requests))
+            .map_err(IdkitError::from)?;
+
+        Ok(Self { runtime, inner })
+    }
+
+    /// Creates a new session with optional configuration
+    ///
+    /// # Arguments
+    ///
+    /// * `app_id` - Application ID from the Developer Portal
+    /// * `action` - Action identifier
+    /// * `requests` - One or more credential requests
+    /// * `action_description` - Optional action description shown to users
+    /// * `constraints` - Optional constraints on which credentials are acceptable
+    /// * `bridge_url` - Optional bridge URL (defaults to production)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created or the request fails
+    #[uniffi::constructor]
+    pub fn create_with_options(
+        app_id: String,
+        action: String,
+        requests: Vec<Arc<Request>>,
+        action_description: Option<String>,
+        constraints: Option<Arc<Constraints>>,
+        bridge_url: Option<String>,
+    ) -> Result<Self, IdkitError> {
+        let runtime = tokio::runtime::Runtime::new().map_err(|e| IdkitError::BridgeError {
+            message: format!("Failed to create runtime: {e}"),
+        })?;
+
+        let app_id_parsed = idkit_core::types::AppId::new(&app_id)?;
+        let core_requests: Vec<CoreRequest> = requests.iter().map(|r| r.0.clone()).collect();
+        let core_constraints = constraints.map(|c| c.0.clone());
+        let bridge_url_parsed = bridge_url
+            .map(|url| idkit_core::types::BridgeUrl::new(&url))
+            .transpose()?;
+
+        let inner = runtime
+            .block_on(CoreSession::create_with_options(
+                app_id_parsed,
+                action,
+                core_requests,
+                action_description,
+                core_constraints,
+                bridge_url_parsed,
+            ))
+            .map_err(IdkitError::from)?;
+
+        Ok(Self { runtime, inner })
+    }
+
+    /// Creates a session from a verification level
+    ///
+    /// This is a convenience method that maps a verification level to the appropriate
+    /// set of credential requests and constraints.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created or the request fails
+    #[uniffi::constructor]
+    pub fn from_verification_level(
+        app_id: String,
+        action: String,
+        verification_level: VerificationLevel,
+        signal: String,
+    ) -> Result<Self, IdkitError> {
+        let runtime = tokio::runtime::Runtime::new().map_err(|e| IdkitError::BridgeError {
+            message: format!("Failed to create runtime: {e}"),
+        })?;
+
+        let app_id_parsed = idkit_core::types::AppId::new(&app_id)?;
+
+        let inner = runtime
+            .block_on(CoreSession::from_verification_level(
+                app_id_parsed,
+                action,
+                verification_level,
+                signal,
+            ))
+            .map_err(IdkitError::from)?;
+
+        Ok(Self { runtime, inner })
+    }
+
+    /// Returns the connect URL for World App
+    #[must_use]
+    pub fn connect_url(&self) -> String {
+        self.inner.connect_url()
+    }
+
+    /// Returns the request ID for this session
+    #[must_use]
+    pub fn request_id(&self) -> String {
+        self.inner.request_id().to_string()
+    }
+
+    /// Polls the bridge for the current status (non-blocking)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request fails or the response is invalid
+    pub fn poll(&self) -> Result<Status, IdkitError> {
+        self.runtime
+            .block_on(self.inner.poll())
+            .map(Status::from)
+            .map_err(IdkitError::from)
+    }
+
+    /// Waits for a proof with default timeout (15 minutes)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if polling fails, verification fails, or timeout is reached
+    pub fn wait_for_proof(&self) -> Result<Proof, IdkitError> {
+        self.runtime
+            .block_on(self.inner.wait_for_proof())
+            .map_err(IdkitError::from)
+    }
+
+    /// Waits for a proof with a specific timeout (in seconds)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if polling fails, verification fails, or timeout is reached
+    pub fn wait_for_proof_with_timeout(&self, timeout_seconds: u64) -> Result<Proof, IdkitError> {
+        self.runtime
+            .block_on(
+                self.inner
+                    .wait_for_proof_with_timeout(Duration::from_secs(timeout_seconds)),
+            )
+            .map_err(IdkitError::from)
+    }
 }
 
 // Credential methods
