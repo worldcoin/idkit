@@ -136,7 +136,7 @@ const createStoreImplementation: StateCreator<WorldBridgeStore> = (set, get) => 
 
 		const { response, status } = (await res.json()) as BridgeResponse
 
-		if (status != ResponseStatus.Completed) {
+		if (status !== ResponseStatus.Completed) {
 			return set({
 				verificationState:
 					status == ResponseStatus.Retrieved

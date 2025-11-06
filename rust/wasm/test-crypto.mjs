@@ -5,14 +5,22 @@
 import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import init, { BridgeEncryption, hashSignal, base64Encode, base64Decode } from '../../js/packages/core/wasm/idkit_wasm.js';
+
+// Resolve paths from project root for portability
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const projectRoot = join(__dirname, '..', '..');
+const wasmDir = join(projectRoot, 'js', 'packages', 'core', 'wasm');
+
+// Dynamic import to allow path resolution
+const { default: init, BridgeEncryption, hashSignal, base64Encode, base64Decode } = await import(
+  join(wasmDir, 'idkit_wasm.js')
+);
 
 console.log('Testing WASM Crypto Functions...\n');
 
 // Initialize WASM
 console.log('Initializing WASM...');
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const wasmPath = join(__dirname, '../../js/packages/core/wasm/idkit_wasm_bg.wasm');
+const wasmPath = join(wasmDir, 'idkit_wasm_bg.wasm');
 const wasmBuffer = await readFile(wasmPath);
 await init(wasmBuffer);
 console.log('✓ WASM initialized\n');
