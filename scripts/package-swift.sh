@@ -111,4 +111,9 @@ fi
 
 rm -rf "$IOS_BUILD"
 
+echo "🔗 Creating symlink for local Swift package"
+cd "$SWIFT_DIR"
+rm -f IDKitFFI.xcframework
+ln -s ../IDKitFFI.xcframework IDKitFFI.xcframework
+
 echo "✨ Swift artifacts ready"

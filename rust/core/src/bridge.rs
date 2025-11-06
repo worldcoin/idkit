@@ -284,7 +284,7 @@ impl Session {
     /// # Errors
     ///
     /// Returns an error if the request fails or the response is invalid
-    pub async fn poll(&self) -> Result<Status> {
+    pub async fn poll_for_status(&self) -> Result<Status> {
         let response = self
             .client
             .get(
@@ -352,7 +352,7 @@ impl Session {
                 return Err(Error::Timeout);
             }
 
-            match self.poll().await? {
+            match self.poll_for_status().await? {
                 Status::Confirmed(proof) => return Ok(proof),
                 Status::Failed(error) => return Err(Error::AppError(error)),
                 Status::WaitingForConnection | Status::AwaitingConfirmation => {

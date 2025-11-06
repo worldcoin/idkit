@@ -541,7 +541,7 @@ impl Session {
     /// Returns an error if the request fails or the response is invalid
     pub fn poll_for_status(&self) -> Result<Status, IdkitError> {
         self.runtime
-            .block_on(self.inner.poll())
+            .block_on(self.inner.poll_for_status())
             .map(Status::from)
             .map_err(IdkitError::from)
     }
