@@ -1,41 +1,19 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
- * Hashes a signal to a field element using Keccak256
- *
- * This produces a hex-encoded hash (with 0x prefix) that's compatible with
- * Ethereum and other EVM-compatible chains. The hash is shifted right by 8 bits
- * to fit within the field prime used in zero-knowledge proofs.
- *
- * # Arguments
- * * `signal` - The signal string to hash
- *
- * # Returns
- * Hex-encoded hash string (66 characters, includes 0x prefix)
+ * Hashes a signal string using Keccak256
  */
 export function hashSignal(signal: string): string;
 /**
- * Base64 decodes a string
- *
- * # Arguments
- * * `input` - Base64-encoded string
- *
- * # Returns
- * Decoded bytes
+ * Decodes base64 data
  *
  * # Errors
  *
- * Returns an error if the input is not valid base64
+ * Returns an error if decoding fails
  */
-export function base64Decode(input: string): Uint8Array;
+export function base64Decode(data: string): Uint8Array;
 /**
- * Base64 encodes bytes
- *
- * # Arguments
- * * `data` - The bytes to encode
- *
- * # Returns
- * Base64-encoded string
+ * Encodes data to base64
  */
 export function base64Encode(data: Uint8Array): string;
 
@@ -49,75 +27,37 @@ export enum Credential {
 
 
 /**
- * Cryptographic utilities for bridge communication
- *
- * This struct handles AES-256-GCM encryption/decryption for the IDKit bridge protocol.
- * It ensures cross-platform consistency by using the same encryption implementation
- * as native Swift/Kotlin bindings.
+ * Bridge encryption for secure communication between client and bridge
  */
 export class BridgeEncryption {
   free(): void;
   [Symbol.dispose](): void;
   /**
-   * Returns the encryption key as a base64-encoded string
-   *
-   * This is used in the World App connect URL to allow the app to decrypt responses
+   * Returns the key as a base64-encoded string
    */
   keyBase64(): string;
   /**
-   * Creates a BridgeEncryption instance from existing key and nonce
-   *
-   * Useful for reconstructing encryption context from stored values
-   *
-   * # Arguments
-   * * `key_base64` - Base64-encoded 32-byte key
-   * * `nonce_base64` - Base64-encoded 12-byte nonce
-   *
-   * # Errors
-   *
-   * Returns an error if base64 decoding fails or sizes are incorrect
-   */
-  static fromBase64(key_base64: string, nonce_base64: string): BridgeEncryption;
-  /**
-   * Returns the nonce/IV as a base64-encoded string
-   *
-   * This is sent alongside the encrypted payload in bridge requests
+   * Returns the nonce as a base64-encoded string
    */
   nonceBase64(): string;
   /**
-   * Generates a new encryption key and nonce for bridge communication
-   *
-   * Uses cryptographically secure random number generation with:
-   * - 32-byte (256-bit) AES-GCM key
-   * - 12-byte nonce (standard for AES-GCM)
+   * Creates a new BridgeEncryption instance with randomly generated key and nonce
    *
    * # Errors
    *
-   * Returns an error if the random number generator fails
+   * Returns an error if key generation fails
    */
   constructor();
   /**
    * Decrypts a base64-encoded ciphertext using AES-256-GCM
    *
-   * # Arguments
-   * * `ciphertext_base64` - Base64-encoded ciphertext
-   *
-   * # Returns
-   * Decrypted plaintext string
-   *
    * # Errors
    *
-   * Returns an error if decryption or base64 decoding fails
+   * Returns an error if decryption fails or the output is not valid UTF-8
    */
   decrypt(ciphertext_base64: string): string;
   /**
-   * Encrypts a plaintext string using AES-256-GCM
-   *
-   * # Arguments
-   * * `plaintext` - The string to encrypt
-   *
-   * # Returns
-   * Base64-encoded ciphertext
+   * Encrypts a plaintext string using AES-256-GCM and returns base64
    *
    * # Errors
    *
@@ -196,7 +136,6 @@ export interface InitOutput {
   readonly base64Encode: (a: number, b: number, c: number) => void;
   readonly bridgeencryption_decrypt: (a: number, b: number, c: number, d: number) => void;
   readonly bridgeencryption_encrypt: (a: number, b: number, c: number, d: number) => void;
-  readonly bridgeencryption_fromBase64: (a: number, b: number, c: number, d: number, e: number) => void;
   readonly bridgeencryption_keyBase64: (a: number, b: number) => void;
   readonly bridgeencryption_new: (a: number) => void;
   readonly bridgeencryption_nonceBase64: (a: number, b: number) => void;

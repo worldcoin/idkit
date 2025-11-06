@@ -116,13 +116,9 @@
 
     <script type="module">
         // Import IDKit (using relative path for local development)
-        import { initIDKit, useWorldBridgeStore, VerificationLevel } from '../../dist/index.js';
+        import { useWorldBridgeStore, VerificationLevel } from '../../dist/index.js';
 
-        // Initialize WASM (required!)
-        await initIDKit();
-        console.log('IDKit initialized');
-
-        // Demo app configuration
+        // Demo app configuration (WASM auto-initializes on first use)
         const APP_ID = 'app_staging_123'; // Replace with your actual app ID
         const ACTION = 'demo-action';
 
@@ -147,7 +143,7 @@
                 errorDiv.style.display = 'none';
 
                 // Get store instance
-                const store = useWorldBridgeStore.getState();
+                const store = useWorldBridgeStore();
                 store.reset(); // Clear any previous state
 
                 // Create verification request
@@ -180,7 +176,7 @@
                 while (attempts < maxAttempts) {
                     await store.pollForUpdates();
 
-                    const state = useWorldBridgeStore.getState();
+                    const state = useWorldBridgeStore();
 
                     if (state.result) {
                         // Success!

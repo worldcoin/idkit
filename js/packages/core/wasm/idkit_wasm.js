@@ -204,17 +204,7 @@ function takeObject(idx) {
     return ret;
 }
 /**
- * Hashes a signal to a field element using Keccak256
- *
- * This produces a hex-encoded hash (with 0x prefix) that's compatible with
- * Ethereum and other EVM-compatible chains. The hash is shifted right by 8 bits
- * to fit within the field prime used in zero-knowledge proofs.
- *
- * # Arguments
- * * `signal` - The signal string to hash
- *
- * # Returns
- * Hex-encoded hash string (66 characters, includes 0x prefix)
+ * Hashes a signal string using Keccak256
  * @param {string} signal
  * @returns {string}
  */
@@ -238,24 +228,18 @@ export function hashSignal(signal) {
 }
 
 /**
- * Base64 decodes a string
- *
- * # Arguments
- * * `input` - Base64-encoded string
- *
- * # Returns
- * Decoded bytes
+ * Decodes base64 data
  *
  * # Errors
  *
- * Returns an error if the input is not valid base64
- * @param {string} input
+ * Returns an error if decoding fails
+ * @param {string} data
  * @returns {Uint8Array}
  */
-export function base64Decode(input) {
+export function base64Decode(data) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passStringToWasm0(input, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        const ptr0 = passStringToWasm0(data, wasm.__wbindgen_export, wasm.__wbindgen_export2);
         const len0 = WASM_VECTOR_LEN;
         wasm.base64Decode(retptr, ptr0, len0);
         var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
@@ -280,13 +264,7 @@ function passArray8ToWasm0(arg, malloc) {
     return ptr;
 }
 /**
- * Base64 encodes bytes
- *
- * # Arguments
- * * `data` - The bytes to encode
- *
- * # Returns
- * Base64-encoded string
+ * Encodes data to base64
  * @param {Uint8Array} data
  * @returns {string}
  */
@@ -313,21 +291,9 @@ const BridgeEncryptionFinalization = (typeof FinalizationRegistry === 'undefined
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_bridgeencryption_free(ptr >>> 0, 1));
 /**
- * Cryptographic utilities for bridge communication
- *
- * This struct handles AES-256-GCM encryption/decryption for the IDKit bridge protocol.
- * It ensures cross-platform consistency by using the same encryption implementation
- * as native Swift/Kotlin bindings.
+ * Bridge encryption for secure communication between client and bridge
  */
 export class BridgeEncryption {
-
-    static __wrap(ptr) {
-        ptr = ptr >>> 0;
-        const obj = Object.create(BridgeEncryption.prototype);
-        obj.__wbg_ptr = ptr;
-        BridgeEncryptionFinalization.register(obj, obj.__wbg_ptr, obj);
-        return obj;
-    }
 
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
@@ -341,9 +307,7 @@ export class BridgeEncryption {
         wasm.__wbg_bridgeencryption_free(ptr, 0);
     }
     /**
-     * Returns the encryption key as a base64-encoded string
-     *
-     * This is used in the World App connect URL to allow the app to decrypt responses
+     * Returns the key as a base64-encoded string
      * @returns {string}
      */
     keyBase64() {
@@ -363,44 +327,7 @@ export class BridgeEncryption {
         }
     }
     /**
-     * Creates a BridgeEncryption instance from existing key and nonce
-     *
-     * Useful for reconstructing encryption context from stored values
-     *
-     * # Arguments
-     * * `key_base64` - Base64-encoded 32-byte key
-     * * `nonce_base64` - Base64-encoded 12-byte nonce
-     *
-     * # Errors
-     *
-     * Returns an error if base64 decoding fails or sizes are incorrect
-     * @param {string} key_base64
-     * @param {string} nonce_base64
-     * @returns {BridgeEncryption}
-     */
-    static fromBase64(key_base64, nonce_base64) {
-        try {
-            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            const ptr0 = passStringToWasm0(key_base64, wasm.__wbindgen_export, wasm.__wbindgen_export2);
-            const len0 = WASM_VECTOR_LEN;
-            const ptr1 = passStringToWasm0(nonce_base64, wasm.__wbindgen_export, wasm.__wbindgen_export2);
-            const len1 = WASM_VECTOR_LEN;
-            wasm.bridgeencryption_fromBase64(retptr, ptr0, len0, ptr1, len1);
-            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
-            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
-            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
-            if (r2) {
-                throw takeObject(r1);
-            }
-            return BridgeEncryption.__wrap(r0);
-        } finally {
-            wasm.__wbindgen_add_to_stack_pointer(16);
-        }
-    }
-    /**
-     * Returns the nonce/IV as a base64-encoded string
-     *
-     * This is sent alongside the encrypted payload in bridge requests
+     * Returns the nonce as a base64-encoded string
      * @returns {string}
      */
     nonceBase64() {
@@ -420,15 +347,11 @@ export class BridgeEncryption {
         }
     }
     /**
-     * Generates a new encryption key and nonce for bridge communication
-     *
-     * Uses cryptographically secure random number generation with:
-     * - 32-byte (256-bit) AES-GCM key
-     * - 12-byte nonce (standard for AES-GCM)
+     * Creates a new BridgeEncryption instance with randomly generated key and nonce
      *
      * # Errors
      *
-     * Returns an error if the random number generator fails
+     * Returns an error if key generation fails
      */
     constructor() {
         try {
@@ -450,15 +373,9 @@ export class BridgeEncryption {
     /**
      * Decrypts a base64-encoded ciphertext using AES-256-GCM
      *
-     * # Arguments
-     * * `ciphertext_base64` - Base64-encoded ciphertext
-     *
-     * # Returns
-     * Decrypted plaintext string
-     *
      * # Errors
      *
-     * Returns an error if decryption or base64 decoding fails
+     * Returns an error if decryption fails or the output is not valid UTF-8
      * @param {string} ciphertext_base64
      * @returns {string}
      */
@@ -489,13 +406,7 @@ export class BridgeEncryption {
         }
     }
     /**
-     * Encrypts a plaintext string using AES-256-GCM
-     *
-     * # Arguments
-     * * `plaintext` - The string to encrypt
-     *
-     * # Returns
-     * Base64-encoded ciphertext
+     * Encrypts a plaintext string using AES-256-GCM and returns base64
      *
      * # Errors
      *

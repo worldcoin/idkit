@@ -185,9 +185,24 @@ const createStoreImplementation: StateCreator<WorldBridgeStore> = (set, get) => 
 })
 
 /**
- * Single instance of the store
+ * Single instance of the store (vanilla)
  */
-export const useWorldBridgeStore = create<WorldBridgeStore>(createStoreImplementation)
+const store = create<WorldBridgeStore>(createStoreImplementation)
+
+/**
+ * Hook-compatible export that also works as direct function call for v2 compatibility
+ *
+ * Usage:
+ * - React: const state = useWorldBridgeStore() or useWorldBridgeStore(selector)
+ * - Vanilla: const store = useWorldBridgeStore.getState()
+ * - Legacy v2: const store = useWorldBridgeStore() (works outside React)
+ */
+export const useWorldBridgeStore = Object.assign(
+	// Make it callable directly for v2 compatibility (returns state when called outside React)
+	(...args: unknown[]) => (args.length === 0 ? store.getState() : store(...(args as [any]))),
+	// Also expose all store methods
+	store
+)
 
 /**
  * Factory function to create a new instance of the store

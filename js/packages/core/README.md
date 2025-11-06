@@ -14,18 +14,14 @@ pnpm add @worldcoin/idkit-core
 
 ```typescript
 import {
-  initIDKit,
   useWorldBridgeStore,
   VerificationLevel,
 } from '@worldcoin/idkit-core'
 
-// 1. Initialize WASM (required before using any IDKit features!)
-await initIDKit()
+// 1. Get store instance
+const store = useWorldBridgeStore()
 
-// 2. Get store instance
-const store = useWorldBridgeStore.getState()
-
-// 3. Create verification request
+// 2. Create verification request (auto-initializes WASM on first call)
 await store.createClient({
   app_id: 'app_staging_xxxxx',
   action: 'my-action',
@@ -33,17 +29,32 @@ await store.createClient({
   signal: 'user-id-123',
 })
 
-// 4. Get QR code URL for World App
+// 3. Get QR code URL for World App
 console.log('Scan this:', store.connectorURI)
 
-// 5. Poll for proof
+// 4. Poll for proof
 await store.pollForUpdates()
 
-// 6. Check result
+// 5. Check result
 const { result, errorCode, verificationState } = store
 if (result) {
   console.log('Proof received:', result)
 }
+```
+
+### Advanced: Explicit Initialization (Optional)
+
+For better error handling or to control when WASM loads:
+
+```typescript
+import { initIDKit, useWorldBridgeStore } from '@worldcoin/idkit-core'
+
+// Optional: Initialize early to fail fast if WASM not supported
+await initIDKit()
+
+// Then use as normal
+const store = useWorldBridgeStore()
+await store.createClient({ ... })
 ```
 
 ## Architecture
@@ -58,18 +69,21 @@ This means crypto operations are guaranteed to be identical across all SDKs, whi
 
 ## API Reference
 
-### Initialization
+### Initialization (Optional)
 
 ```typescript
 await initIDKit(): Promise<void>
 ```
 
-**Must be called before using any other IDKit functionality.** Initializes the WASM module.
+**Optional:** Pre-initializes the WASM module. `createClient()` automatically initializes WASM on first call, so manual initialization is only needed for:
+- Early error detection (fail fast if WASM not supported)
+- Performance optimization (initialize during app startup)
+- Bundle splitting control (lazy load WASM)
 
 ### Store
 
 ```typescript
-const store = useWorldBridgeStore.getState()
+const store = useWorldBridgeStore()
 ```
 
 **State:**
@@ -125,16 +139,15 @@ solidityEncode(types: string[], values: unknown[]): AbiEncodedValue
 
 ### Key Changes
 
-1. **WASM initialization required** - Must call `await initIDKit()` before use
-2. **Crypto powered by Rust** - Same crypto as Swift/Kotlin SDKs
-3. **Bundle size** - Now 164KB total (42KB JS + 122KB WASM)
+1. **Drop-in replacement** - Same API, no code changes needed
+2. **Crypto powered by Rust/WASM** - Same crypto as Swift/Kotlin SDKs (cross-platform consistency)
+3. **Bundle size** - Now 164KB total (42KB JS + 122KB WASM, was ~180KB in v2)
 
 ### Before (v2.x)
 
 ```typescript
 import { useWorldBridgeStore } from '@worldcoin/idkit-core'
 
-// Could use immediately
 const store = useWorldBridgeStore()
 await store.createClient({ ... })
 ```
@@ -142,15 +155,14 @@ await store.createClient({ ... })
 ### After (v3.0)
 
 ```typescript
-import { initIDKit, useWorldBridgeStore } from '@worldcoin/idkit-core'
+import { useWorldBridgeStore } from '@worldcoin/idkit-core'
 
-// Must initialize WASM first!
-await initIDKit()
-
-// Then use as before
-const store = useWorldBridgeStore.getState()
-await store.createClient({ ... })
+// Identical API - no changes needed!
+const store = useWorldBridgeStore()
+await store.createClient({ ... })  // Auto-initializes WASM on first call
 ```
+
+That's it! WASM initialization happens automatically. No code changes needed.
 
 ## Examples
 

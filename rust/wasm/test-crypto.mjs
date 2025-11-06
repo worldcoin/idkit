@@ -47,28 +47,28 @@ try {
   process.exit(1);
 }
 
-// Test 2: fromBase64 reconstruction
-console.log('2. Testing fromBase64 reconstruction...');
+// Test 2: Multiple encryption instances
+console.log('2. Testing multiple encryption instances...');
 try {
   const encryption1 = new BridgeEncryption();
-  const keyB64 = encryption1.keyBase64();
-  const nonceB64 = encryption1.nonceBase64();
+  const encryption2 = new BridgeEncryption();
+  console.log('✓ Created two independent encryption instances');
 
-  const encryption2 = BridgeEncryption.fromBase64(keyB64, nonceB64);
-  console.log('✓ Reconstructed encryption from base64');
+  const plaintext = 'Test message for independent instances';
+  const encrypted1 = encryption1.encrypt(plaintext);
+  const decrypted1 = encryption1.decrypt(encrypted1);
 
-  const plaintext = 'Test message for reconstruction';
-  const encrypted = encryption1.encrypt(plaintext);
-  const decrypted = encryption2.decrypt(encrypted);
+  const encrypted2 = encryption2.encrypt(plaintext);
+  const decrypted2 = encryption2.decrypt(encrypted2);
 
-  if (decrypted === plaintext) {
-    console.log('✓ Cross-instance encryption/decryption successful\n');
+  if (decrypted1 === plaintext && decrypted2 === plaintext && encrypted1 !== encrypted2) {
+    console.log('✓ Each instance encrypts/decrypts independently with different keys\n');
   } else {
-    console.error('✗ Cross-instance decryption failed\n');
+    console.error('✗ Independent encryption failed\n');
     process.exit(1);
   }
 } catch (e) {
-  console.error(`✗ fromBase64 test failed: ${e}\n`);
+  console.error(`✗ Multiple instances test failed: ${e}\n`);
   process.exit(1);
 }
 

@@ -8,7 +8,6 @@ export const base64Decode: (a: number, b: number, c: number) => void;
 export const base64Encode: (a: number, b: number, c: number) => void;
 export const bridgeencryption_decrypt: (a: number, b: number, c: number, d: number) => void;
 export const bridgeencryption_encrypt: (a: number, b: number, c: number, d: number) => void;
-export const bridgeencryption_fromBase64: (a: number, b: number, c: number, d: number, e: number) => void;
 export const bridgeencryption_keyBase64: (a: number, b: number) => void;
 export const bridgeencryption_new: (a: number) => void;
 export const bridgeencryption_nonceBase64: (a: number, b: number) => void;
