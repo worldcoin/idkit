@@ -94,7 +94,7 @@ jobs:
 
             - name: Install uniffi-bindgen
               if: steps.check-uniffi-bindgen.outputs.cached != 'true'
-              run: cargo install uniffi_bindgen --version 0.30.0
+              run: cargo install uniffi-bindgen --version 0.30.0
 
             - name: Restore Swift .build cache
               id: restore-swift-build
