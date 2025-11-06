@@ -1,0 +1,48 @@
+import { CredentialType, VerificationLevel } from '../types/config'
+
+export const DEFAULT_VERIFICATION_LEVEL = VerificationLevel.Orb
+
+/**
+ * Converts verification level to accepted credential types for proof request
+ * @param verification_level
+ * @returns Array of credential types
+ */
+export const verification_level_to_credential_types = (verification_level: VerificationLevel): string[] => {
+	switch (verification_level) {
+		case VerificationLevel.Device:
+			// Intentionally exclude document and secure document for backwards compatibility with older app versions
+			return [CredentialType.Orb, CredentialType.Device]
+		case VerificationLevel.Document:
+			return [CredentialType.Document, CredentialType.SecureDocument, CredentialType.Orb]
+		case VerificationLevel.SecureDocument:
+			return [CredentialType.SecureDocument, CredentialType.Orb]
+		case VerificationLevel.Orb:
+			return [CredentialType.Orb]
+		case VerificationLevel.Face:
+			return [CredentialType.Face, CredentialType.Orb]
+		default:
+			throw new Error(`Unknown verification level: ${verification_level}`)
+	}
+}
+
+/**
+ * Converts credential type to verification level upon proof response
+ * @param credential_type
+ * @returns VerificationLevel
+ */
+export const credential_type_to_verification_level = (credential_type: CredentialType): VerificationLevel => {
+	switch (credential_type) {
+		case CredentialType.Orb:
+			return VerificationLevel.Orb
+		case CredentialType.Face:
+			return VerificationLevel.Face
+		case CredentialType.SecureDocument:
+			return VerificationLevel.SecureDocument
+		case CredentialType.Document:
+			return VerificationLevel.Document
+		case CredentialType.Device:
+			return VerificationLevel.Device
+		default:
+			throw new Error(`Unknown credential_type: ${credential_type}`)
+	}
+}

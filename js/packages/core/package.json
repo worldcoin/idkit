@@ -18,7 +18,9 @@
     "wasm"
   ],
   "scripts": {
-    "build": "tsup",
+    "build:wasm": "cd ../../../ && ./scripts/build-wasm.sh",
+    "build:ts": "tsup",
+    "build": "npm run build:wasm && npm run build:ts",
     "dev": "tsup --watch",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
@@ -39,7 +41,9 @@
     "type": "git",
     "url": "https://github.com/worldcoin/idkit"
   },
-  "dependencies": {},
+  "dependencies": {
+    "zustand": "^4.5"
+  },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@vitest/coverage-v8": "^2.0.0",

@@ -1,35 +1,21 @@
 /**
  * @worldcoin/idkit-core
- * 
- * Core IDKit SDK for World ID verification
+ * Core bridge logic for IDKit powered by Rust/WASM
  */
 
-// Initialize WASM
-export { initIDKit, isInitialized } from './wasm-loader.js';
+// Bridge store
+export { useWorldBridgeStore, createWorldBridgeStore, type WorldBridgeStore } from './bridge'
 
-// Core types
-export {
-  Credential,
-  VerificationLevel,
-  SessionStatus,
-  AppError,
-  IDKitError,
-  type ConstraintNode,
-  type Request,
-  type SessionConfig,
-  type Proof,
-  type StatusResponse,
-} from './types.js';
-
-// Session management
-export { Session } from './session.js';
+// Types
+export type { IDKitConfig, AbiEncodedValue } from './types/config'
+export type { ISuccessResult, IErrorState } from './types/result'
+export { CredentialType, VerificationLevel } from './types/config'
+export { AppErrorCodes, VerificationState, ResponseStatus } from './types/bridge'
 
 // Utilities
-export { encodeSignal } from './utils.js';
+export { DEFAULT_VERIFICATION_LEVEL, verification_level_to_credential_types, credential_type_to_verification_level } from './lib/utils'
+export { solidityEncode, hashToField, generateSignal, encodeAction } from './lib/hashing'
+export { initIDKit, isInitialized } from './lib/wasm'
 
-// Re-export WASM bindings for advanced use
-export {
-  WasmAppId,
-  WasmRequest,
-  WasmConstraints,
-} from './wasm-loader.js';
+// WASM exports
+export { WasmModule } from './lib/wasm'

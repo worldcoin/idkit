@@ -2,7 +2,6 @@
 
 A simple browser example demonstrating World ID verification using IDKit 3.0.
 
-
 ## Usage
 
 #### Local Development
