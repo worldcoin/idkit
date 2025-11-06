@@ -41,7 +41,10 @@ impl Request {
     #[wasm_bindgen(js_name = withBytes)]
     pub fn with_bytes(credential_type: JsValue, signal_bytes: &[u8]) -> Result<Self, JsValue> {
         let cred: CredentialType = serde_wasm_bindgen::from_value(credential_type)?;
-        Ok(Self(idkit_core::Request::new(cred, Some(Signal::from_abi_encoded(signal_bytes)))))
+        Ok(Self(idkit_core::Request::new(
+            cred,
+            Some(Signal::from_abi_encoded(signal_bytes)),
+        )))
     }
 
     /// Gets the signal as raw bytes

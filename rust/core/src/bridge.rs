@@ -4,7 +4,7 @@ use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
     types::{AppId, BridgeUrl, Proof, Request, Signal, VerificationLevel},
-    Constraints, ConstraintNode,
+    ConstraintNode, Constraints,
 };
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -210,7 +210,11 @@ impl Session {
             return Err(Error::BridgeError(format!(
                 "Bridge request failed with status {}: {}",
                 status,
-                if body.is_empty() { "no error details" } else { &body }
+                if body.is_empty() {
+                    "no error details"
+                } else {
+                    &body
+                }
             )));
         }
 
@@ -255,15 +259,7 @@ impl Session {
                 .collect(),
         ));
 
-        Self::create_with_options(
-            app_id,
-            action,
-            requests,
-            None,
-            Some(constraints),
-            None,
-        )
-        .await
+        Self::create_with_options(app_id, action, requests, None, Some(constraints), None).await
     }
 
     /// Returns the connect URL for World App
@@ -273,10 +269,7 @@ impl Session {
         let bridge_param = if self.bridge_url == BridgeUrl::default() {
             String::new()
         } else {
-            format!(
-                "&b={}",
-                urlencoding::encode(self.bridge_url.as_str())
-            )
+            format!("&b={}", urlencoding::encode(self.bridge_url.as_str()))
         };
 
         format!(

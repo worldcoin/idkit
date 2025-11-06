@@ -71,14 +71,24 @@ pub enum IdkitError {
 impl From<idkit_core::Error> for IdkitError {
     fn from(e: idkit_core::Error) -> Self {
         match e {
-            idkit_core::Error::InvalidConfiguration(message) => Self::InvalidConfiguration { message },
-            idkit_core::Error::Json(e) => Self::JsonError { message: e.to_string() },
+            idkit_core::Error::InvalidConfiguration(message) => {
+                Self::InvalidConfiguration { message }
+            }
+            idkit_core::Error::Json(e) => Self::JsonError {
+                message: e.to_string(),
+            },
             idkit_core::Error::Crypto(message) => Self::CryptoError { message },
-            idkit_core::Error::Base64(e) => Self::Base64Error { message: e.to_string() },
-            idkit_core::Error::Url(e) => Self::UrlError { message: e.to_string() },
+            idkit_core::Error::Base64(e) => Self::Base64Error {
+                message: e.to_string(),
+            },
+            idkit_core::Error::Url(e) => Self::UrlError {
+                message: e.to_string(),
+            },
             idkit_core::Error::InvalidProof(message) => Self::InvalidProof { message },
             idkit_core::Error::BridgeError(message) => Self::BridgeError { message },
-            idkit_core::Error::AppError(app_err) => Self::AppError { message: app_err.to_string() },
+            idkit_core::Error::AppError(app_err) => Self::AppError {
+                message: app_err.to_string(),
+            },
             idkit_core::Error::UnexpectedResponse => Self::UnexpectedResponse,
             idkit_core::Error::ConnectionFailed => Self::ConnectionFailed,
             idkit_core::Error::Timeout => Self::Timeout,
@@ -174,7 +184,9 @@ impl Request {
     ///
     /// Returns an error if JSON serialization fails
     pub fn to_json(&self) -> Result<String, IdkitError> {
-        serde_json::to_string(&self.0).map_err(|e| IdkitError::JsonError { message: e.to_string() })
+        serde_json::to_string(&self.0).map_err(|e| IdkitError::JsonError {
+            message: e.to_string(),
+        })
     }
 
     /// Deserializes a request from JSON
@@ -184,7 +196,11 @@ impl Request {
     /// Returns an error if JSON deserialization fails
     #[uniffi::constructor]
     pub fn from_json(json: &str) -> Result<Self, IdkitError> {
-        serde_json::from_str(json).map(Self).map_err(|e| IdkitError::JsonError { message: e.to_string() })
+        serde_json::from_str(json)
+            .map(Self)
+            .map_err(|e| IdkitError::JsonError {
+                message: e.to_string(),
+            })
     }
 }
 
@@ -197,7 +213,9 @@ impl Request {
 /// Returns an error if JSON serialization fails
 #[uniffi::export]
 pub fn proof_to_json(proof: &Proof) -> Result<String, IdkitError> {
-    serde_json::to_string(proof).map_err(|e| IdkitError::JsonError { message: e.to_string() })
+    serde_json::to_string(proof).map_err(|e| IdkitError::JsonError {
+        message: e.to_string(),
+    })
 }
 
 /// Deserializes a proof from JSON
@@ -207,7 +225,9 @@ pub fn proof_to_json(proof: &Proof) -> Result<String, IdkitError> {
 /// Returns an error if JSON deserialization fails
 #[uniffi::export]
 pub fn proof_from_json(json: &str) -> Result<Proof, IdkitError> {
-    serde_json::from_str(json).map_err(|e| IdkitError::JsonError { message: e.to_string() })
+    serde_json::from_str(json).map_err(|e| IdkitError::JsonError {
+        message: e.to_string(),
+    })
 }
 
 // Credential methods
@@ -324,7 +344,10 @@ mod tests {
         assert_eq!(credential_to_string(&CredentialType::Orb), "orb");
         assert_eq!(credential_to_string(&CredentialType::Face), "face");
         assert_eq!(credential_to_string(&CredentialType::Device), "device");
-        assert_eq!(credential_to_string(&CredentialType::SecureDocument), "secure_document");
+        assert_eq!(
+            credential_to_string(&CredentialType::SecureDocument),
+            "secure_document"
+        );
         assert_eq!(credential_to_string(&CredentialType::Document), "document");
     }
 }
