@@ -41,7 +41,7 @@ export class BridgeEncryption {
    */
   nonceBase64(): string;
   /**
-   * Creates a new BridgeEncryption instance with randomly generated key and nonce
+   * Creates a new `BridgeEncryption` instance with randomly generated key and nonce
    *
    * # Errors
    *

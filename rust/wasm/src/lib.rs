@@ -111,7 +111,7 @@ pub struct BridgeEncryption {
 
 #[wasm_bindgen]
 impl BridgeEncryption {
-    /// Creates a new BridgeEncryption instance with randomly generated key and nonce
+    /// Creates a new `BridgeEncryption` instance with randomly generated key and nonce
     ///
     /// # Errors
     ///
