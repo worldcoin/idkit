@@ -42,43 +42,7 @@ if (result) {
 }
 ```
 
-### Advanced: Explicit Initialization (Optional)
-
-For better error handling or to control when WASM loads:
-
-```typescript
-import { initIDKit, useWorldBridgeStore } from '@worldcoin/idkit-core'
-
-// Optional: Initialize early to fail fast if WASM not supported
-await initIDKit()
-
-// Then use as normal
-const store = useWorldBridgeStore()
-await store.createClient({ ... })
-```
-
-## Architecture
-
-IDKit Core v3.0 uses a **thin protocol layer** approach:
-
-- **WASM**: Cryptography (AES-256-GCM encryption, Keccak256 hashing) compiled from Rust
-- **JavaScript**: HTTP communication using browser's native `fetch()` API
-- **Why?**: Keeps bundle size small while ensuring crypto consistency across platforms (JS, Swift, Kotlin)
-
-This means crypto operations are guaranteed to be identical across all SDKs, while HTTP and state management use platform-native APIs.
-
 ## API Reference
-
-### Initialization (Optional)
-
-```typescript
-await initIDKit(): Promise<void>
-```
-
-**Optional:** Pre-initializes the WASM module. `createClient()` automatically initializes WASM on first call, so manual initialization is only needed for:
-- Early error detection (fail fast if WASM not supported)
-- Performance optimization (initialize during app startup)
-- Bundle splitting control (lazy load WASM)
 
 ### Store
 
@@ -134,35 +98,6 @@ hashToField(input: string): HashFunctionOutput
 // ABI encoding
 solidityEncode(types: string[], values: unknown[]): AbiEncodedValue
 ```
-
-## Migration from v2.x
-
-### Key Changes
-
-1. **Drop-in replacement** - Same API, no code changes needed
-2. **Crypto powered by Rust/WASM** - Same crypto as Swift/Kotlin SDKs (cross-platform consistency)
-3. **Bundle size** - Now 164KB total (42KB JS + 122KB WASM, was ~180KB in v2)
-
-### Before (v2.x)
-
-```typescript
-import { useWorldBridgeStore } from '@worldcoin/idkit-core'
-
-const store = useWorldBridgeStore()
-await store.createClient({ ... })
-```
-
-### After (v3.0)
-
-```typescript
-import { useWorldBridgeStore } from '@worldcoin/idkit-core'
-
-// Identical API - no changes needed!
-const store = useWorldBridgeStore()
-await store.createClient({ ... })  // Auto-initializes WASM on first call
-```
-
-That's it! WASM initialization happens automatically. No code changes needed.
 
 ## Examples
 

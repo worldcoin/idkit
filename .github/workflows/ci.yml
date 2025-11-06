@@ -1,0 +1,96 @@
+name: CI
+
+on:
+    push:
+        branches: ['main']
+    pull_request:
+
+jobs:
+    rust-core:
+        name: Rust Core - Build & Test
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Rust toolchain
+              uses: actions-rust-lang/setup-rust-toolchain@v1
+              with:
+                  toolchain: stable
+
+            - name: Cache Cargo dependencies
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cargo/bin/
+                      ~/.cargo/registry/index/
+                      ~/.cargo/registry/cache/
+                      ~/.cargo/git/db/
+                      target/
+                  key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-cargo-
+
+            - name: Check formatting
+              run: cargo fmt --all -- --check
+
+            - name: Lint with Clippy
+              run: cargo clippy --all-targets --all-features -- -D warnings
+
+            - name: Build Rust core
+              run: cargo build --release --package idkit-core
+
+            - name: Run Rust tests
+              run: cargo test --package idkit-core
+
+    js-core:
+        name: JavaScript/WASM - Build & Test
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Rust toolchain
+              uses: actions-rust-lang/setup-rust-toolchain@v1
+              with:
+                  toolchain: stable
+
+            - name: Install wasm-pack
+              run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+            - name: Cache Cargo dependencies
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cargo/bin/
+                      ~/.cargo/registry/index/
+                      ~/.cargo/registry/cache/
+                      ~/.cargo/git/db/
+                      target/
+                  key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('**/Cargo.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-cargo-wasm-
+
+            - name: Setup Node.js environment
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20
+                  cache: 'npm'
+                  cache-dependency-path: js/packages/core/package-lock.json
+
+            - name: Install JavaScript dependencies
+              working-directory: js/packages/core
+              run: npm ci
+
+            - name: Build WASM + TypeScript
+              working-directory: js/packages/core
+              run: npm run build
+
+            - name: Type check
+              working-directory: js/packages/core
+              run: npm run type-check
+
+            - name: Run JavaScript tests
+              working-directory: js/packages/core
+              run: npm run test
+
+            - name: Test WASM crypto functions
+              run: node rust/wasm/test-crypto.mjs
