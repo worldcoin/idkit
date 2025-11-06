@@ -91,7 +91,7 @@ jobs:
               run: pnpm --filter @worldcoin/idkit-core type-check
 
             - name: Run JavaScript tests
-              run: pnpm --filter @worldcoin/idkit-core test || echo "No tests found, skipping"
+              run: pnpm --filter @worldcoin/idkit-core test
 
             - name: Test WASM crypto functions
               run: node rust/wasm/test-crypto.mjs
