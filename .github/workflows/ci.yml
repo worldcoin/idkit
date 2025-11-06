@@ -104,16 +104,8 @@ jobs:
                   restore-keys: "swiftpm-build-${{ runner.os }}-${{ matrix.xcode }}-"
                   key: "swiftpm-build-${{ runner.os }}-${{ matrix.xcode }}-${{ hashFiles('**/Package.swift', '**/Package.resolved') }}"
 
-            - name: Build Rust library
-              run: cargo build --release --package idkit-uniffi
-
-            - name: Generate Swift bindings
-              run: |
-                  mkdir -p swift/Sources/IDKit/Generated
-                  uniffi-bindgen generate \
-                      --library target/release/libidkit.dylib \
-                      --language swift \
-                      --out-dir swift/Sources/IDKit/Generated
+            - name: Build Swift artifacts (Rust + XCFramework + Bindings)
+              run: bash scripts/package-swift.sh
 
             - name: Build Swift package
               working-directory: swift

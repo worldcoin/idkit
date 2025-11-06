@@ -4,9 +4,11 @@
 *.pdb
 
 # Build outputs (following walletkit model)
-# Swift generated bindings are not committed to this repo (regenerate with scripts/build-swift.sh)
+# Swift generated bindings are not committed to this repo (regenerate with scripts/package-swift.sh)
 /swift/Sources/IDKit/Generated/
-/swift/IDKitFFI.xcframework/
+/swift/Sources/idkitFFI/
+/swift/IDKitFFI.xcframework
+/IDKitFFI.xcframework/
 /ios_build/
 
 # Kotlin build outputs are not committed to this repo
@@ -64,7 +66,9 @@ coverage/
 *.profraw
 *.profdata
 
-.idea
-.claude
-.cursor
-.DS_Store
+/.idea/
+/.claude/
+/.cursor/
+
+# Backup files
+*.bak

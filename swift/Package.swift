@@ -15,9 +15,13 @@ let package = Package(
             targets: ["IDKit"]),
     ],
     targets: [
+        .binaryTarget(
+            name: "idkitFFI",
+            path: "IDKitFFI.xcframework"
+        ),
         .target(
             name: "IDKit",
-            dependencies: [],
+            dependencies: ["idkitFFI"],
             path: "Sources/IDKit",
             exclude: [
                 "Generated/idkitFFI.h",
@@ -28,6 +32,8 @@ let package = Package(
         ),
         .testTarget(
             name: "IDKitTests",
-            dependencies: ["IDKit"]),
+            dependencies: ["IDKit"],
+            exclude: ["README.md"]
+        ),
     ]
 )

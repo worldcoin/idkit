@@ -19,7 +19,7 @@ public extension Request {
         abiEncodedSignal: Data,
         faceAuth: Bool? = nil
     ) throws {
-        let signalObject = Signal.fromAbiEncoded(bytes: Array(abiEncodedSignal))
+        let signalObject = Signal.fromAbiEncoded(bytes: abiEncodedSignal)
         let base = Request(credentialType: credentialType, signal: signalObject)
         let final = faceAuth.map { base.withFaceAuth(faceAuth: $0) } ?? base
         self.init(unsafeFromRawPointer: final.uniffiClonePointer())
