@@ -83,18 +83,6 @@ jobs:
                   restore-keys: |
                       ${{ runner.os }}-cargo-
 
-            - name: Check uniffi-bindgen cache
-              id: check-uniffi-bindgen
-              run: |
-                  if command -v uniffi-bindgen &> /dev/null; then
-                      echo "cached=true" >> $GITHUB_OUTPUT
-                  else
-                      echo "cached=false" >> $GITHUB_OUTPUT
-                  fi
-
-            - name: Install uniffi-bindgen
-              if: steps.check-uniffi-bindgen.outputs.cached != 'true'
-              run: cargo install uniffi_bindgen --version 0.30.0 --features cli
 
             - name: Restore Swift .build cache
               id: restore-swift-build
