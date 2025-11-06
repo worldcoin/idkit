@@ -14,7 +14,6 @@ use idkit_core::{
     Request as CoreRequest, Signal as CoreSignal, VerificationLevel,
 };
 use std::sync::Arc;
-use std::time::Duration;
 
 /// Signal wrapper for `UniFFI`
 ///
