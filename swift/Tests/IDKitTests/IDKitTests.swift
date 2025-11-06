@@ -5,7 +5,34 @@ final class IDKitTests: XCTestCase {
 
     // MARK: - Request Tests
 
-    func testRequestCreationWithStringSignal() throws {
+    func testRequestCreationWithSignal() throws {
+        let signal = Signal.fromString(s: "test_signal")
+        let request = Request.new(
+            credentialType: .orb,
+            signal: signal
+        )
+
+        XCTAssertEqual(request.credentialType(), .orb)
+        XCTAssertNotNil(request.getSignalBytes())
+    }
+
+    func testRequestCreationWithoutSignal() {
+        let request = Request.new(credentialType: .device, signal: nil)
+
+        XCTAssertEqual(request.credentialType(), .device)
+        XCTAssertNil(request.getSignalBytes())
+    }
+
+    func testRequestWithFaceAuth() {
+        let signal = Signal.fromString(s: "test")
+        let request = Request.new(credentialType: .orb, signal: signal)
+        let withAuth = request.withFaceAuth(faceAuth: true)
+
+        XCTAssertEqual(withAuth.faceAuth(), true)
+    }
+
+    func testRequestConvenienceInitWithString() throws {
+        // Test the Swift convenience initializer
         let request = try Request(
             credentialType: .orb,
             signal: "test_signal"
@@ -15,21 +42,7 @@ final class IDKitTests: XCTestCase {
         XCTAssertNotNil(request.getSignalBytes())
     }
 
-    func testRequestCreationWithoutSignal() throws {
-        let request = Request(credentialType: .device, signal: nil)
-
-        XCTAssertEqual(request.credentialType(), .device)
-        XCTAssertNil(request.getSignalBytes())
-    }
-
-    func testRequestWithFaceAuth() throws {
-        let request = try Request(credentialType: .orb, signal: "test")
-        let withAuth = request.withFaceAuth(faceAuth: true)
-
-        XCTAssertEqual(withAuth.faceAuth(), true)
-    }
-
-    func testRequestCreationWithAbiEncodedSignal() throws {
+    func testRequestConvenienceInitWithData() throws {
         let bytes = Data([0x00, 0x01, 0x02, 0x03])
         let request = try Request(
             credentialType: .orb,
@@ -57,51 +70,41 @@ final class IDKitTests: XCTestCase {
         XCTAssertNil(signal.string)  // Not a valid UTF-8 string
     }
 
-    // MARK: - CredentialType Tests
+    func testSignalDataProperty() {
+        let signal = Signal.fromString(s: "test")
+        let data = signal.data
 
-    func testCredentialTypeDescription() {
-        XCTAssertEqual(CredentialType.orb.description, "orb")
-        XCTAssertEqual(CredentialType.face.description, "face")
-        XCTAssertEqual(CredentialType.device.description, "device")
-        XCTAssertEqual(CredentialType.secureDocument.description, "secure_document")
-        XCTAssertEqual(CredentialType.document.description, "document")
+        XCTAssertEqual(String(data: data, encoding: .utf8), "test")
     }
 
-    func testCredentialTypeCodable() throws {
-        let encoder = JSONEncoder()
-        let decoder = JSONDecoder()
+    func testSignalStringProperty() {
+        let signal = Signal.fromString(s: "hello")
 
-        for credType in [CredentialType.orb, .face, .device, .secureDocument, .document] {
-            let encoded = try encoder.encode(credType)
-            let decoded = try decoder.decode(CredentialType.self, from: encoded)
-            XCTAssertEqual(decoded, credType)
-        }
+        XCTAssertEqual(signal.string, "hello")
+    }
+
+    // MARK: - CredentialType Tests
+
+    func testCredentialTypeExists() {
+        // Test that all credential types are available from Rust
+        let types: [CredentialType] = [.orb, .face, .device, .secureDocument, .document]
+
+        XCTAssertEqual(types.count, 5)
     }
 
     // MARK: - VerificationLevel Tests
 
-    func testVerificationLevelDescription() {
-        XCTAssertEqual(VerificationLevel.orb.description, "orb")
-        XCTAssertEqual(VerificationLevel.device.description, "device")
-        XCTAssertEqual(VerificationLevel.secureDocument.description, "secure_document")
-        XCTAssertEqual(VerificationLevel.document.description, "document")
-    }
+    func testVerificationLevelExists() {
+        // Test that all verification levels are available from Rust
+        let levels: [VerificationLevel] = [.orb, .device, .secureDocument, .document]
 
-    func testVerificationLevelCodable() throws {
-        let encoder = JSONEncoder()
-        let decoder = JSONDecoder()
-
-        for level in [VerificationLevel.orb, .device, .secureDocument, .document] {
-            let encoded = try encoder.encode(level)
-            let decoded = try decoder.decode(VerificationLevel.self, from: encoded)
-            XCTAssertEqual(decoded, level)
-        }
+        XCTAssertEqual(levels.count, 4)
     }
 
     // MARK: - Constraints Tests
 
     func testConstraintsAny() throws {
-        let constraints = try Constraints.any(.orb, .face)
+        let constraints = Constraints.any(credentials: [.orb, .face])
 
         // Verify it can be serialized
         let json = try constraints.toJson()
@@ -109,7 +112,7 @@ final class IDKitTests: XCTestCase {
     }
 
     func testConstraintsAll() throws {
-        let constraints = try Constraints.all(.orb, .secureDocument)
+        let constraints = Constraints.all(credentials: [.orb, .secureDocument])
 
         let json = try constraints.toJson()
         XCTAssertFalse(json.isEmpty)
@@ -126,7 +129,7 @@ final class IDKitTests: XCTestCase {
         let orb = ConstraintNode.credential(credentialType: .orb)
         let face = ConstraintNode.credential(credentialType: .face)
 
-        let anyNode = try ConstraintNode.any(orb, face)
+        let anyNode = ConstraintNode.any(nodes: [orb, face])
 
         let json = try anyNode.toJson()
         XCTAssertFalse(json.isEmpty)
@@ -136,67 +139,19 @@ final class IDKitTests: XCTestCase {
         let orb = ConstraintNode.credential(credentialType: .orb)
         let doc = ConstraintNode.credential(credentialType: .secureDocument)
 
-        let allNode = try ConstraintNode.all(orb, doc)
+        let allNode = ConstraintNode.all(nodes: [orb, doc])
 
         let json = try allNode.toJson()
         XCTAssertFalse(json.isEmpty)
     }
 
-    // MARK: - CredentialCategory Tests
-
-    func testCredentialCategoryMapping() {
-        XCTAssertEqual(CredentialCategory.personhood.credentialType, .orb)
-        XCTAssertEqual(CredentialCategory.secureDocument.credentialType, .secureDocument)
-        XCTAssertEqual(CredentialCategory.document.credentialType, .document)
-    }
-
-    func testCredentialCategoryToConstraints() throws {
-        let constraints = try CredentialCategory.personhood.toConstraints()
-
-        let json = try constraints.toJson()
-        XCTAssertFalse(json.isEmpty)
-    }
-
-    func testCredentialCategoriesToConstraints() throws {
-        let categories: Set<CredentialCategory> = [.personhood, .secureDocument]
-        let constraints = try CredentialCategory.toConstraints(categories)
-
-        let json = try constraints.toJson()
-        XCTAssertFalse(json.isEmpty)
-    }
-
-    func testCredentialCategoriesToRequests() throws {
-        let categories: Set<CredentialCategory> = [.personhood, .document]
-        let requests = try CredentialCategory.toRequests(categories, signal: "test_signal")
-
-        XCTAssertEqual(requests.count, 2)
-        for request in requests {
-            XCTAssertNotNil(request.getSignalBytes())
-        }
-    }
-
-    func testEmptyCredentialCategoriesThrows() {
-        let emptySet: Set<CredentialCategory> = []
-
-        XCTAssertThrowsError(try CredentialCategory.toConstraints(emptySet)) { error in
-            XCTAssertTrue(error is CredentialCategoryError)
-        }
-
-        XCTAssertThrowsError(try CredentialCategory.toRequests(emptySet, signal: "test")) { error in
-            XCTAssertTrue(error is CredentialCategoryError)
-        }
-    }
-
     // MARK: - Session Creation Tests
-    // Note: These tests will fail without a valid bridge connection
-    // They're included to demonstrate the API shape
+    // Note: These tests verify API shape, actual sessions need valid credentials
 
     func testSessionCreationAPIShape() {
-        // This test just verifies the API compiles
-        // It won't actually create a session without valid credentials
-
         let testCreation = {
-            let request = try Request(credentialType: .orb, signal: "test")
+            let signal = Signal.fromString(s: "test")
+            let request = Request.new(credentialType: .orb, signal: signal)
 
             // These will throw without valid app_id
             _ = try? Session.create(
@@ -214,14 +169,7 @@ final class IDKitTests: XCTestCase {
                 bridgeUrl: nil
             )
 
-            _ = try? Session.create(
-                appId: "app_test_invalid",
-                action: "test",
-                credentialCategories: [.personhood],
-                signal: "test"
-            )
-
-            _ = try? Session.create(
+            _ = try? Session.fromVerificationLevel(
                 appId: "app_test_invalid",
                 action: "test",
                 verificationLevel: .orb,
@@ -232,10 +180,49 @@ final class IDKitTests: XCTestCase {
         XCTAssertNoThrow(testCreation())
     }
 
+    // MARK: - Session Extensions Tests
+
+    func testSessionVerificationURLProperty() {
+        // Create a mock session (will fail but we just want to test the extension exists)
+        // In real use, this would be called on a valid session
+        let signal = Signal.fromString(s: "test")
+        let request = Request.new(credentialType: .orb, signal: signal)
+
+        if let session = try? Session.create(
+            appId: "app_staging_test",
+            action: "test",
+            requests: [request]
+        ) {
+            // If session creation succeeds (unlikely without valid credentials),
+            // verify the convenience properties work
+            XCTAssertNotNil(session.verificationURL)
+            XCTAssertNotNil(session.requestUUID)
+        }
+    }
+
     // MARK: - SDK Version Test
 
     func testSDKVersion() {
         XCTAssertFalse(IDKit.version.isEmpty)
         XCTAssertTrue(IDKit.version.hasPrefix("3."))
+    }
+
+    // MARK: - Proof Tests
+
+    func testProofSerialization() throws {
+        let proof = Proof(
+            proof: "0x123",
+            merkleRoot: "0x456",
+            nullifierHash: "0x789",
+            verificationLevel: .orb
+        )
+
+        let json = try proofToJson(proof: proof)
+        let parsed = try proofFromJson(json: json)
+
+        XCTAssertEqual(parsed.proof, "0x123")
+        XCTAssertEqual(parsed.merkleRoot, "0x456")
+        XCTAssertEqual(parsed.nullifierHash, "0x789")
+        XCTAssertEqual(parsed.verificationLevel, .orb)
     }
 }

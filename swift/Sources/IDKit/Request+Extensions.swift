@@ -1,7 +1,7 @@
 import Foundation
 
 extension Request {
-    /// Convenience initializer for creating a request with a string signal
+    /// Convenience initializer for creating a request with a signal
     ///
     /// - Parameters:
     ///   - credentialType: The type of credential to request

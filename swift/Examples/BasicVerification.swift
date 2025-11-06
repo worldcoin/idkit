@@ -1,16 +1,17 @@
 import Foundation
 import IDKit
 
-/// Example: Orb verification
+/// Example: Basic Orb verification
 ///
-/// This example demonstrates the simplest way to create a World ID verification session
-/// and wait for a proof.
+/// This example demonstrates creating a World ID verification session
+/// using the Rust API directly.
 @available(macOS 12.0, iOS 15.0, *)
 func basicVerification() async throws {
-    // Step 1: Create a credential request
-    let request = try Request(
+    // Step 1: Create a signal and request
+    let signal = Signal.fromString(s: "user_action_12345")
+    let request = Request.new(
         credentialType: .orb,
-        signal: "user_action_12345"
+        signal: signal
     )
 
     // Step 2: Create a session
@@ -22,7 +23,7 @@ func basicVerification() async throws {
 
     // Step 3: Display the QR code URL to the user
     print("📱 Scan this QR code in World App:")
-    print(session.verificationURL)
+    print(session.connectUrl())
     print()
 
     // Step 4: Wait for the proof using async/await
@@ -39,14 +40,16 @@ func basicVerification() async throws {
 /// Example: Using the status stream for real-time updates
 @available(macOS 12.0, iOS 15.0, *)
 func verificationWithStatusUpdates() async throws {
-    let request = try Request(credentialType: .orb, signal: "user_action_12345")
+    let signal = Signal.fromString(s: "user_action_12345")
+    let request = Request.new(credentialType: .orb, signal: signal)
+
     let session = try Session.create(
         appId: "app_staging_1234567890abcdef",
         action: "vote",
         requests: [request]
     )
 
-    print("📱 QR Code URL: \(session.verificationURL)\n")
+    print("📱 QR Code URL: \(session.connectUrl())\n")
 
     // Monitor status in real-time
     for try await status in session.statusStream() {
@@ -69,35 +72,34 @@ func verificationWithStatusUpdates() async throws {
     }
 }
 
-/// Example: Using credential categories
+/// Example: Using verification level (Rust convenience method)
 @available(macOS 12.0, iOS 15.0, *)
-func verificationWithCategories() async throws {
-    // Accept either personhood (Orb) or secure document
-    let session = try Session.create(
+func verificationWithLevel() async throws {
+    let session = try Session.fromVerificationLevel(
         appId: "app_staging_1234567890abcdef",
-        action: "verify-identity",
-        credentialCategories: [.personhood, .secureDocument],
-        signal: "user_12345",
-        actionDescription: "Verify your identity to continue"
+        action: "login",
+        verificationLevel: .orb,
+        signal: "session_token_abc123"
     )
 
-    print("📱 QR Code: \(session.verificationURL)\n")
+    print("📱 QR Code: \(session.connectUrl())\n")
 
     let proof = try await session.waitForProofAsync()
-    print("✅ Verified with \(proof.verificationLevel)")
+    print("✅ Logged in! Nullifier: \(proof.nullifierHash)")
 }
 
 /// Example: Multiple requests with constraints
 @available(macOS 12.0, iOS 15.0, *)
 func verificationWithConstraints() async throws {
     // Create multiple requests
-    let orbRequest = try Request(credentialType: .orb, signal: "signal_1")
-    let faceRequest = try Request(credentialType: .face, signal: "signal_2")
-    let deviceRequest = try Request(credentialType: .device, signal: "signal_3")
+    let signal = Signal.fromString(s: "user_signal")
+    let orbRequest = Request.new(credentialType: .orb, signal: signal)
+    let faceRequest = Request.new(credentialType: .face, signal: signal)
+    let deviceRequest = Request.new(credentialType: .device, signal: signal)
 
     // User must have at least one of: Orb, Face, or Device
     // Priority: Orb > Face > Device
-    let constraints = try Constraints.any(.orb, .face, .device)
+    let constraints = Constraints.any(credentials: [.orb, .face, .device])
 
     let session = try Session.createWithOptions(
         appId: "app_staging_1234567890abcdef",
@@ -108,7 +110,7 @@ func verificationWithConstraints() async throws {
         bridgeUrl: nil  // nil = use production bridge
     )
 
-    print("📱 QR Code: \(session.verificationURL)\n")
+    print("📱 QR Code: \(session.connectUrl())\n")
 
     let proof = try await session.waitForProofAsync()
     print("✅ Verified with \(proof.verificationLevel)")
@@ -118,11 +120,9 @@ func verificationWithConstraints() async throws {
 @available(macOS 12.0, iOS 15.0, *)
 func verificationWithFaceAuth() async throws {
     // Request face authentication for extra security
-    let request = try Request(
-        credentialType: .orb,
-        signal: "sensitive_action_12345",
-        faceAuth: true
-    )
+    let signal = Signal.fromString(s: "sensitive_action_12345")
+    let request = Request.new(credentialType: .orb, signal: signal)
+        .withFaceAuth(faceAuth: true)
 
     let session = try Session.create(
         appId: "app_staging_1234567890abcdef",
@@ -130,44 +130,24 @@ func verificationWithFaceAuth() async throws {
         requests: [request]
     )
 
-    print("📱 QR Code: \(session.verificationURL)")
+    print("📱 QR Code: \(session.connectUrl())")
     print("🔐 Face authentication required\n")
 
     let proof = try await session.waitForProofAsync()
     print("✅ Verified with face auth!")
 }
 
-/// Example: Using verification level (simplified API)
-@available(macOS 12.0, iOS 15.0, *)
-func verificationWithLevel() async throws {
-    let session = try Session.create(
-        appId: "app_staging_1234567890abcdef",
-        action: "login",
-        verificationLevel: .orb,
-        signal: "session_token_abc123"
-    )
-
-    print("📱 QR Code: \(session.verificationURL)\n")
-
-    let proof = try await session.waitForProofAsync()
-    print("✅ Logged in! Nullifier: \(proof.nullifierHash)")
-}
-
 /// Example: ABI-encoded signal for on-chain verification
 @available(macOS 12.0, iOS 15.0, *)
 func verificationWithAbiSignal() async throws {
     // For on-chain verification, the signal should be ABI-encoded
-    // This example shows a simple bytes array - in practice, use proper ABI encoding
-    let abiSignal = Data([
+    let abiSignal = Signal.fromAbiEncoded(bytes: [
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01
     ])
 
-    let request = try Request(
-        credentialType: .orb,
-        abiEncodedSignal: abiSignal
-    )
+    let request = Request.new(credentialType: .orb, signal: abiSignal)
 
     let session = try Session.create(
         appId: "app_staging_1234567890abcdef",
@@ -175,10 +155,32 @@ func verificationWithAbiSignal() async throws {
         requests: [request]
     )
 
-    print("📱 QR Code: \(session.verificationURL)\n")
+    print("📱 QR Code: \(session.connectUrl())\n")
 
     let proof = try await session.waitForProofAsync()
     print("✅ Airdrop claimed! Proof ready for on-chain verification")
+}
+
+/// Example: Using Request convenience initializer (Swift sugar)
+@available(macOS 12.0, iOS 15.0, *)
+func verificationWithConvenience() async throws {
+    // The Request+Extensions provides convenience for string signals
+    let request = try Request(
+        credentialType: .orb,
+        signal: "user_action_12345",
+        faceAuth: false
+    )
+
+    let session = try Session.create(
+        appId: "app_staging_1234567890abcdef",
+        action: "vote",
+        requests: [request]
+    )
+
+    print("📱 QR Code: \(session.connectUrl())\n")
+
+    let proof = try await session.waitForProofAsync()
+    print("✅ Verified!")
 }
 
 // Run the examples
@@ -186,7 +188,7 @@ func verificationWithAbiSignal() async throws {
 @main
 struct ExamplesRunner {
     static func main() async {
-        print("IDKit Swift Examples\n")
+        print("IDKit Swift Examples")
         print("====================\n")
 
         do {
@@ -194,11 +196,11 @@ struct ExamplesRunner {
 
             // try await basicVerification()
             // try await verificationWithStatusUpdates()
-            // try await verificationWithCategories()
+            // try await verificationWithLevel()
             // try await verificationWithConstraints()
             // try await verificationWithFaceAuth()
-            // try await verificationWithLevel()
             // try await verificationWithAbiSignal()
+            // try await verificationWithConvenience()
 
             print("\n✅ Example completed successfully!")
         } catch {
