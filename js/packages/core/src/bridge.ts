@@ -1,10 +1,12 @@
 /**
  * IDKit Bridge Client
- * Handles communication with the World ID bridge using WASM-powered cryptography
+ * Handles communication with the World ID bridge using WASM for cryptography
  */
 
 import { create, type StateCreator } from 'zustand'
-import {IDKitConfig, ISuccessResult, VerificationState, AppErrorCodes, ResponseStatus, CredentialType} from './types'
+import type { IDKitConfig, CredentialType } from './types/config'
+import type { ISuccessResult } from './types/result'
+import { VerificationState, AppErrorCodes, ResponseStatus } from './types/bridge'
 import { validate_bridge_url } from './lib/validation'
 import { encodeAction, generateSignal } from './lib/hashing'
 import {

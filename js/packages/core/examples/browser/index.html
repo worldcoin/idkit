@@ -116,9 +116,9 @@
 
     <script type="module">
         // Import IDKit (using relative path for local development)
-        import { initIDKit, Session, Credential } from '../../dist/index.js';
+        import { initIDKit, useWorldBridgeStore, VerificationLevel } from '../../dist/index.js';
 
-        // Initialize WASM
+        // Initialize WASM (required!)
         await initIDKit();
         console.log('IDKit initialized');
 
@@ -137,8 +137,8 @@
         const errorDiv = document.getElementById('error');
         const errorText = document.getElementById('errorText');
 
-        // Function to create and poll session
-        async function verify(credentialType) {
+        // Function to verify with World ID
+        async function verify(verificationLevel) {
             try {
                 // Reset UI
                 qrDiv.style.display = 'none';
@@ -146,39 +146,62 @@
                 resultDiv.style.display = 'none';
                 errorDiv.style.display = 'none';
 
-                // Create session
-                statusDiv.style.display = 'block';
-                statusText.textContent = 'Creating session...';
+                // Get store instance
+                const store = useWorldBridgeStore.getState();
+                store.reset(); // Clear any previous state
 
-                const session = await Session.create({
+                // Create verification request
+                statusDiv.style.display = 'block';
+                statusText.textContent = 'Creating verification request...';
+
+                await store.createClient({
                     app_id: APP_ID,
                     action: ACTION,
-                    requests: [{
-                        type: credentialType,
-                        signal: 'demo-signal-' + Date.now(),
-                    }],
+                    verification_level: verificationLevel,
+                    signal: 'demo-signal-' + Date.now(),
                 });
 
                 // Show QR code
-                const url = session.connectUrl();
+                const url = store.connectorURI;
                 console.log('Connect URL:', url);
 
                 qrDiv.style.display = 'block';
                 qrUrl.textContent = url;
-                
+
                 // Generate QR code (using a simple QR API)
                 qrCode.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}" alt="QR Code">`;
 
                 // Poll for result
                 statusText.textContent = 'Waiting for scan...';
 
-                const proof = await session.waitForProof(120000); // 2 minute timeout
+                let attempts = 0;
+                const maxAttempts = 40; // 2 minutes (40 * 3 seconds)
 
-                // Show result
-                statusDiv.style.display = 'none';
-                qrDiv.style.display = 'none';
-                resultDiv.style.display = 'block';
-                resultData.textContent = JSON.stringify(proof, null, 2);
+                while (attempts < maxAttempts) {
+                    await store.pollForUpdates();
+
+                    const state = useWorldBridgeStore.getState();
+
+                    if (state.result) {
+                        // Success!
+                        statusDiv.style.display = 'none';
+                        qrDiv.style.display = 'none';
+                        resultDiv.style.display = 'block';
+                        resultData.textContent = JSON.stringify(state.result, null, 2);
+                        return;
+                    }
+
+                    if (state.errorCode) {
+                        // Error
+                        throw new Error(`Verification failed: ${state.errorCode}`);
+                    }
+
+                    // Wait before next poll
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    attempts++;
+                }
+
+                throw new Error('Verification timed out');
 
             } catch (error) {
                 console.error('Verification error:', error);
@@ -190,9 +213,9 @@
         }
 
         // Button event listeners
-        document.getElementById('verifyOrb').addEventListener('click', () => verify(Credential.Orb));
-        document.getElementById('verifyFace').addEventListener('click', () => verify(Credential.Face));
-        document.getElementById('verifyDevice').addEventListener('click', () => verify(Credential.Device));
+        document.getElementById('verifyOrb').addEventListener('click', () => verify(VerificationLevel.Orb));
+        document.getElementById('verifyFace').addEventListener('click', () => verify(VerificationLevel.Face));
+        document.getElementById('verifyDevice').addEventListener('click', () => verify(VerificationLevel.Device));
     </script>
 </body>
 </html>

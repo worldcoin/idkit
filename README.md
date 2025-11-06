@@ -4,10 +4,13 @@ IDKit is the toolkit for identity online. With IDKit you can easily interact wit
 
 ## Packages
 
-### Rust Core
-- **`idkit-core`**: Core Rust types (Credential, Request, Proof)
-- **`idkit-uniffi`**: UniFFI bindings scaffolding for future Swift/Kotlin support
-- **`idkit-wasm`**: WebAssembly bindings scaffolding for future browser support
+### Core
+- **`rust/core`**: Core Rust library with shared types, credential handling, session management, and cryptography
+
+### Language Bindings
+- **`js/packages/core`**: ✅ JavaScript/TypeScript with WASM for browser & Node.js ([docs](./js/packages/core/README.md))
+- **`kotlin/`**: Kotlin bindings via UniFFI for Android/JVM
+- **`swift/`**: Swift bindings via UniFFI for iOS/macOS
 
 ## Documentation
 
