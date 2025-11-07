@@ -24,6 +24,8 @@ jobs:
 
       - name: Setup Swift
         uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.1"
 
       - name: Build Swift artifacts
         run: scripts/package-swift.sh
@@ -43,7 +45,7 @@ jobs:
           VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name:  qCreate draft release in idkit-swift
+      - name: Create draft release in idkit-swift
         id: release
         uses: softprops/action-gh-release@v2
         with:
@@ -62,7 +64,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: worldcoin/idkit-swift
-          token: ${{ secrets.GIT_HUB_TOKEN }}
+          token: ${{ secrets.SWIFT_RELEASE_TOKEN }}
           path: idkit-swift
 
       - name: Sync generated Swift sources
@@ -74,7 +76,7 @@ jobs:
 
       - name: Update Package.swift metadata
         run: |
-          ASSET_URL="${{ fromJSON(steps.release.outputs.assets)[0].url }}.zip"
+          ASSET_URL="${{ fromJSON(steps.release.outputs.assets)[0].browser_download_url }}"
           VERSION=${{ steps.version.outputs.version }}
           CHECKSUM=${{ steps.checksum.outputs.checksum }}
 
@@ -109,11 +111,9 @@ jobs:
           git push origin "${VERSION}"
 
       - name: Publish release
+        working-directory: idkit-swift
         env:
-          GH_TOKEN: ${{ secrets.GIT_HUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.SWIFT_RELEASE_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          gh release edit "$VERSION" \
-            --repo worldcoin/idkit-swift \
-            --draft=false \
-            --latest
+          gh release edit "$VERSION" --draft=false --latest

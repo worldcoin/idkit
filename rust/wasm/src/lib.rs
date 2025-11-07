@@ -211,7 +211,7 @@ pub struct Session {
 impl Session {
     /// Creates a new session from a verification level
     ///
-    /// This is a convenience method that maps a verification level (like "device" or "orb")
+    /// This is a convenience method that maps a verification level (like `"device"` or `"orb"`)
     /// to the appropriate set of credential requests and constraints.
     ///
     /// # Errors
@@ -220,11 +220,12 @@ impl Session {
     ///
     /// # Arguments
     ///
-    /// * `app_id` - Application ID from the Developer Portal (e.g., "app_staging_xxxxx")
+    /// * `app_id` - Application ID from the Developer Portal (e.g., `"app_staging_xxxxx"`)
     /// * `action` - Action identifier
-    /// * `verification_level` - Verification level as string ("orb", "device", etc.)
+    /// * `verification_level` - Verification level as string (`"orb"`, `"device"`, etc.)
     /// * `signal` - Optional signal string for cryptographic binding
     #[wasm_bindgen(constructor)]
+    #[allow(clippy::new_ret_no_self)] // WASM async constructors return Promise
     pub fn new(
         app_id: String,
         action: String,
@@ -250,7 +251,7 @@ impl Session {
             .await
             .map_err(|e| JsValue::from_str(&format!("Failed to create session: {e}")))?;
 
-            Ok(JsValue::from(Session {
+            Ok(JsValue::from(Self {
                 inner: Rc::new(RefCell::new(Some(session))),
             }))
         })
@@ -259,6 +260,10 @@ impl Session {
     /// Returns the connect URL for World App
     ///
     /// This URL should be displayed as a QR code for users to scan with World App.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session has been closed
     #[wasm_bindgen(js_name = connectUrl)]
     pub fn connect_url(&self) -> Result<String, JsValue> {
         self.inner
@@ -269,6 +274,10 @@ impl Session {
     }
 
     /// Returns the request ID for this session
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session has been closed
     #[wasm_bindgen(js_name = requestId)]
     pub fn request_id(&self) -> Result<String, JsValue> {
         self.inner
@@ -281,10 +290,10 @@ impl Session {
     /// Polls the bridge for the current status (non-blocking)
     ///
     /// Returns a status object with type:
-    /// - "waiting_for_connection" - Waiting for World App to retrieve the request
-    /// - "awaiting_confirmation" - World App has retrieved the request, waiting for user
-    /// - "confirmed" - User confirmed and provided a proof
-    /// - "failed" - Request has failed
+    /// - `"waiting_for_connection"` - Waiting for World App to retrieve the request
+    /// - `"awaiting_confirmation"` - World App has retrieved the request, waiting for user
+    /// - `"confirmed"` - User confirmed and provided a proof
+    /// - `"failed"` - Request has failed
     ///
     /// # Errors
     ///
