@@ -49,7 +49,7 @@ export type WorldBridgeStore = {
 	createClient: (config: IDKitConfig) => Promise<WorldBridgeClient>
 
 	// V2 BACKWARD COMPAT: Manual polling (deprecated)
-	/** @deprecated Use client.waitForProof() instead */
+	/** @deprecated V2 API - requires manual polling. Use client.pollForUpdates() for automatic polling instead */
 	pollForUpdates: () => Promise<void>
 
 	reset: () => void

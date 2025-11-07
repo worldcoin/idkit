@@ -32,9 +32,9 @@ const client = await store.createClient({
 // 3. Display QR code for World App
 console.log('Scan this:', client.connectorURI)
 
-// 4. Wait for proof (handles polling automatically)
+// 4. Poll for proof (handles polling automatically)
 try {
-  const proof = await client.waitForProof()
+  const proof = await client.pollForUpdates()
   console.log('Success:', proof)
 } catch (error) {
   console.error('Verification failed:', error)
@@ -73,7 +73,7 @@ const client = await store.createClient(config)
 - `requestId: string` - Unique request ID
 
 **Methods:**
-- `waitForProof(options?: WaitOptions): Promise<ISuccessResult>` - Wait for proof (auto-polls)
+- `pollForUpdates(options?: WaitOptions): Promise<ISuccessResult>` - Poll for proof (auto-polls)
 - `pollOnce(): Promise<Status>` - Poll once for status (manual polling)
 
 **WaitOptions:**
@@ -101,7 +101,7 @@ const store = useWorldBridgeStore()
 - `errorCode: AppErrorCodes | null` - Error code if failed
 
 **V2 Methods (deprecated):**
-- `pollForUpdates(): Promise<void>` - Check for proof (call repeatedly) ⚠️ Use `client.waitForProof()` instead
+- `pollForUpdates(): Promise<void>` - Check for proof (call repeatedly) ⚠️ Use `client.pollForUpdates()` with auto-polling instead
 - `reset(): void` - Clear state and start over
 
 ### Types

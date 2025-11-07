@@ -134,22 +134,30 @@ export class Session {
   [Symbol.dispose](): void;
   /**
    * Returns the request ID for this session
+   *
+   * # Errors
+   *
+   * Returns an error if the session has been closed
    */
   requestId(): string;
   /**
    * Returns the connect URL for World App
    *
    * This URL should be displayed as a QR code for users to scan with World App.
+   *
+   * # Errors
+   *
+   * Returns an error if the session has been closed
    */
   connectUrl(): string;
   /**
    * Polls the bridge for the current status (non-blocking)
    *
    * Returns a status object with type:
-   * - "waiting_for_connection" - Waiting for World App to retrieve the request
-   * - "awaiting_confirmation" - World App has retrieved the request, waiting for user
-   * - "confirmed" - User confirmed and provided a proof
-   * - "failed" - Request has failed
+   * - `"waiting_for_connection"` - Waiting for World App to retrieve the request
+   * - `"awaiting_confirmation"` - World App has retrieved the request, waiting for user
+   * - `"confirmed"` - User confirmed and provided a proof
+   * - `"failed"` - Request has failed
    *
    * # Errors
    *
@@ -159,7 +167,7 @@ export class Session {
   /**
    * Creates a new session from a verification level
    *
-   * This is a convenience method that maps a verification level (like "device" or "orb")
+   * This is a convenience method that maps a verification level (like `"device"` or `"orb"`)
    * to the appropriate set of credential requests and constraints.
    *
    * # Errors
@@ -168,9 +176,9 @@ export class Session {
    *
    * # Arguments
    *
-   * * `app_id` - Application ID from the Developer Portal (e.g., "app_staging_xxxxx")
+   * * `app_id` - Application ID from the Developer Portal (e.g., `"app_staging_xxxxx"`)
    * * `action` - Action identifier
-   * * `verification_level` - Verification level as string ("orb", "device", etc.)
+   * * `verification_level` - Verification level as string (`"orb"`, `"device"`, etc.)
    * * `signal` - Optional signal string for cryptographic binding
    */
   constructor(app_id: string, action: string, verification_level: any, signal?: string | null);

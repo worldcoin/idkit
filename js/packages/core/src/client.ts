@@ -93,7 +93,7 @@ export class WorldBridgeClient {
 	}
 
 	/**
-	 * Wait for proof from World App (handles polling automatically)
+	 * Poll for proof from World App (handles polling automatically)
 	 *
 	 * This method polls the bridge until the user completes the verification
 	 * or an error occurs. It handles all the polling logic internally.
@@ -105,10 +105,10 @@ export class WorldBridgeClient {
 	 * @example
 	 * ```typescript
 	 * // Basic usage
-	 * const proof = await client.waitForProof()
+	 * const proof = await client.pollForUpdates()
 	 *
 	 * // With custom options
-	 * const proof = await client.waitForProof({
+	 * const proof = await client.pollForUpdates({
 	 *   pollInterval: 500,  // Poll every 500ms
 	 *   timeout: 120000,    // 2 minute timeout
 	 * })
@@ -118,7 +118,7 @@ export class WorldBridgeClient {
 	 * setTimeout(() => controller.abort(), 10000) // Cancel after 10s
 	 *
 	 * try {
-	 *   const proof = await client.waitForProof({
+	 *   const proof = await client.pollForUpdates({
 	 *     signal: controller.signal
 	 *   })
 	 * } catch (error) {
@@ -128,7 +128,7 @@ export class WorldBridgeClient {
 	 * }
 	 * ```
 	 */
-	async waitForProof(options?: WaitOptions): Promise<ISuccessResult> {
+	async pollForUpdates(options?: WaitOptions): Promise<ISuccessResult> {
 		const pollInterval = options?.pollInterval ?? 1000
 		const timeout = options?.timeout ?? 300000 // 5 minutes default
 		const startTime = Date.now()
