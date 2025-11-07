@@ -1,4 +1,4 @@
-# IDKit Swift
+# IDKit Swift 
 
 Swift bindings for IDKit - World ID verification SDK built with Rust and UniFFI.
 
