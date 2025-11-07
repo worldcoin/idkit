@@ -101,7 +101,7 @@ jobs:
 
             - name: Run Swift tests
               working-directory: swift
-              run: swift test
+              run: xcodebuild test -scheme IDKit -destination "platform=macOS"
 
             - name: Cache Swift .build
               if: steps.restore-swift-build.outputs.cache-hit != 'true'
