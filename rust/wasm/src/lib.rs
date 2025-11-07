@@ -41,7 +41,10 @@ impl Request {
     #[wasm_bindgen(js_name = withBytes)]
     pub fn with_bytes(credential_type: JsValue, signal_bytes: &[u8]) -> Result<Self, JsValue> {
         let cred: CredentialType = serde_wasm_bindgen::from_value(credential_type)?;
-        Ok(Self(idkit_core::Request::new(cred, Some(Signal::from_abi_encoded(signal_bytes)))))
+        Ok(Self(idkit_core::Request::new(
+            cred,
+            Some(Signal::from_abi_encoded(signal_bytes)),
+        )))
     }
 
     /// Gets the signal as raw bytes
@@ -97,6 +100,99 @@ impl Proof {
     pub fn to_json(&self) -> Result<JsValue, JsValue> {
         serde_wasm_bindgen::to_value(&self.0).map_err(|e| JsValue::from_str(&e.to_string()))
     }
+}
+
+/// Bridge encryption for secure communication between client and bridge
+#[wasm_bindgen]
+pub struct BridgeEncryption {
+    key: Vec<u8>,
+    nonce: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl BridgeEncryption {
+    /// Creates a new `BridgeEncryption` instance with randomly generated key and nonce
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if key generation fails
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Result<Self, JsValue> {
+        let (key, nonce) = idkit_core::crypto::generate_key()
+            .map_err(|e| JsValue::from_str(&format!("Failed to generate key: {e}")))?;
+        Ok(Self {
+            key: key.to_vec(),
+            nonce: nonce.to_vec(),
+        })
+    }
+
+    /// Encrypts a plaintext string using AES-256-GCM and returns base64
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if encryption fails
+    pub fn encrypt(&self, plaintext: &str) -> Result<String, JsValue> {
+        let ciphertext = idkit_core::crypto::encrypt(&self.key, &self.nonce, plaintext.as_bytes())
+            .map_err(|e| JsValue::from_str(&format!("Encryption failed: {e}")))?;
+        Ok(idkit_core::crypto::base64_encode(&ciphertext))
+    }
+
+    /// Decrypts a base64-encoded ciphertext using AES-256-GCM
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if decryption fails or the output is not valid UTF-8
+    pub fn decrypt(&self, ciphertext_base64: &str) -> Result<String, JsValue> {
+        let ciphertext = idkit_core::crypto::base64_decode(ciphertext_base64)
+            .map_err(|e| JsValue::from_str(&format!("Base64 decode failed: {e}")))?;
+
+        let plaintext_bytes = idkit_core::crypto::decrypt(&self.key, &self.nonce, &ciphertext)
+            .map_err(|e| JsValue::from_str(&format!("Decryption failed: {e}")))?;
+
+        String::from_utf8(plaintext_bytes)
+            .map_err(|e| JsValue::from_str(&format!("Invalid UTF-8: {e}")))
+    }
+
+    /// Returns the key as a base64-encoded string
+    #[must_use]
+    #[wasm_bindgen(js_name = keyBase64)]
+    pub fn key_base64(&self) -> String {
+        idkit_core::crypto::base64_encode(&self.key)
+    }
+
+    /// Returns the nonce as a base64-encoded string
+    #[must_use]
+    #[wasm_bindgen(js_name = nonceBase64)]
+    pub fn nonce_base64(&self) -> String {
+        idkit_core::crypto::base64_encode(&self.nonce)
+    }
+}
+
+/// Hashes a signal string using Keccak256
+#[must_use]
+#[wasm_bindgen(js_name = hashSignal)]
+pub fn hash_signal(signal: &str) -> String {
+    use idkit_core::crypto::hash_to_field;
+    let hash = hash_to_field(signal.as_bytes());
+    format!("{hash:#066x}")
+}
+
+/// Encodes data to base64
+#[must_use]
+#[wasm_bindgen(js_name = base64Encode)]
+pub fn base64_encode(data: &[u8]) -> String {
+    idkit_core::crypto::base64_encode(data)
+}
+
+/// Decodes base64 data
+///
+/// # Errors
+///
+/// Returns an error if decoding fails
+#[wasm_bindgen(js_name = base64Decode)]
+pub fn base64_decode(data: &str) -> Result<Vec<u8>, JsValue> {
+    idkit_core::crypto::base64_decode(data)
+        .map_err(|e| JsValue::from_str(&format!("Base64 decode failed: {e}")))
 }
 
 // Export credential enum

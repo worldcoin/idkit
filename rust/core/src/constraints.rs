@@ -251,7 +251,10 @@ mod tests {
 
         assert!(node.evaluate(&available));
         // Should return Face because it's first in priority order
-        assert_eq!(node.first_satisfying(&available), Some(CredentialType::Face));
+        assert_eq!(
+            node.first_satisfying(&available),
+            Some(CredentialType::Face)
+        );
     }
 
     #[test]
@@ -324,7 +327,10 @@ mod tests {
 
         // Only face available
         assert!(node.evaluate(&available));
-        assert_eq!(node.first_satisfying(&available), Some(CredentialType::Face));
+        assert_eq!(
+            node.first_satisfying(&available),
+            Some(CredentialType::Face)
+        );
 
         // Both available - orb has priority
         available.insert(CredentialType::Orb);

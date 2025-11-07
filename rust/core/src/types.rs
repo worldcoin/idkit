@@ -371,10 +371,12 @@ mod tests {
 
     #[test]
     fn test_request_validation() {
-        let valid = Request::new(CredentialType::Orb, Some(Signal::from_string("signal"))).with_face_auth(true);
+        let valid = Request::new(CredentialType::Orb, Some(Signal::from_string("signal")))
+            .with_face_auth(true);
         assert!(valid.validate().is_ok());
 
-        let invalid = Request::new(CredentialType::Device, Some(Signal::from_string("signal"))).with_face_auth(true);
+        let invalid = Request::new(CredentialType::Device, Some(Signal::from_string("signal")))
+            .with_face_auth(true);
         assert!(invalid.validate().is_err());
 
         // Test without signal
