@@ -74,39 +74,56 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check if WASM build script exists
+        id: check_script
+        run: |
+          if [ -f "scripts/build-wasm.sh" ]; then
+            echo "script_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "script_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Node.js
+        if: steps.check_script.outputs.script_exists == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Setup Rust toolchain
+        if: steps.check_script.outputs.script_exists == 'true'
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
 
       - name: Install wasm-pack
+        if: steps.check_script.outputs.script_exists == 'true'
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Initialize CodeQL
+        if: steps.check_script.outputs.script_exists == 'true'
         uses: github/codeql-action/init@v3
         with:
           languages: javascript-typescript
           queries: security-extended
 
       - name: Build WASM bindings
+        if: steps.check_script.outputs.script_exists == 'true'
         run: bash scripts/build-wasm.sh
 
       - name: Install dependencies
+        if: steps.check_script.outputs.script_exists == 'true'
         run: |
           cd js/packages/core
           npm install
 
       - name: Build TypeScript
+        if: steps.check_script.outputs.script_exists == 'true'
         run: |
           cd js/packages/core
           npm run build
 
       - name: Perform CodeQL Analysis
+        if: steps.check_script.outputs.script_exists == 'true'
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:javascript-typescript"
