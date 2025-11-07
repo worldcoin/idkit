@@ -1,0 +1,129 @@
+name: CodeQL Security Analysis
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday
+
+permissions:
+  security-events: write
+  contents: read
+  actions: read
+
+jobs:
+  analyze-rust:
+    name: Analyze Rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: rust
+          queries: security-extended
+
+      - name: Build Rust code
+        run: cargo build --release
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:rust"
+
+  analyze-swift:
+    name: Analyze Swift
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: swift
+          queries: security-extended
+
+      - name: Generate Swift bindings
+        run: bash scripts/package-swift.sh
+
+      - name: Build Swift package
+        working-directory: swift
+        run: swift build
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:swift"
+
+  analyze-javascript:
+    name: Analyze JavaScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check if WASM build script exists
+        id: check_script
+        run: |
+          if [ -f "scripts/build-wasm.sh" ]; then
+            echo "script_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "script_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node.js
+        if: steps.check_script.outputs.script_exists == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Rust toolchain
+        if: steps.check_script.outputs.script_exists == 'true'
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install wasm-pack
+        if: steps.check_script.outputs.script_exists == 'true'
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Initialize CodeQL
+        if: steps.check_script.outputs.script_exists == 'true'
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+
+      - name: Build WASM bindings
+        if: steps.check_script.outputs.script_exists == 'true'
+        run: bash scripts/build-wasm.sh
+
+      - name: Install dependencies
+        if: steps.check_script.outputs.script_exists == 'true'
+        run: |
+          cd js/packages/core
+          npm install
+
+      - name: Build TypeScript
+        if: steps.check_script.outputs.script_exists == 'true'
+        run: |
+          cd js/packages/core
+          npm run build
+
+      - name: Perform CodeQL Analysis
+        if: steps.check_script.outputs.script_exists == 'true'
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"

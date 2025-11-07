@@ -78,17 +78,22 @@ jobs:
           VERSION=${{ steps.version.outputs.version }}
           CHECKSUM=${{ steps.checksum.outputs.checksum }}
 
-          python <<PY
-import pathlib
-import re
+          python3 <<'EOF'
+          import pathlib
+          import re
+          import os
 
-package = pathlib.Path('idkit-swift/Package.swift')
-text = package.read_text()
-text = re.sub(r'url: "[^"]+"', f'url: "{ASSET_URL}"', text)
-text = re.sub(r'checksum: "[^"]+"', f'checksum: "{CHECKSUM}"', text)
-text = re.sub(r'// Release version: .*', f'// Release version: {VERSION}', text)
-package.write_text(text)
-PY
+          asset_url = os.environ['ASSET_URL']
+          version = os.environ['VERSION']
+          checksum = os.environ['CHECKSUM']
+
+          package = pathlib.Path('idkit-swift/Package.swift')
+          text = package.read_text()
+          text = re.sub(r'url: "[^"]+"', f'url: "{asset_url}"', text)
+          text = re.sub(r'checksum: "[^"]+"', f'checksum: "{checksum}"', text)
+          text = re.sub(r'// Release version: .*', f'// Release version: {version}', text)
+          package.write_text(text)
+          EOF
 
       - name: Commit and tag release
         working-directory: idkit-swift
