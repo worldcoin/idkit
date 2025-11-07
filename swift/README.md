@@ -4,7 +4,7 @@ Swift bindings for IDKit - World ID verification SDK built with Rust and UniFFI.
 
 ## Architecture
 
-This Swift SDK is a thing wrapper over the Rust core:
+This Swift SDK is a wrapper over the Rust core:
 
 ```
 ┌─────────────────────────────────────┐
