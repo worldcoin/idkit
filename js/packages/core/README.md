@@ -21,7 +21,31 @@ import {
 // 1. Get store instance
 const store = useWorldBridgeStore()
 
-// 2. Create verification request (auto-initializes WASM on first call)
+// 2. Create client - returns immutable client object
+const client = await store.createClient({
+  app_id: 'app_staging_xxxxx',
+  action: 'my-action',
+  verification_level: VerificationLevel.Orb,
+  signal: 'user-id-123',
+})
+
+// 3. Display QR code for World App
+console.log('Scan this:', client.connectorURI)
+
+// 4. Wait for proof (handles polling automatically)
+try {
+  const proof = await client.waitForProof()
+  console.log('Success:', proof)
+} catch (error) {
+  console.error('Verification failed:', error)
+}
+```
+
+## V2 API
+
+```typescript
+const store = useWorldBridgeStore()
+
 await store.createClient({
   app_id: 'app_staging_xxxxx',
   action: 'my-action',
@@ -29,20 +53,37 @@ await store.createClient({
   signal: 'user-id-123',
 })
 
-// 3. Get QR code URL for World App
 console.log('Scan this:', store.connectorURI)
 
-// 4. Poll for proof
 await store.pollForUpdates()
 
-// 5. Check result
-const { result, errorCode, verificationState } = store
-if (result) {
-  console.log('Proof received:', result)
+if (store.result) {
+  console.log('Proof received:', store.result)
 }
 ```
 
 ## API Reference
+
+```typescript
+const client = await store.createClient(config)
+```
+
+**Properties:**
+- `connectorURI: string` - QR code URL for World App
+- `requestId: string` - Unique request ID
+
+**Methods:**
+- `waitForProof(options?: WaitOptions): Promise<ISuccessResult>` - Wait for proof (auto-polls)
+- `pollOnce(): Promise<Status>` - Poll once for status (manual polling)
+
+**WaitOptions:**
+```typescript
+interface WaitOptions {
+  pollInterval?: number    // ms between polls (default: 1000)
+  timeout?: number        // total timeout ms (default: 300000 = 5min)
+  signal?: AbortSignal    // for cancellation
+}
+```
 
 ### Store
 
@@ -50,15 +91,17 @@ if (result) {
 const store = useWorldBridgeStore()
 ```
 
-**State:**
+**V3 Methods:**
+- `createClient(config: IDKitConfig): Promise<WorldBridgeClient>` - Create new client
+
+**V2 State (backward compat):**
 - `verificationState: VerificationState` - Current verification state
 - `connectorURI: string | null` - QR code URL for World App
 - `result: ISuccessResult | null` - Proof data when verified
 - `errorCode: AppErrorCodes | null` - Error code if failed
 
-**Methods:**
-- `createClient(config: IDKitConfig): Promise<void>` - Start verification request
-- `pollForUpdates(): Promise<void>` - Check for proof (call repeatedly)
+**V2 Methods (deprecated):**
+- `pollForUpdates(): Promise<void>` - Check for proof (call repeatedly) ⚠️ Use `client.waitForProof()` instead
 - `reset(): void` - Clear state and start over
 
 ### Types

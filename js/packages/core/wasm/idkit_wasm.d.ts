@@ -1,9 +1,9 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
- * Hashes a signal string using Keccak256
+ * Encodes data to base64
  */
-export function hashSignal(signal: string): string;
+export function base64Encode(data: Uint8Array): string;
 /**
  * Decodes base64 data
  *
@@ -13,9 +13,9 @@ export function hashSignal(signal: string): string;
  */
 export function base64Decode(data: string): Uint8Array;
 /**
- * Encodes data to base64
+ * Hashes a signal string using Keccak256
  */
-export function base64Encode(data: Uint8Array): string;
+export function hashSignal(signal: string): string;
 
 export enum Credential {
     Orb = "orb",
@@ -65,7 +65,7 @@ export class BridgeEncryption {
    */
   encrypt(plaintext: string): string;
 }
-export class Proof {
+export class IDKitProof {
   free(): void;
   [Symbol.dispose](): void;
   /**
@@ -85,7 +85,7 @@ export class Proof {
    */
   toJSON(): any;
 }
-export class Request {
+export class IDKitRequest {
   free(): void;
   [Symbol.dispose](): void;
   /**
@@ -98,7 +98,7 @@ export class Request {
    *
    * Returns an error if the credential type cannot be deserialized
    */
-  static withBytes(credential_type: any, signal_bytes: Uint8Array): Request;
+  static withBytes(credential_type: any, signal_bytes: Uint8Array): IDKitRequest;
   /**
    * Gets the signal as raw bytes
    */
@@ -124,14 +124,66 @@ export class Request {
    */
   toJSON(): any;
 }
+/**
+ * World ID verification session
+ *
+ * Manages the verification flow with World App via the bridge.
+ */
+export class Session {
+  free(): void;
+  [Symbol.dispose](): void;
+  /**
+   * Returns the request ID for this session
+   */
+  requestId(): string;
+  /**
+   * Returns the connect URL for World App
+   *
+   * This URL should be displayed as a QR code for users to scan with World App.
+   */
+  connectUrl(): string;
+  /**
+   * Polls the bridge for the current status (non-blocking)
+   *
+   * Returns a status object with type:
+   * - "waiting_for_connection" - Waiting for World App to retrieve the request
+   * - "awaiting_confirmation" - World App has retrieved the request, waiting for user
+   * - "confirmed" - User confirmed and provided a proof
+   * - "failed" - Request has failed
+   *
+   * # Errors
+   *
+   * Returns an error if the request fails or the response is invalid
+   */
+  pollForStatus(): Promise<any>;
+  /**
+   * Creates a new session from a verification level
+   *
+   * This is a convenience method that maps a verification level (like "device" or "orb")
+   * to the appropriate set of credential requests and constraints.
+   *
+   * # Errors
+   *
+   * Returns an error if the session cannot be created or the request fails
+   *
+   * # Arguments
+   *
+   * * `app_id` - Application ID from the Developer Portal (e.g., "app_staging_xxxxx")
+   * * `action` - Action identifier
+   * * `verification_level` - Verification level as string ("orb", "device", etc.)
+   * * `signal` - Optional signal string for cryptographic binding
+   */
+  constructor(app_id: string, action: string, verification_level: any, signal?: string | null);
+}
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly __wbg_bridgeencryption_free: (a: number, b: number) => void;
-  readonly __wbg_proof_free: (a: number, b: number) => void;
-  readonly __wbg_request_free: (a: number, b: number) => void;
+  readonly __wbg_idkitproof_free: (a: number, b: number) => void;
+  readonly __wbg_idkitrequest_free: (a: number, b: number) => void;
+  readonly __wbg_session_free: (a: number, b: number) => void;
   readonly base64Decode: (a: number, b: number, c: number) => void;
   readonly base64Encode: (a: number, b: number, c: number) => void;
   readonly bridgeencryption_decrypt: (a: number, b: number, c: number, d: number) => void;
@@ -140,12 +192,21 @@ export interface InitOutput {
   readonly bridgeencryption_new: (a: number) => void;
   readonly bridgeencryption_nonceBase64: (a: number, b: number) => void;
   readonly hashSignal: (a: number, b: number, c: number) => void;
-  readonly proof_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
-  readonly proof_toJSON: (a: number, b: number) => void;
-  readonly request_getSignalBytes: (a: number, b: number) => void;
-  readonly request_new: (a: number, b: number, c: number, d: number) => void;
-  readonly request_toJSON: (a: number, b: number) => void;
-  readonly request_withBytes: (a: number, b: number, c: number, d: number) => void;
+  readonly idkitproof_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
+  readonly idkitproof_toJSON: (a: number, b: number) => void;
+  readonly idkitrequest_getSignalBytes: (a: number, b: number) => void;
+  readonly idkitrequest_new: (a: number, b: number, c: number, d: number) => void;
+  readonly idkitrequest_toJSON: (a: number, b: number) => void;
+  readonly idkitrequest_withBytes: (a: number, b: number, c: number, d: number) => void;
+  readonly session_connectUrl: (a: number, b: number) => void;
+  readonly session_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
+  readonly session_pollForStatus: (a: number) => number;
+  readonly session_requestId: (a: number, b: number) => void;
+  readonly __wasm_bindgen_func_elem_449: (a: number, b: number, c: number) => void;
+  readonly __wasm_bindgen_func_elem_448: (a: number, b: number) => void;
+  readonly __wasm_bindgen_func_elem_393: (a: number, b: number) => void;
+  readonly __wasm_bindgen_func_elem_392: (a: number, b: number) => void;
+  readonly __wasm_bindgen_func_elem_1027: (a: number, b: number, c: number, d: number) => void;
   readonly __wbindgen_export: (a: number, b: number) => number;
   readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_export3: (a: number) => void;

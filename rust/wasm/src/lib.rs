@@ -6,14 +6,17 @@
 #![deny(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::module_name_repetitions)]
 
-use idkit_core::{CredentialType, Signal};
+use idkit_core::{CredentialType, Signal, VerificationLevel};
+use std::rc::Rc;
+use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::future_to_promise;
 
 #[wasm_bindgen]
-pub struct Request(idkit_core::Request);
+pub struct IDKitRequest(idkit_core::Request);
 
 #[wasm_bindgen]
-impl Request {
+impl IDKitRequest {
     /// Creates a new request
     ///
     /// # Errors
@@ -66,10 +69,10 @@ impl Request {
 }
 
 #[wasm_bindgen]
-pub struct Proof(idkit_core::Proof);
+pub struct IDKitProof(idkit_core::Proof);
 
 #[wasm_bindgen]
-impl Proof {
+impl IDKitProof {
     /// Creates a new proof
     ///
     /// # Errors
@@ -193,6 +196,148 @@ pub fn base64_encode(data: &[u8]) -> String {
 pub fn base64_decode(data: &str) -> Result<Vec<u8>, JsValue> {
     idkit_core::crypto::base64_decode(data)
         .map_err(|e| JsValue::from_str(&format!("Base64 decode failed: {e}")))
+}
+
+/// World ID verification session
+///
+/// Manages the verification flow with World App via the bridge.
+#[wasm_bindgen]
+pub struct Session {
+    #[wasm_bindgen(skip)]
+    inner: Rc<RefCell<Option<idkit_core::Session>>>,
+}
+
+#[wasm_bindgen]
+impl Session {
+    /// Creates a new session from a verification level
+    ///
+    /// This is a convenience method that maps a verification level (like "device" or "orb")
+    /// to the appropriate set of credential requests and constraints.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created or the request fails
+    ///
+    /// # Arguments
+    ///
+    /// * `app_id` - Application ID from the Developer Portal (e.g., "app_staging_xxxxx")
+    /// * `action` - Action identifier
+    /// * `verification_level` - Verification level as string ("orb", "device", etc.)
+    /// * `signal` - Optional signal string for cryptographic binding
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        app_id: String,
+        action: String,
+        verification_level: JsValue,
+        signal: Option<String>,
+    ) -> js_sys::Promise {
+        future_to_promise(async move {
+            // Parse app_id
+            let app_id = idkit_core::AppId::new(app_id)
+                .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
+
+            // Parse verification level
+            let vl: VerificationLevel = serde_wasm_bindgen::from_value(verification_level)
+                .map_err(|e| JsValue::from_str(&format!("Invalid verification_level: {e}")))?;
+
+            // Create session
+            let session = idkit_core::Session::from_verification_level(
+                app_id,
+                action,
+                vl,
+                signal.unwrap_or_default(),
+            )
+            .await
+            .map_err(|e| JsValue::from_str(&format!("Failed to create session: {e}")))?;
+
+            Ok(JsValue::from(Session {
+                inner: Rc::new(RefCell::new(Some(session))),
+            }))
+        })
+    }
+
+    /// Returns the connect URL for World App
+    ///
+    /// This URL should be displayed as a QR code for users to scan with World App.
+    #[wasm_bindgen(js_name = connectUrl)]
+    pub fn connect_url(&self) -> Result<String, JsValue> {
+        self.inner
+            .borrow()
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("Session closed"))
+            .map(idkit_core::Session::connect_url)
+    }
+
+    /// Returns the request ID for this session
+    #[wasm_bindgen(js_name = requestId)]
+    pub fn request_id(&self) -> Result<String, JsValue> {
+        self.inner
+            .borrow()
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("Session closed"))
+            .map(|s| s.request_id().to_string())
+    }
+
+    /// Polls the bridge for the current status (non-blocking)
+    ///
+    /// Returns a status object with type:
+    /// - "waiting_for_connection" - Waiting for World App to retrieve the request
+    /// - "awaiting_confirmation" - World App has retrieved the request, waiting for user
+    /// - "confirmed" - User confirmed and provided a proof
+    /// - "failed" - Request has failed
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request fails or the response is invalid
+    #[wasm_bindgen(js_name = pollForStatus)]
+    pub fn poll_for_status(&self) -> js_sys::Promise {
+        let inner = self.inner.clone();
+
+        future_to_promise(async move {
+            // Take session temporarily for async operation
+            let session = inner
+                .borrow_mut()
+                .take()
+                .ok_or_else(|| JsValue::from_str("Session closed"))?;
+
+            let status = session
+                .poll_for_status()
+                .await
+                .map_err(|e| JsValue::from_str(&format!("Poll failed: {e}")))?;
+
+            // Put session back
+            *inner.borrow_mut() = Some(session);
+
+            // Convert Rust Status enum to JS object
+            let js_status = match status {
+                idkit_core::Status::WaitingForConnection => {
+                    serde_wasm_bindgen::to_value(&serde_json::json!({
+                        "type": "waiting_for_connection"
+                    }))
+                }
+                idkit_core::Status::AwaitingConfirmation => {
+                    serde_wasm_bindgen::to_value(&serde_json::json!({
+                        "type": "awaiting_confirmation"
+                    }))
+                }
+                idkit_core::Status::Confirmed(proof) => {
+                    serde_wasm_bindgen::to_value(&serde_json::json!({
+                        "type": "confirmed",
+                        "proof": proof
+                    }))
+                }
+                idkit_core::Status::Failed(error) => {
+                    serde_wasm_bindgen::to_value(&serde_json::json!({
+                        "type": "failed",
+                        "error": error
+                    }))
+                }
+            }
+            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
+
+            Ok(js_status)
+        })
+    }
 }
 
 // Export credential enum

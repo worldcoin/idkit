@@ -3,7 +3,10 @@
  * Core bridge logic for IDKit powered by Rust/WASM
  */
 
-// Bridge store
+// V3 NEW API: Immutable client
+export { WorldBridgeClient, type WaitOptions, type Status } from './client'
+
+// Bridge store (supports both V2 and V3 APIs)
 export { useWorldBridgeStore, createWorldBridgeStore, type WorldBridgeStore } from './bridge'
 
 // Types

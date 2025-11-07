@@ -43,7 +43,7 @@ jobs:
           VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Create draft release in idkit-swift
+      - name:  qCreate draft release in idkit-swift
         id: release
         uses: softprops/action-gh-release@v2
         with:

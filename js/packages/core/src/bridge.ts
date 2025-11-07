@@ -15,6 +15,7 @@ import {
 	verification_level_to_credential_types,
 } from './lib/utils'
 import { WasmModule, initIDKit } from './lib/wasm'
+import { WorldBridgeClient } from './client'
 
 const DEFAULT_BRIDGE_URL = 'https://bridge.worldcoin.org'
 
@@ -35,6 +36,8 @@ type BridgeResult =
 
 export type WorldBridgeStore = {
 	bridge_url: string
+
+	// V2 BACKWARD COMPAT: Legacy mutable state
 	encryption: typeof WasmModule.BridgeEncryption.prototype | null
 	requestId: string | null
 	connectorURI: string | null
@@ -42,8 +45,13 @@ export type WorldBridgeStore = {
 	errorCode: AppErrorCodes | null
 	verificationState: VerificationState
 
-	createClient: (config: IDKitConfig) => Promise<void>
+	// V3 NEW API: Returns immutable client
+	createClient: (config: IDKitConfig) => Promise<WorldBridgeClient>
+
+	// V2 BACKWARD COMPAT: Manual polling (deprecated)
+	/** @deprecated Use client.waitForProof() instead */
 	pollForUpdates: () => Promise<void>
+
 	reset: () => void
 }
 
@@ -56,14 +64,11 @@ const createStoreImplementation: StateCreator<WorldBridgeStore> = (set, get) => 
 	bridge_url: DEFAULT_BRIDGE_URL,
 	verificationState: VerificationState.PreparingClient,
 
-	createClient: async ({ bridge_url, app_id, verification_level, action_description, action, signal, partner }) => {
+	createClient: async ({ bridge_url, app_id, verification_level, action, signal }) => {
 		// Ensure WASM is initialized
 		await initIDKit()
 
-		// Generate encryption key
-		const encryption = new WasmModule.BridgeEncryption()
-
-		// Validate bridge URL
+		// Validate bridge URL (optional for v3)
 		if (bridge_url) {
 			const validation = validate_bridge_url(bridge_url, app_id.includes('staging'))
 			if (!validation.valid) {
@@ -73,103 +78,60 @@ const createStoreImplementation: StateCreator<WorldBridgeStore> = (set, get) => 
 			}
 		}
 
-		// Prepare request payload
-		const payload = JSON.stringify({
+		// V3: Create WASM Session
+		const session = await new WasmModule.Session(
 			app_id,
-			action_description,
-			action: encodeAction(action),
-			signal: generateSignal(signal).digest,
-			credential_types: verification_level_to_credential_types(
-				verification_level ?? DEFAULT_VERIFICATION_LEVEL
-			),
-			verification_level: verification_level ?? DEFAULT_VERIFICATION_LEVEL,
-		})
+			encodeAction(action),
+			verification_level ?? DEFAULT_VERIFICATION_LEVEL,
+			signal ? generateSignal(signal).digest : null
+		)
 
-		// Encrypt payload using WASM
-		const encryptedPayload = encryption.encrypt(payload)
-		const nonceB64 = encryption.nonceBase64()
+		const client = new WorldBridgeClient(session)
 
-		// Send request to bridge
-		const res = await fetch(new URL('/request', bridge_url ?? DEFAULT_BRIDGE_URL), {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				iv: nonceB64,
-				payload: encryptedPayload,
-			}),
-		})
-
-		if (!res.ok) {
-			set({ verificationState: VerificationState.Failed })
-			throw new Error('Failed to create client')
-		}
-
-		const { request_id } = (await res.json()) as { request_id: string }
-
-		// Build connector URI
-		const keyB64 = encryption.keyBase64()
-		const finalBridgeUrl = bridge_url ?? DEFAULT_BRIDGE_URL
-
+		// V2 BACKWARD COMPAT: Update store state for legacy code
 		set({
-			encryption,
-			requestId: request_id,
-			bridge_url: finalBridgeUrl,
+			requestId: client.requestId,
+			connectorURI: client.connectorURI,
+			bridge_url: bridge_url ?? DEFAULT_BRIDGE_URL,
 			verificationState: VerificationState.WaitingForConnection,
-			connectorURI: `https://world.org/verify?t=wld&i=${request_id}&k=${encodeURIComponent(keyB64)}${
-				bridge_url && bridge_url !== DEFAULT_BRIDGE_URL ? `&b=${encodeURIComponent(bridge_url)}` : ''
-			}${partner ? `&partner=${encodeURIComponent(true)}` : ''}`,
+			encryption: null, // V3 doesn't expose encryption directly
+			result: null,
+			errorCode: null,
 		})
+
+		// Store client reference for pollForUpdates (V2 compat)
+		;(get() as any)._activeClient = client
+
+		return client
 	},
 
 	pollForUpdates: async () => {
-		const encryption = get().encryption
-		if (!encryption) throw new Error('No encryption context found. Please call `createClient` first.')
+		// V2 BACKWARD COMPAT: Use client if available
+		const client = (get() as any)._activeClient as WorldBridgeClient | undefined
 
-		const res = await fetch(new URL(`/response/${get().requestId}`, get().bridge_url))
+		if (!client) {
+			throw new Error('No active client. Please call createClient() first.')
+		}
 
-		if (!res.ok) {
-			return set({
-				errorCode: AppErrorCodes.ConnectionFailed,
+		const status = await client.pollOnce()
+
+		if (status.type === 'awaiting_confirmation') {
+			set({ verificationState: VerificationState.WaitingForApp })
+		} else if (status.type === 'confirmed' && status.proof) {
+			set({
+				result: status.proof,
+				verificationState: VerificationState.Confirmed,
+				requestId: null,
+				connectorURI: null,
+			})
+			;(get() as any)._activeClient = undefined
+		} else if (status.type === 'failed') {
+			set({
+				errorCode: status.error ?? AppErrorCodes.UnexpectedResponse,
 				verificationState: VerificationState.Failed,
 			})
+			;(get() as any)._activeClient = undefined
 		}
-
-		const { response, status } = (await res.json()) as BridgeResponse
-
-		if (status !== ResponseStatus.Completed) {
-			return set({
-				verificationState:
-					status == ResponseStatus.Retrieved
-						? VerificationState.WaitingForApp
-						: VerificationState.WaitingForConnection,
-			})
-		}
-
-		// Decrypt response using WASM
-		let result = JSON.parse(encryption.decrypt(response.payload)) as BridgeResult
-
-		if ('error_code' in result) {
-			return set({
-				errorCode: result.error_code,
-				verificationState: VerificationState.Failed,
-			})
-		}
-
-		// Convert credential_type to verification_level if needed
-		if ('credential_type' in result) {
-			result = {
-				verification_level: credential_type_to_verification_level(result.credential_type),
-				...result,
-			} satisfies ISuccessResult
-		}
-
-		set({
-			result,
-			encryption: null,
-			requestId: null,
-			connectorURI: null,
-			verificationState: VerificationState.Confirmed,
-		})
 	},
 
 	reset: () => {
@@ -181,6 +143,7 @@ const createStoreImplementation: StateCreator<WorldBridgeStore> = (set, get) => 
 			connectorURI: null,
 			verificationState: VerificationState.PreparingClient,
 		})
+		;(get() as any)._activeClient = undefined
 	},
 })
 
