@@ -19,6 +19,7 @@ mkdir -p "$IOS_BUILD/bindings" \
          "$GENERATED_DIR"
 
 export IPHONEOS_DEPLOYMENT_TARGET="13.0"
+export MACOSX_DEPLOYMENT_TARGET="12.0"
 export RUSTFLAGS="-C link-arg=-Wl,-application_extension \
                   -C link-arg=-Wl,-dead_strip \
                   -C link-arg=-Wl,-dead_strip_dylibs"
