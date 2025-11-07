@@ -22,9 +22,6 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Install uniffi-bindgen
-        run: cargo install uniffi_bindgen --version 0.30.0
-
       - name: Build Swift artifacts
         run: scripts/package-swift.sh
 
