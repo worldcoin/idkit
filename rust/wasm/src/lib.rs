@@ -7,8 +7,8 @@
 #![allow(clippy::module_name_repetitions)]
 
 use idkit_core::{CredentialType, Signal, VerificationLevel};
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
 
