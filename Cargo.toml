@@ -4,6 +4,7 @@ resolver = "2"
 members = [
     "rust/core",
     "rust/uniffi-bindings",
+    "rust/uniffi-bindgen-bin",
     "rust/wasm",
 ]
 

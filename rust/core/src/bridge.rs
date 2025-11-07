@@ -7,8 +7,6 @@ use crate::{
     ConstraintNode, Constraints,
 };
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
-use tokio::time::sleep;
 use uuid::Uuid;
 
 #[cfg(feature = "native-crypto")]
@@ -102,10 +100,6 @@ pub struct Session {
 }
 
 impl Session {
-    /// Default bridge timeout, 15m
-    /// See: <https://github.com/worldcoin/wallet-bridge/blob/main/src/utils.rs#L7>
-    const DEFAULT_TIMEOUT_SECONDS: u64 = 900;
-
     /// Creates a new session
     ///
     /// # Arguments
@@ -284,7 +278,7 @@ impl Session {
     /// # Errors
     ///
     /// Returns an error if the request fails or the response is invalid
-    pub async fn poll(&self) -> Result<Status> {
+    pub async fn poll_for_status(&self) -> Result<Status> {
         let response = self
             .client
             .get(
@@ -325,40 +319,6 @@ impl Session {
                 }
             }
             _ => Err(Error::UnexpectedResponse),
-        }
-    }
-
-    /// Waits for a proof, polling the bridge until completion with default timeout (15 minutes)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if polling fails, verification fails, or timeout is reached
-    pub async fn wait_for_proof(&self) -> Result<Proof> {
-        self.wait_for_proof_with_timeout(Duration::from_secs(Self::DEFAULT_TIMEOUT_SECONDS))
-            .await
-    }
-
-    /// Waits for a proof with a specific timeout
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if polling fails, verification fails, or timeout is reached
-    pub async fn wait_for_proof_with_timeout(&self, timeout: Duration) -> Result<Proof> {
-        let start = tokio::time::Instant::now();
-        let poll_interval = Duration::from_secs(3);
-
-        loop {
-            if start.elapsed() > timeout {
-                return Err(Error::Timeout);
-            }
-
-            match self.poll().await? {
-                Status::Confirmed(proof) => return Ok(proof),
-                Status::Failed(error) => return Err(Error::AppError(error)),
-                Status::WaitingForConnection | Status::AwaitingConfirmation => {
-                    sleep(poll_interval).await;
-                }
-            }
         }
     }
 

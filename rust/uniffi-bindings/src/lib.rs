@@ -14,7 +14,6 @@ use idkit_core::{
     Request as CoreRequest, Signal as CoreSignal, VerificationLevel,
 };
 use std::sync::Arc;
-use std::time::Duration;
 
 /// Signal wrapper for `UniFFI`
 ///
@@ -541,34 +540,51 @@ impl Session {
     /// Returns an error if the request fails or the response is invalid
     pub fn poll_for_status(&self) -> Result<Status, IdkitError> {
         self.runtime
-            .block_on(self.inner.poll())
+            .block_on(self.inner.poll_for_status())
             .map(Status::from)
             .map_err(IdkitError::from)
     }
 
     /// Waits for a proof with default timeout (15 minutes)
     ///
+    /// This is a blocking convenience method that polls the bridge until completion.
+    /// For async Rust code, use `poll_for_status()` in a loop instead.
+    ///
     /// # Errors
     ///
     /// Returns an error if polling fails, verification fails, or timeout is reached
     pub fn wait_for_proof(&self) -> Result<Proof, IdkitError> {
-        self.runtime
-            .block_on(self.inner.wait_for_proof())
-            .map_err(IdkitError::from)
+        self.wait_for_proof_with_timeout(900) // 15 minutes
     }
 
     /// Waits for a proof with a specific timeout (in seconds)
+    ///
+    /// This is a blocking convenience method that polls the bridge until completion.
+    /// For async Rust code, use `poll_for_status()` in a loop instead.
     ///
     /// # Errors
     ///
     /// Returns an error if polling fails, verification fails, or timeout is reached
     pub fn wait_for_proof_with_timeout(&self, timeout_seconds: u64) -> Result<Proof, IdkitError> {
-        self.runtime
-            .block_on(
-                self.inner
-                    .wait_for_proof_with_timeout(Duration::from_secs(timeout_seconds)),
-            )
-            .map_err(IdkitError::from)
+        use std::time::{Duration, Instant};
+
+        let start = Instant::now();
+        let timeout = Duration::from_secs(timeout_seconds);
+        let poll_interval = Duration::from_secs(3);
+
+        loop {
+            if start.elapsed() > timeout {
+                return Err(IdkitError::Timeout);
+            }
+
+            match self.poll_for_status()? {
+                Status::Confirmed { proof } => return Ok(proof),
+                Status::Failed { error } => return Err(IdkitError::AppError { message: error }),
+                Status::WaitingForConnection | Status::AwaitingConfirmation => {
+                    std::thread::sleep(poll_interval);
+                }
+            }
+        }
     }
 }
 

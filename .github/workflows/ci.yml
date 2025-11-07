@@ -46,9 +46,20 @@ jobs:
             - name: Run Rust tests
               run: cargo test --package idkit-core
 
-    js-core:
-        name: JavaScript/WASM - Build & Test
-        runs-on: ubuntu-latest
+    swift-bindings:
+        name: Swift Bindings - Build & Test
+        runs-on: ${{ matrix.os }}
+        needs: rust-core
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - os: macos-15
+                      xcode: "16.0"
+                    - os: macos-15
+                      xcode: "16.1"
+        env:
+            DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
         permissions:
             contents: read
         steps:
@@ -59,9 +70,6 @@ jobs:
               with:
                   toolchain: stable
 
-            - name: Install wasm-pack
-              run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-
             - name: Cache Cargo dependencies
               uses: actions/cache@v4
               with:
@@ -71,31 +79,33 @@ jobs:
                       ~/.cargo/registry/cache/
                       ~/.cargo/git/db/
                       target/
-                  key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('**/Cargo.lock') }}
+                  key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
                   restore-keys: |
-                      ${{ runner.os }}-cargo-wasm-
+                      ${{ runner.os }}-cargo-
 
-            - uses: pnpm/action-setup@v4
+
+            - name: Restore Swift .build cache
+              id: restore-swift-build
+              uses: actions/cache/restore@v4
               with:
-                  version: 9.12.2
+                  path: swift/.build
+                  restore-keys: "swiftpm-build-${{ runner.os }}-${{ matrix.xcode }}-"
+                  key: "swiftpm-build-${{ runner.os }}-${{ matrix.xcode }}-${{ hashFiles('**/Package.swift', '**/Package.resolved') }}"
 
-            - name: Setup Node.js environment
-              uses: actions/setup-node@v4
+            - name: Build Swift artifacts (Rust + XCFramework + Bindings)
+              run: bash scripts/package-swift.sh
+
+            - name: Build Swift package
+              working-directory: swift
+              run: swift build
+
+            - name: Run Swift tests
+              working-directory: swift
+              run: xcodebuild test -scheme IDKit -destination "platform=macOS"
+
+            - name: Cache Swift .build
+              if: steps.restore-swift-build.outputs.cache-hit != 'true'
+              uses: actions/cache/save@v4
               with:
-                  node-version: 20
-                  cache: 'pnpm'
-
-            - name: Install JavaScript dependencies
-              run: pnpm install
-
-            - name: Build WASM + TypeScript
-              run: pnpm --filter @worldcoin/idkit-core build
-
-            - name: Type check
-              run: pnpm --filter @worldcoin/idkit-core type-check
-
-            - name: Run JavaScript tests
-              run: pnpm --filter @worldcoin/idkit-core test
-
-            - name: Test WASM crypto functions
-              run: node rust/wasm/test-crypto.mjs
+                  path: swift/.build
+                  key: "swiftpm-build-${{ runner.os }}-${{ matrix.xcode }}-${{ hashFiles('**/Package.swift', '**/Package.resolved') }}"
