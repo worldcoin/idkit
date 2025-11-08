@@ -79,10 +79,6 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           CHECKSUM: ${{ steps.checksum.outputs.checksum }}
         run: |
-          ASSET_URL="${{ fromJSON(steps.release.outputs.assets)[0].url }}.zip"
-          VERSION=${{ steps.version.outputs.version }}
-          CHECKSUM=${{ steps.checksum.outputs.checksum }}
-
           python3 <<'EOF'
           import pathlib
           import re
