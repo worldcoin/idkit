@@ -2,17 +2,16 @@ name: Publish Swift Release
 
 on:
   pull_request:
-    # types: [closed]
-    # branches:
-    #   - main
+    types: [closed]
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   publish-swift:
-    # FIXME
-    #if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
     runs-on: macos-15
     steps:
       - name: Checkout repository
