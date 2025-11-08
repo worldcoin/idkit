@@ -74,6 +74,10 @@ jobs:
           rm -f idkit-swift/Package.resolved
 
       - name: Update Package.swift metadata
+        env:
+          ASSET_URL: "${{ fromJSON(steps.release.outputs.assets)[0].url }}.zip"
+          VERSION: ${{ steps.version.outputs.version }}
+          CHECKSUM: ${{ steps.checksum.outputs.checksum }}
         run: |
           ASSET_URL="${{ fromJSON(steps.release.outputs.assets)[0].url }}.zip"
           VERSION=${{ steps.version.outputs.version }}
