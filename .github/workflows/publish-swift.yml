@@ -54,7 +54,7 @@ jobs:
           draft: true
           fail_on_unmatched_files: true
           files: IDKitFFI.xcframework.zip
-          token: ${{ secrets.GIT_HUB_TOKEN }}
+          token: ${{ secrets.IDKIT_BOT_TOKEN }}
           body: |
             Please review https://github.com/worldcoin/idkit/releases/tag/${{ steps.version.outputs.version }} for release notes.
 
@@ -62,7 +62,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: worldcoin/idkit-swift
-          token: ${{ secrets.GIT_HUB_TOKEN }}
+          token: ${{ secrets.IDKIT_BOT_TOKEN }}
           path: idkit-swift
 
       - name: Sync generated Swift sources
@@ -97,7 +97,7 @@ jobs:
 
       - name: Publish release
         env:
-          GH_TOKEN: ${{ secrets.GIT_HUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.IDKIT_BOT_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           gh release edit "$VERSION" \
