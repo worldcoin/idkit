@@ -65,11 +65,15 @@ jobs:
           token: ${{ secrets.IDKIT_BOT_TOKEN }}
           path: idkit-swift
 
-      - name: Sync generated Swift sources
+      - name: Sync Swift sources and Package.swift
         run: |
+          # Copy non-binary source files
           rm -rf idkit-swift/Sources
           mkdir -p idkit-swift/Sources
           cp -R swift/Sources/IDKit idkit-swift/Sources/
+
+          # Copy Package.swift from idkit repo
+          cp swift/Package.swift idkit-swift/
           rm -f idkit-swift/Package.resolved
 
       - name: Update Package.swift metadata
@@ -78,6 +82,10 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           CHECKSUM: ${{ steps.checksum.outputs.checksum }}
         run: |
+          # Transform Package.swift: convert local path binaryTarget to url/checksum
+          sed -i '' 's|path: "IDKitFFI.xcframework"|url: "<asset_url>",\n            checksum: "<checksum>"|' idkit-swift/Package.swift
+
+          # Replace placeholders with actual values
           echo "// Release version: ${VERSION}" >> idkit-swift/Package.swift
           awk -v url="$ASSET_URL" '{ gsub(/<asset_url>/, url) }1' idkit-swift/Package.swift > temp && mv temp idkit-swift/Package.swift
           awk -v checksum="$CHECKSUM" '{ gsub(/<checksum>/, checksum) }1' idkit-swift/Package.swift > temp && mv temp idkit-swift/Package.swift
