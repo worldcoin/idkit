@@ -78,7 +78,7 @@ jobs:
 
       - name: Update Package.swift metadata
         env:
-          ASSET_URL: ${{ fromJSON(steps.release.outputs.assets)[0].browser_download_url }}
+          ASSET_URL: https://github.com/worldcoin/idkit-swift/releases/download/${{ steps.version.outputs.version }}/IDKitFFI.xcframework.zip
           VERSION: ${{ steps.version.outputs.version }}
           CHECKSUM: ${{ steps.checksum.outputs.checksum }}
         run: |
