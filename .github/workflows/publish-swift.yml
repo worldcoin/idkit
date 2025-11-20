@@ -78,7 +78,7 @@ jobs:
 
       - name: Update Package.swift metadata
         env:
-          ASSET_URL: ${{ fromJSON(steps.release.outputs.assets)[0].url }}.zip
+          ASSET_URL: ${{ fromJSON(steps.release.outputs.assets)[0].browser_download_url }}
           VERSION: ${{ steps.version.outputs.version }}
           CHECKSUM: ${{ steps.checksum.outputs.checksum }}
         run: |
