@@ -1303,7 +1303,7 @@ dependencies = [
 
 [[package]]
 name = "idkit-core"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "aes-gcm",
  "alloy-sol-types",
@@ -1325,7 +1325,7 @@ dependencies = [
 
 [[package]]
 name = "idkit-uniffi"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "hex",
  "idkit-core",
@@ -1337,7 +1337,7 @@ dependencies = [
 
 [[package]]
 name = "idkit-wasm"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "idkit-core",
  "js-sys",
@@ -2860,7 +2860,7 @@ dependencies = [
 
 [[package]]
 name = "uniffi-bindgen"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "uniffi",
 ]
