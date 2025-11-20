@@ -82,13 +82,18 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           CHECKSUM: ${{ steps.checksum.outputs.checksum }}
         run: |
+          cd idkit-swift
+
           # Transform Package.swift: convert local path binaryTarget to url/checksum
-          sed -i '' 's|path: "IDKitFFI.xcframework"|url: "<asset_url>",\n            checksum: "<checksum>"|' idkit-swift/Package.swift
+          sed -i '' 's|path: "IDKitFFI.xcframework"|url: "<asset_url>",\n            checksum: "<checksum>"|' Package.swift
+
+          # Remove testTarget (tests are not distributed with the package)
+          sed -i '' '/\.testTarget(/,/),$/d' Package.swift
 
           # Replace placeholders with actual values
-          echo "// Release version: ${VERSION}" >> idkit-swift/Package.swift
-          awk -v url="$ASSET_URL" '{ gsub(/<asset_url>/, url) }1' idkit-swift/Package.swift > temp && mv temp idkit-swift/Package.swift
-          awk -v checksum="$CHECKSUM" '{ gsub(/<checksum>/, checksum) }1' idkit-swift/Package.swift > temp && mv temp idkit-swift/Package.swift
+          echo "// Release version: ${VERSION}" >> Package.swift
+          awk -v url="$ASSET_URL" '{ gsub(/<asset_url>/, url) }1' Package.swift > temp && mv temp Package.swift
+          awk -v checksum="$CHECKSUM" '{ gsub(/<checksum>/, checksum) }1' Package.swift > temp && mv temp Package.swift
 
       - name: Commit and tag release
         working-directory: idkit-swift
