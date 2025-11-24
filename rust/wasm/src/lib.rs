@@ -180,6 +180,15 @@ pub fn hash_signal(signal: &str) -> String {
     format!("{hash:#066x}")
 }
 
+/// Hashes raw bytes using Keccak256
+#[must_use]
+#[wasm_bindgen(js_name = hashSignalBytes)]
+pub fn hash_signal_bytes(bytes: &[u8]) -> String {
+    use idkit_core::crypto::hash_to_field;
+    let hash = hash_to_field(bytes);
+    format!("{hash:#066x}")
+}
+
 /// Encodes data to base64
 #[must_use]
 #[wasm_bindgen(js_name = base64Encode)]

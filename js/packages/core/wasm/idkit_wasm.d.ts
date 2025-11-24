@@ -5,6 +5,14 @@
  */
 export function base64Encode(data: Uint8Array): string;
 /**
+ * Hashes a signal string using Keccak256
+ */
+export function hashSignal(signal: string): string;
+/**
+ * Hashes raw bytes using Keccak256
+ */
+export function hashSignalBytes(bytes: Uint8Array): string;
+/**
  * Decodes base64 data
  *
  * # Errors
@@ -12,10 +20,6 @@ export function base64Encode(data: Uint8Array): string;
  * Returns an error if decoding fails
  */
 export function base64Decode(data: string): Uint8Array;
-/**
- * Hashes a signal string using Keccak256
- */
-export function hashSignal(signal: string): string;
 
 export enum Credential {
     Orb = "orb",
@@ -210,10 +214,11 @@ export interface InitOutput {
   readonly session_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
   readonly session_pollForStatus: (a: number) => number;
   readonly session_requestId: (a: number, b: number) => void;
-  readonly __wasm_bindgen_func_elem_449: (a: number, b: number, c: number) => void;
-  readonly __wasm_bindgen_func_elem_448: (a: number, b: number) => void;
+  readonly hashSignalBytes: (a: number, b: number, c: number) => void;
   readonly __wasm_bindgen_func_elem_393: (a: number, b: number) => void;
   readonly __wasm_bindgen_func_elem_392: (a: number, b: number) => void;
+  readonly __wasm_bindgen_func_elem_449: (a: number, b: number, c: number) => void;
+  readonly __wasm_bindgen_func_elem_448: (a: number, b: number) => void;
   readonly __wasm_bindgen_func_elem_1027: (a: number, b: number, c: number, d: number) => void;
   readonly __wbindgen_export: (a: number, b: number) => number;
   readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
