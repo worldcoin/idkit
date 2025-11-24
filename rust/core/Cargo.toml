@@ -21,9 +21,15 @@ alloy-sol-types = { workspace = true }
 ruint = { workspace = true }
 uniffi = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
-reqwest = { workspace = true, optional = true }
-tokio = { workspace = true, optional = true }
 urlencoding = { workspace = true, optional = true }
+
+# Platform-specific HTTP client
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqwest = { workspace = true, features = ["json", "rustls-tls"], optional = true }
+tokio = { workspace = true, optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+reqwest = { workspace = true, features = ["json"], optional = true }
 
 [features]
 default = ["native-crypto", "bridge", "verification"]
@@ -36,5 +42,6 @@ wasm-crypto = ["aes-gcm"]    # AES-256-GCM encryption for WebAssembly
 uniffi-bindings = ["uniffi"]  # Enable UniFFI scaffolding for Swift/Kotlin bindings
 
 # Protocol features
-bridge = ["uuid", "reqwest", "dep:tokio", "dep:urlencoding"]   # Bridge client and session management for verifications
-verification = ["reqwest", "dep:tokio"]                        # Backend proof verification via Developer Portal API
+bridge = ["uuid/v4", "reqwest", "dep:tokio", "dep:urlencoding"]   # Bridge client and session management for verifications
+bridge-wasm = ["uuid/js", "reqwest", "dep:urlencoding"]           # Bridge for WASM (no tokio)
+verification = ["reqwest", "dep:tokio"]                            # Backend proof verification via Developer Portal API

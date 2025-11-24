@@ -9,7 +9,7 @@
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::missing_const_for_fn)]
 
-#[cfg(feature = "bridge")]
+#[cfg(any(feature = "bridge", feature = "bridge-wasm"))]
 pub mod bridge;
 pub mod constraints;
 pub mod crypto;
@@ -18,7 +18,7 @@ pub mod types;
 #[cfg(feature = "verification")]
 pub mod verification;
 
-#[cfg(feature = "bridge")]
+#[cfg(any(feature = "bridge", feature = "bridge-wasm"))]
 pub use bridge::{Session, Status};
 pub use constraints::{ConstraintNode, Constraints};
 #[cfg(any(feature = "native-crypto", feature = "wasm-crypto"))]
