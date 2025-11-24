@@ -4,7 +4,7 @@
  */
 
 import { create, type StateCreator } from 'zustand'
-import type { IDKitConfig, CredentialType } from './types/config'
+import type { IDKitConfig, VerificationLevel } from './types/config'
 import type { ISuccessResult } from './types/result'
 import { VerificationState, AppErrorCodes, ResponseStatus } from './types/bridge'
 import { validate_bridge_url } from './lib/validation'
@@ -31,7 +31,7 @@ type BridgeResponse =
 
 type BridgeResult =
 	| ISuccessResult
-	| (Omit<ISuccessResult, 'verification_level'> & { credential_type: CredentialType })
+	| (Omit<ISuccessResult, 'verification_level'> & { credential_type: VerificationLevel })
 	| { error_code: AppErrorCodes }
 
 export type WorldBridgeStore = {
