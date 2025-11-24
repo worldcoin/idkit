@@ -54,7 +54,7 @@ jobs:
           draft: true
           fail_on_unmatched_files: true
           files: IDKitFFI.xcframework.zip
-          token: ${{ secrets.GIT_HUB_TOKEN }}
+          token: ${{ secrets.IDKIT_BOT_TOKEN }}
           body: |
             Please review https://github.com/worldcoin/idkit/releases/tag/${{ steps.version.outputs.version }} for release notes.
 
@@ -62,38 +62,38 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: worldcoin/idkit-swift
-          token: ${{ secrets.GIT_HUB_TOKEN }}
+          token: ${{ secrets.IDKIT_BOT_TOKEN }}
           path: idkit-swift
 
-      - name: Sync generated Swift sources
+      - name: Sync Swift sources and Package.swift
         run: |
+          # Copy non-binary source files
           rm -rf idkit-swift/Sources
           mkdir -p idkit-swift/Sources
           cp -R swift/Sources/IDKit idkit-swift/Sources/
+
+          # Copy Package.swift from idkit repo
+          cp swift/Package.swift idkit-swift/
           rm -f idkit-swift/Package.resolved
 
       - name: Update Package.swift metadata
+        env:
+          ASSET_URL: https://github.com/worldcoin/idkit-swift/releases/download/${{ steps.version.outputs.version }}/IDKitFFI.xcframework.zip
+          VERSION: ${{ steps.version.outputs.version }}
+          CHECKSUM: ${{ steps.checksum.outputs.checksum }}
         run: |
-          ASSET_URL="${{ fromJSON(steps.release.outputs.assets)[0].url }}.zip"
-          VERSION=${{ steps.version.outputs.version }}
-          CHECKSUM=${{ steps.checksum.outputs.checksum }}
+          cd idkit-swift
 
-          python3 <<'EOF'
-          import pathlib
-          import re
-          import os
+          # Transform Package.swift: convert local path binaryTarget to url/checksum
+          sed -i '' 's|path: "IDKitFFI.xcframework"|url: "<asset_url>",\n            checksum: "<checksum>"|' Package.swift
 
-          asset_url = os.environ['ASSET_URL']
-          version = os.environ['VERSION']
-          checksum = os.environ['CHECKSUM']
+          # Remove testTarget (tests are not distributed with the package)
+          sed -i '' '/\.testTarget(/,/),$/d' Package.swift
 
-          package = pathlib.Path('idkit-swift/Package.swift')
-          text = package.read_text()
-          text = re.sub(r'url: "[^"]+"', f'url: "{asset_url}"', text)
-          text = re.sub(r'checksum: "[^"]+"', f'checksum: "{checksum}"', text)
-          text = re.sub(r'// Release version: .*', f'// Release version: {version}', text)
-          package.write_text(text)
-          EOF
+          # Replace placeholders with actual values
+          echo "// Release version: ${VERSION}" >> Package.swift
+          awk -v url="$ASSET_URL" '{ gsub(/<asset_url>/, url) }1' Package.swift > temp && mv temp Package.swift
+          awk -v checksum="$CHECKSUM" '{ gsub(/<checksum>/, checksum) }1' Package.swift > temp && mv temp Package.swift
 
       - name: Commit and tag release
         working-directory: idkit-swift
@@ -110,7 +110,7 @@ jobs:
 
       - name: Publish release
         env:
-          GH_TOKEN: ${{ secrets.GIT_HUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.IDKIT_BOT_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           gh release edit "$VERSION" \
