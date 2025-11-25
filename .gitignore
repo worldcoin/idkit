@@ -14,6 +14,10 @@
 # Kotlin build outputs are not committed to this repo
 /kotlin/lib/src/main/jniLibs/
 /kotlin/lib/src/main/java/uniffi/
+# New Kotlin bindings module
+/kotlin/bindings/src/main/jniLibs/
+/kotlin/bindings/src/main/kotlin/uniffi/
+/kotlin/bindings/src/main/resources/libidkit.*
 
 # IDEs
 .vscode/

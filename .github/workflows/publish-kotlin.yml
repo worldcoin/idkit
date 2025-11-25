@@ -1,0 +1,110 @@
+name: Publish Kotlin Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+env:
+  ANDROID_TARGETS: |
+    aarch64-linux-android:arm64-v8a
+    armv7-linux-androideabi:armeabi-v7a
+    x86_64-linux-android:x86_64
+    i686-linux-android:x86
+
+jobs:
+  prepare-kotlin:
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+    name: Build Kotlin Native Artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross --locked
+
+      - name: Build Android targets
+        shell: bash
+        run: |
+          while IFS=":" read -r TARGET ABI; do
+            [ -z "$TARGET" ] && continue
+            echo "Building $TARGET ($ABI)"
+            CROSS_NO_WARNINGS=1 cross build --package idkit-uniffi --target "$TARGET" --release --locked
+            mkdir -p artifacts/$ABI
+            cp "target/$TARGET/release/libidkit.so" "artifacts/$ABI/libidkit.so"
+          done <<< "${ANDROID_TARGETS}"
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-libs
+          path: artifacts/
+          if-no-files-found: error
+
+  publish-kotlin:
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+    name: Publish Kotlin Artifacts
+    runs-on: ubuntu-latest
+    needs: prepare-kotlin
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Download Android artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: android-libs
+          path: kotlin/bindings/src/main/jniLibs
+
+      - name: Build host library
+        run: cargo build --package idkit-uniffi --release --locked
+
+      - name: Copy host lib to resources
+        shell: bash
+        run: |
+          mkdir -p kotlin/bindings/src/main/resources
+          cp target/release/libidkit.* kotlin/bindings/src/main/resources/ || true
+
+      - name: Generate Kotlin bindings
+        run: |
+          cargo run -p uniffi-bindgen generate \
+            --library target/release/libidkit.so \
+            --language kotlin \
+            --no-format \
+            --out-dir kotlin/bindings/src/main/kotlin
+
+      - name: Determine version
+        id: version
+        run: |
+          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Package Kotlin artifacts
+        run: |
+          cd kotlin
+          zip -r idkit-kotlin-${{ steps.version.outputs.version }}.zip bindings
+
+      - name: Create draft release with artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.version }}
+          draft: true
+          fail_on_unmatched_files: true
+          files: kotlin/idkit-kotlin-${{ steps.version.outputs.version }}.zip
+          token: ${{ secrets.IDKIT_BOT_TOKEN }}

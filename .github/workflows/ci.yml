@@ -109,3 +109,36 @@ jobs:
               with:
                   path: swift/.build
                   key: "swiftpm-build-${{ runner.os }}-${{ matrix.xcode }}-${{ hashFiles('**/Package.swift', '**/Package.resolved') }}"
+
+    kotlin-bindings:
+        name: Kotlin Bindings - Build (multi-ABI)
+        runs-on: ubuntu-latest
+        needs: rust-core
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Rust toolchain
+              uses: actions-rust-lang/setup-rust-toolchain@v1
+              with:
+                  toolchain: stable
+
+            - name: Cache Cargo dependencies
+              uses: actions/cache@v4
+              with:
+                  path: |
+                      ~/.cargo/bin/
+                      ~/.cargo/registry/index/
+                      ~/.cargo/registry/cache/
+                      ~/.cargo/git/db/
+                      target/
+                  key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+                  restore-keys: |
+                      ${{ runner.os }}-cargo-
+
+            - name: Install cross (for Android targets)
+              run: cargo install cross --git https://github.com/cross-rs/cross --locked
+
+            - name: Build Kotlin bindings (host + Android ABIs)
+              run: ./scripts/build-kotlin.sh
