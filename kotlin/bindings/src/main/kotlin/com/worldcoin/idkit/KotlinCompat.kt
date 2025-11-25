@@ -11,9 +11,6 @@ import uniffi.idkit.Session
 import uniffi.idkit.Signal
 import uniffi.idkit.Status
 
-/**
- * Convenience constructors mirroring the Swift helper initializers.
- */
 fun Request(
     credentialType: CredentialType,
     signal: String? = null,
@@ -41,7 +38,7 @@ val Signal.string: String?
     get() = this.asString()
 
 /**
- * Flow-based status helper similar to Swift's AsyncThrowingStream wrapper.
+ * Flow-based status helper.
  *
  * @param pollInterval How long to wait between polls.
  */
