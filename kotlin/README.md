@@ -20,9 +20,10 @@ Set `SKIP_ANDROID=1` to skip Android builds (useful on local Macs without Docker
 
 ### Convenience helpers
 
-`com.worldcoin.idkit.KotlinCompat.kt` provides small adapters that mirror the Swift helpers:
-- Convenience constructors for `Request` from plain strings or ABI-encoded bytes
-- `StatusFlow` helper to poll via a `Flow<Status>` with a configurable interval
-- Accessors for `Signal.data`/`Signal.string`
+`com.worldcoin.idkit.KotlinCompat.kt` mirrors Swift helpers (convenience `Request` ctors, `statusFlow`, `Signal.data/string`).
 
-These sit beside the generated bindings and don’t modify generated files.
+`com.worldcoin.idkit.IdKit` adds small factories for parity with Swift ergonomics:
+- `IdKit.request(...)` / `requestAbi(...)` – build requests with optional faceAuth
+- `IdKit.anyOf(...)` / `allOf(...)` – quick constraints
+- `IdKit.session(...)` – create sessions with optional description/constraints/bridge URL
+- `IdKit.sessionFromVerificationLevel(...)` – verification-level shortcut
