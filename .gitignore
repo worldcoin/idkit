@@ -3,7 +3,7 @@
 **/*.rs.bk
 *.pdb
 
-# Build outputs (following walletkit model)
+# Build outputs
 # Swift generated bindings are not committed to this repo (regenerate with scripts/package-swift.sh)
 /swift/Sources/IDKit/Generated/
 /swift/Sources/idkitFFI/
@@ -11,13 +11,14 @@
 /IDKitFFI.xcframework/
 /ios_build/
 
-# Kotlin build outputs are not committed to this repo
+# Kotlin build outputs are not committed to this repo (regenerate with scripts/package-kotlin.sh)
 /kotlin/lib/src/main/jniLibs/
 /kotlin/lib/src/main/java/uniffi/
-# New Kotlin bindings module
 /kotlin/bindings/src/main/jniLibs/
 /kotlin/bindings/src/main/kotlin/uniffi/
 /kotlin/bindings/src/main/resources/libidkit.*
+/kotlin/dist/
+/kotlin/idkit-kotlin-*.zip
 
 # IDEs
 .vscode/
