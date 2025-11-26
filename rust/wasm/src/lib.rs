@@ -319,10 +319,8 @@ impl Session {
             let app_id = idkit_core::AppId::new(app_id)
                 .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
 
-            let req_vec: Vec<JsRequestDto> =
-                serde_wasm_bindgen::from_value(requests).map_err(|e| {
-                    JsValue::from_str(&format!("Invalid requests payload: {e}"))
-                })?;
+            let req_vec: Vec<JsRequestDto> = serde_wasm_bindgen::from_value(requests)
+                .map_err(|e| JsValue::from_str(&format!("Invalid requests payload: {e}")))?;
             if req_vec.is_empty() {
                 return Err(JsValue::from_str("At least one request is required"));
             }
@@ -343,7 +341,9 @@ impl Session {
                     .iter()
                     .map(|r| idkit_core::ConstraintNode::credential(r.credential_type))
                     .collect();
-                Some(idkit_core::Constraints::new(idkit_core::ConstraintNode::any(nodes)))
+                Some(idkit_core::Constraints::new(
+                    idkit_core::ConstraintNode::any(nodes),
+                ))
             };
 
             let bridge_url_parsed = bridge_url
