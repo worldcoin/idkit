@@ -228,10 +228,10 @@ export interface InitOutput {
   readonly session_pollForStatus: (a: number) => number;
   readonly session_requestId: (a: number, b: number) => void;
   readonly hashSignalBytes: (a: number, b: number, c: number) => void;
-  readonly __wasm_bindgen_func_elem_452: (a: number, b: number) => void;
-  readonly __wasm_bindgen_func_elem_451: (a: number, b: number) => void;
   readonly __wasm_bindgen_func_elem_508: (a: number, b: number, c: number) => void;
   readonly __wasm_bindgen_func_elem_507: (a: number, b: number) => void;
+  readonly __wasm_bindgen_func_elem_452: (a: number, b: number) => void;
+  readonly __wasm_bindgen_func_elem_451: (a: number, b: number) => void;
   readonly __wasm_bindgen_func_elem_1086: (a: number, b: number, c: number, d: number) => void;
   readonly __wbindgen_export: (a: number, b: number) => number;
   readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;

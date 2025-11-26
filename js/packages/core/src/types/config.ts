@@ -3,6 +3,8 @@ type Brand<T, TBrand extends string> = T & { [brand]: TBrand }
 
 export type AbiEncodedValue = Brand<{ types: string[]; values: unknown[] }, 'AbiEncodedValue'>
 
+export type CredentialType = 'orb' | 'face' | 'secure_document' | 'document' | 'device'
+
 export enum VerificationLevel {
 	Orb = 'orb',
 	Face = 'face',
@@ -26,7 +28,7 @@ export type IDKitConfig = {
 	verification_level?: VerificationLevel
 	/** Optional explicit requests (takes precedence over verification_level) */
 	requests?: Array<{
-		credential_type: VerificationLevel
+		credential_type: CredentialType
 		signal?: AbiEncodedValue | string
 		signal_bytes?: Uint8Array
 		face_auth?: boolean

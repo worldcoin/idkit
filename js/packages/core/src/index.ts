@@ -13,6 +13,7 @@ export { useWorldBridgeStore, createWorldBridgeStore, type WorldBridgeStore } fr
 export type { IDKitConfig, AbiEncodedValue } from './types/config'
 export type { ISuccessResult, IErrorState } from './types/result'
 export { VerificationLevel } from './types/config'
+export type { CredentialType } from './types/config'
 export { AppErrorCodes, VerificationState, ResponseStatus } from './types/bridge'
 
 // Backend verification

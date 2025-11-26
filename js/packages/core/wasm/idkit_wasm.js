@@ -344,12 +344,12 @@ export function hashSignalBytes(bytes) {
     }
 }
 
-function __wasm_bindgen_func_elem_452(arg0, arg1) {
-    wasm.__wasm_bindgen_func_elem_452(arg0, arg1);
-}
-
 function __wasm_bindgen_func_elem_508(arg0, arg1, arg2) {
     wasm.__wasm_bindgen_func_elem_508(arg0, arg1, addHeapObject(arg2));
+}
+
+function __wasm_bindgen_func_elem_452(arg0, arg1) {
+    wasm.__wasm_bindgen_func_elem_452(arg0, arg1);
 }
 
 function __wasm_bindgen_func_elem_1086(arg0, arg1, arg2, arg3) {
