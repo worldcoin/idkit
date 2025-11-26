@@ -81,6 +81,9 @@ const createStoreImplementation: StateCreator<WorldBridgeStore> = (set, get) => 
 		let session: WasmModule.Session
 
 		if (requests && requests.length > 0) {
+			if (verification_level) {
+				console.warn('`verification_level` is ignored when `requests` are provided. Use one or the other.')
+			}
 			const reqs = requests.map((req) => ({
 				credential_type: req.credential_type ?? req.credentialType ?? req.credential,
 				signal: typeof req.signal === 'string' ? req.signal : undefined,
