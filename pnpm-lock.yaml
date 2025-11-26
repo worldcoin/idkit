@@ -35,7 +35,7 @@ importers:
 
   js/packages/standalone:
     dependencies:
-      '@worldcoin/idkit-core':
+      '@worldcoin/idkit':
         specifier: workspace:^
         version: link:../core
     devDependencies:

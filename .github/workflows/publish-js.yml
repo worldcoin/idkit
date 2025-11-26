@@ -36,11 +36,11 @@ jobs:
         working-directory: js
         run: pnpm -r build
 
-      - name: Publish @worldcoin/idkit-core
+      - name: Publish @worldcoin/idkit
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         working-directory: js
-        run: pnpm --filter @worldcoin/idkit-core publish --access public --no-git-checks
+        run: pnpm --filter @worldcoin/idkit publish --access public --no-git-checks
 
       - name: Publish @worldcoin/idkit-standalone
         env:

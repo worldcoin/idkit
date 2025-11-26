@@ -1,4 +1,4 @@
-export * from '@worldcoin/idkit-core'
+export * from '@worldcoin/idkit'
 import {
 	initIDKit,
 	WorldBridgeClient,
@@ -6,7 +6,7 @@ import {
 	type ISuccessResult,
 	type IDKitConfig,
 	type CredentialType,
-} from '@worldcoin/idkit-core'
+} from '@worldcoin/idkit'
 
 type RequestConfig = {
 	credential_type: CredentialType

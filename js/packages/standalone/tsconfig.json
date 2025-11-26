@@ -8,7 +8,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "paths": {
-      "@worldcoin/idkit-core": ["../core/src"]
+      "@worldcoin/idkit": ["../core/src"]
     }
   },
   "include": ["src"]

@@ -1,7 +1,7 @@
 {
   "name": "@worldcoin/idkit-standalone",
-  "version": "3.0.7",
-  "description": "Standalone JS bundle for IDKit built on @worldcoin/idkit-core",
+  "version": "3.0.8",
+  "description": "Standalone JS bundle for IDKit built on @worldcoin/idkit",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -36,7 +36,7 @@
     "url": "https://github.com/worldcoin/idkit"
   },
   "dependencies": {
-    "@worldcoin/idkit-core": "workspace:^"
+    "@worldcoin/idkit": "workspace:^"
   },
   "devDependencies": {
     "tsup": "^8.0.0",

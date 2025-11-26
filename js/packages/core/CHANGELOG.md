@@ -1,4 +1,10 @@
-# @worldcoin/idkit-core
+# @worldcoin/idkit
+
+## 3.0.8
+
+### Patch Changes
+
+- Rename JS core package to @worldcoin/idkit and add a minimal standalone wrapper (QR/polling) aligned with the v3 request-based API.
 
 ## 3.0.7
 

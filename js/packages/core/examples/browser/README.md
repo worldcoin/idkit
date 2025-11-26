@@ -31,7 +31,7 @@ Replace the import in `index.html`:
 import { initIDKit, Session, Credential } from '../../dist/index.js';
 
 // To:
-import { initIDKit, Session, Credential } from '@worldcoin/idkit-core';
+import { initIDKit, Session, Credential } from '@worldcoin/idkit';
 ```
 
 ## Configuration
