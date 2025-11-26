@@ -1,0 +1,15 @@
+{
+  "extends": "../core/tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "emitDeclarationOnly": false,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "paths": {
+      "@worldcoin/idkit-core": ["../core/src"]
+    }
+  },
+  "include": ["src"]
+}

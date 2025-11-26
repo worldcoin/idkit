@@ -344,12 +344,12 @@ export function hashSignalBytes(bytes) {
     }
 }
 
-function __wasm_bindgen_func_elem_508(arg0, arg1, arg2) {
-    wasm.__wasm_bindgen_func_elem_508(arg0, arg1, addHeapObject(arg2));
-}
-
 function __wasm_bindgen_func_elem_452(arg0, arg1) {
     wasm.__wasm_bindgen_func_elem_452(arg0, arg1);
+}
+
+function __wasm_bindgen_func_elem_508(arg0, arg1, arg2) {
+    wasm.__wasm_bindgen_func_elem_508(arg0, arg1, addHeapObject(arg2));
 }
 
 function __wasm_bindgen_func_elem_1086(arg0, arg1, arg2, arg3) {
@@ -847,7 +847,7 @@ export class Session {
      * # Arguments
      * * `app_id` - Application ID from the Developer Portal
      * * `action` - Action identifier
-     * * `requests` - Array of objects: { credential_type, signal?, signal_bytes?, face_auth? }
+     * * `requests` - Array of objects: { `credential_type`, signal?, `signal_bytes`?, `face_auth`? }
      * * `constraints` - Optional constraints JSON matching Rust `Constraints` (any/all of credential types)
      * * `action_description` - Optional user-facing description
      * * `bridge_url` - Optional custom bridge URL

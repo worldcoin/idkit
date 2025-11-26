@@ -80,7 +80,7 @@ const createStoreImplementation: StateCreator<WorldBridgeStore> = (set, get) => 
 			if (verification_level) {
 				console.warn('`verification_level` is ignored when `requests` are provided. Use one or the other.')
 			}
-			const reqs = requests.map((req) => ({
+			const reqs = (requests as any[]).map((req) => ({
 				credential_type: req.credential_type ?? req.credentialType ?? req.credential,
 				signal: typeof req.signal === 'string' ? req.signal : undefined,
 				signal_bytes: req.signal_bytes ?? req.signalBytes,
