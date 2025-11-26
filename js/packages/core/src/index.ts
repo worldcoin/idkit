@@ -3,16 +3,14 @@
  * Core bridge logic for IDKit powered by Rust/WASM
  */
 
-// V3 NEW API: Immutable client
 export { WorldBridgeClient, type WaitOptions, type Status } from './client'
-
-// Bridge store (supports both V2 and V3 APIs)
 export { useWorldBridgeStore, createWorldBridgeStore, type WorldBridgeStore } from './bridge'
 
 // Types
 export type { IDKitConfig, AbiEncodedValue } from './types/config'
 export type { ISuccessResult, IErrorState } from './types/result'
 export { VerificationLevel } from './types/config'
+export type { CredentialType } from './types/config'
 export { AppErrorCodes, VerificationState, ResponseStatus } from './types/bridge'
 
 // Backend verification

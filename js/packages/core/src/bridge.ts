@@ -36,8 +36,6 @@ type BridgeResult =
 
 export type WorldBridgeStore = {
 	bridge_url: string
-
-	// V2 BACKWARD COMPAT: Legacy mutable state
 	encryption: typeof WasmModule.BridgeEncryption.prototype | null
 	requestId: string | null
 	connectorURI: string | null
@@ -45,10 +43,8 @@ export type WorldBridgeStore = {
 	errorCode: AppErrorCodes | null
 	verificationState: VerificationState
 
-	// V3 NEW API: Returns immutable client
 	createClient: (config: IDKitConfig) => Promise<WorldBridgeClient>
 
-	// V2 BACKWARD COMPAT: Manual polling (deprecated)
 	/** @deprecated V2 API - requires manual polling. Use client.pollForUpdates() for automatic polling instead */
 	pollForUpdates: () => Promise<void>
 
@@ -64,11 +60,11 @@ const createStoreImplementation: StateCreator<WorldBridgeStore> = (set, get) => 
 	bridge_url: DEFAULT_BRIDGE_URL,
 	verificationState: VerificationState.PreparingClient,
 
-	createClient: async ({ bridge_url, app_id, verification_level, action, signal }) => {
+	createClient: async ({ bridge_url, app_id, verification_level, action, signal, requests, constraints, action_description }) => {
 		// Ensure WASM is initialized
 		await initIDKit()
 
-		// Validate bridge URL (optional for v3)
+		// Validate bridge URL
 		if (bridge_url) {
 			const validation = validate_bridge_url(bridge_url, app_id.includes('staging'))
 			if (!validation.valid) {
@@ -78,35 +74,60 @@ const createStoreImplementation: StateCreator<WorldBridgeStore> = (set, get) => 
 			}
 		}
 
-		// V3: Create WASM Session
-		const session = await new WasmModule.Session(
-			app_id,
-			encodeAction(action),
-			verification_level ?? DEFAULT_VERIFICATION_LEVEL,
-			signal ? generateSignal(signal).digest : null
-		)
+		let session: WasmModule.Session
+
+		if (requests && requests.length > 0) {
+			if (verification_level) {
+				console.warn('`verification_level` is ignored when `requests` are provided. Use one or the other.')
+			}
+			const reqs = requests.map((req) => ({
+				credential_type: req.credential_type ?? req.credentialType ?? req.credential,
+				signal: typeof req.signal === 'string' ? req.signal : undefined,
+				signal_bytes: req.signal_bytes ?? req.signalBytes,
+				face_auth: req.face_auth ?? req.faceAuth,
+			}))
+
+			const constraintsPayload = constraints ? constraints : undefined
+
+			session = (await WasmModule.Session.createWithRequests(
+				app_id,
+				encodeAction(action),
+				reqs,
+				constraintsPayload ?? undefined,
+				action_description ?? null,
+				bridge_url ?? null
+			)) as unknown as WasmModule.Session
+		} else {
+			// Create WASM Session from verification level
+			session = (await new WasmModule.Session(
+				app_id,
+				encodeAction(action),
+				verification_level ?? DEFAULT_VERIFICATION_LEVEL,
+				signal ? generateSignal(signal).digest : null
+			)) as WasmModule.Session
+		}
 
 		const client = new WorldBridgeClient(session)
 
-		// V2 BACKWARD COMPAT: Update store state for legacy code
+		// Update store state for v2 compat
 		set({
 			requestId: client.requestId,
 			connectorURI: client.connectorURI,
 			bridge_url: bridge_url ?? DEFAULT_BRIDGE_URL,
 			verificationState: VerificationState.WaitingForConnection,
-			encryption: null, // V3 doesn't expose encryption directly
+			encryption: null,
 			result: null,
 			errorCode: null,
 		})
 
-		// Store client reference for pollForUpdates (V2 compat)
+		// Store client reference for pollForUpdates
 		;(get() as any)._activeClient = client
 
 		return client
 	},
 
 	pollForUpdates: async () => {
-		// V2 BACKWARD COMPAT: Use client if available
+		// Use client if available
 		const client = (get() as any)._activeClient as WorldBridgeClient | undefined
 
 		if (!client) {
@@ -158,7 +179,7 @@ const store = create<WorldBridgeStore>(createStoreImplementation)
  * Usage:
  * - React: const state = useWorldBridgeStore() or useWorldBridgeStore(selector)
  * - Vanilla: const store = useWorldBridgeStore.getState()
- * - Legacy v2: const store = useWorldBridgeStore() (works outside React)
+ * - v2: const store = useWorldBridgeStore() (works outside React)
  */
 export const useWorldBridgeStore = Object.assign(
 	// Make it callable directly for v2 compatibility (returns state when called outside React)

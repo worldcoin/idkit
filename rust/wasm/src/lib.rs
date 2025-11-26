@@ -189,6 +189,37 @@ pub fn hash_signal_bytes(bytes: &[u8]) -> String {
     format!("{hash:#066x}")
 }
 
+/// Request DTO for JS interop
+#[derive(serde::Deserialize)]
+struct JsRequestDto {
+    credential_type: CredentialType,
+    #[serde(default)]
+    signal: Option<String>,
+    #[serde(default)]
+    signal_bytes: Option<Vec<u8>>,
+    #[serde(default)]
+    face_auth: Option<bool>,
+}
+
+fn js_request_to_core(req: JsRequestDto) -> Result<idkit_core::Request, JsValue> {
+    let signal = match (req.signal, req.signal_bytes) {
+        (Some(s), None) => Some(idkit_core::Signal::from_string(s)),
+        (None, Some(bytes)) => Some(idkit_core::Signal::from_abi_encoded(bytes)),
+        (None, None) => None,
+        (Some(_), Some(_)) => {
+            return Err(JsValue::from_str(
+                "Provide either signal (string) or signal_bytes, not both",
+            ))
+        }
+    };
+
+    let mut core_req = idkit_core::Request::new(req.credential_type, signal);
+    if let Some(face) = req.face_auth {
+        core_req = core_req.with_face_auth(face);
+    }
+    Ok(core_req)
+}
+
 /// Encodes data to base64
 #[must_use]
 #[wasm_bindgen(js_name = base64Encode)]
@@ -256,6 +287,77 @@ impl Session {
                 action,
                 vl,
                 signal.unwrap_or_default(),
+            )
+            .await
+            .map_err(|e| JsValue::from_str(&format!("Failed to create session: {e}")))?;
+
+            Ok(JsValue::from(Self {
+                inner: Rc::new(RefCell::new(Some(session))),
+            }))
+        })
+    }
+
+    /// Creates a new session from explicit requests and optional constraints
+    ///
+    /// # Arguments
+    /// * `app_id` - Application ID from the Developer Portal
+    /// * `action` - Action identifier
+    /// * `requests` - Array of objects: { `credential_type`, signal?, `signal_bytes`?, `face_auth`? }
+    /// * `constraints` - Optional constraints JSON matching Rust `Constraints` (any/all of credential types)
+    /// * `action_description` - Optional user-facing description
+    /// * `bridge_url` - Optional custom bridge URL
+    #[wasm_bindgen(js_name = createWithRequests)]
+    pub fn create_with_requests(
+        app_id: String,
+        action: String,
+        requests: JsValue,
+        constraints: Option<JsValue>,
+        action_description: Option<String>,
+        bridge_url: Option<String>,
+    ) -> js_sys::Promise {
+        future_to_promise(async move {
+            let app_id = idkit_core::AppId::new(app_id)
+                .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
+
+            let req_vec: Vec<JsRequestDto> = serde_wasm_bindgen::from_value(requests)
+                .map_err(|e| JsValue::from_str(&format!("Invalid requests payload: {e}")))?;
+            if req_vec.is_empty() {
+                return Err(JsValue::from_str("At least one request is required"));
+            }
+            let core_requests: Vec<idkit_core::Request> = req_vec
+                .into_iter()
+                .map(js_request_to_core)
+                .collect::<Result<_, _>>()?;
+
+            let core_constraints = if let Some(c) = constraints {
+                Some(
+                    serde_wasm_bindgen::from_value::<idkit_core::Constraints>(c).map_err(|e| {
+                        JsValue::from_str(&format!("Invalid constraints payload: {e}"))
+                    })?,
+                )
+            } else {
+                // Default: any-of the provided credentials in order
+                let nodes = core_requests
+                    .iter()
+                    .map(|r| idkit_core::ConstraintNode::credential(r.credential_type))
+                    .collect();
+                Some(idkit_core::Constraints::new(
+                    idkit_core::ConstraintNode::any(nodes),
+                ))
+            };
+
+            let bridge_url_parsed = bridge_url
+                .map(idkit_core::BridgeUrl::new)
+                .transpose()
+                .map_err(|e| JsValue::from_str(&format!("Invalid bridge_url: {e}")))?;
+
+            let session = idkit_core::Session::create_with_options(
+                app_id,
+                action,
+                core_requests,
+                action_description,
+                core_constraints,
+                bridge_url_parsed,
             )
             .await
             .map_err(|e| JsValue::from_str(&format!("Failed to create session: {e}")))?;
