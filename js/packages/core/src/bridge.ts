@@ -64,7 +64,7 @@ const createStoreImplementation: StateCreator<WorldBridgeStore> = (set, get) => 
 	bridge_url: DEFAULT_BRIDGE_URL,
 	verificationState: VerificationState.PreparingClient,
 
-	createClient: async ({ bridge_url, app_id, verification_level, action, signal }) => {
+	createClient: async ({ bridge_url, app_id, verification_level, action, signal, requests, constraints, action_description }) => {
 		// Ensure WASM is initialized
 		await initIDKit()
 
@@ -78,13 +78,35 @@ const createStoreImplementation: StateCreator<WorldBridgeStore> = (set, get) => 
 			}
 		}
 
-		// V3: Create WASM Session
-		const session = await new WasmModule.Session(
-			app_id,
-			encodeAction(action),
-			verification_level ?? DEFAULT_VERIFICATION_LEVEL,
-			signal ? generateSignal(signal).digest : null
-		)
+		let session: WasmModule.Session
+
+		if (requests && requests.length > 0) {
+			const reqs = requests.map((req) => ({
+				credential_type: req.credential_type ?? req.credentialType ?? req.credential,
+				signal: typeof req.signal === 'string' ? req.signal : undefined,
+				signal_bytes: req.signal_bytes ?? req.signalBytes,
+				face_auth: req.face_auth ?? req.faceAuth,
+			}))
+
+			const constraintsPayload = constraints ? constraints : undefined
+
+			session = (await WasmModule.Session.createWithRequests(
+				app_id,
+				encodeAction(action),
+				reqs,
+				constraintsPayload ?? undefined,
+				action_description ?? null,
+				bridge_url ?? null
+			)) as unknown as WasmModule.Session
+		} else {
+			// V3: Create WASM Session from verification level (legacy path)
+			session = (await new WasmModule.Session(
+				app_id,
+				encodeAction(action),
+				verification_level ?? DEFAULT_VERIFICATION_LEVEL,
+				signal ? generateSignal(signal).digest : null
+			)) as WasmModule.Session
+		}
 
 		const client = new WorldBridgeClient(session)
 

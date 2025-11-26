@@ -266,3 +266,10 @@ export const encodeAction = (action: IDKitConfig['action']): string => {
 
 	return action.types.map((type, index) => `${type}(${action.values[index]})`).join(',')
 }
+
+export type RequestConfig = {
+	credential_type: VerificationLevel
+	signal?: AbiEncodedValue | string
+	signal_bytes?: Uint8Array
+	face_auth?: boolean
+}

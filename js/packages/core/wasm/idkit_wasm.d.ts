@@ -5,14 +5,6 @@
  */
 export function base64Encode(data: Uint8Array): string;
 /**
- * Hashes a signal string using Keccak256
- */
-export function hashSignal(signal: string): string;
-/**
- * Hashes raw bytes using Keccak256
- */
-export function hashSignalBytes(bytes: Uint8Array): string;
-/**
  * Decodes base64 data
  *
  * # Errors
@@ -20,6 +12,14 @@ export function hashSignalBytes(bytes: Uint8Array): string;
  * Returns an error if decoding fails
  */
 export function base64Decode(data: string): Uint8Array;
+/**
+ * Hashes a signal string using Keccak256
+ */
+export function hashSignal(signal: string): string;
+/**
+ * Hashes raw bytes using Keccak256
+ */
+export function hashSignalBytes(bytes: Uint8Array): string;
 
 export enum Credential {
     Orb = "orb",
@@ -169,6 +169,18 @@ export class Session {
    */
   pollForStatus(): Promise<any>;
   /**
+   * Creates a new session from explicit requests and optional constraints
+   *
+   * # Arguments
+   * * `app_id` - Application ID from the Developer Portal
+   * * `action` - Action identifier
+   * * `requests` - Array of objects: { credential_type, signal?, signal_bytes?, face_auth? }
+   * * `constraints` - Optional constraints JSON matching Rust `Constraints` (any/all of credential types)
+   * * `action_description` - Optional user-facing description
+   * * `bridge_url` - Optional custom bridge URL
+   */
+  static createWithRequests(app_id: string, action: string, requests: any, constraints?: any | null, action_description?: string | null, bridge_url?: string | null): Promise<any>;
+  /**
    * Creates a new session from a verification level
    *
    * This is a convenience method that maps a verification level (like `"device"` or `"orb"`)
@@ -211,15 +223,16 @@ export interface InitOutput {
   readonly idkitrequest_toJSON: (a: number, b: number) => void;
   readonly idkitrequest_withBytes: (a: number, b: number, c: number, d: number) => void;
   readonly session_connectUrl: (a: number, b: number) => void;
+  readonly session_createWithRequests: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => number;
   readonly session_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
   readonly session_pollForStatus: (a: number) => number;
   readonly session_requestId: (a: number, b: number) => void;
   readonly hashSignalBytes: (a: number, b: number, c: number) => void;
-  readonly __wasm_bindgen_func_elem_393: (a: number, b: number) => void;
-  readonly __wasm_bindgen_func_elem_392: (a: number, b: number) => void;
-  readonly __wasm_bindgen_func_elem_449: (a: number, b: number, c: number) => void;
-  readonly __wasm_bindgen_func_elem_448: (a: number, b: number) => void;
-  readonly __wasm_bindgen_func_elem_1027: (a: number, b: number, c: number, d: number) => void;
+  readonly __wasm_bindgen_func_elem_508: (a: number, b: number, c: number) => void;
+  readonly __wasm_bindgen_func_elem_507: (a: number, b: number) => void;
+  readonly __wasm_bindgen_func_elem_452: (a: number, b: number) => void;
+  readonly __wasm_bindgen_func_elem_451: (a: number, b: number) => void;
+  readonly __wasm_bindgen_func_elem_1086: (a: number, b: number, c: number, d: number) => void;
   readonly __wbindgen_export: (a: number, b: number) => number;
   readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_export3: (a: number) => void;

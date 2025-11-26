@@ -24,6 +24,17 @@ export type IDKitConfig = {
 	bridge_url?: string
 	/** The minimum required level of verification. Defaults to "orb". */
 	verification_level?: VerificationLevel
+	/** Optional explicit requests (takes precedence over verification_level) */
+	requests?: Array<{
+		credential_type: VerificationLevel
+		signal?: AbiEncodedValue | string
+		signal_bytes?: Uint8Array
+		face_auth?: boolean
+	}>
+	/** Optional constraints JSON (matches Rust Constraints any/all structure) */
+	constraints?: unknown
+	/** Optional user-facing action description */
+	action_description?: string
 	/** Whether the app is a partner app and should allow deferred verification. Defaults to false. */
 	partner?: boolean
 }
