@@ -161,7 +161,7 @@ describe('Bridge Store', () => {
 	})
 
 	it('should be callable both ways for v2 compatibility', () => {
-		// v3 style (always works)
+		// v3 style
 		const store1 = useWorldBridgeStore.getState()
 		expect(store1).toBeDefined()
 
