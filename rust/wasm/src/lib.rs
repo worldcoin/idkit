@@ -302,7 +302,7 @@ impl Session {
     /// # Arguments
     /// * `app_id` - Application ID from the Developer Portal
     /// * `action` - Action identifier
-    /// * `requests` - Array of objects: { credential_type, signal?, signal_bytes?, face_auth? }
+    /// * `requests` - Array of objects: { `credential_type`, signal?, `signal_bytes`?, `face_auth`? }
     /// * `constraints` - Optional constraints JSON matching Rust `Constraints` (any/all of credential types)
     /// * `action_description` - Optional user-facing description
     /// * `bridge_url` - Optional custom bridge URL
