@@ -1,0 +1,46 @@
+name: Publish Kotlin Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  publish-kotlin:
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+    name: Publish Kotlin Artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install cross (for Android ABIs)
+        run: cargo install cross --git https://github.com/cross-rs/cross --locked
+
+      - name: Package Kotlin bindings (host + Android ABIs)
+        run: ./scripts/package-kotlin.sh
+
+      - name: Determine version
+        id: version
+        run: |
+          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create draft release with artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.version }}
+          draft: true
+          fail_on_unmatched_files: true
+          files: kotlin/dist/idkit-kotlin-${{ steps.version.outputs.version }}.zip
+          token: ${{ secrets.IDKIT_BOT_TOKEN }}
