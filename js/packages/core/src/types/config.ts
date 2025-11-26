@@ -35,8 +35,6 @@ export type IDKitConfig = {
 	}>
 	/** Optional constraints JSON (matches Rust Constraints any/all structure) */
 	constraints?: unknown
-	/** Optional user-facing action description */
-	action_description?: string
 	/** Whether the app is a partner app and should allow deferred verification. Defaults to false. */
 	partner?: boolean
 }

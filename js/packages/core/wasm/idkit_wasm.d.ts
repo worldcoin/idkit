@@ -174,7 +174,7 @@ export class Session {
    * # Arguments
    * * `app_id` - Application ID from the Developer Portal
    * * `action` - Action identifier
-   * * `requests` - Array of objects: { credential_type, signal?, signal_bytes?, face_auth? }
+   * * `requests` - Array of objects: { `credential_type`, signal?, `signal_bytes`?, `face_auth`? }
    * * `constraints` - Optional constraints JSON matching Rust `Constraints` (any/all of credential types)
    * * `action_description` - Optional user-facing description
    * * `bridge_url` - Optional custom bridge URL
@@ -228,10 +228,10 @@ export interface InitOutput {
   readonly session_pollForStatus: (a: number) => number;
   readonly session_requestId: (a: number, b: number) => void;
   readonly hashSignalBytes: (a: number, b: number, c: number) => void;
-  readonly __wasm_bindgen_func_elem_508: (a: number, b: number, c: number) => void;
-  readonly __wasm_bindgen_func_elem_507: (a: number, b: number) => void;
   readonly __wasm_bindgen_func_elem_452: (a: number, b: number) => void;
   readonly __wasm_bindgen_func_elem_451: (a: number, b: number) => void;
+  readonly __wasm_bindgen_func_elem_508: (a: number, b: number, c: number) => void;
+  readonly __wasm_bindgen_func_elem_507: (a: number, b: number) => void;
   readonly __wasm_bindgen_func_elem_1086: (a: number, b: number, c: number, d: number) => void;
   readonly __wbindgen_export: (a: number, b: number) => number;
   readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;

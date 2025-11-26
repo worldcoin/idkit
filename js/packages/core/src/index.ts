@@ -1,5 +1,5 @@
 /**
- * @worldcoin/idkit-core
+ * @worldcoin/idkit
  * Core bridge logic for IDKit powered by Rust/WASM
  */
 
