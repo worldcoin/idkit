@@ -1,11 +1,5 @@
 # @worldcoin/idkit-core
 
-## 3.0.6
-
-### Patch Changes
-
-- Add v3 standalone package that re-exports the new request-based core API and wire npm publish for both core and standalone.
-
 ## 3.0.5
 
 ### Patch Changes

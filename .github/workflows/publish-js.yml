@@ -40,4 +40,4 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         working-directory: js
-        run: pnpm --filter @worldcoin/idkit-core publish --access public --no-git-checks
+        run: pnpm --filter @worldcoin/idkit-core publish --access public
