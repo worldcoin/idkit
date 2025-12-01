@@ -1,6 +1,6 @@
 # IDKit Browser Example
 
-A simple browser example demonstrating World ID verification using IDKit 3.0.
+A simple browser example demonstrating World ID verification using IDKit 4.0.
 
 ## Usage
 

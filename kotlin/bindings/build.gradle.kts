@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "com.worldcoin"
-version = "3.0.8"
+version = "4.0.0"
 
 java {
     toolchain {
