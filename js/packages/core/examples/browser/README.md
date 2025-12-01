@@ -1,6 +1,6 @@
 # IDKit Browser Example
 
-A simple browser example demonstrating World ID verification using IDKit 3.0.
+A simple browser example demonstrating World ID verification using IDKit 4.0.
 
 ## Usage
 
@@ -31,7 +31,7 @@ Replace the import in `index.html`:
 import { initIDKit, Session, Credential } from '../../dist/index.js';
 
 // To:
-import { initIDKit, Session, Credential } from '@worldcoin/idkit-core';
+import { initIDKit, Session, Credential } from '@worldcoin/idkit';
 ```
 
 ## Configuration
