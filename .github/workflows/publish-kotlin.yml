@@ -26,6 +26,12 @@ jobs:
       - name: Install cross (for Android ABIs)
         run: cargo install cross --git https://github.com/cross-rs/cross --locked
 
+      - name: Free Docker disk space
+        run: |
+          docker system prune -af || true
+          docker volume prune -f || true
+          docker builder prune -af || true
+
       - name: Package Kotlin bindings (host + Android ABIs)
         run: ./scripts/package-kotlin.sh
 
