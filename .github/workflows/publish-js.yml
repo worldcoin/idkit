@@ -24,6 +24,14 @@ jobs:
         with:
           version: 9.12.2
 
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
