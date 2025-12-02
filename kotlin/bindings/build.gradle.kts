@@ -98,10 +98,12 @@ publishing {
 signing {
     val signingKey = System.getenv("SIGNING_KEY")
     val signingPassword = System.getenv("SIGNING_PASSWORD")
-    if (!signingKey.isNullOrBlank() && !signingPassword.isNullOrBlank()) {
-        useInMemoryPgpKeys(signingKey, signingPassword)
-        sign(publishing.publications["maven"])
-    } else {
-        logger.warn("Signing key not provided; artifacts will not be signed")
+    val wantsPublish = gradle.startParameter.taskNames.any { it.contains("publish", ignoreCase = true) }
+
+    if (wantsPublish && (signingKey.isNullOrBlank() || signingPassword.isNullOrBlank())) {
+        throw GradleException("SIGNING_KEY and SIGNING_PASSWORD must be set for publishing")
     }
+
+    useInMemoryPgpKeys(signingKey, signingPassword)
+    sign(publishing.publications["maven"])
 }
