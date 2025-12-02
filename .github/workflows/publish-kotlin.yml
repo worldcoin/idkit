@@ -29,6 +29,22 @@ jobs:
       - name: Package Kotlin bindings (host + Android ABIs)
         run: ./scripts/package-kotlin.sh
 
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Publish to GitHub Packages (Maven)
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: 8.9
+          arguments: -p kotlin publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+
       - name: Determine version
         id: version
         run: |
