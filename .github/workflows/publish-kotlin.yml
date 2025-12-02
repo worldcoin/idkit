@@ -29,6 +29,14 @@ jobs:
       - name: Package Kotlin bindings (host + Android ABIs)
         run: ./scripts/package-kotlin.sh
 
+      - name: Ensure release version (no -SNAPSHOT)
+        run: |
+          VERSION_LINE=$(grep -E '^version *= ' kotlin/bindings/build.gradle.kts)
+          if echo "$VERSION_LINE" | grep -q "SNAPSHOT"; then
+            echo "Version contains -SNAPSHOT; aborting publish."
+            exit 1
+          fi
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -36,27 +44,29 @@ jobs:
           java-version: 17
           cache: gradle
 
+      - name: Build Kotlin artifact
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: 8.9
+          arguments: -p kotlin clean bindings:build
+
       - name: Publish to GitHub Packages (Maven)
         uses: gradle/gradle-build-action@v3
         with:
           gradle-version: 8.9
-          arguments: -p kotlin publish
+          arguments: -p kotlin bindings:publishAllPublicationsToGitHubPackagesRepository
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
 
-      - name: Determine version
-        id: version
-        run: |
-          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Create draft release with artifacts
-        uses: softprops/action-gh-release@v2
-        with:
-          name: ${{ steps.version.outputs.version }}
-          tag_name: ${{ steps.version.outputs.version }}
-          draft: true
-          fail_on_unmatched_files: true
-          files: kotlin/dist/idkit-kotlin-${{ steps.version.outputs.version }}.zip
-          token: ${{ secrets.GITHUB_TOKEN }}
+      # Maven Central path (keep for later; requires OSSRH + signing secrets)
+      # - name: Publish to Maven Central (Sonatype)
+      #   uses: gradle/gradle-build-action@v3
+      #   with:
+      #     gradle-version: 8.9
+      #     arguments: -p kotlin publishToSonatype closeAndReleaseSonatypeStagingRepository
+      #   env:
+      #     OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+      #     OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+      #     SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+      #     SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
