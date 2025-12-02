@@ -4,9 +4,9 @@
   "private": true,
   "description": "IDKit - World ID SDK with Rust Core",
   "scripts": {
-    "build": "pnpm --filter @worldcoin/idkit-core build",
-    "test": "pnpm --filter @worldcoin/idkit-core test",
-    "type-check": "pnpm --filter @worldcoin/idkit-core type-check",
+    "build": "pnpm --filter @worldcoin/idkit build",
+    "test": "pnpm --filter @worldcoin/idkit test",
+    "type-check": "pnpm --filter @worldcoin/idkit type-check",
     "lint:rust": "cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings"
   },
   "keywords": [

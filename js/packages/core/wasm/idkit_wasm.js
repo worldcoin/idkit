@@ -243,30 +243,6 @@ function passArray8ToWasm0(arg, malloc) {
     return ptr;
 }
 /**
- * Encodes data to base64
- * @param {Uint8Array} data
- * @returns {string}
- */
-export function base64Encode(data) {
-    let deferred2_0;
-    let deferred2_1;
-    try {
-        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-        const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_export);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.base64Encode(retptr, ptr0, len0);
-        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
-        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
-        deferred2_0 = r0;
-        deferred2_1 = r1;
-        return getStringFromWasm0(r0, r1);
-    } finally {
-        wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export4(deferred2_0, deferred2_1, 1);
-    }
-}
-
-/**
  * Decodes base64 data
  *
  * # Errors
@@ -293,6 +269,30 @@ export function base64Decode(data) {
         return v2;
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
+    }
+}
+
+/**
+ * Encodes data to base64
+ * @param {Uint8Array} data
+ * @returns {string}
+ */
+export function base64Encode(data) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_export);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.base64Encode(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        deferred2_0 = r0;
+        deferred2_1 = r1;
+        return getStringFromWasm0(r0, r1);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export4(deferred2_0, deferred2_1, 1);
     }
 }
 
@@ -344,16 +344,16 @@ export function hashSignalBytes(bytes) {
     }
 }
 
-function __wasm_bindgen_func_elem_452(arg0, arg1) {
-    wasm.__wasm_bindgen_func_elem_452(arg0, arg1);
-}
-
 function __wasm_bindgen_func_elem_508(arg0, arg1, arg2) {
     wasm.__wasm_bindgen_func_elem_508(arg0, arg1, addHeapObject(arg2));
 }
 
-function __wasm_bindgen_func_elem_1086(arg0, arg1, arg2, arg3) {
-    wasm.__wasm_bindgen_func_elem_1086(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
+function __wasm_bindgen_func_elem_452(arg0, arg1) {
+    wasm.__wasm_bindgen_func_elem_452(arg0, arg1);
+}
+
+function __wasm_bindgen_func_elem_1084(arg0, arg1, arg2, arg3) {
+    wasm.__wasm_bindgen_func_elem_1084(arg0, arg1, addHeapObject(arg2), addHeapObject(arg3));
 }
 
 const __wbindgen_enum_RequestCache = ["default", "no-store", "reload", "no-cache", "force-cache", "only-if-cached"];
@@ -1176,7 +1176,7 @@ function __wbg_get_imports() {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wasm_bindgen_func_elem_1086(a, state0.b, arg0, arg1);
+                    return __wasm_bindgen_func_elem_1084(a, state0.b, arg0, arg1);
                 } finally {
                     state0.a = a;
                 }
