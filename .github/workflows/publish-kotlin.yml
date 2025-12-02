@@ -56,23 +56,13 @@ jobs:
           gradle-version: 8.9
           arguments: -p kotlin clean bindings:build
 
-      - name: Publish to GitHub Packages (Maven)
+      - name: Publish to Maven Central (Sonatype)
         uses: gradle/gradle-build-action@v3
         with:
           gradle-version: 8.9
-          arguments: -p kotlin bindings:publishAllPublicationsToGitHubPackagesRepository
+          arguments: -p kotlin publishToSonatype closeAndReleaseSonatypeStagingRepository
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_ACTOR: ${{ github.actor }}
-
-      # Maven Central path (keep for later; requires OSSRH + signing secrets)
-      # - name: Publish to Maven Central (Sonatype)
-      #   uses: gradle/gradle-build-action@v3
-      #   with:
-      #     gradle-version: 8.9
-      #     arguments: -p kotlin publishToSonatype closeAndReleaseSonatypeStagingRepository
-      #   env:
-      #     OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-      #     OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
-      #     SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-      #     SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
