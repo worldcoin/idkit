@@ -43,4 +43,4 @@ jobs:
           draft: true
           fail_on_unmatched_files: true
           files: kotlin/dist/idkit-kotlin-${{ steps.version.outputs.version }}.zip
-          token: ${{ secrets.IDKIT_BOT_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
