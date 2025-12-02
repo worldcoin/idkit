@@ -52,3 +52,9 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         working-directory: js
         run: pnpm --filter @worldcoin/idkit publish --access public
+
+      - name: Publish @worldcoin/idkit-react
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        working-directory: js
+        run: pnpm --filter @worldcoin/idkit-react publish --access public
