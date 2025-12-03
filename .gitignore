@@ -10,6 +10,7 @@
 /swift/IDKitFFI.xcframework
 /IDKitFFI.xcframework/
 /ios_build/
+/js/packages/core/wasm/
 
 # Kotlin build outputs are not committed to this repo (regenerate with scripts/package-kotlin.sh)
 /kotlin/lib/src/main/jniLibs/

@@ -1,5 +1,7 @@
 plugins {
     kotlin("jvm") version "1.9.24"
+    `maven-publish`
+    signing
 }
 
 group = "com.worldcoin"
@@ -26,5 +28,60 @@ sourceSets {
     named("main") {
         java.srcDir("src/main/kotlin")
         resources.srcDir("src/main/resources")
+    }
+}
+
+java {
+    // ship sources for easier debugging/IDE usage
+    withSourcesJar()
+    // align with external android lib publishing expectations
+    withJavadocJar()
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+            groupId = "com.worldcoin"
+            artifactId = "idkit"
+            version = project.version.toString()
+            pom {
+                name.set("IDKit Kotlin")
+                description.set("Kotlin bindings for IDKit backed by the Rust core")
+                url.set("https://github.com/worldcoin/idkit")
+                licenses {
+                    license {
+                        name.set("MIT License")
+                        url.set("https://opensource.org/licenses/MIT")
+                    }
+                }
+                developers {
+                    developer {
+                        id.set("worldcoin")
+                        name.set("Worldcoin")
+                    }
+                }
+                scm {
+                    connection.set("scm:git:https://github.com/worldcoin/idkit.git")
+                    developerConnection.set("scm:git:ssh://git@github.com/worldcoin/idkit.git")
+                    url.set("https://github.com/worldcoin/idkit")
+                }
+            }
+        }
+    }
+}
+
+signing {
+    val signingKey = System.getenv("SIGNING_KEY")
+    val signingPassword = System.getenv("SIGNING_PASSWORD")
+    val publishing = gradle.startParameter.taskNames.any { it.contains("publish", ignoreCase = true) }
+
+    if (publishing && (signingKey.isNullOrBlank() || signingPassword.isNullOrBlank())) {
+        throw GradleException("SIGNING_KEY and SIGNING_PASSWORD must be set for publishing")
+    }
+
+    if (!signingKey.isNullOrBlank() && !signingPassword.isNullOrBlank()) {
+        useInMemoryPgpKeys(signingKey, signingPassword)
+        publishing.publications.configureEach { sign(this) }
     }
 }

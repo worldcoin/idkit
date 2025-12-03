@@ -1,4 +1,4 @@
-# @worldcoin/idkit-core
+# @worldcoin/idkit
 
 ## 3.0.5
 
