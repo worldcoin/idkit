@@ -74,14 +74,14 @@ publishing {
 signing {
     val signingKey = System.getenv("SIGNING_KEY")
     val signingPassword = System.getenv("SIGNING_PASSWORD")
-    val publishing = gradle.startParameter.taskNames.any { it.contains("publish", ignoreCase = true) }
+    val wantsPublish = gradle.startParameter.taskNames.any { it.contains("publish", ignoreCase = true) }
 
-    if (publishing && (signingKey.isNullOrBlank() || signingPassword.isNullOrBlank())) {
+    if (wantsPublish && (signingKey.isNullOrBlank() || signingPassword.isNullOrBlank())) {
         throw GradleException("SIGNING_KEY and SIGNING_PASSWORD must be set for publishing")
     }
 
     if (!signingKey.isNullOrBlank() && !signingPassword.isNullOrBlank()) {
         useInMemoryPgpKeys(signingKey, signingPassword)
-        publishing.publications.configureEach { sign(this) }
+        sign(publishing.publications)
     }
 }
