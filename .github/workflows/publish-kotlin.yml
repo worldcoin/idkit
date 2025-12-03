@@ -18,6 +18,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Ensure release version (no -SNAPSHOT)
+        run: |
+          VERSION_LINE=$(grep -E '^version *= ' kotlin/bindings/build.gradle.kts)
+          if echo "$VERSION_LINE" | grep -q "SNAPSHOT"; then
+            echo "Version contains -SNAPSHOT; aborting publish."
+            exit 1
+          fi
+
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -34,14 +42,6 @@ jobs:
 
       - name: Package Kotlin bindings (host + Android ABIs)
         run: ./scripts/package-kotlin.sh
-
-      - name: Ensure release version (no -SNAPSHOT)
-        run: |
-          VERSION_LINE=$(grep -E '^version *= ' kotlin/bindings/build.gradle.kts)
-          if echo "$VERSION_LINE" | grep -q "SNAPSHOT"; then
-            echo "Version contains -SNAPSHOT; aborting publish."
-            exit 1
-          fi
 
       - name: Setup Java
         uses: actions/setup-java@v4
