@@ -1,6 +1,6 @@
 {
   "name": "@worldcoin/idkit-react",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "Lightweight React wrapper for @worldcoin/idkit with requests-based sessions",
   "type": "module",
   "main": "./dist/index.cjs",

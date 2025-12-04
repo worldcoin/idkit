@@ -1,6 +1,6 @@
 {
   "name": "idkit-monorepo",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "private": true,
   "description": "World ID SDK for Relying Parties - JavaScript packages",
   "scripts": {

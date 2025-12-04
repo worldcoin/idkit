@@ -1,6 +1,6 @@
 {
   "name": "idkit",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "private": true,
   "description": "IDKit - World ID SDK with Rust Core",
   "scripts": {
