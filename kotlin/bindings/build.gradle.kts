@@ -1,3 +1,6 @@
+import org.gradle.api.file.DuplicatesStrategy
+import org.gradle.jvm.tasks.Jar
+
 plugins {
     kotlin("jvm") version "1.9.24"
     `maven-publish`
@@ -14,7 +17,7 @@ java {
 }
 
 dependencies {
-    implementation("org.mozilla.uniffi:uniffi-runtime:0.30.0")
+    implementation("net.java.dev.jna:jna:5.14.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
     implementation(kotlin("stdlib"))
     testImplementation(kotlin("test"))
@@ -27,8 +30,15 @@ tasks.test {
 sourceSets {
     named("main") {
         java.srcDir("src/main/kotlin")
-        resources.srcDir("src/main/resources")
     }
+}
+
+tasks.processResources {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.withType<Jar>().configureEach {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 java {
