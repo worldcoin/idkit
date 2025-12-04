@@ -5,11 +5,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import uniffi.idkit.CredentialType
 import uniffi.idkit.Request
 import uniffi.idkit.Session
 import uniffi.idkit.Signal
 import uniffi.idkit.Status
+import uniffi.idkit_core.CredentialType
 
 fun Request(
     credentialType: CredentialType,
