@@ -8,7 +8,7 @@ This Swift SDK is a wrapper over the Rust core:
 
 ```
 ┌─────────────────────────────────────┐
-│   Rust Core (idkit-core)            │
+│   Rust Core (idkit)                 │
 │   - All business logic              │
 │   - Session management              │
 │   - Constraints                     │

@@ -188,7 +188,7 @@ impl Session {
 
         // Send to bridge
         let client = reqwest::Client::builder()
-            .user_agent(format!("idkit-core/{}", env!("CARGO_PKG_VERSION")))
+            .user_agent(format!("idkit/{}", env!("CARGO_PKG_VERSION")))
             .build()?;
 
         let response = client

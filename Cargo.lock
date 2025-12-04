@@ -1302,7 +1302,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "idkit-core"
+name = "idkit"
 version = "4.0.0"
 dependencies = [
  "aes-gcm",
@@ -1328,7 +1328,7 @@ name = "idkit-uniffi"
 version = "4.0.0"
 dependencies = [
  "hex",
- "idkit-core",
+ "idkit",
  "serde_json",
  "thiserror 1.0.69",
  "tokio",
@@ -1339,7 +1339,7 @@ dependencies = [
 name = "idkit-wasm"
 version = "4.0.0"
 dependencies = [
- "idkit-core",
+ "idkit",
  "js-sys",
  "serde",
  "serde-wasm-bindgen",
