@@ -10,10 +10,78 @@ permissions:
   contents: write
 
 jobs:
-  publish-kotlin:
+  build-host:
     if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
-    name: Publish Kotlin Artifacts
+    name: Build Host Library & UniFFI Bindings
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ensure release version (no -SNAPSHOT)
+        run: |
+          VERSION_LINE=$(grep -E '^version *= ' kotlin/bindings/build.gradle.kts)
+          if echo "$VERSION_LINE" | grep -q "SNAPSHOT"; then
+            echo "Version contains -SNAPSHOT; aborting publish."
+            exit 1
+          fi
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Build host library and generate UniFFI bindings
+        run: |
+          cargo build --package idkit-uniffi --release --locked
+
+          # Generate UniFFI Kotlin bindings
+          cargo run -p uniffi-bindgen generate \
+            --library target/release/libidkit.so \
+            --language kotlin \
+            --no-format \
+            --out-dir kotlin/bindings/src/main/kotlin
+
+          # Copy host library to resources
+          mkdir -p kotlin/bindings/src/main/resources
+          cp target/release/libidkit.so kotlin/bindings/src/main/resources/
+
+      - name: Verify UniFFI bindings were generated
+        run: |
+          echo "Checking for generated UniFFI files..."
+          ls -la kotlin/bindings/src/main/kotlin/
+          if [ ! -d "kotlin/bindings/src/main/kotlin/uniffi" ]; then
+            echo "ERROR: uniffi directory not found!"
+            exit 1
+          fi
+          echo "UniFFI files found:"
+          find kotlin/bindings/src/main/kotlin/uniffi -type f -name "*.kt"
+
+      - name: Upload host artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kotlin-bindings-host
+          path: |
+            kotlin/bindings/src/main/kotlin/
+            kotlin/bindings/src/main/resources/
+          retention-days: 1
+
+  build-android:
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+    name: Build Android ${{ matrix.abi }}
+    runs-on: ubuntu-latest
+    needs: build-host
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-linux-android
+            abi: arm64-v8a
+          - target: armv7-linux-androideabi
+            abi: armeabi-v7a
+          - target: x86_64-linux-android
+            abi: x86_64
+          - target: i686-linux-android
+            abi: x86
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,35 +97,65 @@ jobs:
           docker-images: true
           swap-storage: false
 
-      - name: Ensure release version (no -SNAPSHOT)
-        run: |
-          VERSION_LINE=$(grep -E '^version *= ' kotlin/bindings/build.gradle.kts)
-          if echo "$VERSION_LINE" | grep -q "SNAPSHOT"; then
-            echo "Version contains -SNAPSHOT; aborting publish."
-            exit 1
-          fi
-
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
 
-      - name: Install cross (for Android ABIs)
+      - name: Install cross
         run: cargo install cross --git https://github.com/cross-rs/cross --locked
 
-      - name: Package Kotlin bindings (host + Android ABIs)
-        run: ./scripts/package-kotlin.sh
-
-      - name: Verify UniFFI bindings were generated
+      - name: Build Android ${{ matrix.abi }}
         run: |
-          echo "Checking for generated UniFFI files..."
-          ls -la kotlin/bindings/src/main/kotlin/
-          if [ ! -d "kotlin/bindings/src/main/kotlin/uniffi" ]; then
-            echo "ERROR: uniffi directory not found!"
-            exit 1
-          fi
-          echo "UniFFI files found:"
-          find kotlin/bindings/src/main/kotlin/uniffi -type f -name "*.kt"
+          echo "Building for ${{ matrix.target }} -> ${{ matrix.abi }}"
+          CROSS_NO_WARNINGS=1 cross build --package idkit-uniffi --target ${{ matrix.target }} --release --locked
+
+          mkdir -p android-libs/${{ matrix.abi }}
+          cp target/${{ matrix.target }}/release/libidkit.so android-libs/${{ matrix.abi }}/
+
+      - name: Upload Android ${{ matrix.abi }} artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kotlin-bindings-android-${{ matrix.abi }}
+          path: android-libs/${{ matrix.abi }}/
+          retention-days: 1
+
+  publish-kotlin:
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+    name: Publish Kotlin Artifacts
+    runs-on: ubuntu-latest
+    needs: [build-host, build-android]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download host artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: kotlin-bindings-host
+          path: kotlin/bindings/src/main/
+
+      - name: Download Android artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: kotlin-bindings-android-*
+          path: android-libs-temp
+          merge-multiple: false
+
+      - name: Organize Android libraries
+        run: |
+          mkdir -p kotlin/bindings/src/main/jniLibs
+
+          # Move each ABI to the correct location
+          for abi_dir in android-libs-temp/kotlin-bindings-android-*; do
+            abi=$(basename "$abi_dir" | sed 's/kotlin-bindings-android-//')
+            echo "Processing $abi..."
+            mkdir -p "kotlin/bindings/src/main/jniLibs/$abi"
+            cp "$abi_dir/$abi/"*.so "kotlin/bindings/src/main/jniLibs/$abi/" || true
+          done
+
+          echo "Final jniLibs structure:"
+          find kotlin/bindings/src/main/jniLibs -name "*.so"
 
       - name: Setup Java
         uses: actions/setup-java@v4
