@@ -67,36 +67,36 @@ pub enum Status {
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum IdkitError {
     /// Invalid configuration provided
-    #[error("Invalid configuration: {message}")]
-    InvalidConfiguration { message: String },
+    #[error("Invalid configuration: {details}")]
+    InvalidConfiguration { details: String },
 
     /// JSON serialization/deserialization error
-    #[error("JSON error: {message}")]
-    JsonError { message: String },
+    #[error("JSON error: {details}")]
+    JsonError { details: String },
 
     /// Cryptographic operation error
-    #[error("Cryptography error: {message}")]
-    CryptoError { message: String },
+    #[error("Cryptography error: {details}")]
+    CryptoError { details: String },
 
     /// Base64 encoding/decoding error
-    #[error("Base64 error: {message}")]
-    Base64Error { message: String },
+    #[error("Base64 error: {details}")]
+    Base64Error { details: String },
 
     /// URL parsing error
-    #[error("URL error: {message}")]
-    UrlError { message: String },
+    #[error("URL error: {details}")]
+    UrlError { details: String },
 
     /// Invalid proof provided
-    #[error("Invalid proof: {message}")]
-    InvalidProof { message: String },
+    #[error("Invalid proof: {details}")]
+    InvalidProof { details: String },
 
     /// Bridge communication error
-    #[error("Bridge error: {message}")]
-    BridgeError { message: String },
+    #[error("Bridge error: {details}")]
+    BridgeError { details: String },
 
     /// Application-level error
-    #[error("App error: {message}")]
-    AppError { message: String },
+    #[error("App error: {details}")]
+    AppError { details: String },
 
     /// Unexpected response from bridge
     #[error("Unexpected response from bridge")]
@@ -115,28 +115,28 @@ impl From<idkit_core::Error> for IdkitError {
     fn from(e: idkit_core::Error) -> Self {
         match e {
             idkit_core::Error::InvalidConfiguration(message) => {
-                Self::InvalidConfiguration { message }
+                Self::InvalidConfiguration { details: message }
             }
             idkit_core::Error::Json(e) => Self::JsonError {
-                message: e.to_string(),
+                details: e.to_string(),
             },
-            idkit_core::Error::Crypto(message) => Self::CryptoError { message },
+            idkit_core::Error::Crypto(message) => Self::CryptoError { details: message },
             idkit_core::Error::Base64(e) => Self::Base64Error {
-                message: e.to_string(),
+                details: e.to_string(),
             },
             idkit_core::Error::Url(e) => Self::UrlError {
-                message: e.to_string(),
+                details: e.to_string(),
             },
-            idkit_core::Error::InvalidProof(message) => Self::InvalidProof { message },
-            idkit_core::Error::BridgeError(message) => Self::BridgeError { message },
+            idkit_core::Error::InvalidProof(message) => Self::InvalidProof { details: message },
+            idkit_core::Error::BridgeError(message) => Self::BridgeError { details: message },
             idkit_core::Error::AppError(app_err) => Self::AppError {
-                message: app_err.to_string(),
+                details: app_err.to_string(),
             },
             idkit_core::Error::UnexpectedResponse => Self::UnexpectedResponse,
             idkit_core::Error::ConnectionFailed => Self::ConnectionFailed,
             idkit_core::Error::Timeout => Self::Timeout,
             idkit_core::Error::Http(_) => Self::BridgeError {
-                message: format!("HTTP error: {e}"),
+                details: format!("HTTP error: {e}"),
             },
         }
     }
@@ -240,7 +240,7 @@ impl Request {
     /// Returns an error if JSON serialization fails
     pub fn to_json(&self) -> Result<String, IdkitError> {
         serde_json::to_string(&self.0).map_err(|e| IdkitError::JsonError {
-            message: e.to_string(),
+            details: e.to_string(),
         })
     }
 
@@ -254,7 +254,7 @@ impl Request {
         serde_json::from_str(json)
             .map(Self)
             .map_err(|e| IdkitError::JsonError {
-                message: e.to_string(),
+                details: e.to_string(),
             })
     }
 }
@@ -269,7 +269,7 @@ impl Request {
 #[uniffi::export]
 pub fn proof_to_json(proof: &Proof) -> Result<String, IdkitError> {
     serde_json::to_string(proof).map_err(|e| IdkitError::JsonError {
-        message: e.to_string(),
+        details: e.to_string(),
     })
 }
 
@@ -281,7 +281,7 @@ pub fn proof_to_json(proof: &Proof) -> Result<String, IdkitError> {
 #[uniffi::export]
 pub fn proof_from_json(json: &str) -> Result<Proof, IdkitError> {
     serde_json::from_str(json).map_err(|e| IdkitError::JsonError {
-        message: e.to_string(),
+        details: e.to_string(),
     })
 }
 
@@ -324,7 +324,7 @@ impl ConstraintNode {
     /// Returns an error if JSON serialization fails
     pub fn to_json(&self) -> Result<String, IdkitError> {
         serde_json::to_string(&self.0).map_err(|e| IdkitError::JsonError {
-            message: e.to_string(),
+            details: e.to_string(),
         })
     }
 
@@ -338,7 +338,7 @@ impl ConstraintNode {
         serde_json::from_str(json)
             .map(Self)
             .map_err(|e| IdkitError::JsonError {
-                message: e.to_string(),
+                details: e.to_string(),
             })
     }
 }
@@ -383,7 +383,7 @@ impl Constraints {
     /// Returns an error if JSON serialization fails
     pub fn to_json(&self) -> Result<String, IdkitError> {
         serde_json::to_string(&self.0).map_err(|e| IdkitError::JsonError {
-            message: e.to_string(),
+            details: e.to_string(),
         })
     }
 
@@ -397,7 +397,7 @@ impl Constraints {
         serde_json::from_str(json)
             .map(Self)
             .map_err(|e| IdkitError::JsonError {
-                message: e.to_string(),
+                details: e.to_string(),
             })
     }
 }
@@ -424,7 +424,7 @@ impl Session {
         requests: Vec<Arc<Request>>,
     ) -> Result<Self, IdkitError> {
         let runtime = tokio::runtime::Runtime::new().map_err(|e| IdkitError::BridgeError {
-            message: format!("Failed to create runtime: {e}"),
+            details: format!("Failed to create runtime: {e}"),
         })?;
 
         let app_id_parsed = idkit_core::types::AppId::new(&app_id)?;
@@ -461,7 +461,7 @@ impl Session {
         bridge_url: Option<String>,
     ) -> Result<Self, IdkitError> {
         let runtime = tokio::runtime::Runtime::new().map_err(|e| IdkitError::BridgeError {
-            message: format!("Failed to create runtime: {e}"),
+            details: format!("Failed to create runtime: {e}"),
         })?;
 
         let app_id_parsed = idkit_core::types::AppId::new(&app_id)?;
@@ -501,7 +501,7 @@ impl Session {
         signal: String,
     ) -> Result<Self, IdkitError> {
         let runtime = tokio::runtime::Runtime::new().map_err(|e| IdkitError::BridgeError {
-            message: format!("Failed to create runtime: {e}"),
+            details: format!("Failed to create runtime: {e}"),
         })?;
 
         let app_id_parsed = idkit_core::types::AppId::new(&app_id)?;
@@ -579,7 +579,7 @@ impl Session {
 
             match self.poll_for_status()? {
                 Status::Confirmed { proof } => return Ok(proof),
-                Status::Failed { error } => return Err(IdkitError::AppError { message: error }),
+                Status::Failed { error } => return Err(IdkitError::AppError { details: error }),
                 Status::WaitingForConnection | Status::AwaitingConfirmation => {
                     std::thread::sleep(poll_interval);
                 }

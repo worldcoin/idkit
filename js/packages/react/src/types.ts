@@ -1,4 +1,4 @@
-import type { IDKitConfig, ISuccessResult, IErrorState } from '@worldcoin/idkit-core'
+import type { IDKitConfig, ISuccessResult, IErrorState } from '@worldcoin/idkit'
 
 export type WidgetConfig = Pick<IDKitConfig, 'app_id' | 'action' | 'signal' | 'requests' | 'constraints' | 'bridge_url' | 'partner' | 'action_description'> & {
   /** Called when a proof is received and optionally validated by handleVerify */
