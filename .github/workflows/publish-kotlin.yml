@@ -50,12 +50,25 @@ jobs:
       - name: Package Kotlin bindings (host + Android ABIs)
         run: ./scripts/package-kotlin.sh
 
+      - name: Verify UniFFI bindings were generated
+        run: |
+          echo "Checking for generated UniFFI files..."
+          ls -la kotlin/bindings/src/main/kotlin/
+          if [ ! -d "kotlin/bindings/src/main/kotlin/uniffi" ]; then
+            echo "ERROR: uniffi directory not found!"
+            exit 1
+          fi
+          echo "UniFFI files found:"
+          find kotlin/bindings/src/main/kotlin/uniffi -type f -name "*.kt"
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
-          cache: gradle
+
+      - name: Clean Gradle build state
+        run: rm -rf kotlin/.gradle kotlin/bindings/build kotlin/bindings/.gradle
 
       - name: Build Kotlin artifact
         uses: gradle/gradle-build-action@v3
