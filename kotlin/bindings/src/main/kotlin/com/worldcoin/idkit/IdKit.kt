@@ -2,11 +2,11 @@ package com.worldcoin.idkit
 
 import uniffi.idkit.ConstraintNode
 import uniffi.idkit.Constraints
-import uniffi.idkit.CredentialType
 import uniffi.idkit.Request
 import uniffi.idkit.Session
 import uniffi.idkit.Signal
-import uniffi.idkit.VerificationLevel
+import uniffi.idkit_core.CredentialType
+import uniffi.idkit_core.VerificationLevel
 
 /**
  * Lightweight Kotlin conveniences mirroring the Swift helpers and adding
