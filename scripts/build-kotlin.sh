@@ -19,7 +19,7 @@ case "$SYSTEM" in
   MINGW*|MSYS*|CYGWIN*) LIB_EXT="dll" ;;
 esac
 
-HOST_LIB="$PROJECT_ROOT/target/release/libidkit.$LIB_EXT"
+HOST_LIB="$PROJECT_ROOT/target/release/libidkitffi.$LIB_EXT"
 
 echo "🔧 Building Rust library (host) for binding generation"
 cargo build --package idkit-uniffi --release --locked
@@ -60,7 +60,7 @@ else
       echo "  • $TARGET -> $ABI"
       CROSS_NO_WARNINGS=1 cross build --package idkit-uniffi --target "$TARGET" --release --locked
       mkdir -p "$JNI_DIR/$ABI"
-      cp "$PROJECT_ROOT/target/$TARGET/release/libidkit.so" "$JNI_DIR/$ABI/libidkit.so"
+      cp "$PROJECT_ROOT/target/$TARGET/release/libidkitffi.so" "$JNI_DIR/$ABI/libidkitffi.so"
     done
   fi
 fi

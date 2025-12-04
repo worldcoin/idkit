@@ -35,11 +35,17 @@ cargo build --package idkit-uniffi --target aarch64-apple-ios --release --locked
 cargo build --package idkit-uniffi --target aarch64-apple-darwin --release --locked
 cargo build --package idkit-uniffi --target x86_64-apple-darwin --release --locked
 
-cp target/aarch64-apple-ios/release/libidkit.a target/aarch64-apple-ios/release/libidkitFFI.a
-cp target/x86_64-apple-ios/release/libidkit.a target/x86_64-apple-ios/release/libidkitFFI.a
-cp target/aarch64-apple-ios-sim/release/libidkit.a target/aarch64-apple-ios-sim/release/libidkitFFI.a
-cp target/aarch64-apple-darwin/release/libidkit.a target/aarch64-apple-darwin/release/libidkitFFI.a
-cp target/x86_64-apple-darwin/release/libidkit.a target/x86_64-apple-darwin/release/libidkitFFI.a
+rm -f target/aarch64-apple-ios/release/libidkitFFI.a
+rm -f target/x86_64-apple-ios/release/libidkitFFI.a
+rm -f target/aarch64-apple-ios-sim/release/libidkitFFI.a
+rm -f target/aarch64-apple-darwin/release/libidkitFFI.a
+rm -f target/x86_64-apple-darwin/release/libidkitFFI.a
+
+cp target/aarch64-apple-ios/release/deps/libidkitffi.a target/aarch64-apple-ios/release/libidkitFFI.a
+cp target/x86_64-apple-ios/release/deps/libidkitffi.a target/x86_64-apple-ios/release/libidkitFFI.a
+cp target/aarch64-apple-ios-sim/release/deps/libidkitffi.a target/aarch64-apple-ios-sim/release/libidkitFFI.a
+cp target/aarch64-apple-darwin/release/deps/libidkitffi.a target/aarch64-apple-darwin/release/libidkitFFI.a
+cp target/x86_64-apple-darwin/release/deps/libidkitffi.a target/x86_64-apple-darwin/release/libidkitFFI.a
 
 strip -S -x target/aarch64-apple-ios/release/libidkitFFI.a
 strip -S -x target/x86_64-apple-ios/release/libidkitFFI.a
@@ -62,21 +68,19 @@ lipo -info $IOS_BUILD/target/universal-macos/release/libidkitFFI.a
 
 echo "🧬 Generating UniFFI Swift bindings"
 cargo run -p uniffi-bindgen generate \
-    --library target/aarch64-apple-ios-sim/release/libidkit.dylib \
+    --library target/aarch64-apple-ios-sim/release/libidkitffi.dylib \
     --language swift \
     --no-format \
     --out-dir "$IOS_BUILD/bindings"
 
 rm -f "$GENERATED_DIR"/*
-cp "$IOS_BUILD/bindings"/idkit.swift "$GENERATED_DIR/"
+cp "$IOS_BUILD/bindings"/idkitffi.swift "$GENERATED_DIR/idkit.swift"
 cp "$IOS_BUILD/bindings"/idkit_core.swift "$GENERATED_DIR/"
-cp "$IOS_BUILD/bindings"/idkitFFI.h "$GENERATED_DIR/"
-cp "$IOS_BUILD/bindings"/idkitFFI.modulemap "$GENERATED_DIR/"
+cp "$IOS_BUILD/bindings"/idkitffiFFI.h "$GENERATED_DIR/idkitFFI.h"
 cp "$IOS_BUILD/bindings"/idkit_coreFFI.h "$GENERATED_DIR/"
-cp "$IOS_BUILD/bindings"/idkit_coreFFI.modulemap "$GENERATED_DIR/"
 
 rm -f "$FFI_INCLUDE_DIR"/idkitFFI.h "$FFI_INCLUDE_DIR"/idkit_coreFFI.h "$FFI_INCLUDE_DIR"/module.modulemap
-cp "$IOS_BUILD/bindings"/idkitFFI.h "$FFI_INCLUDE_DIR/"
+cp "$IOS_BUILD/bindings"/idkitffiFFI.h "$FFI_INCLUDE_DIR/idkitFFI.h"
 cp "$IOS_BUILD/bindings"/idkit_coreFFI.h "$FFI_INCLUDE_DIR/"
 cat <<'EOF' > "$FFI_INCLUDE_DIR/module.modulemap"
 module idkitFFI {
@@ -86,10 +90,15 @@ module idkitFFI {
 }
 EOF
 
-cp "$IOS_BUILD/bindings"/idkitFFI.h "$IOS_BUILD/Headers/IDKit/"
+cp "$IOS_BUILD/bindings"/idkitffiFFI.h "$IOS_BUILD/Headers/IDKit/idkitFFI.h"
 cp "$IOS_BUILD/bindings"/idkit_coreFFI.h "$IOS_BUILD/Headers/IDKit/"
-cat "$IOS_BUILD/bindings"/idkitFFI.modulemap > "$IOS_BUILD/Headers/IDKit/module.modulemap"
-cat "$IOS_BUILD/bindings"/idkit_coreFFI.modulemap >> "$IOS_BUILD/Headers/IDKit/module.modulemap"
+cat <<'EOF' > "$IOS_BUILD/Headers/IDKit/module.modulemap"
+module idkitFFI {
+    header "idkitFFI.h"
+    header "idkit_coreFFI.h"
+    export *
+}
+EOF
 
 echo "🏗️  Creating XCFramework"
 xcodebuild -create-xcframework \
