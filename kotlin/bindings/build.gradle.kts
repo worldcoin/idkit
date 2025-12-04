@@ -17,6 +17,7 @@ java {
 }
 
 dependencies {
+    implementation("org.mozilla.uniffi:uniffi-runtime:0.30.0")
     implementation("net.java.dev.jna:jna:5.14.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
     implementation(kotlin("stdlib"))
@@ -31,6 +32,18 @@ sourceSets {
     named("main") {
         java.srcDir("src/main/kotlin")
     }
+}
+
+// Ensure UniFFI-generated bindings exist before compilation (host-only, fast)
+val generateBindings by tasks.registering(Exec::class) {
+    workingDir = rootDir.parentFile
+    environment("SKIP_ANDROID", "1")
+    commandLine("bash", "scripts/build-kotlin.sh")
+    outputs.upToDateWhen { file("src/main/kotlin/uniffi").exists() }
+}
+
+tasks.named("compileKotlin") {
+    dependsOn(generateBindings)
 }
 
 tasks.processResources {
