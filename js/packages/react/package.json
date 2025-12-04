@@ -25,7 +25,7 @@
     "react": ">=17.0.0"
   },
   "dependencies": {
-    "@worldcoin/idkit-core": "workspace:*"
+    "@worldcoin/idkit": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
