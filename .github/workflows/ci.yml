@@ -41,10 +41,10 @@ jobs:
               run: cargo clippy --all-targets --all-features -- -D warnings
 
             - name: Build Rust core
-              run: cargo build --release --package idkit-core
+              run: cargo build --release --package idkit
 
             - name: Run Rust tests
-              run: cargo test --package idkit-core
+              run: cargo test --package idkit --all-features
 
     swift-bindings:
         name: Swift Bindings - Build & Test
