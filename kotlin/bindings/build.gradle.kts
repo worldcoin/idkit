@@ -17,7 +17,6 @@ java {
 }
 
 dependencies {
-    implementation("org.mozilla.uniffi:uniffi-runtime:0.30.0")
     implementation("net.java.dev.jna:jna:5.14.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
     implementation(kotlin("stdlib"))
@@ -39,7 +38,7 @@ val generateBindings by tasks.registering(Exec::class) {
     workingDir = rootDir.parentFile
     environment("SKIP_ANDROID", "1")
     commandLine("bash", "scripts/build-kotlin.sh")
-    outputs.upToDateWhen { file("src/main/kotlin/uniffi").exists() }
+    outputs.dir("src/main/kotlin/uniffi")
 }
 
 tasks.named("compileKotlin") {
@@ -59,6 +58,10 @@ java {
     withSourcesJar()
     // align with external android lib publishing expectations
     withJavadocJar()
+}
+
+tasks.named("sourcesJar") {
+    dependsOn(generateBindings)
 }
 
 publishing {

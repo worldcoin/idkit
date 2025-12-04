@@ -11,6 +11,7 @@ JNI_DIR="$KOTLIN_DIR/bindings/src/main/jniLibs"
 echo "📦 Building Kotlin bindings from UniFFI"
 
 mkdir -p "$OUT_DIR" "$RES_DIR"
+rm -rf "$OUT_DIR/uniffi"
 
 SYSTEM=$(uname -s)
 LIB_EXT="so"
