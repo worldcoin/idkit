@@ -18,6 +18,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Free disk space
+        run: |
+          df -h
+          sudo rm -rf /usr/local/lib/android \
+                      /opt/hostedtoolcache/CodeQL \
+                      /usr/share/dotnet \
+                      /opt/ghc || true
+          sudo apt-get clean
+          docker system prune -af || true
+          docker volume prune -f || true
+          docker builder prune -af || true
+          df -h
+
       - name: Ensure release version (no -SNAPSHOT)
         run: |
           VERSION_LINE=$(grep -E '^version *= ' kotlin/bindings/build.gradle.kts)
@@ -33,12 +46,6 @@ jobs:
 
       - name: Install cross (for Android ABIs)
         run: cargo install cross --git https://github.com/cross-rs/cross --locked
-
-      - name: Free Docker disk space
-        run: |
-          docker system prune -af || true
-          docker volume prune -f || true
-          docker builder prune -af || true
 
       - name: Package Kotlin bindings (host + Android ABIs)
         run: ./scripts/package-kotlin.sh

@@ -1,6 +1,6 @@
 {
   "name": "@worldcoin/idkit",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "Core IDKit SDK for World ID - Browser and Node.js support",
   "type": "module",
   "main": "./dist/index.cjs",
