@@ -35,12 +35,14 @@ echo "📁 Copying host native library into resources for JVM loading"
 mkdir -p "$RES_DIR"
 cp "$HOST_LIB" "$RES_DIR/"
 
-echo "🧹 Cleaning host build artifacts to free disk space for Android builds"
-# Keep the final library in resources, but clean the target directory
-if [ -f "$RES_DIR/$(basename "$HOST_LIB")" ]; then
-  cargo clean --package idkit-uniffi --release || true
-  cargo clean --package idkit-core --release || true
-  rm -rf ~/.cargo/registry/cache || true
+if [ -n "${CI:-}" ]; then
+  echo "🧹 Cleaning host build artifacts to free disk space for Android builds"
+  # Keep the final library in resources, but clean the target directory
+  if [ -f "$RES_DIR/$(basename "$HOST_LIB")" ]; then
+    cargo clean --package idkit-uniffi --release || true
+    cargo clean --package idkit-core --release || true
+    rm -rf ~/.cargo/registry/cache || true
+  fi
 fi
 
 echo "🤖 Building Android ABIs"
@@ -69,8 +71,8 @@ else
       CROSS_NO_WARNINGS=1 cross build --package idkit-uniffi --target "$TARGET" --release --locked
       mkdir -p "$JNI_DIR/$ABI"
       cp "$PROJECT_ROOT/target/$TARGET/release/libidkit.so" "$JNI_DIR/$ABI/libidkit.so"
-      # Clean up Docker resources to save disk space during multi-target builds
-      if command -v docker >/dev/null 2>&1; then
+      # Clean up Docker resources to save disk space during multi-target builds (CI only)
+      if [ -n "${CI:-}" ] && command -v docker >/dev/null 2>&1; then
         echo "  ↳ Cleaning Docker resources after $TARGET build..."
         docker system prune -f >/dev/null 2>&1 || true
       fi
