@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useWorldBridgeStore, type WorldBridgeStore, VerificationState, AppErrorCodes } from '@worldcoin/idkit'
+import { useWorldBridgeStore, type WorldBridgeStore, VerificationState, AppErrorCodes } from '../'
 import type { WidgetProps, WidgetStatus } from './types'
 
 const STATUS_MAP: Record<VerificationState, WidgetStatus> = {
