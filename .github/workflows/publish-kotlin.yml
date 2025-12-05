@@ -86,16 +86,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Free Disk Space
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: true
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: false
+      - name: Free disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          echo "Removing unnecessary packages and files..."
+          sudo rm -rf /usr/local/lib/android \
+                      /opt/hostedtoolcache/CodeQL \
+                      /usr/share/dotnet \
+                      /opt/ghc \
+                      /usr/local/graalvm \
+                      /usr/local/.ghcup \
+                      /usr/local/share/powershell \
+                      /usr/local/share/chromium \
+                      /usr/local/lib/node_modules \
+                      /usr/local/share/boost || true
+          sudo apt-get autoremove -y || true
+          sudo apt-get clean || true
+          docker system prune -af || true
+          echo "Disk space after cleanup:"
+          df -h
 
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -108,10 +118,15 @@ jobs:
       - name: Build Android ${{ matrix.abi }}
         run: |
           echo "Building for ${{ matrix.target }} -> ${{ matrix.abi }}"
-          CROSS_NO_WARNINGS=1 cross build --package idkit-uniffi --target ${{ matrix.target }} --release --locked
+          # Use CARGO_HOME=/tmp to reduce disk usage in workspace
+          CARGO_HOME=/tmp CROSS_NO_WARNINGS=1 cross build --package idkit-uniffi --target ${{ matrix.target }} --release --locked
 
           mkdir -p android-libs/${{ matrix.abi }}
           cp target/${{ matrix.target }}/release/libidkit.so android-libs/${{ matrix.abi }}/
+
+          # Clean up to save disk space
+          echo "Cleaning up Docker resources..."
+          docker system prune -f || true
 
       - name: Upload Android ${{ matrix.abi }} artifact
         uses: actions/upload-artifact@v4
