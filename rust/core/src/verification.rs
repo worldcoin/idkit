@@ -112,7 +112,7 @@ pub async fn verify_proof_with_endpoint(
         .post(&url)
         .header(
             "User-Agent",
-            &format!("idkit-core/{}", env!("CARGO_PKG_VERSION")),
+            &format!("idkit/{}", env!("CARGO_PKG_VERSION")),
         )
         .json(&request)
         .send()

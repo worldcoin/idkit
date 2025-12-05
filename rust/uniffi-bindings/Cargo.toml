@@ -9,10 +9,10 @@ description = "UniFFI bindings for IDKit - generates native Swift and Kotlin bin
 
 [lib]
 crate-type = ["staticlib", "cdylib"]
-name = "idkit"
+name = "idkitffi"
 
 [dependencies]
-idkit-core = { path = "../core", default-features = false, features = ["uniffi-bindings", "native-crypto", "bridge"] }
+idkit-core = { package = "idkit", path = "../core", default-features = false, features = ["uniffi-bindings", "native-crypto", "bridge"] }
 uniffi = { workspace = true }
 thiserror = { workspace = true }
 serde_json = { workspace = true }

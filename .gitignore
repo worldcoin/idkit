@@ -18,6 +18,7 @@
 /kotlin/bindings/src/main/jniLibs/
 /kotlin/bindings/src/main/kotlin/uniffi/
 /kotlin/bindings/src/main/resources/libidkit.*
+/kotlin/bindings/src/main/resources/libidkitffi.*
 /kotlin/dist/
 /kotlin/idkit-kotlin-*.zip
 
