@@ -12,6 +12,9 @@ use uuid::Uuid;
 #[cfg(feature = "native-crypto")]
 use crate::crypto::CryptoKey;
 
+#[cfg(feature = "ffi")]
+use std::sync::Arc;
+
 /// Bridge request payload sent to initialize a session
 #[derive(Debug, Serialize)]
 struct BridgeRequestPayload {
@@ -369,10 +372,10 @@ impl From<Status> for StatusWrapper {
 impl SessionWrapper {
     /// Creates a new session
     #[uniffi::constructor]
-    pub fn create_ffi(
+    pub fn create(
         app_id: String,
         action: String,
-        requests: Vec<std::sync::Arc<Request>>,
+        requests: Vec<Arc<Request>>,
     ) -> std::result::Result<Self, crate::error::IdkitError> {
         let runtime = tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
             details: format!("Failed to create runtime: {e}"),
@@ -391,12 +394,12 @@ impl SessionWrapper {
     /// Creates a new session with optional configuration
     #[uniffi::constructor]
     #[allow(clippy::too_many_arguments)]
-    pub fn create_with_options_ffi(
+    pub fn create_with_options(
         app_id: String,
         action: String,
-        requests: Vec<std::sync::Arc<Request>>,
+        requests: Vec<Arc<Request>>,
         action_description: Option<String>,
-        constraints: Option<std::sync::Arc<Constraints>>,
+        constraints: Option<Arc<Constraints>>,
         bridge_url: Option<String>,
     ) -> std::result::Result<Self, crate::error::IdkitError> {
         let runtime = tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
@@ -426,7 +429,7 @@ impl SessionWrapper {
 
     /// Creates a session from a verification level
     #[uniffi::constructor]
-    pub fn from_verification_level_ffi(
+    pub fn from_verification_level(
         app_id: String,
         action: String,
         verification_level: VerificationLevel,
@@ -451,17 +454,17 @@ impl SessionWrapper {
     }
 
     /// Returns the connect URL for World App
-    pub fn connect_url_ffi(&self) -> String {
+    pub fn connect_url(&self) -> String {
         self.inner.connect_url()
     }
 
     /// Returns the request ID for this session
-    pub fn request_id_ffi(&self) -> String {
+    pub fn request_id(&self) -> String {
         self.inner.request_id().to_string()
     }
 
     /// Polls the session for updates until completion
-    pub fn poll_status_ffi(&self, poll_interval_ms: Option<u64>, timeout_ms: Option<u64>) -> StatusWrapper {
+    pub fn poll_status(&self, poll_interval_ms: Option<u64>, timeout_ms: Option<u64>) -> StatusWrapper {
         let poll_interval = std::time::Duration::from_millis(poll_interval_ms.unwrap_or(2000));
         let timeout = timeout_ms.map(std::time::Duration::from_millis);
 

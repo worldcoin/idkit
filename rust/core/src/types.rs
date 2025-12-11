@@ -2,6 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "ffi")]
+use std::sync::Arc;
+
 /// Credential types that can be requested
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
@@ -108,23 +111,23 @@ impl Signal {
 impl Signal {
     /// Creates a signal from a string
     #[uniffi::constructor]
-    pub fn from_string_ffi(s: String) -> std::sync::Arc<Self> {
-        std::sync::Arc::new(Self::from_string(s))
+    pub fn new_from_string(s: String) -> Arc<Self> {
+        Arc::new(Self::from_string(s))
     }
 
     /// Creates a signal from ABI-encoded bytes
     #[uniffi::constructor]
-    pub fn from_abi_encoded_ffi(bytes: Vec<u8>) -> std::sync::Arc<Self> {
-        std::sync::Arc::new(Self::from_abi_encoded(bytes))
+    pub fn new_from_abi_encoded(bytes: Vec<u8>) -> Arc<Self> {
+        Arc::new(Self::from_abi_encoded(bytes))
     }
 
     /// Gets the signal as raw bytes
-    pub fn as_bytes_ffi(&self) -> Vec<u8> {
-        self.as_bytes().to_vec()
+    pub fn bytes(&self) -> Vec<u8> {
+        self.to_bytes()
     }
 
     /// Gets the signal as a string if it's a UTF-8 string signal
-    pub fn as_string_ffi(&self) -> Option<String> {
+    pub fn string(&self) -> Option<String> {
         self.as_str().map(String::from)
     }
 }
@@ -228,41 +231,31 @@ impl Request {
 impl Request {
     /// Creates a new credential request
     #[uniffi::constructor]
-    pub fn new_ffi(credential_type: CredentialType, signal: Option<std::sync::Arc<Signal>>) -> std::sync::Arc<Self> {
+    pub fn create(credential_type: CredentialType, signal: Option<Arc<Signal>>) -> Arc<Self> {
         let signal_opt = signal.map(|s| (*s).clone());
-        std::sync::Arc::new(Self::new(credential_type, signal_opt))
+        Arc::new(Self::new(credential_type, signal_opt))
     }
 
     /// Sets the face authentication requirement on a request
-    pub fn with_face_auth_ffi(&self, face_auth: bool) -> std::sync::Arc<Self> {
-        std::sync::Arc::new(self.clone().with_face_auth(face_auth))
+    pub fn set_face_auth(&self, face_auth: bool) -> Arc<Self> {
+        Arc::new(self.clone().with_face_auth(face_auth))
     }
 
     /// Gets the signal as raw bytes from a request
-    pub fn get_signal_bytes_ffi(&self) -> Option<Vec<u8>> {
+    pub fn get_signal_bytes(&self) -> Option<Vec<u8>> {
         self.signal_bytes()
     }
 
-    /// Gets the credential type
-    pub fn credential_type_ffi(&self) -> CredentialType {
-        self.credential_type
-    }
-
-    /// Gets the `face_auth` setting
-    pub fn face_auth_ffi(&self) -> Option<bool> {
-        self.face_auth
-    }
-
     /// Serializes a request to JSON
-    pub fn to_json_ffi(&self) -> std::result::Result<String, crate::error::IdkitError> {
+    pub fn to_json(&self) -> std::result::Result<String, crate::error::IdkitError> {
         serde_json::to_string(&self).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
     }
 
     /// Deserializes a request from JSON
     #[uniffi::constructor]
-    pub fn from_json_ffi(json: &str) -> std::result::Result<std::sync::Arc<Self>, crate::error::IdkitError> {
+    pub fn new_from_json(json: &str) -> std::result::Result<Arc<Self>, crate::error::IdkitError> {
         serde_json::from_str(json)
-            .map(std::sync::Arc::new)
+            .map(Arc::new)
             .map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
     }
 }
@@ -286,14 +279,12 @@ pub struct Proof {
 
 // UniFFI helper functions for Proof
 #[cfg(feature = "ffi")]
-/// Serializes a proof to JSON
 #[uniffi::export]
 pub fn proof_to_json(proof: &Proof) -> std::result::Result<String, crate::error::IdkitError> {
     serde_json::to_string(proof).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
 }
 
 #[cfg(feature = "ffi")]
-/// Deserializes a proof from JSON
 #[uniffi::export]
 pub fn proof_from_json(json: &str) -> std::result::Result<Proof, crate::error::IdkitError> {
     serde_json::from_str(json).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
