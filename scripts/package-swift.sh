@@ -68,28 +68,21 @@ cargo run -p uniffi-bindgen generate \
     --out-dir "$IOS_BUILD/bindings"
 
 rm -f "$GENERATED_DIR"/*
-cp "$IOS_BUILD/bindings"/idkit.swift "$GENERATED_DIR/"
 cp "$IOS_BUILD/bindings"/idkit_core.swift "$GENERATED_DIR/"
-cp "$IOS_BUILD/bindings"/idkitFFI.h "$GENERATED_DIR/"
-cp "$IOS_BUILD/bindings"/idkitFFI.modulemap "$GENERATED_DIR/"
 cp "$IOS_BUILD/bindings"/idkit_coreFFI.h "$GENERATED_DIR/"
 cp "$IOS_BUILD/bindings"/idkit_coreFFI.modulemap "$GENERATED_DIR/"
 
-rm -f "$FFI_INCLUDE_DIR"/idkitFFI.h "$FFI_INCLUDE_DIR"/idkit_coreFFI.h "$FFI_INCLUDE_DIR"/module.modulemap
-cp "$IOS_BUILD/bindings"/idkitFFI.h "$FFI_INCLUDE_DIR/"
+rm -f "$FFI_INCLUDE_DIR"/idkit_coreFFI.h "$FFI_INCLUDE_DIR"/module.modulemap
 cp "$IOS_BUILD/bindings"/idkit_coreFFI.h "$FFI_INCLUDE_DIR/"
 cat <<'EOF' > "$FFI_INCLUDE_DIR/module.modulemap"
 module idkitFFI {
-    header "idkitFFI.h"
     header "idkit_coreFFI.h"
     export *
 }
 EOF
 
-cp "$IOS_BUILD/bindings"/idkitFFI.h "$IOS_BUILD/Headers/IDKit/"
 cp "$IOS_BUILD/bindings"/idkit_coreFFI.h "$IOS_BUILD/Headers/IDKit/"
-cat "$IOS_BUILD/bindings"/idkitFFI.modulemap > "$IOS_BUILD/Headers/IDKit/module.modulemap"
-cat "$IOS_BUILD/bindings"/idkit_coreFFI.modulemap >> "$IOS_BUILD/Headers/IDKit/module.modulemap"
+cp "$IOS_BUILD/bindings"/idkit_coreFFI.modulemap "$IOS_BUILD/Headers/IDKit/module.modulemap"
 
 echo "🏗️  Creating XCFramework"
 xcodebuild -create-xcframework \
