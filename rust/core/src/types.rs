@@ -108,25 +108,30 @@ impl Signal {
 // UniFFI exports for Signal
 #[cfg(feature = "ffi")]
 #[uniffi::export]
+#[allow(clippy::needless_pass_by_value)]
 impl Signal {
     /// Creates a signal from a string
+    #[must_use]
     #[uniffi::constructor]
     pub fn new_from_string(s: String) -> Arc<Self> {
         Arc::new(Self::from_string(s))
     }
 
     /// Creates a signal from ABI-encoded bytes
+    #[must_use]
     #[uniffi::constructor]
     pub fn new_from_abi_encoded(bytes: Vec<u8>) -> Arc<Self> {
         Arc::new(Self::from_abi_encoded(bytes))
     }
 
     /// Gets the signal as raw bytes
+    #[must_use]
     pub fn bytes(&self) -> Vec<u8> {
         self.to_bytes()
     }
 
     /// Gets the signal as a string if it's a UTF-8 string signal
+    #[must_use]
     pub fn string(&self) -> Option<String> {
         self.as_str().map(String::from)
     }
@@ -228,8 +233,10 @@ impl Request {
 // UniFFI exports for Request
 #[cfg(feature = "ffi")]
 #[uniffi::export]
+#[allow(clippy::needless_pass_by_value)]
 impl Request {
     /// Creates a new credential request
+    #[must_use]
     #[uniffi::constructor]
     pub fn create(credential_type: CredentialType, signal: Option<Arc<Signal>>) -> Arc<Self> {
         let signal_opt = signal.map(|s| (*s).clone());
@@ -237,22 +244,32 @@ impl Request {
     }
 
     /// Sets the face authentication requirement on a request
+    #[must_use]
     pub fn set_face_auth(&self, face_auth: bool) -> Arc<Self> {
         Arc::new(self.clone().with_face_auth(face_auth))
     }
 
     /// Gets the signal as raw bytes from a request
+    #[must_use]
     pub fn get_signal_bytes(&self) -> Option<Vec<u8>> {
         self.signal_bytes()
     }
 
     /// Serializes a request to JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if JSON serialization fails
     pub fn to_json(&self) -> std::result::Result<String, crate::error::IdkitError> {
         serde_json::to_string(&self)
             .map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
     }
 
     /// Deserializes a request from JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if JSON deserialization fails
     #[uniffi::constructor]
     pub fn new_from_json(json: &str) -> std::result::Result<Arc<Self>, crate::error::IdkitError> {
         serde_json::from_str(json)
@@ -280,12 +297,22 @@ pub struct Proof {
 
 // UniFFI helper functions for Proof
 #[cfg(feature = "ffi")]
+/// Serializes a proof to JSON
+///
+/// # Errors
+///
+/// Returns an error if JSON serialization fails
 #[uniffi::export]
 pub fn proof_to_json(proof: &Proof) -> std::result::Result<String, crate::error::IdkitError> {
     serde_json::to_string(proof).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
 }
 
 #[cfg(feature = "ffi")]
+/// Deserializes a proof from JSON
+///
+/// # Errors
+///
+/// Returns an error if JSON deserialization fails
 #[uniffi::export]
 pub fn proof_from_json(json: &str) -> std::result::Result<Proof, crate::error::IdkitError> {
     serde_json::from_str(json).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
@@ -433,6 +460,7 @@ impl VerificationLevel {
 // UniFFI helper function for CredentialType
 #[cfg(feature = "ffi")]
 /// Gets the string representation of a credential type
+#[must_use]
 #[uniffi::export]
 pub fn credential_to_string(credential: &CredentialType) -> String {
     credential.as_str().to_string()

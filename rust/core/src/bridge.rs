@@ -369,8 +369,13 @@ impl From<Status> for StatusWrapper {
 
 #[cfg(feature = "ffi")]
 #[uniffi::export]
+#[allow(clippy::needless_pass_by_value)]
 impl SessionWrapper {
     /// Creates a new session
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created or the request fails
     #[uniffi::constructor]
     pub fn create(
         app_id: String,
@@ -393,6 +398,10 @@ impl SessionWrapper {
     }
 
     /// Creates a new session with optional configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created or the request fails
     #[uniffi::constructor]
     #[allow(clippy::too_many_arguments)]
     pub fn create_with_options(
@@ -428,6 +437,10 @@ impl SessionWrapper {
     }
 
     /// Creates a session from a verification level
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created or the request fails
     #[uniffi::constructor]
     pub fn from_verification_level(
         app_id: String,
@@ -455,11 +468,13 @@ impl SessionWrapper {
     }
 
     /// Returns the connect URL for World App
+    #[must_use]
     pub fn connect_url(&self) -> String {
         self.inner.connect_url()
     }
 
     /// Returns the request ID for this session
+    #[must_use]
     pub fn request_id(&self) -> String {
         self.inner.request_id().to_string()
     }

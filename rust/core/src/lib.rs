@@ -8,6 +8,7 @@
 #![deny(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::missing_const_for_fn)]
+#![cfg_attr(target_arch = "wasm32", allow(clippy::future_not_send))]
 
 #[cfg(any(feature = "bridge", feature = "bridge-wasm"))]
 pub mod bridge;

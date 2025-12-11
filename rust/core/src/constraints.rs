@@ -231,14 +231,17 @@ impl Constraints {
 // UniFFI exports for ConstraintNode
 #[cfg(feature = "ffi")]
 #[uniffi::export]
+#[allow(clippy::needless_pass_by_value)]
 impl ConstraintNode {
     /// Creates a credential constraint node
+    #[must_use]
     #[uniffi::constructor]
     pub fn new_credential(credential_type: CredentialType) -> Arc<Self> {
         Arc::new(Self::credential(credential_type))
     }
 
     /// Creates an "any" (OR) constraint node
+    #[must_use]
     #[uniffi::constructor]
     pub fn new_any(nodes: Vec<Arc<Self>>) -> Arc<Self> {
         let core_nodes = nodes.iter().map(|n| (**n).clone()).collect();
@@ -246,6 +249,7 @@ impl ConstraintNode {
     }
 
     /// Creates an "all" (AND) constraint node
+    #[must_use]
     #[uniffi::constructor]
     pub fn new_all(nodes: Vec<Arc<Self>>) -> Arc<Self> {
         let core_nodes = nodes.iter().map(|n| (**n).clone()).collect();
@@ -253,12 +257,20 @@ impl ConstraintNode {
     }
 
     /// Serializes a constraint node to JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if JSON serialization fails
     pub fn to_json(&self) -> std::result::Result<String, crate::error::IdkitError> {
         serde_json::to_string(&self)
             .map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
     }
 
     /// Deserializes a constraint node from JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if JSON deserialization fails
     #[uniffi::constructor]
     pub fn new_from_json(json: &str) -> std::result::Result<Arc<Self>, crate::error::IdkitError> {
         serde_json::from_str(json)
@@ -270,32 +282,44 @@ impl ConstraintNode {
 // UniFFI exports for Constraints
 #[cfg(feature = "ffi")]
 #[uniffi::export]
+#[allow(clippy::needless_pass_by_value)]
 impl Constraints {
     /// Creates constraints from a root node
+    #[must_use]
     #[uniffi::constructor]
     pub fn new_from_root(root: Arc<ConstraintNode>) -> Arc<Self> {
         Arc::new(Self::new((*root).clone()))
     }
 
     /// Creates an "any" constraint (at least one credential must match)
+    #[must_use]
     #[uniffi::constructor]
     pub fn new_any(credentials: Vec<CredentialType>) -> Arc<Self> {
         Arc::new(Self::any(credentials))
     }
 
     /// Creates an "all" constraint (all credentials must match)
+    #[must_use]
     #[uniffi::constructor]
     pub fn new_all(credentials: Vec<CredentialType>) -> Arc<Self> {
         Arc::new(Self::all(credentials))
     }
 
     /// Serializes constraints to JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if JSON serialization fails
     pub fn to_json(&self) -> std::result::Result<String, crate::error::IdkitError> {
         serde_json::to_string(&self)
             .map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
     }
 
     /// Deserializes constraints from JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if JSON deserialization fails
     #[uniffi::constructor]
     pub fn new_from_json(json: &str) -> std::result::Result<Arc<Self>, crate::error::IdkitError> {
         serde_json::from_str(json)
