@@ -342,9 +342,7 @@ impl Session {
                     .iter()
                     .map(|r| crate::ConstraintNode::credential(r.credential_type))
                     .collect();
-                Some(crate::Constraints::new(
-                    crate::ConstraintNode::any(nodes),
-                ))
+                Some(crate::Constraints::new(crate::ConstraintNode::any(nodes)))
             };
 
             let bridge_url_parsed = bridge_url
