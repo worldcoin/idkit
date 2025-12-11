@@ -377,9 +377,10 @@ impl SessionWrapper {
         action: String,
         requests: Vec<Arc<Request>>,
     ) -> std::result::Result<Self, crate::error::IdkitError> {
-        let runtime = tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
-            details: format!("Failed to create runtime: {e}"),
-        })?;
+        let runtime =
+            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
+                details: format!("Failed to create runtime: {e}"),
+            })?;
 
         let app_id_parsed = AppId::new(&app_id)?;
         let core_requests: Vec<Request> = requests.iter().map(|r| (**r).clone()).collect();
@@ -402,16 +403,15 @@ impl SessionWrapper {
         constraints: Option<Arc<Constraints>>,
         bridge_url: Option<String>,
     ) -> std::result::Result<Self, crate::error::IdkitError> {
-        let runtime = tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
-            details: format!("Failed to create runtime: {e}"),
-        })?;
+        let runtime =
+            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
+                details: format!("Failed to create runtime: {e}"),
+            })?;
 
         let app_id_parsed = AppId::new(&app_id)?;
         let core_requests: Vec<Request> = requests.iter().map(|r| (**r).clone()).collect();
         let core_constraints = constraints.map(|c| (*c).clone());
-        let bridge_url_parsed = bridge_url
-            .map(|url| BridgeUrl::new(&url))
-            .transpose()?;
+        let bridge_url_parsed = bridge_url.map(|url| BridgeUrl::new(&url)).transpose()?;
 
         let inner = runtime
             .block_on(Session::create_with_options(
@@ -435,9 +435,10 @@ impl SessionWrapper {
         verification_level: VerificationLevel,
         signal: String,
     ) -> std::result::Result<Self, crate::error::IdkitError> {
-        let runtime = tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
-            details: format!("Failed to create runtime: {e}"),
-        })?;
+        let runtime =
+            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
+                details: format!("Failed to create runtime: {e}"),
+            })?;
 
         let app_id_parsed = AppId::new(&app_id)?;
 
@@ -464,7 +465,11 @@ impl SessionWrapper {
     }
 
     /// Polls the session for updates until completion
-    pub fn poll_status(&self, poll_interval_ms: Option<u64>, timeout_ms: Option<u64>) -> StatusWrapper {
+    pub fn poll_status(
+        &self,
+        poll_interval_ms: Option<u64>,
+        timeout_ms: Option<u64>,
+    ) -> StatusWrapper {
         let poll_interval = std::time::Duration::from_millis(poll_interval_ms.unwrap_or(2000));
         let timeout = timeout_ms.map(std::time::Duration::from_millis);
 

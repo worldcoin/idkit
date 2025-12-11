@@ -153,9 +153,7 @@ pub enum IdkitError {
 impl From<Error> for IdkitError {
     fn from(e: Error) -> Self {
         match e {
-            Error::InvalidConfiguration(message) => {
-                Self::InvalidConfiguration { details: message }
-            }
+            Error::InvalidConfiguration(message) => Self::InvalidConfiguration { details: message },
             Error::Json(err) => Self::JsonError {
                 details: err.to_string(),
             },

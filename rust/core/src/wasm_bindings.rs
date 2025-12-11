@@ -341,9 +341,7 @@ impl Session {
                     .iter()
                     .map(|r| crate::ConstraintNode::credential(r.credential_type))
                     .collect();
-                Some(crate::Constraints::new(
-                    crate::ConstraintNode::any(nodes),
-                ))
+                Some(crate::Constraints::new(crate::ConstraintNode::any(nodes)))
             };
 
             let bridge_url_parsed = bridge_url
@@ -446,12 +444,10 @@ impl Session {
                         "proof": proof
                     }))
                 }
-                crate::Status::Failed(error) => {
-                    serde_wasm_bindgen::to_value(&serde_json::json!({
-                        "type": "failed",
-                        "error": error
-                    }))
-                }
+                crate::Status::Failed(error) => serde_wasm_bindgen::to_value(&serde_json::json!({
+                    "type": "failed",
+                    "error": error
+                })),
             }
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 

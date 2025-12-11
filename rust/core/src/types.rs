@@ -248,7 +248,8 @@ impl Request {
 
     /// Serializes a request to JSON
     pub fn to_json(&self) -> std::result::Result<String, crate::error::IdkitError> {
-        serde_json::to_string(&self).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
+        serde_json::to_string(&self)
+            .map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
     }
 
     /// Deserializes a request from JSON

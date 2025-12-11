@@ -254,7 +254,8 @@ impl ConstraintNode {
 
     /// Serializes a constraint node to JSON
     pub fn to_json(&self) -> std::result::Result<String, crate::error::IdkitError> {
-        serde_json::to_string(&self).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
+        serde_json::to_string(&self)
+            .map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
     }
 
     /// Deserializes a constraint node from JSON
@@ -290,7 +291,8 @@ impl Constraints {
 
     /// Serializes constraints to JSON
     pub fn to_json(&self) -> std::result::Result<String, crate::error::IdkitError> {
-        serde_json::to_string(&self).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
+        serde_json::to_string(&self)
+            .map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
     }
 
     /// Deserializes constraints from JSON
