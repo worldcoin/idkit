@@ -6,7 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
-RUST_DIR="$PROJECT_ROOT/rust/uniffi-bindings"
+RUST_DIR="$PROJECT_ROOT/rust/core"
 SWIFT_DIR="$PROJECT_ROOT/swift"
 GENERATED_DIR="$SWIFT_DIR/Sources/IDKit/Generated"
 
@@ -17,7 +17,7 @@ echo "Project root: $PROJECT_ROOT"
 echo ""
 echo "📦 Step 1/3: Building Rust library..."
 cd "$PROJECT_ROOT"
-cargo build --release --package idkit-uniffi
+cargo build --release --package idkit-core --features uniffi-bindings
 
 # Step 2: Generate Swift bindings
 echo ""

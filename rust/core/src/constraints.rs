@@ -10,6 +10,7 @@ use std::collections::HashSet;
 
 /// A node in the constraint tree
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Object))]
 #[serde(untagged)]
 pub enum ConstraintNode {
     /// A leaf node representing a single credential type
@@ -162,6 +163,7 @@ impl ConstraintNode {
 
 /// Top-level constraints for a request
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Object))]
 pub struct Constraints {
     /// The root constraint node
     #[serde(flatten)]
@@ -220,6 +222,80 @@ impl Constraints {
     /// Returns an error if the constraints are invalid
     pub fn validate(&self) -> crate::Result<()> {
         self.root.validate()
+    }
+}
+
+// UniFFI exports for ConstraintNode
+#[cfg(feature = "ffi")]
+#[uniffi::export]
+impl ConstraintNode {
+    /// Creates a credential constraint node
+    #[uniffi::constructor]
+    pub fn credential_ffi(credential_type: CredentialType) -> std::sync::Arc<Self> {
+        std::sync::Arc::new(Self::credential(credential_type))
+    }
+
+    /// Creates an "any" (OR) constraint node
+    #[uniffi::constructor]
+    pub fn any_ffi(nodes: Vec<std::sync::Arc<Self>>) -> std::sync::Arc<Self> {
+        let core_nodes = nodes.iter().map(|n| (**n).clone()).collect();
+        std::sync::Arc::new(Self::any(core_nodes))
+    }
+
+    /// Creates an "all" (AND) constraint node
+    #[uniffi::constructor]
+    pub fn all_ffi(nodes: Vec<std::sync::Arc<Self>>) -> std::sync::Arc<Self> {
+        let core_nodes = nodes.iter().map(|n| (**n).clone()).collect();
+        std::sync::Arc::new(Self::all(core_nodes))
+    }
+
+    /// Serializes a constraint node to JSON
+    pub fn to_json_ffi(&self) -> std::result::Result<String, crate::error::IdkitError> {
+        serde_json::to_string(&self).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
+    }
+
+    /// Deserializes a constraint node from JSON
+    #[uniffi::constructor]
+    pub fn from_json_ffi(json: &str) -> std::result::Result<std::sync::Arc<Self>, crate::error::IdkitError> {
+        serde_json::from_str(json)
+            .map(std::sync::Arc::new)
+            .map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
+    }
+}
+
+// UniFFI exports for Constraints
+#[cfg(feature = "ffi")]
+#[uniffi::export]
+impl Constraints {
+    /// Creates constraints from a root node
+    #[uniffi::constructor]
+    pub fn new_ffi(root: std::sync::Arc<ConstraintNode>) -> std::sync::Arc<Self> {
+        std::sync::Arc::new(Self::new((*root).clone()))
+    }
+
+    /// Creates an "any" constraint (at least one credential must match)
+    #[uniffi::constructor]
+    pub fn any_ffi(credentials: Vec<CredentialType>) -> std::sync::Arc<Self> {
+        std::sync::Arc::new(Self::any(credentials))
+    }
+
+    /// Creates an "all" constraint (all credentials must match)
+    #[uniffi::constructor]
+    pub fn all_ffi(credentials: Vec<CredentialType>) -> std::sync::Arc<Self> {
+        std::sync::Arc::new(Self::all(credentials))
+    }
+
+    /// Serializes constraints to JSON
+    pub fn to_json_ffi(&self) -> std::result::Result<String, crate::error::IdkitError> {
+        serde_json::to_string(&self).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
+    }
+
+    /// Deserializes constraints from JSON
+    #[uniffi::constructor]
+    pub fn from_json_ffi(json: &str) -> std::result::Result<std::sync::Arc<Self>, crate::error::IdkitError> {
+        serde_json::from_str(json)
+            .map(std::sync::Arc::new)
+            .map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
     }
 }
 

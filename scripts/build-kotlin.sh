@@ -22,7 +22,7 @@ esac
 HOST_LIB="$PROJECT_ROOT/target/release/libidkit.$LIB_EXT"
 
 echo "🔧 Building Rust library (host) for binding generation"
-cargo build --package idkit-uniffi --release --locked
+cargo build --package idkit-core --release --locked --features uniffi-bindings
 
 echo "🧬 Generating Kotlin bindings"
 cargo run -p uniffi-bindgen generate \
@@ -39,7 +39,6 @@ if [ -n "${CI:-}" ]; then
   echo "🧹 Cleaning host build artifacts to free disk space for Android builds"
   # Keep the final library in resources, but clean the target directory
   if [ -f "$RES_DIR/$(basename "$HOST_LIB")" ]; then
-    cargo clean --package idkit-uniffi --release || true
     cargo clean --package idkit-core --release || true
     rm -rf ~/.cargo/registry/cache || true
   fi
@@ -68,7 +67,7 @@ else
     for entry in "${TARGETS[@]}"; do
       IFS=":" read -r TARGET ABI <<< "$entry"
       echo "  • $TARGET -> $ABI"
-      CROSS_NO_WARNINGS=1 cross build --package idkit-uniffi --target "$TARGET" --release --locked
+      CROSS_NO_WARNINGS=1 cross build --package idkit-core --target "$TARGET" --release --locked --features uniffi-bindings
       mkdir -p "$JNI_DIR/$ABI"
       cp "$PROJECT_ROOT/target/$TARGET/release/libidkit.so" "$JNI_DIR/$ABI/libidkit.so"
       # Clean up Docker resources to save disk space during multi-target builds (CI only)

@@ -29,11 +29,11 @@ cd "$PROJECT_ROOT"
 rustup target add aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-ios aarch64-apple-darwin x86_64-apple-darwin >/dev/null
 
 echo "🔧 Building Rust library for Apple targets"
-cargo build --package idkit-uniffi --target aarch64-apple-ios-sim --release --locked
-cargo build --package idkit-uniffi --target x86_64-apple-ios --release --locked
-cargo build --package idkit-uniffi --target aarch64-apple-ios --release --locked
-cargo build --package idkit-uniffi --target aarch64-apple-darwin --release --locked
-cargo build --package idkit-uniffi --target x86_64-apple-darwin --release --locked
+cargo build --package idkit-core --target aarch64-apple-ios-sim --release --locked --features uniffi-bindings
+cargo build --package idkit-core --target x86_64-apple-ios --release --locked --features uniffi-bindings
+cargo build --package idkit-core --target aarch64-apple-ios --release --locked --features uniffi-bindings
+cargo build --package idkit-core --target aarch64-apple-darwin --release --locked --features uniffi-bindings
+cargo build --package idkit-core --target x86_64-apple-darwin --release --locked --features uniffi-bindings
 
 cp target/aarch64-apple-ios/release/libidkit.a target/aarch64-apple-ios/release/libidkitFFI.a
 cp target/x86_64-apple-ios/release/libidkit.a target/x86_64-apple-ios/release/libidkitFFI.a

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Credential types that can be requested
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "uniffi-bindings", derive(uniffi::Enum))]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum CredentialType {
     /// Orb credential
@@ -51,6 +51,7 @@ impl CredentialType {
 /// - UTF-8 strings (common case for off-chain usage)
 /// - ABI-encoded bytes (for on-chain use cases)
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Object))]
 pub enum Signal {
     /// UTF-8 string signal
     String(String),
@@ -101,6 +102,33 @@ impl Signal {
     }
 }
 
+// UniFFI exports for Signal
+#[cfg(feature = "ffi")]
+#[uniffi::export]
+impl Signal {
+    /// Creates a signal from a string
+    #[uniffi::constructor]
+    pub fn from_string_ffi(s: String) -> std::sync::Arc<Self> {
+        std::sync::Arc::new(Self::from_string(s))
+    }
+
+    /// Creates a signal from ABI-encoded bytes
+    #[uniffi::constructor]
+    pub fn from_abi_encoded_ffi(bytes: Vec<u8>) -> std::sync::Arc<Self> {
+        std::sync::Arc::new(Self::from_abi_encoded(bytes))
+    }
+
+    /// Gets the signal as raw bytes
+    pub fn as_bytes_ffi(&self) -> Vec<u8> {
+        self.as_bytes().to_vec()
+    }
+
+    /// Gets the signal as a string if it's a UTF-8 string signal
+    pub fn as_string_ffi(&self) -> Option<String> {
+        self.as_str().map(String::from)
+    }
+}
+
 impl Serialize for Signal {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -134,6 +162,7 @@ impl<'de> Deserialize<'de> for Signal {
 
 /// A single credential request
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Object))]
 pub struct Request {
     /// The type of credential being requested
     #[serde(rename = "type")]
@@ -193,9 +222,54 @@ impl Request {
     }
 }
 
+// UniFFI exports for Request
+#[cfg(feature = "ffi")]
+#[uniffi::export]
+impl Request {
+    /// Creates a new credential request
+    #[uniffi::constructor]
+    pub fn new_ffi(credential_type: CredentialType, signal: Option<std::sync::Arc<Signal>>) -> std::sync::Arc<Self> {
+        let signal_opt = signal.map(|s| (*s).clone());
+        std::sync::Arc::new(Self::new(credential_type, signal_opt))
+    }
+
+    /// Sets the face authentication requirement on a request
+    pub fn with_face_auth_ffi(&self, face_auth: bool) -> std::sync::Arc<Self> {
+        std::sync::Arc::new(self.clone().with_face_auth(face_auth))
+    }
+
+    /// Gets the signal as raw bytes from a request
+    pub fn get_signal_bytes_ffi(&self) -> Option<Vec<u8>> {
+        self.signal_bytes()
+    }
+
+    /// Gets the credential type
+    pub fn credential_type_ffi(&self) -> CredentialType {
+        self.credential_type
+    }
+
+    /// Gets the `face_auth` setting
+    pub fn face_auth_ffi(&self) -> Option<bool> {
+        self.face_auth
+    }
+
+    /// Serializes a request to JSON
+    pub fn to_json_ffi(&self) -> std::result::Result<String, crate::error::IdkitError> {
+        serde_json::to_string(&self).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
+    }
+
+    /// Deserializes a request from JSON
+    #[uniffi::constructor]
+    pub fn from_json_ffi(json: &str) -> std::result::Result<std::sync::Arc<Self>, crate::error::IdkitError> {
+        serde_json::from_str(json)
+            .map(std::sync::Arc::new)
+            .map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
+    }
+}
+
 /// The proof of verification returned by the World ID protocol
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "uniffi-bindings", derive(uniffi::Record))]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct Proof {
     /// The Zero-knowledge proof of the verification (hex string, ABI encoded)
     pub proof: String,
@@ -208,6 +282,21 @@ pub struct Proof {
 
     /// The verification level used to generate the proof
     pub verification_level: CredentialType,
+}
+
+// UniFFI helper functions for Proof
+#[cfg(feature = "ffi")]
+/// Serializes a proof to JSON
+#[uniffi::export]
+pub fn proof_to_json(proof: &Proof) -> std::result::Result<String, crate::error::IdkitError> {
+    serde_json::to_string(proof).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
+}
+
+#[cfg(feature = "ffi")]
+/// Deserializes a proof from JSON
+#[uniffi::export]
+pub fn proof_from_json(json: &str) -> std::result::Result<Proof, crate::error::IdkitError> {
+    serde_json::from_str(json).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
 }
 
 /// Application ID for World ID
@@ -316,7 +405,7 @@ impl<'de> Deserialize<'de> for BridgeUrl {
 
 /// Verification level (for backward compatibility)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "uniffi-bindings", derive(uniffi::Enum))]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 pub enum VerificationLevel {
     /// Orb-only verification
@@ -347,6 +436,14 @@ impl VerificationLevel {
             ],
         }
     }
+}
+
+// UniFFI helper function for CredentialType
+#[cfg(feature = "ffi")]
+/// Gets the string representation of a credential type
+#[uniffi::export]
+pub fn credential_to_string(credential: &CredentialType) -> String {
+    credential.as_str().to_string()
 }
 
 #[cfg(test)]
