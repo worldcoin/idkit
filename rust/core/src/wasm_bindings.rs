@@ -5,6 +5,7 @@
 
 #![allow(clippy::needless_pass_by_value)]
 #![allow(clippy::missing_panics_doc)]
+#![allow(clippy::future_not_send)]
 
 use crate::{CredentialType, Signal, VerificationLevel};
 use std::cell::RefCell;

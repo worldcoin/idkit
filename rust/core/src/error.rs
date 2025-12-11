@@ -185,13 +185,13 @@ impl From<IdkitError> for Error {
     fn from(e: IdkitError) -> Self {
         match e {
             IdkitError::InvalidConfiguration { details } => Self::InvalidConfiguration(details),
-            IdkitError::JsonError { details } => Self::BridgeError(details),
             IdkitError::CryptoError { details } => Self::Crypto(details),
-            IdkitError::Base64Error { details } => Self::BridgeError(details),
-            IdkitError::UrlError { details } => Self::BridgeError(details),
             IdkitError::InvalidProof { details } => Self::InvalidProof(details),
-            IdkitError::BridgeError { details } => Self::BridgeError(details),
-            IdkitError::AppError { details } => Self::BridgeError(details),
+            IdkitError::JsonError { details }
+            | IdkitError::Base64Error { details }
+            | IdkitError::UrlError { details }
+            | IdkitError::BridgeError { details }
+            | IdkitError::AppError { details } => Self::BridgeError(details),
             IdkitError::UnexpectedResponse => Self::UnexpectedResponse,
             IdkitError::ConnectionFailed => Self::ConnectionFailed,
             IdkitError::Timeout => Self::Timeout,
