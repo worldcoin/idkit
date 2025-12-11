@@ -18,6 +18,9 @@ pub mod types;
 #[cfg(feature = "verification")]
 pub mod verification;
 
+#[cfg(feature = "wasm-bindings")]
+pub mod wasm_bindings;
+
 #[cfg(any(feature = "bridge", feature = "bridge-wasm"))]
 pub use bridge::{Session, Status};
 pub use constraints::{ConstraintNode, Constraints};
@@ -29,5 +32,5 @@ pub use types::{AppId, BridgeUrl, CredentialType, Proof, Request, Signal, Verifi
 pub use verification::{verify_proof, verify_proof_with_endpoint};
 
 // UniFFI scaffolding for core types
-#[cfg(feature = "uniffi-bindings")]
+#[cfg(feature = "ffi")]
 uniffi::setup_scaffolding!("idkit_core");

@@ -7,6 +7,10 @@ repository.workspace = true
 authors.workspace = true
 description = "Core Rust implementation of IDKit - World ID SDK for Relying Parties"
 
+[lib]
+name = "idkit"
+crate-type = ["rlib", "cdylib", "staticlib"]
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -22,6 +26,11 @@ ruint = { workspace = true }
 uniffi = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
 urlencoding = { workspace = true, optional = true }
+wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
+js-sys = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true }
+serde-wasm-bindgen = { version = "0.6", optional = true }
 
 # Platform-specific HTTP client
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -39,9 +48,11 @@ native-crypto = ["aes-gcm"]  # AES-256-GCM encryption for native platforms
 wasm-crypto = ["aes-gcm"]    # AES-256-GCM encryption for WebAssembly
 
 # Language bindings
-uniffi-bindings = ["uniffi"]  # Enable UniFFI scaffolding for Swift/Kotlin bindings
+ffi = ["uniffi", "native-crypto", "bridge", "dep:tokio"]  # Enable UniFFI scaffolding for Swift/Kotlin bindings
+uniffi-bindings = ["ffi"]  # Deprecated alias for ffi feature
+wasm-bindings = ["wasm-crypto", "bridge-wasm", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys", "dep:serde-wasm-bindgen"]  # Enable WASM bindings
 
 # Protocol features
 bridge = ["uuid/v4", "reqwest", "dep:tokio", "dep:urlencoding"]   # Bridge client and session management for verifications
 bridge-wasm = ["uuid/js", "reqwest", "dep:urlencoding"]           # Bridge for WASM (no tokio)
-verification = ["reqwest", "dep:tokio"]                            # Backend proof verification via Developer Portal API
+verification = ["reqwest", "dep:tokio"]                           # Backend proof verification via Developer Portal API

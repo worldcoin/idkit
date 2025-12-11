@@ -1,19 +1,19 @@
 //! WASM bindings for `IDKit`
 //!
-//! This crate provides WebAssembly bindings for the core `IDKit` library,
+//! This module provides WebAssembly bindings for the core `IDKit` library,
 //! allowing it to be used in browser environments.
 
-#![deny(clippy::all, clippy::pedantic, clippy::nursery)]
-#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::missing_panics_doc)]
 
-use idkit_core::{CredentialType, Signal, VerificationLevel};
+use crate::{CredentialType, Signal, VerificationLevel};
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
 
 #[wasm_bindgen]
-pub struct IDKitRequest(idkit_core::Request);
+pub struct IDKitRequest(crate::Request);
 
 #[wasm_bindgen]
 impl IDKitRequest {
@@ -30,7 +30,7 @@ impl IDKitRequest {
     pub fn new(credential_type: JsValue, signal: Option<String>) -> Result<Self, JsValue> {
         let cred: CredentialType = serde_wasm_bindgen::from_value(credential_type)?;
         let signal_opt = signal.map(Signal::from_string);
-        Ok(Self(idkit_core::Request::new(cred, signal_opt)))
+        Ok(Self(crate::Request::new(cred, signal_opt)))
     }
 
     /// Creates a new request with ABI-encoded bytes for the signal
@@ -44,7 +44,7 @@ impl IDKitRequest {
     #[wasm_bindgen(js_name = withBytes)]
     pub fn with_bytes(credential_type: JsValue, signal_bytes: &[u8]) -> Result<Self, JsValue> {
         let cred: CredentialType = serde_wasm_bindgen::from_value(credential_type)?;
-        Ok(Self(idkit_core::Request::new(
+        Ok(Self(crate::Request::new(
             cred,
             Some(Signal::from_abi_encoded(signal_bytes)),
         )))
@@ -69,7 +69,7 @@ impl IDKitRequest {
 }
 
 #[wasm_bindgen]
-pub struct IDKitProof(idkit_core::Proof);
+pub struct IDKitProof(crate::Proof);
 
 #[wasm_bindgen]
 impl IDKitProof {
@@ -86,7 +86,7 @@ impl IDKitProof {
         verification_level: JsValue,
     ) -> Result<Self, JsValue> {
         let cred: CredentialType = serde_wasm_bindgen::from_value(verification_level)?;
-        Ok(Self(idkit_core::Proof {
+        Ok(Self(crate::Proof {
             proof,
             merkle_root,
             nullifier_hash,
@@ -121,7 +121,7 @@ impl BridgeEncryption {
     /// Returns an error if key generation fails
     #[wasm_bindgen(constructor)]
     pub fn new() -> Result<Self, JsValue> {
-        let (key, nonce) = idkit_core::crypto::generate_key()
+        let (key, nonce) = crate::crypto::generate_key()
             .map_err(|e| JsValue::from_str(&format!("Failed to generate key: {e}")))?;
         Ok(Self {
             key: key.to_vec(),
@@ -135,9 +135,9 @@ impl BridgeEncryption {
     ///
     /// Returns an error if encryption fails
     pub fn encrypt(&self, plaintext: &str) -> Result<String, JsValue> {
-        let ciphertext = idkit_core::crypto::encrypt(&self.key, &self.nonce, plaintext.as_bytes())
+        let ciphertext = crate::crypto::encrypt(&self.key, &self.nonce, plaintext.as_bytes())
             .map_err(|e| JsValue::from_str(&format!("Encryption failed: {e}")))?;
-        Ok(idkit_core::crypto::base64_encode(&ciphertext))
+        Ok(crate::crypto::base64_encode(&ciphertext))
     }
 
     /// Decrypts a base64-encoded ciphertext using AES-256-GCM
@@ -146,10 +146,10 @@ impl BridgeEncryption {
     ///
     /// Returns an error if decryption fails or the output is not valid UTF-8
     pub fn decrypt(&self, ciphertext_base64: &str) -> Result<String, JsValue> {
-        let ciphertext = idkit_core::crypto::base64_decode(ciphertext_base64)
+        let ciphertext = crate::crypto::base64_decode(ciphertext_base64)
             .map_err(|e| JsValue::from_str(&format!("Base64 decode failed: {e}")))?;
 
-        let plaintext_bytes = idkit_core::crypto::decrypt(&self.key, &self.nonce, &ciphertext)
+        let plaintext_bytes = crate::crypto::decrypt(&self.key, &self.nonce, &ciphertext)
             .map_err(|e| JsValue::from_str(&format!("Decryption failed: {e}")))?;
 
         String::from_utf8(plaintext_bytes)
@@ -160,14 +160,14 @@ impl BridgeEncryption {
     #[must_use]
     #[wasm_bindgen(js_name = keyBase64)]
     pub fn key_base64(&self) -> String {
-        idkit_core::crypto::base64_encode(&self.key)
+        crate::crypto::base64_encode(&self.key)
     }
 
     /// Returns the nonce as a base64-encoded string
     #[must_use]
     #[wasm_bindgen(js_name = nonceBase64)]
     pub fn nonce_base64(&self) -> String {
-        idkit_core::crypto::base64_encode(&self.nonce)
+        crate::crypto::base64_encode(&self.nonce)
     }
 }
 
@@ -175,7 +175,7 @@ impl BridgeEncryption {
 #[must_use]
 #[wasm_bindgen(js_name = hashSignal)]
 pub fn hash_signal(signal: &str) -> String {
-    use idkit_core::crypto::hash_to_field;
+    use crate::crypto::hash_to_field;
     let hash = hash_to_field(signal.as_bytes());
     format!("{hash:#066x}")
 }
@@ -184,7 +184,7 @@ pub fn hash_signal(signal: &str) -> String {
 #[must_use]
 #[wasm_bindgen(js_name = hashSignalBytes)]
 pub fn hash_signal_bytes(bytes: &[u8]) -> String {
-    use idkit_core::crypto::hash_to_field;
+    use crate::crypto::hash_to_field;
     let hash = hash_to_field(bytes);
     format!("{hash:#066x}")
 }
@@ -201,10 +201,10 @@ struct JsRequestDto {
     face_auth: Option<bool>,
 }
 
-fn js_request_to_core(req: JsRequestDto) -> Result<idkit_core::Request, JsValue> {
+fn js_request_to_core(req: JsRequestDto) -> Result<crate::Request, JsValue> {
     let signal = match (req.signal, req.signal_bytes) {
-        (Some(s), None) => Some(idkit_core::Signal::from_string(s)),
-        (None, Some(bytes)) => Some(idkit_core::Signal::from_abi_encoded(bytes)),
+        (Some(s), None) => Some(Signal::from_string(s)),
+        (None, Some(bytes)) => Some(Signal::from_abi_encoded(bytes)),
         (None, None) => None,
         (Some(_), Some(_)) => {
             return Err(JsValue::from_str(
@@ -213,7 +213,7 @@ fn js_request_to_core(req: JsRequestDto) -> Result<idkit_core::Request, JsValue>
         }
     };
 
-    let mut core_req = idkit_core::Request::new(req.credential_type, signal);
+    let mut core_req = crate::Request::new(req.credential_type, signal);
     if let Some(face) = req.face_auth {
         core_req = core_req.with_face_auth(face);
     }
@@ -224,7 +224,7 @@ fn js_request_to_core(req: JsRequestDto) -> Result<idkit_core::Request, JsValue>
 #[must_use]
 #[wasm_bindgen(js_name = base64Encode)]
 pub fn base64_encode(data: &[u8]) -> String {
-    idkit_core::crypto::base64_encode(data)
+    crate::crypto::base64_encode(data)
 }
 
 /// Decodes base64 data
@@ -234,7 +234,7 @@ pub fn base64_encode(data: &[u8]) -> String {
 /// Returns an error if decoding fails
 #[wasm_bindgen(js_name = base64Decode)]
 pub fn base64_decode(data: &str) -> Result<Vec<u8>, JsValue> {
-    idkit_core::crypto::base64_decode(data)
+    crate::crypto::base64_decode(data)
         .map_err(|e| JsValue::from_str(&format!("Base64 decode failed: {e}")))
 }
 
@@ -244,7 +244,7 @@ pub fn base64_decode(data: &str) -> Result<Vec<u8>, JsValue> {
 #[wasm_bindgen]
 pub struct Session {
     #[wasm_bindgen(skip)]
-    inner: Rc<RefCell<Option<idkit_core::Session>>>,
+    inner: Rc<RefCell<Option<crate::Session>>>,
 }
 
 #[wasm_bindgen]
@@ -274,7 +274,7 @@ impl Session {
     ) -> js_sys::Promise {
         future_to_promise(async move {
             // Parse app_id
-            let app_id = idkit_core::AppId::new(app_id)
+            let app_id = crate::AppId::new(app_id)
                 .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
 
             // Parse verification level
@@ -282,7 +282,7 @@ impl Session {
                 .map_err(|e| JsValue::from_str(&format!("Invalid verification_level: {e}")))?;
 
             // Create session
-            let session = idkit_core::Session::from_verification_level(
+            let session = crate::Session::from_verification_level(
                 app_id,
                 action,
                 vl,
@@ -316,7 +316,7 @@ impl Session {
         bridge_url: Option<String>,
     ) -> js_sys::Promise {
         future_to_promise(async move {
-            let app_id = idkit_core::AppId::new(app_id)
+            let app_id = crate::AppId::new(app_id)
                 .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
 
             let req_vec: Vec<JsRequestDto> = serde_wasm_bindgen::from_value(requests)
@@ -324,14 +324,14 @@ impl Session {
             if req_vec.is_empty() {
                 return Err(JsValue::from_str("At least one request is required"));
             }
-            let core_requests: Vec<idkit_core::Request> = req_vec
+            let core_requests: Vec<crate::Request> = req_vec
                 .into_iter()
                 .map(js_request_to_core)
                 .collect::<Result<_, _>>()?;
 
             let core_constraints = if let Some(c) = constraints {
                 Some(
-                    serde_wasm_bindgen::from_value::<idkit_core::Constraints>(c).map_err(|e| {
+                    serde_wasm_bindgen::from_value::<crate::Constraints>(c).map_err(|e| {
                         JsValue::from_str(&format!("Invalid constraints payload: {e}"))
                     })?,
                 )
@@ -339,19 +339,19 @@ impl Session {
                 // Default: any-of the provided credentials in order
                 let nodes = core_requests
                     .iter()
-                    .map(|r| idkit_core::ConstraintNode::credential(r.credential_type))
+                    .map(|r| crate::ConstraintNode::credential(r.credential_type))
                     .collect();
-                Some(idkit_core::Constraints::new(
-                    idkit_core::ConstraintNode::any(nodes),
+                Some(crate::Constraints::new(
+                    crate::ConstraintNode::any(nodes),
                 ))
             };
 
             let bridge_url_parsed = bridge_url
-                .map(idkit_core::BridgeUrl::new)
+                .map(crate::BridgeUrl::new)
                 .transpose()
                 .map_err(|e| JsValue::from_str(&format!("Invalid bridge_url: {e}")))?;
 
-            let session = idkit_core::Session::create_with_options(
+            let session = crate::Session::create_with_options(
                 app_id,
                 action,
                 core_requests,
@@ -381,7 +381,7 @@ impl Session {
             .borrow()
             .as_ref()
             .ok_or_else(|| JsValue::from_str("Session closed"))
-            .map(idkit_core::Session::connect_url)
+            .map(crate::Session::connect_url)
     }
 
     /// Returns the request ID for this session
@@ -430,23 +430,23 @@ impl Session {
 
             // Convert Rust Status enum to JS object
             let js_status = match status {
-                idkit_core::Status::WaitingForConnection => {
+                crate::Status::WaitingForConnection => {
                     serde_wasm_bindgen::to_value(&serde_json::json!({
                         "type": "waiting_for_connection"
                     }))
                 }
-                idkit_core::Status::AwaitingConfirmation => {
+                crate::Status::AwaitingConfirmation => {
                     serde_wasm_bindgen::to_value(&serde_json::json!({
                         "type": "awaiting_confirmation"
                     }))
                 }
-                idkit_core::Status::Confirmed(proof) => {
+                crate::Status::Confirmed(proof) => {
                     serde_wasm_bindgen::to_value(&serde_json::json!({
                         "type": "confirmed",
                         "proof": proof
                     }))
                 }
-                idkit_core::Status::Failed(error) => {
+                crate::Status::Failed(error) => {
                     serde_wasm_bindgen::to_value(&serde_json::json!({
                         "type": "failed",
                         "error": error
