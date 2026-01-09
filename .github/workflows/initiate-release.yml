@@ -1,0 +1,191 @@
+name: Initiate Release
+description: "Initiates a release of the library by creating a PR that bumps the version across all platforms."
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: "Version bump type"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  initiate-release:
+    runs-on: ubuntu-latest
+    # running releases is only allowed on main
+    if: github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    outputs:
+      new_version: ${{ steps.version.outputs.new_version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Setup Node.js (for jq alternative)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Calculate new version
+        id: version
+        env:
+          BUMP_TYPE: ${{ github.event.inputs.bump_type }}
+        run: |
+          # Get current version from workspace package in Cargo.toml
+          CURRENT_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
+
+          # Ensure CURRENT_VERSION is in semantic versioning format
+          if [[ ! "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "CRITICAL ERROR: CURRENT_VERSION '$CURRENT_VERSION' is not in semantic versioning format (MAJOR.MINOR.PATCH)."
+              exit 1
+          fi
+
+          echo "Current version: $CURRENT_VERSION"
+
+          # Split version into components
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+          # Calculate new version based on bump type
+          case "$BUMP_TYPE" in
+            "major")
+              NEW_VERSION="$((MAJOR + 1)).0.0"
+              ;;
+            "minor")
+              NEW_VERSION="${MAJOR}.$((MINOR + 1)).0"
+              ;;
+            "patch")
+              NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+              ;;
+          esac
+
+          echo "New version will be: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Install cargo-edit
+        run: cargo install cargo-edit
+
+      - name: Update Cargo.toml version
+        run: cargo set-version ${{ steps.version.outputs.new_version }}
+
+      - name: Sync Swift version
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+        run: |
+          # Update version in IDKit.swift
+          sed -i "s/version = \".*\"/version = \"$NEW_VERSION\"/" swift/Sources/IDKit/IDKit.swift
+          echo "✅ Updated swift/Sources/IDKit/IDKit.swift"
+
+      - name: Sync JS versions
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+        run: |
+          # Update js/package.json
+          cd js
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '$NEW_VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          echo "✅ Updated js/package.json"
+
+          # Update js/packages/core/package.json
+          cd packages/core
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '$NEW_VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          echo "✅ Updated js/packages/core/package.json"
+
+      - name: Generate Release Notes
+        id: release_notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPO: ${{ github.repository }}
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+        run: |
+          # Get the latest release tag
+          LATEST_TAG=$(gh release list -L 1 --json tagName -q '.[0].tagName' 2>/dev/null || echo "")
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No previous releases found, generating notes from all commits"
+            NOTES="Initial release $NEW_VERSION"
+          else
+            # Generate release notes between latest tag and current branch
+            NOTES=$(gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPO}/releases/generate-notes" \
+              -f tag_name="${NEW_VERSION}" \
+              -f previous_tag_name="${LATEST_TAG}" \
+              | jq -r .body) || NOTES="Release $NEW_VERSION"
+          fi
+
+          if [[ "$NOTES" == "null" || -z "${NOTES// }" ]]; then
+            NOTES="Release $NEW_VERSION"
+          fi
+
+          echo "release_notes<<DELIM" >> "$GITHUB_OUTPUT"
+          echo "$NOTES" >> "$GITHUB_OUTPUT"
+          echo "DELIM" >> "$GITHUB_OUTPUT"
+
+      - name: Get branch name
+        id: branch_name
+        env:
+          CANDIDATE_BRANCH_NAME: release-${{ steps.version.outputs.new_version }}
+        run: |
+          BRANCH_NAME="$CANDIDATE_BRANCH_NAME"
+
+          # If branch already exists, append random characters
+          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+            RANDOM_SUFFIX=$(openssl rand -hex 4)
+            BRANCH_NAME="${CANDIDATE_BRANCH_NAME}-${RANDOM_SUFFIX}"
+          fi
+
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and Open PR
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_NOTES: ${{ steps.release_notes.outputs.release_notes }}
+          BRANCH_NAME: ${{ steps.branch_name.outputs.branch_name }}
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+        run: |
+          git checkout -b "$BRANCH_NAME"
+
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          
+          # Add all version-related files
+          git add Cargo.toml
+          git add Cargo.lock
+          git add swift/Sources/IDKit/IDKit.swift
+          git add js/package.json
+          git add js/packages/core/package.json
+          
+          git commit -m "Release $NEW_VERSION"
+          git push origin "$BRANCH_NAME"
+
+          echo "Creating PR with release notes:"
+          echo "$RELEASE_NOTES"
+
+          gh pr create \
+            --title "IDKit Release $NEW_VERSION" \
+            --body "$RELEASE_NOTES" \
+            --base main \
+            --label "release" \
+            --head "$BRANCH_NAME"

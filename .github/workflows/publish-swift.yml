@@ -10,8 +10,52 @@ permissions:
   contents: write
 
 jobs:
-  publish-swift:
+  pre-release-checks:
     if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    outputs:
+      new_version: ${{ steps.version.outputs.new_version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get new version
+        id: version
+        run: |
+          NEW_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Version from Cargo.toml: $NEW_VERSION"
+
+      - name: Check latest published version
+        env:
+          GH_TOKEN: ${{ secrets.IDKIT_BOT_TOKEN }}
+        run: |
+          LATEST_RELEASE=$(gh release list -L 1 --repo worldcoin/idkit-swift --json tagName -q '.[0].tagName' 2>/dev/null || echo "0.0.0")
+          
+          # Remove 'v' prefix if present
+          LATEST_RELEASE="${LATEST_RELEASE#v}"
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+
+          echo "Latest release: $LATEST_RELEASE"
+          echo "New version: $NEW_VERSION"
+
+          # Ensure the new version is greater than the latest published version
+          if [ "$LATEST_RELEASE" != "0.0.0" ]; then
+            if ! { [ "$(printf '%s\n' "$LATEST_RELEASE" "$NEW_VERSION" | sort -V | tail -n1)" = "$NEW_VERSION" ] && \
+                   [ "$NEW_VERSION" != "$LATEST_RELEASE" ]; }; then
+              echo "Error: New version ($NEW_VERSION) is not greater than latest release ($LATEST_RELEASE)"
+              exit 1
+            fi
+          fi
+          
+          echo "✅ Version check passed: $NEW_VERSION > $LATEST_RELEASE"
+
+  publish-swift:
+    needs: pre-release-checks
     runs-on: macos-15
     steps:
       - name: Checkout repository
@@ -37,26 +81,20 @@ jobs:
           CHECKSUM=$(swift package compute-checksum IDKitFFI.xcframework.zip)
           echo "checksum=$CHECKSUM" >> "$GITHUB_OUTPUT"
 
-      - name: Determine release version
-        id: version
-        run: |
-          VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
       - name: Create draft release in idkit-swift
         id: release
         uses: softprops/action-gh-release@v2
         with:
           repository: worldcoin/idkit-swift
-          name: ${{ steps.version.outputs.version }}
-          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ needs.pre-release-checks.outputs.new_version }}
+          tag_name: ${{ needs.pre-release-checks.outputs.new_version }}
           make_latest: false
           draft: true
           fail_on_unmatched_files: true
           files: IDKitFFI.xcframework.zip
           token: ${{ secrets.IDKIT_BOT_TOKEN }}
           body: |
-            Please review https://github.com/worldcoin/idkit/releases/tag/${{ steps.version.outputs.version }} for release notes.
+            Please review https://github.com/worldcoin/idkit/releases/tag/${{ needs.pre-release-checks.outputs.new_version }} for release notes.
 
       - name: Checkout idkit-swift repository
         uses: actions/checkout@v4
@@ -65,40 +103,33 @@ jobs:
           token: ${{ secrets.IDKIT_BOT_TOKEN }}
           path: idkit-swift
 
-      - name: Sync Swift sources and Package.swift
+      - name: Sync Swift sources
         run: |
           # Copy non-binary source files
           rm -rf idkit-swift/Sources
           mkdir -p idkit-swift/Sources
           cp -R swift/Sources/IDKit idkit-swift/Sources/
 
-          # Copy Package.swift from idkit repo
-          cp swift/Package.swift idkit-swift/
-          rm -f idkit-swift/Package.resolved
-
-      - name: Update Package.swift metadata
+      - name: Generate Package.swift
         env:
-          ASSET_URL: https://github.com/worldcoin/idkit-swift/releases/download/${{ steps.version.outputs.version }}/IDKitFFI.xcframework.zip
-          VERSION: ${{ steps.version.outputs.version }}
+          ASSET_URL: https://github.com/worldcoin/idkit-swift/releases/download/${{ needs.pre-release-checks.outputs.new_version }}/IDKitFFI.xcframework.zip
+          VERSION: ${{ needs.pre-release-checks.outputs.new_version }}
           CHECKSUM: ${{ steps.checksum.outputs.checksum }}
         run: |
-          cd idkit-swift
-
-          # Transform Package.swift: convert local path binaryTarget to url/checksum
-          sed -i '' 's|path: "IDKitFFI.xcframework"|url: "<asset_url>",\n            checksum: "<checksum>"|' Package.swift
-
-          # Remove testTarget (tests are not distributed with the package)
-          sed -i '' '/\.testTarget(/,/),$/d' Package.swift
-
-          # Replace placeholders with actual values
-          echo "// Release version: ${VERSION}" >> Package.swift
-          awk -v url="$ASSET_URL" '{ gsub(/<asset_url>/, url) }1' Package.swift > temp && mv temp Package.swift
-          awk -v checksum="$CHECKSUM" '{ gsub(/<checksum>/, checksum) }1' Package.swift > temp && mv temp Package.swift
+          # Use archive-swift.sh to generate Package.swift
+          ./scripts/archive-swift.sh \
+            --asset-url "$ASSET_URL" \
+            --checksum "$CHECKSUM" \
+            --release-version "$VERSION"
+          
+          # Copy generated Package.swift to target repo
+          cp Package.swift idkit-swift/
+          rm -f idkit-swift/Package.resolved
 
       - name: Commit and tag release
         working-directory: idkit-swift
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.pre-release-checks.outputs.new_version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -111,7 +142,7 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.IDKIT_BOT_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.pre-release-checks.outputs.new_version }}
         run: |
           gh release edit "$VERSION" \
             --repo worldcoin/idkit-swift \
