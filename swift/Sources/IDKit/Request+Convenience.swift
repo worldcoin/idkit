@@ -28,8 +28,8 @@ public extension Request {
 
 public extension Signal {
     /// Backwards-compatible computed property returning the raw bytes as Data.
-    var data: Data { Data(self.asBytes()) }
+    var bytesData: Data { Data(self.asBytes()) }
 
     /// Backwards-compatible computed property exposing the string form when available.
-    var string: String? { self.asString() }
+    var stringValue: String? { self.asString() }
 }

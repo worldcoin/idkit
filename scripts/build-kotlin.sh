@@ -62,7 +62,7 @@ else
   else
     if ! command -v cross >/dev/null 2>&1; then
       echo "⏳ Installing cross (for Android targets)"
-      cargo install cross --git https://github.com/cross-rs/cross --locked
+      cargo install cross --version 0.2.5 --locked
     fi
 
     for entry in "${TARGETS[@]}"; do
