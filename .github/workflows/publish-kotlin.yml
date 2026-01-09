@@ -145,7 +145,7 @@ jobs:
           toolchain: stable
 
       - name: Install cross
-        run: cargo install cross --version 0.2.5 --locked
+        run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Build Android ${{ matrix.abi }}
         run: |
