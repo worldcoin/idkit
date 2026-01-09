@@ -19,13 +19,13 @@ pub enum ConstraintNode {
     /// Order matters: earlier credentials have higher priority
     Any {
         /// Child constraints (priority ordered)
-        any: Vec<ConstraintNode>,
+        any: Vec<Self>,
     },
 
     /// An AND node - all children must be satisfied
     All {
         /// Child constraints (all required)
-        all: Vec<ConstraintNode>,
+        all: Vec<Self>,
     },
 }
 
