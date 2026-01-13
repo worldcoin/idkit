@@ -1,5 +1,4 @@
 name: Initiate Release
-description: "Initiates a release of the library by creating a PR that bumps the version across all platforms."
 
 on:
   workflow_dispatch:
@@ -85,7 +84,7 @@ jobs:
         run: |
           # Update version in IDKit.swift
           sed -i "s/version = \".*\"/version = \"$NEW_VERSION\"/" swift/Sources/IDKit/IDKit.swift
-          
+
           # Verify the change was made
           if ! grep -q "version = \"$NEW_VERSION\"" swift/Sources/IDKit/IDKit.swift; then
             echo "❌ Failed to update Swift version"
@@ -105,7 +104,7 @@ jobs:
             pkg.version = '$NEW_VERSION';
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
-          
+
           # Verify the change was made
           if ! grep -q "\"version\": \"$NEW_VERSION\"" package.json; then
             echo "❌ Failed to update js/package.json version"
@@ -121,7 +120,7 @@ jobs:
             pkg.version = '$NEW_VERSION';
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
-          
+
           # Verify the change was made
           if ! grep -q "\"version\": \"$NEW_VERSION\"" package.json; then
             echo "❌ Failed to update js/packages/core/package.json version"
@@ -187,14 +186,14 @@ jobs:
 
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
-          
+
           # Add all version-related files
           git add Cargo.toml
           git add Cargo.lock
           git add swift/Sources/IDKit/IDKit.swift
           git add js/package.json
           git add js/packages/core/package.json
-          
+
           git commit -m "Release $NEW_VERSION"
           git push origin "$BRANCH_NAME"
 
