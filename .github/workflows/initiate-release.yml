@@ -85,6 +85,12 @@ jobs:
         run: |
           # Update version in IDKit.swift
           sed -i "s/version = \".*\"/version = \"$NEW_VERSION\"/" swift/Sources/IDKit/IDKit.swift
+          
+          # Verify the change was made
+          if ! grep -q "version = \"$NEW_VERSION\"" swift/Sources/IDKit/IDKit.swift; then
+            echo "❌ Failed to update Swift version"
+            exit 1
+          fi
           echo "✅ Updated swift/Sources/IDKit/IDKit.swift"
 
       - name: Sync JS versions
@@ -99,6 +105,12 @@ jobs:
             pkg.version = '$NEW_VERSION';
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
+          
+          # Verify the change was made
+          if ! grep -q "\"version\": \"$NEW_VERSION\"" package.json; then
+            echo "❌ Failed to update js/package.json version"
+            exit 1
+          fi
           echo "✅ Updated js/package.json"
 
           # Update js/packages/core/package.json
@@ -109,6 +121,12 @@ jobs:
             pkg.version = '$NEW_VERSION';
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
+          
+          # Verify the change was made
+          if ! grep -q "\"version\": \"$NEW_VERSION\"" package.json; then
+            echo "❌ Failed to update js/packages/core/package.json version"
+            exit 1
+          fi
           echo "✅ Updated js/packages/core/package.json"
 
       - name: Generate Release Notes

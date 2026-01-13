@@ -116,6 +116,9 @@ jobs:
           VERSION: ${{ needs.pre-release-checks.outputs.new_version }}
           CHECKSUM: ${{ steps.checksum.outputs.checksum }}
         run: |
+          # Install swiftlint for Package.swift formatting
+          brew install swiftlint
+          
           # Use archive-swift.sh to generate Package.swift
           ./scripts/archive-swift.sh \
             --asset-url "$ASSET_URL" \

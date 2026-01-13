@@ -9,10 +9,6 @@ ASSET_URL=""
 CHECKSUM=""
 RELEASE_VERSION=""
 
-# Get script directory
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
-
 # Function to show usage
 show_usage() {
     echo "❌ Error: Missing required arguments"
@@ -60,7 +56,7 @@ echo "   Checksum: $CHECKSUM"
 echo "   Release Version: $RELEASE_VERSION"
 echo ""
 
-cat > "$PROJECT_ROOT/Package.swift" << EOF
+cat > Package.swift << EOF
 // swift-tools-version: 5.9
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
@@ -109,6 +105,11 @@ let package = Package(
     ]
 )
 EOF
+
+# Run swiftlint to ensure consistent formatting
+if command -v swiftlint &> /dev/null; then
+    swiftlint lint --autocorrect Package.swift || true
+fi
 
 echo ""
 echo "✅ Package.swift built successfully for version $RELEASE_VERSION!"
