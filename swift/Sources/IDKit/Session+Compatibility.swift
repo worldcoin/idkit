@@ -1,5 +1,8 @@
 import Foundation
 
+public typealias Session = SessionWrapper
+public typealias Status = StatusWrapper
+
 /// Errors surfaced by the high-level Swift conveniences.
 public enum SessionError: Error, LocalizedError {
     case timeout
@@ -18,12 +21,17 @@ public enum SessionError: Error, LocalizedError {
     }
 }
 
-public extension Session {
-    /// Matches the IDKit v2 `status()` helper
-    func status(pollInterval: TimeInterval = 3.0) -> AsyncThrowingStream<Status, Error> {
+public extension SessionWrapper {
+    /// Compatibility wrapper matching the previous polling API.
+    func pollForStatus() throws -> StatusWrapper {
+        pollStatus(pollIntervalMs: nil, timeoutMs: nil)
+    }
+
+    /// Matches the IDKit v2 `status()` helper.
+    func status(pollInterval: TimeInterval = 3.0) -> AsyncThrowingStream<StatusWrapper, Error> {
         AsyncThrowingStream { continuation in
             let pollingTask = Task {
-                var previousStatus: Status?
+                var previousStatus: StatusWrapper?
 
                 do {
                     while !Task.isCancelled {
@@ -35,7 +43,7 @@ public extension Session {
                         }
 
                         switch current {
-                        case .confirmed, .failed:
+                        case .confirmed(_), .failed(_):
                             continuation.finish()
                             return
                         case .waitingForConnection, .awaitingConfirmation:
@@ -56,7 +64,7 @@ public extension Session {
     }
 
     /// Backwards-compatible alias for the IDKIT v3 async stream helper.
-    func statusStream(pollInterval: TimeInterval = 3.0) -> AsyncThrowingStream<Status, Error> {
+    func statusStream(pollInterval: TimeInterval = 3.0) -> AsyncThrowingStream<StatusWrapper, Error> {
         status(pollInterval: pollInterval)
     }
 
