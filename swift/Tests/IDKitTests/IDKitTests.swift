@@ -37,7 +37,7 @@ func signalFromString() {
     let signal = Signal.fromString(s: "test_signal")
 
     #expect(signal.asString() == "test_signal")
-    #expect(String(data: signal.data, encoding: .utf8) == "test_signal")
+    #expect(String(data: signal.bytesData, encoding: .utf8) == "test_signal")
 }
 
 @Test("Signal from ABI-encoded bytes")
@@ -45,23 +45,23 @@ func signalFromAbiEncoded() {
     let bytes = Data([0x00, 0x01, 0x02, 0x03])
     let signal = Signal.fromAbiEncoded(bytes: bytes)
 
-    #expect(signal.data == Data(bytes))
+    #expect(signal.bytesData == Data(bytes))
     #expect(signal.asString() == nil)  // Not a valid UTF-8 string
 }
 
-@Test("Signal data property")
-func signalDataProperty() {
+@Test("Signal bytesData property")
+func signalBytesDataProperty() {
     let signal = Signal.fromString(s: "test")
-    let data = signal.data
+    let data = signal.bytesData
 
     #expect(String(data: data, encoding: .utf8) == "test")
 }
 
-@Test("Signal string property")
-func signalStringProperty() {
+@Test("Signal stringValue property")
+func signalStringValueProperty() {
     let signal = Signal.fromString(s: "hello")
 
-    #expect(signal.string == "hello")
+    #expect(signal.stringValue == "hello")
 }
 
 // MARK: - CredentialType Tests
@@ -230,7 +230,7 @@ struct SwiftExtensionsTests {
         let signal = Signal.fromString(s: "test_signal")
 
         // Test Swift extension properties
-        #expect(signal.string == "test_signal")
-        #expect(signal.data == Data("test_signal".utf8))
+        #expect(signal.stringValue == "test_signal")
+        #expect(signal.bytesData == Data("test_signal".utf8))
     }
 }

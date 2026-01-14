@@ -10,21 +10,54 @@ permissions:
   contents: write
 
 jobs:
-  build-host:
+  pre-release-checks:
     if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    outputs:
+      new_version: ${{ steps.version.outputs.new_version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get new version from Cargo.toml
+        id: version
+        run: |
+          NEW_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Version from Cargo.toml: $NEW_VERSION"
+
+      - name: Check latest published version on Maven Central
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+          
+          # Check Maven Central for latest version
+          LATEST_RELEASE=$(curl -s "https://repo1.maven.org/maven2/com/worldcoin/idkit/maven-metadata.xml" | grep -oP '(?<=<latest>)[^<]+' || echo "0.0.0")
+          
+          echo "Latest release on Maven Central: $LATEST_RELEASE"
+          echo "New version: $NEW_VERSION"
+
+          # Ensure the new version is greater than the latest published version
+          if [ "$LATEST_RELEASE" != "0.0.0" ]; then
+            if ! { [ "$(printf '%s\n' "$LATEST_RELEASE" "$NEW_VERSION" | sort -V | tail -n1)" = "$NEW_VERSION" ] && \
+                   [ "$NEW_VERSION" != "$LATEST_RELEASE" ]; }; then
+              echo "Error: New version ($NEW_VERSION) is not greater than latest release ($LATEST_RELEASE)"
+              exit 1
+            fi
+          fi
+          
+          echo "✅ Version check passed: $NEW_VERSION > $LATEST_RELEASE"
+
+  build-host:
     name: Build Host Library & UniFFI Bindings
     runs-on: ubuntu-latest
+    needs: pre-release-checks
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Ensure release version (no -SNAPSHOT)
-        run: |
-          VERSION_LINE=$(grep -E '^version *= ' kotlin/bindings/build.gradle.kts)
-          if echo "$VERSION_LINE" | grep -q "SNAPSHOT"; then
-            echo "Version contains -SNAPSHOT; aborting publish."
-            exit 1
-          fi
 
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -67,10 +100,9 @@ jobs:
           retention-days: 1
 
   build-android:
-    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
     name: Build Android ${{ matrix.abi }}
     runs-on: ubuntu-latest
-    needs: build-host
+    needs: pre-release-checks
     strategy:
       matrix:
         include:
@@ -136,10 +168,9 @@ jobs:
           retention-days: 1
 
   publish-kotlin:
-    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
     name: Publish Kotlin Artifacts
     runs-on: ubuntu-latest
-    needs: [build-host, build-android]
+    needs: [pre-release-checks, build-host, build-android]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

@@ -11,8 +11,49 @@ permissions:
   packages: write
 
 jobs:
-  publish-js:
+  pre-release-checks:
     if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    outputs:
+      new_version: ${{ steps.version.outputs.new_version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get new version from package.json
+        id: version
+        run: |
+          NEW_VERSION=$(node -p "require('./js/packages/core/package.json').version")
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Version from package.json: $NEW_VERSION"
+
+      - name: Check latest published version on npm
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+          
+          # Check npm for latest version
+          LATEST_RELEASE=$(npm view @worldcoin/idkit version 2>/dev/null || echo "0.0.0")
+          
+          echo "Latest release on npm: $LATEST_RELEASE"
+          echo "New version: $NEW_VERSION"
+
+          # Ensure the new version is greater than the latest published version
+          if [ "$LATEST_RELEASE" != "0.0.0" ]; then
+            if ! { [ "$(printf '%s\n' "$LATEST_RELEASE" "$NEW_VERSION" | sort -V | tail -n1)" = "$NEW_VERSION" ] && \
+                   [ "$NEW_VERSION" != "$LATEST_RELEASE" ]; }; then
+              echo "Error: New version ($NEW_VERSION) is not greater than latest release ($LATEST_RELEASE)"
+              exit 1
+            fi
+          fi
+          
+          echo "✅ Version check passed: $NEW_VERSION > $LATEST_RELEASE"
+
+  publish-js:
+    needs: pre-release-checks
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -51,4 +92,4 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         working-directory: js
-        run: pnpm --filter @worldcoin/idkit publish --access public
+        run: pnpm --filter @worldcoin/idkit publish --access public --no-git-checks
