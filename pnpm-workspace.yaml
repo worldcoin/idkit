@@ -1,6 +1,6 @@
 packages:
   - js/packages/*
-  - js/packages/core/examples/browser
+  - js/examples/*
 
 onlyBuiltDependencies:
   - esbuild

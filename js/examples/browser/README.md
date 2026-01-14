@@ -6,20 +6,21 @@ A simple browser example demonstrating World ID verification using IDKit 4.0.
 
 #### Local Development
 
-1. Build the core package:
+From the repo root:
+
 ```bash
-cd ../../
+pnpm install
 pnpm build
 ```
 
-2. Run the example:
+Then run the example:
+
 ```bash
-cd examples/browser
-pnpm install
+cd js/examples/browser
 pnpm dev
 ```
 
-3. Open http://localhost:5173 in your browser (Vite will auto-open it)
+Open http://localhost:5173 in your browser (Vite will auto-open it)
 
 #### Production
 
