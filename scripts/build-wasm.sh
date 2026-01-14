@@ -24,11 +24,19 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 CORE_CRATE="$PROJECT_ROOT/rust/core"
 OUTPUT_DIR="$PROJECT_ROOT/js/packages/core/wasm"
 
-# Check if wasm-pack is installed
+# Check if wasm-pack is installed, install if missing
 if ! command -v wasm-pack &> /dev/null; then
-    echo -e "${RED}Error: wasm-pack is not installed${NC}"
-    echo "Install it with: cargo install wasm-pack"
-    exit 1
+    if ! command -v cargo &> /dev/null; then
+        echo -e "${RED}Error: wasm-pack is not installed and cargo is missing${NC}"
+        echo "Install Rust and cargo, then run: cargo install wasm-pack"
+        exit 1
+    fi
+    echo -e "${YELLOW}wasm-pack not found; installing with cargo...${NC}"
+    cargo install wasm-pack --locked
+    if ! command -v wasm-pack &> /dev/null; then
+        echo -e "${RED}Error: wasm-pack install failed${NC}"
+        exit 1
+    fi
 fi
 
 # Check if the core crate exists
