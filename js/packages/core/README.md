@@ -144,7 +144,7 @@ solidityEncode(types: string[], values: unknown[]): AbiEncodedValue
 
 ## Examples
 
-See [examples/browser](./examples/browser) for a complete working example.
+See [examples/browser](../../examples/browser) for a complete working example.
 
 ## Building from Source
 

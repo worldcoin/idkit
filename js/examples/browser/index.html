@@ -37,12 +37,12 @@
     </section>
 
     <script type="module">
-        // Import IDKit (using relative path for local development)
-        import { useWorldBridgeStore, VerificationLevel } from '../../dist/index.js';
+        // Import IDKit (alias resolves to local dist or npm package)
+        import { useWorldBridgeStore, VerificationLevel } from '@worldcoin/idkit';
 
         // Demo app configuration (WASM auto-initializes on first use)
-        const APP_ID = 'app_staging_123'; // Replace with your actual app ID
-        const ACTION = 'demo-action';
+        const APP_ID = 'app_ce4cb73cb75fc3b73b71ffb4de178410'; // Replace with your actual app ID
+        const ACTION = 'test-action';
 
         // UI elements
         const qrDiv = document.getElementById('qr');
@@ -73,14 +73,16 @@
                 statusDiv.hidden = false;
                 statusText.textContent = 'Creating verification request...';
 
-                await store.createClient({
+                // createClient returns a client with the connectorURI
+                const client = await store.createClient({
                     app_id: APP_ID,
                     action: ACTION,
                     verification_level: verificationLevel,
                     signal: 'demo-signal-' + Date.now(),
                 });
 
-                const url = store.connectorURI;
+                // Use client.connectorURI (not store.connectorURI which is a stale snapshot)
+                const url = client.connectorURI;
                 console.log('Connect URL:', url);
 
                 qrDiv.hidden = false;
@@ -90,31 +92,16 @@
 
                 statusText.textContent = 'Waiting for scan...';
 
-                let attempts = 0;
-                const maxAttempts = 40; // 2 minutes (40 * 3 seconds)
+                // Use client.pollForUpdates() which handles polling automatically
+                const proof = await client.pollForUpdates({
+                    pollInterval: 2000,  // Poll every 2 seconds
+                    timeout: 120000,     // 2 minute timeout
+                });
 
-                while (attempts < maxAttempts) {
-                    await store.pollForUpdates();
-
-                    const state = useWorldBridgeStore();
-
-                    if (state.result) {
-                        statusDiv.hidden = true;
-                        qrDiv.hidden = true;
-                        resultDiv.hidden = false;
-                        resultData.textContent = JSON.stringify(state.result, null, 2);
-                        return;
-                    }
-
-                    if (state.errorCode) {
-                        throw new Error(`Verification failed: ${state.errorCode}`);
-                    }
-
-                    await new Promise(resolve => setTimeout(resolve, 3000));
-                    attempts++;
-                }
-
-                throw new Error('Verification timed out');
+                statusDiv.hidden = true;
+                qrDiv.hidden = true;
+                resultDiv.hidden = false;
+                resultData.textContent = JSON.stringify(proof, null, 2);
 
             } catch (error) {
                 console.error('Verification error:', error);
