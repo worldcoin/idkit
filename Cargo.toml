@@ -44,7 +44,7 @@ urlencoding = "2.1"
 
 # Solidity ABI types
 alloy-sol-types = "0.8.0"
-ruint = "1.11.1"
+ruint = "=1.16.0"
 
 # UniFFI
 uniffi = "0.30"
