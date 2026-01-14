@@ -8,7 +8,13 @@ plugins {
 }
 
 group = "com.worldcoin"
-version = "4.0.1"
+
+// Read version from Cargo.toml (single source of truth)
+val cargoToml = file("../../Cargo.toml")
+val versionRegex = """version\s*=\s*"([^"]+)"""".toRegex()
+val cargoContent = cargoToml.readText()
+version = versionRegex.find(cargoContent)?.groupValues?.get(1)
+    ?: throw GradleException("Could not find version in Cargo.toml")
 
 java {
     toolchain {
