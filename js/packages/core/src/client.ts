@@ -31,7 +31,7 @@ import type { WasmModule } from './lib/wasm'
 import type { ISuccessResult } from './types/result'
 import { AppErrorCodes } from './types/bridge'
 
-/** Options for waitForProof() */
+/** Options for pollForUpdates() */
 export interface WaitOptions {
 	/** Milliseconds between polls (default: 1000) */
 	pollInterval?: number
@@ -165,7 +165,7 @@ export class WorldBridgeClient {
 	 * Poll once for current status (for manual polling)
 	 *
 	 * Use this if you want to implement your own polling logic instead of
-	 * using waitForProof().
+	 * using pollForUpdates().
 	 *
 	 * @returns Current status of the verification
 	 *
