@@ -7,6 +7,7 @@
 #![allow(clippy::module_name_repetitions)]
 
 use idkit_core::{CredentialType, Signal, VerificationLevel};
+use serde::Serialize;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
@@ -428,29 +429,22 @@ impl Session {
             // Put session back
             *inner.borrow_mut() = Some(session);
 
-            // Convert Rust Status enum to JS object
+            // Convert Rust Status enum to plain JS object
+            // Use serialize_maps_as_objects(true) to return plain objects instead of Maps
+            let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+
             let js_status = match status {
                 idkit_core::Status::WaitingForConnection => {
-                    serde_wasm_bindgen::to_value(&serde_json::json!({
-                        "type": "waiting_for_connection"
-                    }))
+                    serde_json::json!({"type": "waiting_for_connection"}).serialize(&serializer)
                 }
                 idkit_core::Status::AwaitingConfirmation => {
-                    serde_wasm_bindgen::to_value(&serde_json::json!({
-                        "type": "awaiting_confirmation"
-                    }))
+                    serde_json::json!({"type": "awaiting_confirmation"}).serialize(&serializer)
                 }
                 idkit_core::Status::Confirmed(proof) => {
-                    serde_wasm_bindgen::to_value(&serde_json::json!({
-                        "type": "confirmed",
-                        "proof": proof
-                    }))
+                    serde_json::json!({"type": "confirmed", "proof": proof}).serialize(&serializer)
                 }
                 idkit_core::Status::Failed(error) => {
-                    serde_wasm_bindgen::to_value(&serde_json::json!({
-                        "type": "failed",
-                        "error": error
-                    }))
+                    serde_json::json!({"type": "failed", "error": format!("{error:?}")}).serialize(&serializer)
                 }
             }
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
