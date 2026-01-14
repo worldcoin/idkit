@@ -444,7 +444,8 @@ impl Session {
                     serde_json::json!({"type": "confirmed", "proof": proof}).serialize(&serializer)
                 }
                 idkit_core::Status::Failed(error) => {
-                    serde_json::json!({"type": "failed", "error": format!("{error:?}")}).serialize(&serializer)
+                    serde_json::json!({"type": "failed", "error": format!("{error:?}")})
+                        .serialize(&serializer)
                 }
             }
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
