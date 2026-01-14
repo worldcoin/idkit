@@ -4,7 +4,8 @@ import { resolve } from 'path';
 export default defineConfig({
   resolve: {
     alias: {
-      '@worldcoin/idkit': resolve(__dirname, '../../dist/index.js'),
+      // Resolve to the locally-built core package output in this monorepo.
+      '@worldcoin/idkit': resolve(__dirname, '../../packages/core/dist/index.js'),
     },
   },
   server: {
