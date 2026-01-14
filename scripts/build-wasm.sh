@@ -25,17 +25,24 @@ CORE_CRATE="$PROJECT_ROOT/rust/core"
 OUTPUT_DIR="$PROJECT_ROOT/js/packages/core/wasm"
 
 # Check if wasm-pack is installed, install if missing
+WASM_PACK_VERSION="0.12.1"
 if ! command -v wasm-pack &> /dev/null; then
     if ! command -v cargo &> /dev/null; then
         echo -e "${RED}Error: wasm-pack is not installed and cargo is missing${NC}"
         echo "Install Rust and cargo, then run: cargo install wasm-pack"
         exit 1
     fi
-    echo -e "${YELLOW}wasm-pack not found; installing with cargo...${NC}"
-    cargo install wasm-pack --locked
+    echo -e "${YELLOW}wasm-pack not found; installing ${WASM_PACK_VERSION} with cargo...${NC}"
+    cargo install wasm-pack --version "${WASM_PACK_VERSION}" --locked
     if ! command -v wasm-pack &> /dev/null; then
         echo -e "${RED}Error: wasm-pack install failed${NC}"
         exit 1
+    fi
+else
+    INSTALLED_WASM_PACK_VERSION="$(wasm-pack --version | awk '{print $2}')"
+    if [ "$INSTALLED_WASM_PACK_VERSION" != "$WASM_PACK_VERSION" ]; then
+        echo -e "${YELLOW}wasm-pack ${INSTALLED_WASM_PACK_VERSION} found; installing ${WASM_PACK_VERSION}...${NC}"
+        cargo install wasm-pack --version "${WASM_PACK_VERSION}" --locked --force
     fi
 fi
 
