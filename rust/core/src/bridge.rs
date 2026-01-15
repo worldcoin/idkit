@@ -12,6 +12,9 @@ use uuid::Uuid;
 #[cfg(feature = "native-crypto")]
 use crate::crypto::CryptoKey;
 
+#[cfg(feature = "ffi")]
+use std::sync::Arc;
+
 /// Bridge request payload sent to initialize a session
 #[derive(Debug, Serialize)]
 struct BridgeRequestPayload {
@@ -326,6 +329,197 @@ impl Session {
     #[must_use]
     pub const fn request_id(&self) -> Uuid {
         self.request_id
+    }
+}
+
+// UniFFI wrapper for Session with tokio runtime
+#[cfg(feature = "ffi")]
+#[derive(uniffi::Object)]
+pub struct SessionWrapper {
+    runtime: tokio::runtime::Runtime,
+    inner: Session,
+}
+
+#[cfg(feature = "ffi")]
+#[derive(Debug, Clone, uniffi::Enum)]
+pub enum StatusWrapper {
+    /// Waiting for World App to retrieve the request
+    WaitingForConnection,
+    /// World App has retrieved the request, waiting for user confirmation
+    AwaitingConfirmation,
+    /// User has confirmed and provided a proof
+    Confirmed { proof: Proof },
+    /// Request has failed
+    Failed { error: String },
+}
+
+#[cfg(feature = "ffi")]
+impl From<Status> for StatusWrapper {
+    fn from(status: Status) -> Self {
+        match status {
+            Status::WaitingForConnection => Self::WaitingForConnection,
+            Status::AwaitingConfirmation => Self::AwaitingConfirmation,
+            Status::Confirmed(proof) => Self::Confirmed { proof },
+            Status::Failed(app_error) => Self::Failed {
+                error: app_error.to_string(),
+            },
+        }
+    }
+}
+
+#[cfg(feature = "ffi")]
+#[uniffi::export]
+#[allow(clippy::needless_pass_by_value)]
+impl SessionWrapper {
+    /// Creates a new session
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created or the request fails
+    #[uniffi::constructor]
+    pub fn create(
+        app_id: String,
+        action: String,
+        requests: Vec<Arc<Request>>,
+    ) -> std::result::Result<Self, crate::error::IdkitError> {
+        let runtime =
+            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
+                details: format!("Failed to create runtime: {e}"),
+            })?;
+
+        let app_id_parsed = AppId::new(&app_id)?;
+        let core_requests: Vec<Request> = requests.iter().map(|r| (**r).clone()).collect();
+
+        let inner = runtime
+            .block_on(Session::create(app_id_parsed, action, core_requests))
+            .map_err(crate::error::IdkitError::from)?;
+
+        Ok(Self { runtime, inner })
+    }
+
+    /// Creates a new session with optional configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created or the request fails
+    #[uniffi::constructor]
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_with_options(
+        app_id: String,
+        action: String,
+        requests: Vec<Arc<Request>>,
+        action_description: Option<String>,
+        constraints: Option<Arc<Constraints>>,
+        bridge_url: Option<String>,
+    ) -> std::result::Result<Self, crate::error::IdkitError> {
+        let runtime =
+            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
+                details: format!("Failed to create runtime: {e}"),
+            })?;
+
+        let app_id_parsed = AppId::new(&app_id)?;
+        let core_requests: Vec<Request> = requests.iter().map(|r| (**r).clone()).collect();
+        let core_constraints = constraints.map(|c| (*c).clone());
+        let bridge_url_parsed = bridge_url.map(|url| BridgeUrl::new(&url)).transpose()?;
+
+        let inner = runtime
+            .block_on(Session::create_with_options(
+                app_id_parsed,
+                action,
+                core_requests,
+                action_description,
+                core_constraints,
+                bridge_url_parsed,
+            ))
+            .map_err(crate::error::IdkitError::from)?;
+
+        Ok(Self { runtime, inner })
+    }
+
+    /// Creates a session from a verification level
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created or the request fails
+    #[uniffi::constructor]
+    pub fn from_verification_level(
+        app_id: String,
+        action: String,
+        verification_level: VerificationLevel,
+        signal: String,
+    ) -> std::result::Result<Self, crate::error::IdkitError> {
+        let runtime =
+            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
+                details: format!("Failed to create runtime: {e}"),
+            })?;
+
+        let app_id_parsed = AppId::new(&app_id)?;
+
+        let inner = runtime
+            .block_on(Session::from_verification_level(
+                app_id_parsed,
+                action,
+                verification_level,
+                signal,
+            ))
+            .map_err(crate::error::IdkitError::from)?;
+
+        Ok(Self { runtime, inner })
+    }
+
+    /// Returns the connect URL for World App
+    #[must_use]
+    pub fn connect_url(&self) -> String {
+        self.inner.connect_url()
+    }
+
+    /// Returns the request ID for this session
+    #[must_use]
+    pub fn request_id(&self) -> String {
+        self.inner.request_id().to_string()
+    }
+
+    /// Polls the session for updates until completion
+    pub fn poll_status(
+        &self,
+        poll_interval_ms: Option<u64>,
+        timeout_ms: Option<u64>,
+    ) -> StatusWrapper {
+        let poll_interval = std::time::Duration::from_millis(poll_interval_ms.unwrap_or(2000));
+        let timeout = timeout_ms.map(std::time::Duration::from_millis);
+
+        let mut elapsed = std::time::Duration::from_millis(0);
+
+        loop {
+            match self.runtime.block_on(self.inner.poll_for_status()) {
+                Ok(status) => match status {
+                    Status::WaitingForConnection | Status::AwaitingConfirmation => {
+                        if let Some(timeout) = timeout {
+                            if elapsed >= timeout {
+                                return StatusWrapper::Failed {
+                                    error: "Timed out waiting for confirmation".to_string(),
+                                };
+                            }
+                        }
+                        std::thread::sleep(poll_interval);
+                        elapsed += poll_interval;
+                    }
+                    Status::Confirmed(proof) => {
+                        return StatusWrapper::Confirmed { proof };
+                    }
+                    Status::Failed(app_error) => {
+                        return StatusWrapper::Failed {
+                            error: app_error.to_string(),
+                        };
+                    }
+                },
+                Err(err) => {
+                    return StatusWrapper::Failed {
+                        error: err.to_string(),
+                    };
+                }
+            }
+        }
     }
 }
 

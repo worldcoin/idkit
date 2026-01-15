@@ -21,7 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Paths
-WASM_CRATE="$PROJECT_ROOT/rust/wasm"
+CORE_CRATE="$PROJECT_ROOT/rust/core"
 OUTPUT_DIR="$PROJECT_ROOT/js/packages/core/wasm"
 
 # Check if wasm-pack is installed
@@ -31,9 +31,9 @@ if ! command -v wasm-pack &> /dev/null; then
     exit 1
 fi
 
-# Check if the wasm crate exists
-if [ ! -d "$WASM_CRATE" ]; then
-    echo -e "${RED}Error: WASM crate not found at $WASM_CRATE${NC}"
+# Check if the core crate exists
+if [ ! -d "$CORE_CRATE" ]; then
+    echo -e "${RED}Error: Core crate not found at $CORE_CRATE${NC}"
     exit 1
 fi
 
@@ -46,12 +46,14 @@ echo -e "${YELLOW}Compiling Rust to WASM...${NC}"
 # --target web: Generate ES modules for use in browsers
 # --out-dir: Output directory for generated files
 # --out-name: Name of the generated WASM file (default: package name)
-cd "$WASM_CRATE"
+# --features wasm-bindings: Enable WASM bindings in idkit-core
+cd "$CORE_CRATE"
 wasm-pack build \
     --target web \
     --out-dir "$OUTPUT_DIR" \
     --out-name idkit_wasm \
-    --release
+    --release \
+    -- --features wasm-bindings
 
 # wasm-pack generates a package.json and .gitignore we don't need
 echo -e "${YELLOW}Cleaning up unnecessary files...${NC}"

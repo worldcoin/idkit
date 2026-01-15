@@ -1,5 +1,10 @@
 import Foundation
 
+/// Type alias for backwards compatibility - the generated type is SessionWrapper
+public typealias Session = SessionWrapper
+/// Type alias for backwards compatibility - the generated type is StatusWrapper
+public typealias Status = StatusWrapper
+
 /// Errors surfaced by the high-level Swift conveniences.
 public enum SessionError: Error, LocalizedError {
     case timeout
@@ -18,16 +23,16 @@ public enum SessionError: Error, LocalizedError {
     }
 }
 
-public extension Session {
+public extension SessionWrapper {
     /// Matches the IDKit v2 `status()` helper
-    func status(pollInterval: TimeInterval = 3.0) -> AsyncThrowingStream<Status, Error> {
+    func status(pollInterval: TimeInterval = 3.0) -> AsyncThrowingStream<StatusWrapper, Error> {
         AsyncThrowingStream { continuation in
             let pollingTask = Task {
-                var previousStatus: Status?
+                var previousStatus: StatusWrapper?
 
                 do {
                     while !Task.isCancelled {
-                        let current = try self.pollForStatus()
+                        let current = self.pollStatus(pollIntervalMs: nil, timeoutMs: nil)
 
                         if current != previousStatus {
                             previousStatus = current
@@ -56,7 +61,7 @@ public extension Session {
     }
 
     /// Backwards-compatible alias for the IDKIT v3 async stream helper.
-    func statusStream(pollInterval: TimeInterval = 3.0) -> AsyncThrowingStream<Status, Error> {
+    func statusStream(pollInterval: TimeInterval = 3.0) -> AsyncThrowingStream<StatusWrapper, Error> {
         status(pollInterval: pollInterval)
     }
 
