@@ -12,7 +12,7 @@ echo "📦 Packaging Kotlin bindings"
 SKIP_ANDROID=${SKIP_ANDROID:-0} "$SCRIPT_DIR/build-kotlin.sh"
 
 VERSION=$(cargo metadata --no-deps --format-version 1 \
-  | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
+  | jq -r '.packages[] | select(.name=="idkit-core") | .version')
 
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"

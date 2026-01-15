@@ -267,8 +267,8 @@ rustup target add aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-ios
 rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
 # 2. Build for all platforms
-cargo build --release --package idkit-uniffi --target aarch64-apple-ios
-cargo build --release --package idkit-uniffi --target aarch64-apple-darwin
+cargo build --release --package idkit-core --target aarch64-apple-ios --features uniffi-bindings
+cargo build --release --package idkit-core --target aarch64-apple-darwin --features uniffi-bindings
 # ... (see scripts/package-swift.sh for complete build steps)
 
 # 3. Generate bindings

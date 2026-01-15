@@ -8,6 +8,7 @@
 #![deny(clippy::all, clippy::pedantic, clippy::nursery)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::missing_const_for_fn)]
+#![cfg_attr(target_arch = "wasm32", allow(clippy::future_not_send))]
 
 #[cfg(any(feature = "bridge", feature = "bridge-wasm"))]
 pub mod bridge;
@@ -17,6 +18,9 @@ pub mod error;
 pub mod types;
 #[cfg(feature = "verification")]
 pub mod verification;
+
+#[cfg(feature = "wasm-bindings")]
+pub mod wasm_bindings;
 
 #[cfg(any(feature = "bridge", feature = "bridge-wasm"))]
 pub use bridge::{Session, Status};
@@ -29,5 +33,5 @@ pub use types::{AppId, BridgeUrl, CredentialType, Proof, Request, Signal, Verifi
 pub use verification::{verify_proof, verify_proof_with_endpoint};
 
 // UniFFI scaffolding for core types
-#[cfg(feature = "uniffi-bindings")]
+#[cfg(feature = "ffi")]
 uniffi::setup_scaffolding!("idkit_core");
