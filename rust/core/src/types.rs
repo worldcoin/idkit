@@ -112,27 +112,29 @@ impl Signal {
 impl Signal {
     /// Creates a signal from a string
     #[must_use]
-    #[uniffi::constructor]
-    pub fn new_from_string(s: String) -> Arc<Self> {
+    #[uniffi::constructor(name = "from_string")]
+    pub fn ffi_from_string(s: String) -> Arc<Self> {
         Arc::new(Self::from_string(s))
     }
 
     /// Creates a signal from ABI-encoded bytes
     #[must_use]
-    #[uniffi::constructor]
-    pub fn new_from_abi_encoded(bytes: Vec<u8>) -> Arc<Self> {
+    #[uniffi::constructor(name = "from_abi_encoded")]
+    pub fn ffi_from_abi_encoded(bytes: Vec<u8>) -> Arc<Self> {
         Arc::new(Self::from_abi_encoded(bytes))
     }
 
     /// Gets the signal as raw bytes
     #[must_use]
-    pub fn bytes(&self) -> Vec<u8> {
+    #[uniffi::method(name = "as_bytes")]
+    pub fn ffi_as_bytes(&self) -> Vec<u8> {
         self.to_bytes()
     }
 
     /// Gets the signal as a string if it's a UTF-8 string signal
     #[must_use]
-    pub fn string(&self) -> Option<String> {
+    #[uniffi::method(name = "as_string")]
+    pub fn ffi_as_string(&self) -> Option<String> {
         self.as_str().map(String::from)
     }
 }
@@ -237,15 +239,16 @@ impl Request {
 impl Request {
     /// Creates a new credential request
     #[must_use]
-    #[uniffi::constructor]
-    pub fn create(credential_type: CredentialType, signal: Option<Arc<Signal>>) -> Arc<Self> {
+    #[uniffi::constructor(name = "new")]
+    pub fn ffi_new(credential_type: CredentialType, signal: Option<Arc<Signal>>) -> Arc<Self> {
         let signal_opt = signal.map(|s| (*s).clone());
         Arc::new(Self::new(credential_type, signal_opt))
     }
 
     /// Sets the face authentication requirement on a request
     #[must_use]
-    pub fn set_face_auth(&self, face_auth: bool) -> Arc<Self> {
+    #[uniffi::method(name = "with_face_auth")]
+    pub fn ffi_with_face_auth(&self, face_auth: bool) -> Arc<Self> {
         Arc::new(self.clone().with_face_auth(face_auth))
     }
 
@@ -253,6 +256,18 @@ impl Request {
     #[must_use]
     pub fn get_signal_bytes(&self) -> Option<Vec<u8>> {
         self.signal_bytes()
+    }
+
+    /// Gets the credential type
+    #[must_use]
+    pub fn credential_type(&self) -> CredentialType {
+        self.credential_type
+    }
+
+    /// Gets the face_auth setting
+    #[must_use]
+    pub fn face_auth(&self) -> Option<bool> {
+        self.face_auth
     }
 
     /// Serializes a request to JSON
@@ -270,8 +285,8 @@ impl Request {
     /// # Errors
     ///
     /// Returns an error if JSON deserialization fails
-    #[uniffi::constructor]
-    pub fn new_from_json(json: &str) -> std::result::Result<Arc<Self>, crate::error::IdkitError> {
+    #[uniffi::constructor(name = "from_json")]
+    pub fn ffi_from_json(json: &str) -> std::result::Result<Arc<Self>, crate::error::IdkitError> {
         serde_json::from_str(json)
             .map(Arc::new)
             .map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))

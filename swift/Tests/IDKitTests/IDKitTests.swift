@@ -165,7 +165,7 @@ func sessionCreationAPIShape() {
     )
 
     // If we reach here without crashing, the APIs exist
-    #expect(true)
+    #expect(Bool(true))
 }
 
 // MARK: - SDK Version Test
