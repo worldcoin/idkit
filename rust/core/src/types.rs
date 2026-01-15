@@ -264,7 +264,7 @@ impl Request {
         self.credential_type
     }
 
-    /// Gets the face_auth setting
+    /// Gets the `face_auth` setting
     #[must_use]
     pub fn face_auth(&self) -> Option<bool> {
         self.face_auth
