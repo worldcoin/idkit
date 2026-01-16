@@ -7,6 +7,9 @@
     "build": "vite build",
     "preview": "vite preview"
   },
+  "dependencies": {
+    "@worldcoin/idkit-core": "workspace:*"
+  },
   "devDependencies": {
     "vite": "^7.0.0"
   }

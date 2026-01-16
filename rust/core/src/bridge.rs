@@ -4,7 +4,7 @@ use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
     types::{AppId, BridgeUrl, Proof, Request, Signal, VerificationLevel},
-    ConstraintNode, Constraints,
+    Constraints,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -28,12 +28,45 @@ struct BridgeRequestPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     action_description: Option<String>,
 
-    /// Set of requests
+    /// Set of requests (World App 4.0+ format - signals are unhashed)
     requests: Vec<Request>,
 
-    /// Optional constraints
+    /// Optional constraints (World App 4.0+ format)
     #[serde(skip_serializing_if = "Option::is_none")]
     constraints: Option<Constraints>,
+
+    /// Hashed signal for legacy compatibility (World App 3.0)
+    /// Derived from the request with the max verification level credential type
+    signal: String,
+
+    /// Max verification level derived from requests (World App 3.0 compatibility)
+    verification_level: VerificationLevel,
+}
+
+/// Derives legacy bridge fields (`verification_level`, hashed signal) from requests.
+///
+/// This enables backwards compatibility with World App 3.0 which expects:
+/// - `verification_level`: The maximum (least restrictive) level from all credential types
+/// - `signal`: The hashed signal from the request with the max credential type
+///
+/// Priority (most to least restrictive): orb > `secure_document` > document > face > device
+//TODO: This is not 100% accurate, will refine this in a followup PR, but for now it "works".
+fn derive_legacy_fields(requests: &[Request]) -> (VerificationLevel, String) {
+    let cred_types: Vec<_> = requests.iter().map(|r| r.credential_type).collect();
+    let verification_level = VerificationLevel::from_credential_types(&cred_types);
+
+    let target_cred = verification_level.primary_credential();
+
+    let signal = requests
+        .iter()
+        .find(|r| r.credential_type == target_cred)
+        .and_then(|r| r.signal.as_ref())
+        .map_or_else(
+            || crate::crypto::encode_signal(&Signal::from_string("")),
+            crate::crypto::encode_signal,
+        );
+
+    (verification_level, signal)
 }
 
 /// Encrypted payload sent to/from the bridge
@@ -166,6 +199,9 @@ impl Session {
         #[cfg(not(feature = "native-crypto"))]
         let (key_bytes, nonce_bytes) = crate::crypto::generate_key()?;
 
+        // Derive legacy fields for World App 3.0 compatibility
+        let (verification_level, signal) = derive_legacy_fields(&requests);
+
         // Prepare the payload
         let payload = BridgeRequestPayload {
             app_id: app_id.as_str().to_string(),
@@ -173,6 +209,8 @@ impl Session {
             action_description,
             requests: requests.clone(),
             constraints,
+            signal,
+            verification_level,
         };
 
         let payload_json = serde_json::to_vec(&payload)?;
@@ -224,38 +262,6 @@ impl Session {
             request_id: create_response.request_id,
             client,
         })
-    }
-
-    /// Creates a session from a verification level
-    ///
-    /// This is a convenience method that maps a verification level (like "device" or "orb")
-    /// to the appropriate set of credential requests and constraints.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the session cannot be created or the request fails
-    pub async fn from_verification_level(
-        app_id: AppId,
-        action: impl Into<String>,
-        verification_level: VerificationLevel,
-        signal: impl Into<String>,
-    ) -> Result<Self> {
-        let signal_str = signal.into();
-        let credentials = verification_level.to_credentials();
-
-        let requests = credentials
-            .iter()
-            .map(|cred| Request::new(*cred, Some(Signal::from_string(signal_str.clone()))))
-            .collect();
-
-        let constraints = Constraints::new(ConstraintNode::any(
-            credentials
-                .into_iter()
-                .map(ConstraintNode::credential)
-                .collect(),
-        ));
-
-        Self::create_with_options(app_id, action, requests, None, Some(constraints), None).await
     }
 
     /// Returns the connect URL for World App
@@ -436,37 +442,6 @@ impl SessionWrapper {
         Ok(Self { runtime, inner })
     }
 
-    /// Creates a session from a verification level
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the session cannot be created or the request fails
-    #[uniffi::constructor]
-    pub fn from_verification_level(
-        app_id: String,
-        action: String,
-        verification_level: VerificationLevel,
-        signal: String,
-    ) -> std::result::Result<Self, crate::error::IdkitError> {
-        let runtime =
-            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
-                details: format!("Failed to create runtime: {e}"),
-            })?;
-
-        let app_id_parsed = AppId::new(&app_id)?;
-
-        let inner = runtime
-            .block_on(Session::from_verification_level(
-                app_id_parsed,
-                action,
-                verification_level,
-                signal,
-            ))
-            .map_err(crate::error::IdkitError::from)?;
-
-        Ok(Self { runtime, inner })
-    }
-
     /// Returns the connect URL for World App
     #[must_use]
     pub fn connect_url(&self) -> String {
@@ -531,17 +506,24 @@ mod tests {
     #[test]
     fn test_bridge_request_payload_serialization() {
         let request = Request::new(CredentialType::Orb, Some(Signal::from_string("test")));
+        let requests = vec![request];
+        let (verification_level, signal) = derive_legacy_fields(&requests);
+
         let payload = BridgeRequestPayload {
             app_id: "app_test".to_string(),
             action: "test_action".to_string(),
             action_description: Some("Test description".to_string()),
-            requests: vec![request],
+            requests,
             constraints: None,
+            signal,
+            verification_level,
         };
 
         let json = serde_json::to_string(&payload).unwrap();
         assert!(json.contains("app_test"));
         assert!(json.contains("test_action"));
+        assert!(json.contains("verification_level"));
+        assert!(json.contains("\"signal\":\"0x"));
     }
 
     #[test]

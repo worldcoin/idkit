@@ -157,13 +157,6 @@ func sessionCreationAPIShape() {
         bridgeUrl: nil
     )
 
-    _ = try? Session.fromVerificationLevel(
-        appId: "app_test_invalid",
-        action: "test",
-        verificationLevel: .orb,
-        signal: "test"
-    )
-
     // If we reach here without crashing, the APIs exist
     #expect(Bool(true))
 }

@@ -7,7 +7,7 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::future_not_send)]
 
-use crate::{CredentialType, Signal, VerificationLevel};
+use crate::{CredentialType, Signal};
 use serde::Serialize;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -251,54 +251,6 @@ pub struct Session {
 
 #[wasm_bindgen]
 impl Session {
-    /// Creates a new session from a verification level
-    ///
-    /// This is a convenience method that maps a verification level (like `"device"` or `"orb"`)
-    /// to the appropriate set of credential requests and constraints.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the session cannot be created or the request fails
-    ///
-    /// # Arguments
-    ///
-    /// * `app_id` - Application ID from the Developer Portal (e.g., `"app_staging_xxxxx"`)
-    /// * `action` - Action identifier
-    /// * `verification_level` - Verification level as string (`"orb"`, `"device"`, etc.)
-    /// * `signal` - Optional signal string for cryptographic binding
-    #[wasm_bindgen(constructor)]
-    #[allow(clippy::new_ret_no_self)] // WASM async constructors return Promise
-    pub fn new(
-        app_id: String,
-        action: String,
-        verification_level: JsValue,
-        signal: Option<String>,
-    ) -> js_sys::Promise {
-        future_to_promise(async move {
-            // Parse app_id
-            let app_id = crate::AppId::new(app_id)
-                .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
-
-            // Parse verification level
-            let vl: VerificationLevel = serde_wasm_bindgen::from_value(verification_level)
-                .map_err(|e| JsValue::from_str(&format!("Invalid verification_level: {e}")))?;
-
-            // Create session
-            let session = crate::Session::from_verification_level(
-                app_id,
-                action,
-                vl,
-                signal.unwrap_or_default(),
-            )
-            .await
-            .map_err(|e| JsValue::from_str(&format!("Failed to create session: {e}")))?;
-
-            Ok(JsValue::from(Self {
-                inner: Rc::new(RefCell::new(Some(session))),
-            }))
-        })
-    }
-
     /// Creates a new session from explicit requests and optional constraints
     ///
     /// # Arguments

@@ -26,4 +26,3 @@ Set `SKIP_ANDROID=1` to skip Android builds (useful on local Macs without Docker
 - `IdKit.request(...)` / `requestAbi(...)` – build requests with optional faceAuth
 - `IdKit.anyOf(...)` / `allOf(...)` – quick constraints
 - `IdKit.session(...)` – create sessions with optional description/constraints/bridge URL
-- `IdKit.sessionFromVerificationLevel(...)` – verification-level shortcut
