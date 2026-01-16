@@ -14,10 +14,10 @@ import {
 	buffer_decode,
 	isNode,
 	isWeb,
-	VerificationLevel,
 	AppErrorCodes,
 	VerificationState,
 } from '../index'
+import type { CredentialType } from '../index'
 
 describe('WASM Initialization', () => {
 	it('should initialize WASM via initIDKit', async () => {
@@ -175,13 +175,6 @@ describe('Bridge Store', () => {
 })
 
 describe('Enums', () => {
-	it('should export VerificationLevel enum', () => {
-		expect(VerificationLevel.Orb).toBe('orb')
-		expect(VerificationLevel.Face).toBe('face')
-		expect(VerificationLevel.Device).toBe('device')
-		expect(VerificationLevel.SecureDocument).toBe('secure_document')
-		expect(VerificationLevel.Document).toBe('document')
-	})
 
 	it('should export AppErrorCodes enum', () => {
 		expect(AppErrorCodes.ConnectionFailed).toBe('connection_failed')

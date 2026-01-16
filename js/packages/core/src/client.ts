@@ -10,8 +10,10 @@
  * const client = await store.createClient({
  *   app_id: 'app_staging_xxxxx',
  *   action: 'my-action',
- *   verification_level: VerificationLevel.Orb,
- *   signal: 'user-id-123',
+ *   requests: [
+ *     { credential_type: 'orb', signal: 'user-id-123' },
+ *     { credential_type: 'device', signal: 'user-id-123' },
+ *   ],
  * })
  *
  * // Display QR code
@@ -19,7 +21,7 @@
  *
  * // Wait for proof
  * try {
- *   const proof = await client.waitForProof()
+ *   const proof = await client.pollForUpdates()
  *   console.log('Success:', proof)
  * } catch (error) {
  *   console.error('Failed:', error)
@@ -55,7 +57,7 @@ export interface Status {
  * Clients are immutable - all properties are read-only.
  */
 export class WorldBridgeClient {
-	private session: InstanceType<typeof WasmModule.Session>
+	private session: WasmModule.Session
 	private _connectorURI: string
 	private _requestId: string
 
@@ -63,7 +65,7 @@ export class WorldBridgeClient {
 	 * @internal
 	 * Creates a new client (called by store.createClient())
 	 */
-	constructor(session: InstanceType<typeof WasmModule.Session>) {
+	constructor(session: WasmModule.Session) {
 		this.session = session
 		this._connectorURI = session.connectUrl()
 		this._requestId = session.requestId()

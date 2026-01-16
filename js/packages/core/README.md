@@ -13,20 +13,18 @@ pnpm add @worldcoin/idkit
 ## Quick Start
 
 ```typescript
-import {
-  useWorldBridgeStore,
-  VerificationLevel,
-} from '@worldcoin/idkit'
+import { useWorldBridgeStore } from '@worldcoin/idkit'
 
 // 1. Get store instance
 const store = useWorldBridgeStore()
 
-// 2. Create client - returns immutable client object
+// 2. Create client with explicit requests
 const client = await store.createClient({
   app_id: 'app_staging_xxxxx',
   action: 'my-action',
-  verification_level: VerificationLevel.Orb,
-  signal: 'user-id-123',
+  requests: [
+    { credential_type: 'orb', signal: 'user-id-123' },
+  ],
 })
 
 // 3. Display QR code for World App
@@ -41,38 +39,60 @@ try {
 }
 ```
 
-## V2 API
+## Multiple Credential Types
+
+You can request verification with multiple credential types. The user can satisfy the request with any of them:
 
 ```typescript
-const store = useWorldBridgeStore()
-
-await store.createClient({
+const client = await store.createClient({
   app_id: 'app_staging_xxxxx',
   action: 'my-action',
-  verification_level: VerificationLevel.Orb,
-  signal: 'user-id-123',
+  requests: [
+    { credential_type: 'orb', signal: 'user-id-123' },
+    { credential_type: 'device', signal: 'user-id-123' },
+  ],
 })
-
-console.log('Scan this:', store.connectorURI)
-
-await store.pollForUpdates()
-
-if (store.result) {
-  console.log('Proof received:', store.result)
-}
 ```
 
+## Credential Types
+
+- `orb` - Verified via Orb biometric scan (highest trust)
+- `face` - Verified via Face ID
+- `device` - Verified via device binding
+- `document` - Verified via document scan
+- `secure_document` - Verified via secure document scan
+
 ## API Reference
+
+### Creating a Client
 
 ```typescript
 const client = await store.createClient(config)
 ```
 
-**Properties:**
+**Config:**
+```typescript
+interface IDKitConfig {
+  app_id: `app_${string}`        // Your World ID app ID
+  action: string                  // Action identifier
+  requests: RequestConfig[]       // Required: credential type requests
+  bridge_url?: string            // Custom bridge URL (optional)
+  partner?: boolean              // Partner mode (optional)
+}
+
+interface RequestConfig {
+  credential_type: CredentialType
+  signal?: string | AbiEncodedValue  // Optional signal for this request
+}
+
+type CredentialType = 'orb' | 'face' | 'device' | 'document' | 'secure_document'
+```
+
+**Client Properties:**
 - `connectorURI: string` - QR code URL for World App
 - `requestId: string` - Unique request ID
 
-**Methods:**
+**Client Methods:**
 - `pollForUpdates(options?: WaitOptions): Promise<ISuccessResult>` - Poll for proof (auto-polls)
 - `pollOnce(): Promise<Status>` - Poll once for status (manual polling)
 
@@ -91,44 +111,24 @@ interface WaitOptions {
 const store = useWorldBridgeStore()
 ```
 
-**V3 Methods:**
+**Methods:**
 - `createClient(config: IDKitConfig): Promise<WorldBridgeClient>` - Create new client
+- `reset(): void` - Clear state and start over
 
-**V2 State (backward compat):**
+**State (for reactive frameworks):**
 - `verificationState: VerificationState` - Current verification state
 - `connectorURI: string | null` - QR code URL for World App
 - `result: ISuccessResult | null` - Proof data when verified
 - `errorCode: AppErrorCodes | null` - Error code if failed
 
-**V2 Methods (deprecated):**
-- `pollForUpdates(): Promise<void>` - Check for proof (call repeatedly) ⚠️ Use `client.pollForUpdates()` with auto-polling instead
-- `reset(): void` - Clear state and start over
-
-### Types
+### Result Types
 
 ```typescript
-interface IDKitConfig {
-  app_id: `app_${string}`
-  action: string
-  signal?: string
-  verification_level?: VerificationLevel
-  bridge_url?: string
-  partner?: boolean
-}
-
 interface ISuccessResult {
   proof: string
   merkle_root: string
   nullifier_hash: string
-  verification_level: VerificationLevel
-}
-
-enum VerificationLevel {
-  Orb = 'orb',
-  Face = 'face',
-  Device = 'device',
-  Document = 'document',
-  SecureDocument = 'secure_document',
+  verification_level: CredentialType  // The credential type used
 }
 ```
 
@@ -140,6 +140,31 @@ hashToField(input: string): HashFunctionOutput
 
 // ABI encoding
 solidityEncode(types: string[], values: unknown[]): AbiEncodedValue
+```
+
+## React Integration
+
+```tsx
+import { useWorldBridgeStore, IDKitWidget } from '@worldcoin/idkit'
+
+function MyComponent() {
+  const handleSuccess = (result) => {
+    console.log('Verified:', result)
+  }
+
+  return (
+    <IDKitWidget
+      app_id="app_staging_xxxxx"
+      action="my-action"
+      requests={[
+        { credential_type: 'orb', signal: 'user-123' },
+      ]}
+      onSuccess={handleSuccess}
+    >
+      {({ open }) => <button onClick={open}>Verify with World ID</button>}
+    </IDKitWidget>
+  )
+}
 ```
 
 ## Examples

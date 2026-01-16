@@ -1,6 +1,6 @@
 import type { IDKitConfig, ISuccessResult, IErrorState } from '../'
 
-export type WidgetConfig = Pick<IDKitConfig, 'app_id' | 'action' | 'signal' | 'requests' | 'constraints' | 'bridge_url' | 'partner' | 'action_description'> & {
+export type WidgetConfig = Pick<IDKitConfig, 'app_id' | 'action' | 'requests' | 'constraints' | 'bridge_url' | 'action_description'> & {
   /** Called when a proof is received and optionally validated by handleVerify */
   onSuccess: (result: ISuccessResult) => void | Promise<void>
   /** Called after proof is received but before success is shown; throw to surface an error to the user */
