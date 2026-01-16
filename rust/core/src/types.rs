@@ -473,7 +473,7 @@ impl VerificationLevel {
 
     /// Derives the maximum (least restrictive) verification level from credential types.
     ///
-    /// Priority (most → least restrictive): orb > secure_document > document > face > device
+    /// Priority (most to least restrictive): orb > `secure_document` > document > face > device
     #[must_use]
     pub fn from_credential_types(types: &[CredentialType]) -> Self {
         // Check in reverse priority order (least restrictive first)

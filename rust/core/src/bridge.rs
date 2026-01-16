@@ -43,13 +43,13 @@ struct BridgeRequestPayload {
     verification_level: VerificationLevel,
 }
 
-/// Derives legacy bridge fields (verification_level, hashed signal) from requests.
+/// Derives legacy bridge fields (`verification_level`, hashed signal) from requests.
 ///
 /// This enables backwards compatibility with World App 3.0 which expects:
 /// - `verification_level`: The maximum (least restrictive) level from all credential types
 /// - `signal`: The hashed signal from the request with the max credential type
 ///
-/// Priority (most → least restrictive): orb > secure_document > document > face > device
+/// Priority (most to least restrictive): orb > `secure_document` > document > face > device
 //TODO: This is not 100% accurate, will refine this in a followup PR, but for now it "works".
 fn derive_legacy_fields(requests: &[Request]) -> (VerificationLevel, String) {
     let cred_types: Vec<_> = requests.iter().map(|r| r.credential_type).collect();
@@ -61,8 +61,10 @@ fn derive_legacy_fields(requests: &[Request]) -> (VerificationLevel, String) {
         .iter()
         .find(|r| r.credential_type == target_cred)
         .and_then(|r| r.signal.as_ref())
-        .map(crate::crypto::encode_signal)
-        .unwrap_or_else(|| crate::crypto::encode_signal(&Signal::from_string("")));
+        .map_or_else(
+            || crate::crypto::encode_signal(&Signal::from_string("")),
+            crate::crypto::encode_signal,
+        );
 
     (verification_level, signal)
 }
