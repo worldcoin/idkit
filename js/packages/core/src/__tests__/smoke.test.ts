@@ -3,21 +3,19 @@
  * These tests verify that the WASM integration and core APIs are functional
  */
 
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
 	initIDKit,
 	isInitialized,
-	useWorldBridgeStore,
+	createSession,
 	hashToField,
 	solidityEncode,
 	buffer_encode,
 	buffer_decode,
 	isNode,
-	isWeb,
 	AppErrorCodes,
 	VerificationState,
 } from '../index'
-import type { CredentialType } from '../index'
 
 describe('WASM Initialization', () => {
 	it('should initialize WASM via initIDKit', async () => {
@@ -125,57 +123,23 @@ describe('Platform Detection', () => {
 	})
 })
 
-describe('Bridge Store', () => {
-	it('should create store instance', () => {
-		const store = useWorldBridgeStore.getState()
-		expect(store).toBeDefined()
-		expect(store.verificationState).toBe(VerificationState.PreparingClient)
+describe('Session API', () => {
+	it('should export createSession function', () => {
+		expect(typeof createSession).toBe('function')
 	})
 
-	it('should have correct initial state', () => {
-		const store = useWorldBridgeStore.getState()
-
-		expect(store.requestId).toBeNull()
-		expect(store.connectorURI).toBeNull()
-		expect(store.result).toBeNull()
-		expect(store.errorCode).toBeNull()
-	})
-
-	it('should have all required methods', () => {
-		const store = useWorldBridgeStore.getState()
-
-		expect(typeof store.createClient).toBe('function')
-		expect(typeof store.pollForUpdates).toBe('function')
-		expect(typeof store.reset).toBe('function')
-	})
-
-	it('should reset state', () => {
-		const store = useWorldBridgeStore.getState()
-		store.reset()
-
-		expect(store.verificationState).toBe(VerificationState.PreparingClient)
-		expect(store.requestId).toBeNull()
-		expect(store.connectorURI).toBeNull()
-		expect(store.result).toBeNull()
-		expect(store.errorCode).toBeNull()
-	})
-
-	it('should be callable both ways for v2 compatibility', () => {
-		// v3 style
-		const store1 = useWorldBridgeStore.getState()
-		expect(store1).toBeDefined()
-
-		// v2 style also works (returns same state outside React)
-		const store2 = useWorldBridgeStore() as ReturnType<typeof useWorldBridgeStore.getState>
-		expect(store2).toBeDefined()
-
-		// Should be the same store
-		expect(store1).toBe(store2)
+	it('should throw error when requests is empty', async () => {
+		await expect(
+			createSession({
+				app_id: 'app_staging_test',
+				action: 'test-action',
+				requests: [],
+			})
+		).rejects.toThrow('At least one request is required')
 	})
 })
 
 describe('Enums', () => {
-
 	it('should export AppErrorCodes enum', () => {
 		expect(AppErrorCodes.ConnectionFailed).toBe('connection_failed')
 		expect(AppErrorCodes.VerificationRejected).toBe('verification_rejected')

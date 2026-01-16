@@ -37,10 +37,10 @@
     </section>
 
     <script type="module">
-        // Import IDKit (alias resolves to local dist or npm package)
-        import { useWorldBridgeStore } from '@worldcoin/idkit';
+        // Import IDKit core (pure TypeScript, no dependencies)
+        import { createSession, initIDKit } from '@worldcoin/idkit-core';
 
-        // Demo app configuration (WASM auto-initializes on first use)
+        // Demo app configuration
         const APP_ID = 'app_ce4cb73cb75fc3b73b71ffb4de178410'; // Replace with your actual app ID
         const ACTION = 'test-action';
 
@@ -62,26 +62,26 @@
             errorDiv.hidden = true;
         };
 
-        // Function to verify with World ID using explicit requests
+        // Initialize WASM on page load
+        await initIDKit();
+
+        // Function to verify with World ID using the new Session API
         async function verify(requests) {
             try {
                 hideAll();
 
-                const store = useWorldBridgeStore();
-                store.reset(); // Clear any previous state
-
                 statusDiv.hidden = false;
-                statusText.textContent = 'Creating verification request...';
+                statusText.textContent = 'Creating verification session...';
 
-                // createClient accepts explicit requests array
-                const client = await store.createClient({
+                // Create a new session with the requests
+                const session = await createSession({
                     app_id: APP_ID,
                     action: ACTION,
                     requests: requests,
                 });
 
-                // Use client.connectorURI (not store.connectorURI which is a stale snapshot)
-                const url = client.connectorURI;
+                // Get the connector URL from the session
+                const url = session.connectorURI;
                 console.log('Connect URL:', url);
 
                 qrDiv.hidden = false;
@@ -91,8 +91,8 @@
 
                 statusText.textContent = 'Waiting for scan...';
 
-                // Use client.pollForUpdates() which handles polling automatically
-                const proof = await client.pollForUpdates({
+                // Poll for updates until proof is received
+                const proof = await session.pollForUpdates({
                     pollInterval: 2000,  // Poll every 2 seconds
                     timeout: 120000,     // 2 minute timeout
                 });
@@ -113,18 +113,17 @@
         // Helper to create a signal with timestamp
         const makeSignal = () => 'demo-signal-' + Date.now();
 
-        //TODO: Will refactor this
-        // Button event listeners - using explicit requests pattern
-        document.getElementById('verifyOrb').addEventListener('click', () => 
+        // Button event listeners
+        document.getElementById('verifyOrb').addEventListener('click', () =>
             verify([{ credential_type: 'orb', signal: makeSignal() }])
         );
-        document.getElementById('verifyFace').addEventListener('click', () => 
+        document.getElementById('verifyFace').addEventListener('click', () =>
             verify([{ credential_type: 'face', signal: makeSignal() }])
         );
-        document.getElementById('verifyDevice').addEventListener('click', () => 
+        document.getElementById('verifyDevice').addEventListener('click', () =>
             verify([{ credential_type: 'device', signal: makeSignal() }])
         );
-        
+
     </script>
 </body>
 </html>
