@@ -73,14 +73,17 @@ func verificationWithStatusUpdates() async throws {
     }
 }
 
-/// Example: Using verification level (Rust convenience method)
+/// Example: Simple Orb verification (convenience pattern)
 @available(macOS 12.0, iOS 15.0, *)
-func verificationWithLevel() async throws {
-    let session = try Session.fromVerificationLevel(
+func verificationSimple() async throws {
+    // Simple helper: create Orb request with signal
+    let signal = Signal.fromString(s: "session_token_abc123")
+    let request = Request(credentialType: .orb, signal: signal)
+
+    let session = try Session.create(
         appId: "app_staging_1234567890abcdef",
         action: "login",
-        verificationLevel: .orb,
-        signal: "session_token_abc123"
+        requests: [request]
     )
 
     print("📱 QR Code: \(session.connectUrl())\n")
@@ -221,7 +224,7 @@ struct ExamplesRunner {
 
             // try await basicVerification()
             // try await verificationWithStatusUpdates()
-            // try await verificationWithLevel()
+            // try await verificationSimple()
             // try await verificationWithConstraints()
             // try await verificationWithFaceAuth()
             // try await verificationWithAbiSignal()
