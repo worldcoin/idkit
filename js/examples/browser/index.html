@@ -38,7 +38,7 @@
 
     <script type="module">
         // Import IDKit (alias resolves to local dist or npm package)
-        import { useWorldBridgeStore, VerificationLevel } from '@worldcoin/idkit';
+        import { useWorldBridgeStore } from '@worldcoin/idkit';
 
         // Demo app configuration (WASM auto-initializes on first use)
         const APP_ID = 'app_ce4cb73cb75fc3b73b71ffb4de178410'; // Replace with your actual app ID
@@ -62,8 +62,8 @@
             errorDiv.hidden = true;
         };
 
-        // Function to verify with World ID
-        async function verify(verificationLevel) {
+        // Function to verify with World ID using explicit requests
+        async function verify(requests) {
             try {
                 hideAll();
 
@@ -73,12 +73,11 @@
                 statusDiv.hidden = false;
                 statusText.textContent = 'Creating verification request...';
 
-                // createClient returns a client with the connectorURI
+                // createClient accepts explicit requests array
                 const client = await store.createClient({
                     app_id: APP_ID,
                     action: ACTION,
-                    verification_level: verificationLevel,
-                    signal: 'demo-signal-' + Date.now(),
+                    requests: requests,
                 });
 
                 // Use client.connectorURI (not store.connectorURI which is a stale snapshot)
@@ -111,10 +110,21 @@
             }
         }
 
-        // Button event listeners
-        document.getElementById('verifyOrb').addEventListener('click', () => verify(VerificationLevel.Orb));
-        document.getElementById('verifyFace').addEventListener('click', () => verify(VerificationLevel.Face));
-        document.getElementById('verifyDevice').addEventListener('click', () => verify(VerificationLevel.Device));
+        // Helper to create a signal with timestamp
+        const makeSignal = () => 'demo-signal-' + Date.now();
+
+        //TODO: Will refactor this
+        // Button event listeners - using explicit requests pattern
+        document.getElementById('verifyOrb').addEventListener('click', () => 
+            verify([{ credential_type: 'orb', signal: makeSignal() }])
+        );
+        document.getElementById('verifyFace').addEventListener('click', () => 
+            verify([{ credential_type: 'face', signal: makeSignal() }])
+        );
+        document.getElementById('verifyDevice').addEventListener('click', () => 
+            verify([{ credential_type: 'device', signal: makeSignal() }])
+        );
+        
     </script>
 </body>
 </html>

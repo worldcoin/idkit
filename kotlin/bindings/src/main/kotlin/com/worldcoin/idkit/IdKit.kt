@@ -6,11 +6,10 @@ import uniffi.idkit.Request
 import uniffi.idkit.Session
 import uniffi.idkit.Signal
 import uniffi.idkit_core.CredentialType
-import uniffi.idkit_core.VerificationLevel
 
 /**
  * Lightweight Kotlin conveniences mirroring the Swift helpers and adding
- * simple factories for common flows (multiple requests, verification level).
+ * simple factories for common flows.
  *
  * These wrap the UniFFI-generated types but keep everything in Kotlin land.
  */
@@ -69,15 +68,4 @@ object IdKit {
             )
         else -> Session.create(appId, action, requests)
     }
-
-    /**
-     * Convenience to map a verification level into the appropriate requests/constraints.
-     * Equivalent to the Swift `fromVerificationLevel` convenience.
-     */
-    fun sessionFromVerificationLevel(
-        appId: String,
-        action: String,
-        verificationLevel: VerificationLevel,
-        signal: String = "",
-    ): Session = Session.fromVerificationLevel(appId, action, verificationLevel, signal)
 }

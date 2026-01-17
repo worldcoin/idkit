@@ -5,12 +5,18 @@ export type AbiEncodedValue = Brand<{ types: string[]; values: unknown[] }, 'Abi
 
 export type CredentialType = 'orb' | 'face' | 'secure_document' | 'document' | 'device'
 
-export enum VerificationLevel {
-	Orb = 'orb',
-	Face = 'face',
-	SecureDocument = 'secure_document',
-	Document = 'document',
-	Device = 'device',
+/**
+ * A single credential request
+ */
+export type RequestConfig = {
+	/** The type of credential being requested */
+	credential_type: CredentialType
+	/** Optional signal string for cryptographic binding */
+	signal?: AbiEncodedValue | string
+	/** Optional ABI-encoded signal bytes (for on-chain use cases) */
+	signal_bytes?: Uint8Array
+	/** Whether face authentication is required (only valid for orb and face credentials) */
+	face_auth?: boolean
 }
 
 export type IDKitConfig = {
@@ -20,21 +26,10 @@ export type IDKitConfig = {
 	action: AbiEncodedValue | string
 	/** The description of the specific action (shown to users in World App). Only recommended for actions created on-the-fly. */
 	action_description?: string
-	/** Encodes data into a proof that must match when validating. Read more on the [On-chain section](https://docs.world.org/advanced/on-chain). */
-	signal?: AbiEncodedValue | string
 	/** URL to a third-party bridge to use when connecting to the World App. Optional. */
 	bridge_url?: string
-	/** The minimum required level of verification. Defaults to "orb". */
-	verification_level?: VerificationLevel
-	/** Optional explicit requests (takes precedence over verification_level) */
-	requests?: Array<{
-		credential_type: CredentialType
-		signal?: AbiEncodedValue | string
-		signal_bytes?: Uint8Array
-		face_auth?: boolean
-	}>
+	/** Credential requests - at least one required */
+	requests: RequestConfig[]
 	/** Optional constraints JSON (matches Rust Constraints any/all structure) */
 	constraints?: unknown
-	/** Whether the app is a partner app and should allow deferred verification. Defaults to false. */
-	partner?: boolean
 }

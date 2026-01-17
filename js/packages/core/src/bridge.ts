@@ -4,16 +4,11 @@
  */
 
 import { create, type StateCreator } from 'zustand'
-import type { IDKitConfig, VerificationLevel } from './types/config'
+import type { IDKitConfig } from './types/config'
 import type { ISuccessResult } from './types/result'
 import { VerificationState, AppErrorCodes, ResponseStatus } from './types/bridge'
 import { validate_bridge_url } from './lib/validation'
-import { encodeAction, generateSignal } from './lib/hashing'
-import {
-	DEFAULT_VERIFICATION_LEVEL,
-	credential_type_to_verification_level,
-	verification_level_to_credential_types,
-} from './lib/utils'
+import { encodeAction } from './lib/hashing'
 import { WasmModule, initIDKit } from './lib/wasm'
 import { WorldBridgeClient } from './client'
 
@@ -28,11 +23,6 @@ type BridgeResponse =
 			status: ResponseStatus.Completed
 			response: { iv: string; payload: string }
 	  }
-
-type BridgeResult =
-	| ISuccessResult
-	| (Omit<ISuccessResult, 'verification_level'> & { credential_type: VerificationLevel })
-	| { error_code: AppErrorCodes }
 
 export type WorldBridgeStore = {
 	bridge_url: string
@@ -60,9 +50,14 @@ const createStoreImplementation: StateCreator<WorldBridgeStore> = (set, get) => 
 	bridge_url: DEFAULT_BRIDGE_URL,
 	verificationState: VerificationState.PreparingClient,
 
-	createClient: async ({ bridge_url, app_id, verification_level, action, signal, requests, constraints, action_description }) => {
+	createClient: async ({ bridge_url, app_id, action, requests, constraints, action_description }) => {
 		// Ensure WASM is initialized
 		await initIDKit()
+
+		// Validate requests
+		if (!requests || requests.length === 0) {
+			throw new Error('At least one request is required')
+		}
 
 		// Validate bridge URL
 		if (bridge_url) {
@@ -74,38 +69,22 @@ const createStoreImplementation: StateCreator<WorldBridgeStore> = (set, get) => 
 			}
 		}
 
-		let session: WasmModule.Session
+		// Map requests to WASM format
+		const reqs = requests.map((req) => ({
+			credential_type: req.credential_type,
+			signal: typeof req.signal === 'string' ? req.signal : undefined,
+			signal_bytes: req.signal_bytes,
+			face_auth: req.face_auth,
+		}))
 
-		if (requests && requests.length > 0) {
-			if (verification_level) {
-				console.warn('`verification_level` is ignored when `requests` are provided. Use one or the other.')
-			}
-			const reqs = (requests as any[]).map((req) => ({
-				credential_type: req.credential_type ?? req.credentialType ?? req.credential,
-				signal: typeof req.signal === 'string' ? req.signal : undefined,
-				signal_bytes: req.signal_bytes ?? req.signalBytes,
-				face_auth: req.face_auth ?? req.faceAuth,
-			}))
-
-			const constraintsPayload = constraints ? constraints : undefined
-
-			session = (await WasmModule.Session.createWithRequests(
-				app_id,
-				encodeAction(action),
-				reqs,
-				constraintsPayload ?? undefined,
-				action_description ?? null,
-				bridge_url ?? null
-			)) as unknown as WasmModule.Session
-		} else {
-			// Create WASM Session from verification level
-			session = (await new WasmModule.Session(
-				app_id,
-				encodeAction(action),
-				verification_level ?? DEFAULT_VERIFICATION_LEVEL,
-				signal ? generateSignal(signal).digest : null
-			)) as WasmModule.Session
-		}
+		const session = (await WasmModule.Session.createWithRequests(
+			app_id,
+			encodeAction(action),
+			reqs,
+			constraints ?? undefined,
+			action_description ?? null,
+			bridge_url ?? null
+		)) as unknown as WasmModule.Session
 
 		const client = new WorldBridgeClient(session)
 
