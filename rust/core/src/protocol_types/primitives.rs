@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_rp_id_format() {
-        let rp_id = RpId::new(0x123456789abcdef0);
+        let rp_id = RpId::new(0x1234_5678_9abc_def0);
         assert_eq!(rp_id.as_str(), "rp_123456789abcdef0");
 
         let json = serde_json::to_string(&rp_id).unwrap();
