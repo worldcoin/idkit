@@ -243,7 +243,10 @@ mod tests {
         assert!(FieldElement::from_str(valid).is_ok());
 
         // Invalid: missing 0x prefix
-        assert!(FieldElement::from_str("0000000000000000000000000000000000000000000000000000000000000001").is_err());
+        assert!(FieldElement::from_str(
+            "0000000000000000000000000000000000000000000000000000000000000001"
+        )
+        .is_err());
 
         // Valid: short input gets padded
         let short = FieldElement::from_str("0x1").unwrap();
@@ -253,9 +256,15 @@ mod tests {
         );
 
         // Invalid: too long (> 64 hex chars)
-        assert!(FieldElement::from_str("0x00000000000000000000000000000000000000000000000000000000000000001").is_err());
+        assert!(FieldElement::from_str(
+            "0x00000000000000000000000000000000000000000000000000000000000000001"
+        )
+        .is_err());
 
         // Invalid: non-hex characters
-        assert!(FieldElement::from_str("0x000000000000000000000000000000000000000000000000000000000000000g").is_err());
+        assert!(FieldElement::from_str(
+            "0x000000000000000000000000000000000000000000000000000000000000000g"
+        )
+        .is_err());
     }
 }
