@@ -247,7 +247,7 @@ export const solidityEncode = (types: string[], values: unknown[]): AbiEncodedVa
  * @param signal Signal string or ABI-encoded value
  * @returns Hash output
  */
-export const generateSignal = (signal: AbiEncodedValue | string | undefined): HashFunctionOutput => {
+export const generateSignalHash = (signal: AbiEncodedValue | string | undefined): HashFunctionOutput => {
 	if (!signal || typeof signal === 'string') {
 		return hashToField(signal ?? '')
 	}
@@ -267,11 +267,3 @@ export const encodeAction = (action: IDKitConfig['action']): string => {
 	return action.types.map((type, index) => `${type}(${action.values[index]})`).join(',')
 }
 
-import type { CredentialType } from '../types/config'
-
-export type RequestConfig = {
-	credential_type: CredentialType
-	signal?: AbiEncodedValue | string
-	signal_bytes?: Uint8Array
-	face_auth?: boolean
-}

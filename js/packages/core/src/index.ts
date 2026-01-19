@@ -1,10 +1,11 @@
 /**
- * @worldcoin/idkit
+ * @worldcoin/idkit-core
  * Core bridge logic for IDKit powered by Rust/WASM
+ * Pure TypeScript - no dependencies
  */
 
-export { WorldBridgeClient, type WaitOptions, type Status } from './client'
-export { useWorldBridgeStore, createWorldBridgeStore, type WorldBridgeStore } from './bridge'
+// Session API (main entry point)
+export { createSession, type Session, type SessionOptions, type Status, type WaitOptions } from './session'
 
 // Types
 export type { IDKitConfig, AbiEncodedValue, RequestConfig, CredentialType } from './types/config'
@@ -16,9 +17,8 @@ export { verifyCloudProof, type IVerifyResponse } from './lib/backend'
 
 // Utilities
 export { buffer_encode, buffer_decode } from './lib/utils'
-export { solidityEncode, hashToField, generateSignal, encodeAction } from './lib/hashing'
-export { initIDKit, isInitialized } from './lib/wasm'
+export { solidityEncode, hashToField, generateSignalHash, encodeAction } from './lib/hashing'
 export { isReactNative, isWeb, isNode } from './lib/platform'
 
 // WASM exports
-export { WasmModule } from './lib/wasm'
+export { initIDKit, isInitialized, WasmModule } from './lib/wasm'

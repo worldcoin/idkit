@@ -1,7 +1,7 @@
 {
-  "name": "@worldcoin/idkit",
+  "name": "@worldcoin/idkit-core",
   "version": "4.0.1",
-  "description": "Core IDKit SDK for World ID - Browser and Node.js support",
+  "description": "Core IDKit SDK for World ID - Pure TypeScript, no dependencies",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -11,11 +11,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    },
-    "./react": {
-      "types": "./dist/react.d.ts",
-      "import": "./dist/react.js",
-      "require": "./dist/react.cjs"
     }
   },
   "files": [
@@ -46,23 +41,10 @@
     "type": "git",
     "url": "https://github.com/worldcoin/idkit"
   },
-  "dependencies": {
-    "zustand": "^4.5"
-  },
-  "peerDependencies": {
-    "react": ">=17.0.0"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "@types/react": "^18.2.0",
     "@vitest/coverage-v8": "^2.0.0",
     "happy-dom": "^15.0.0",
-    "react": "^18.2.0",
     "tsup": "^8.0.0",
     "typescript": "^5.3.0",
     "vitest": "^2.0.0"
