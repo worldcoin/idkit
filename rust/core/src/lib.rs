@@ -15,6 +15,8 @@ pub mod bridge;
 pub mod constraints;
 pub mod crypto;
 pub mod error;
+pub mod issuer_schema;
+pub mod protocol_types;
 pub mod types;
 #[cfg(feature = "verification")]
 pub mod verification;
@@ -28,7 +30,9 @@ pub use constraints::{ConstraintNode, Constraints};
 #[cfg(any(feature = "native-crypto", feature = "wasm-crypto"))]
 pub use crypto::CryptoKey;
 pub use error::{Error, Result};
+pub use issuer_schema::{credential_to_issuer_schema_id, issuer_schema_id_to_credential};
 pub use types::{AppId, BridgeUrl, CredentialType, Proof, Request, Signal, VerificationLevel};
+
 #[cfg(feature = "verification")]
 pub use verification::{verify_proof, verify_proof_with_endpoint};
 
