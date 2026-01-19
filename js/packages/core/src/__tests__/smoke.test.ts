@@ -16,6 +16,7 @@ import {
 	AppErrorCodes,
 	VerificationState,
 } from '../index'
+import type { CredentialType } from '../index'
 
 describe('WASM Initialization', () => {
 	it('should initialize WASM via initIDKit', async () => {
