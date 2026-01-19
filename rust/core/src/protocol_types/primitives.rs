@@ -14,6 +14,16 @@ use std::str::FromStr;
 ///
 /// This is a lightweight wrapper that's JSON-compatible with `world_id_primitives::FieldElement`
 /// but doesn't require ark-ff or other heavy crypto dependencies.
+///
+/// ## Field Properties
+///
+/// The World ID Protocol uses the BabyJubJub curve. This type represents elements of the
+/// base field (`Fq`), which is the scalar field of BN254. Valid field elements must be
+/// less than the field modulus (~2^254).
+///
+/// **Note:** This pass-through type does not validate that values are within the field
+/// modulus - it only validates the hex format. The authenticator/verifier will perform
+/// full field validation.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct FieldElement(String);
 
@@ -69,15 +79,24 @@ impl FromStr for FieldElement {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // Basic validation: should start with 0x and be a valid hex string
+        // Must start with 0x prefix
         if !s.starts_with("0x") {
             return Err("FieldElement must start with '0x'".to_string());
         }
         let hex_part = &s[2..];
+        // Must not exceed 64 hex characters (32 bytes)
+        if hex_part.len() > 64 {
+            return Err(format!(
+                "FieldElement must be at most 64 hex characters, got {}",
+                hex_part.len()
+            ));
+        }
+        // Must be valid hex
         if hex_part.chars().any(|c| !c.is_ascii_hexdigit()) {
             return Err("FieldElement must be a valid hex string".to_string());
         }
-        Ok(Self(s.to_string()))
+        // Pad to 64 characters for consistent representation
+        Ok(Self(format!("0x{hex_part:0>64}")))
     }
 }
 
@@ -215,5 +234,28 @@ mod tests {
         let json = serde_json::to_string(&rp_id).unwrap();
         let parsed: RpId = serde_json::from_str(&json).unwrap();
         assert_eq!(rp_id, parsed);
+    }
+
+    #[test]
+    fn test_field_element_validation() {
+        // Valid: exactly 64 hex chars
+        let valid = "0x0000000000000000000000000000000000000000000000000000000000000001";
+        assert!(FieldElement::from_str(valid).is_ok());
+
+        // Invalid: missing 0x prefix
+        assert!(FieldElement::from_str("0000000000000000000000000000000000000000000000000000000000000001").is_err());
+
+        // Valid: short input gets padded
+        let short = FieldElement::from_str("0x1").unwrap();
+        assert_eq!(
+            short.as_str(),
+            "0x0000000000000000000000000000000000000000000000000000000000000001"
+        );
+
+        // Invalid: too long (> 64 hex chars)
+        assert!(FieldElement::from_str("0x00000000000000000000000000000000000000000000000000000000000000001").is_err());
+
+        // Invalid: non-hex characters
+        assert!(FieldElement::from_str("0x000000000000000000000000000000000000000000000000000000000000000g").is_err());
     }
 }
