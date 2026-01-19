@@ -17,7 +17,7 @@ use std::str::FromStr;
 ///
 /// ## Field Properties
 ///
-/// The World ID Protocol uses the BabyJubJub curve. This type represents elements of the
+/// The World ID Protocol uses the `BabyJubJub` curve. This type represents elements of the
 /// base field (`Fq`), which is the scalar field of BN254. Valid field elements must be
 /// less than the field modulus (~2^254).
 ///
@@ -36,7 +36,7 @@ impl FieldElement {
     pub const ONE_STR: &'static str =
         "0x0000000000000000000000000000000000000000000000000000000000000001";
 
-    /// Creates a new FieldElement from a hex string.
+    /// Creates a new `FieldElement` from a hex string.
     ///
     /// The string should be a 66-character hex string starting with "0x".
     #[must_use]
@@ -44,7 +44,7 @@ impl FieldElement {
         Self(hex.into())
     }
 
-    /// Creates a FieldElement from a u64 value.
+    /// Creates a `FieldElement` from a u64 value.
     #[must_use]
     pub fn from_u64(value: u64) -> Self {
         Self(format!("0x{value:064x}"))
@@ -132,13 +132,13 @@ impl<'de> Deserialize<'de> for FieldElement {
 pub struct RpId(String);
 
 impl RpId {
-    /// Creates a new RpId from a u64 value.
+    /// Creates a new `RpId` from a u64 value.
     #[must_use]
     pub fn new(value: u64) -> Self {
         Self(format!("rp_{value:016x}"))
     }
 
-    /// Creates a new RpId from a string (must start with "rp_").
+    /// Creates a new `RpId` from a string (must start with "rp_").
     #[must_use]
     pub fn from_string(s: impl Into<String>) -> Self {
         Self(s.into())

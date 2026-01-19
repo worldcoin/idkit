@@ -1,7 +1,7 @@
 //! Issuer schema ID mapping for World ID 4.0 credentials.
 //!
 //! Maps between string credential identifiers (e.g., "orb", "face") and
-//! their corresponding FieldElement issuer schema IDs used in the protocol.
+//! their corresponding `FieldElement` issuer schema IDs used in the protocol.
 
 use crate::protocol_types::FieldElement;
 
@@ -28,7 +28,7 @@ pub fn credential_to_issuer_schema_id(identifier: &str) -> Option<FieldElement> 
 /// Maps issuer schema ID back to credential identifier.
 ///
 /// # Arguments
-/// * `id` - The FieldElement issuer schema ID
+/// * `id` - The `FieldElement` issuer schema ID
 ///
 /// # Returns
 /// * `Some(&'static str)` - The credential identifier for known IDs

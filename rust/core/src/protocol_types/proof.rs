@@ -24,7 +24,7 @@ impl WorldIdProof {
     /// Expected length of the hex-encoded proof (160 bytes = 320 hex chars).
     pub const HEX_LENGTH: usize = 320;
 
-    /// Creates a new WorldIdProof from a hex string.
+    /// Creates a new `WorldIdProof` from a hex string.
     ///
     /// The hex string should be exactly 320 characters (160 bytes).
     #[must_use]
@@ -46,7 +46,7 @@ impl WorldIdProof {
         hex::decode(&self.0).ok()
     }
 
-    /// Creates a WorldIdProof from raw bytes.
+    /// Creates a `WorldIdProof` from raw bytes.
     #[must_use]
     pub fn from_bytes(bytes: &[u8]) -> Self {
         Self(hex::encode(bytes))

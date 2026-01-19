@@ -56,10 +56,10 @@ pub struct ProofRequest {
     /// Registered RP id
     pub rp_id: RpId,
     /// `OprfKeyId` of the RP
-    /// Current protocol version sets OprfKeyId as the RpId
+    /// Current protocol version sets `OprfKeyId` as the `RpId`
     pub oprf_key_id: String,
     /// The raw representation of the action (as a field element).
-    /// TODO FIXME: Dummy type for now, protocol type expected FieldElement
+    /// TODO FIXME: Dummy type for now, protocol type expected `FieldElement`
     pub action: String,
     /// The nullifier key of the RP
     // TODO: Dummy type for now, this will be removed from proof request type
@@ -68,7 +68,7 @@ pub struct ProofRequest {
     // TODO: Use a real signature type here
     pub signature: String,
     /// Unique nonce for this request
-    /// TODO FIXME: Dummy type for now, protocol type expected FieldElement
+    /// TODO FIXME: Dummy type for now, protocol type expected `FieldElement`
     pub nonce: String,
     /// Specific credential requests
     #[serde(rename = "proof_requests")]
@@ -119,7 +119,7 @@ impl RequestItem {
 }
 
 /// Overall response from the Authenticator to the RP.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProofResponse {
     /// The response id references request id
@@ -131,7 +131,7 @@ pub struct ProofResponse {
 }
 
 /// Per-credential response item returned by the authenticator.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResponseItem {
     /// Credential identifier matching the request.
