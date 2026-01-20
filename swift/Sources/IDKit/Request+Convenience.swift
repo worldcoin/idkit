@@ -1,28 +1,28 @@
 import Foundation
 
 public extension Request {
-    /// Mirrors IDKit v2 Swift initializer that accepted a string signal.
+    /// Convenience initializer that accepts a string signal.
+    ///
+    /// Use this when you have a plain string signal value.
+    /// The parameter is named `stringSignal` to avoid ambiguity with the
+    /// generated uniffi init that accepts `Signal?`.
     convenience init(
         credentialType: CredentialType,
-        signal: String?,
-        faceAuth: Bool? = nil
+        stringSignal: String?
     ) throws {
-        let signalObject = signal.map { Signal.fromString(s: $0) }
+        let signalObject = stringSignal.map { Signal.fromString(s: $0) }
         let base = Request(credentialType: credentialType, signal: signalObject)
-        let final = faceAuth.map { base.withFaceAuth(faceAuth: $0) } ?? base
-        self.init(unsafeFromHandle: final.uniffiCloneHandle())
+        self.init(unsafeFromHandle: base.uniffiCloneHandle())
     }
 
-    /// Mirrors the IDKit v2 Swift initializer that accepted raw ABI-encoded bytes.
+    /// Convenience initializer that accepts raw ABI-encoded bytes.
     convenience init(
         credentialType: CredentialType,
-        abiEncodedSignal: Data,
-        faceAuth: Bool? = nil
+        abiEncodedSignal: Data
     ) throws {
         let signalObject = Signal.fromAbiEncoded(bytes: abiEncodedSignal)
         let base = Request(credentialType: credentialType, signal: signalObject)
-        let final = faceAuth.map { base.withFaceAuth(faceAuth: $0) } ?? base
-        self.init(unsafeFromHandle: final.uniffiCloneHandle())
+        self.init(unsafeFromHandle: base.uniffiCloneHandle())
     }
 }
 

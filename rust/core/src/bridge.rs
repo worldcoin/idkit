@@ -3,7 +3,8 @@
 use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
-    types::{AppId, BridgeUrl, Proof, Request, Signal, VerificationLevel},
+    protocol_types::ProofRequest,
+    types::{AppId, BridgeUrl, Proof, Request, RpContext, VerificationLevel},
     Constraints,
 };
 use serde::{Deserialize, Serialize};
@@ -18,6 +19,9 @@ use std::sync::Arc;
 /// Bridge request payload sent to initialize a session
 #[derive(Debug, Serialize)]
 struct BridgeRequestPayload {
+    // ---------------------------------------------------
+    // -- Legacy fields for World ID 3.0 compatibility --
+    // ---------------------------------------------------
     /// Application ID from the Developer Portal
     app_id: String,
 
@@ -28,45 +32,49 @@ struct BridgeRequestPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     action_description: Option<String>,
 
-    /// Set of requests (World App 4.0+ format - signals are unhashed)
-    requests: Vec<Request>,
-
-    /// Optional constraints (World App 4.0+ format)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    constraints: Option<Constraints>,
-
     /// Hashed signal for legacy compatibility (World App 3.0)
     /// Derived from the request with the max verification level credential type
     signal: String,
 
-    /// Max verification level derived from requests (World App 3.0 compatibility)
+    /// Min verification level derived from requests (World App 3.0 compatibility)
     verification_level: VerificationLevel,
+
+    // -----------------------------------------------
+    // -- New Proof Request fields for World ID 4.0 --
+    // -----------------------------------------------
+    /// The protocol-level proof request
+    proof_request: ProofRequest,
 }
 
-/// Derives legacy bridge fields (`verification_level`, hashed signal) from requests.
-///
-/// This enables backwards compatibility with World App 3.0 which expects:
-/// - `verification_level`: The maximum (least restrictive) level from all credential types
-/// - `signal`: The hashed signal from the request with the max credential type
-///
-/// Priority (most to least restrictive): orb > `secure_document` > document > face > device
-//TODO: This is not 100% accurate, will refine this in a followup PR, but for now it "works".
-fn derive_legacy_fields(requests: &[Request]) -> (VerificationLevel, String) {
-    let cred_types: Vec<_> = requests.iter().map(|r| r.credential_type).collect();
-    let verification_level = VerificationLevel::from_credential_types(&cred_types);
+/// Builds a `ProofRequest` from `RpContext`, requests, constraints, and action.
+fn build_proof_request(
+    rp_context: &RpContext,
+    requests: &[Request],
+    action: &str,
+    constraints: Option<&Constraints>,
+) -> Result<ProofRequest> {
+    use crate::protocol_types::RequestItem;
 
-    let target_cred = verification_level.primary_credential();
-
-    let signal = requests
+    // Convert requests to RequestItems
+    let request_items: Vec<RequestItem> = requests
         .iter()
-        .find(|r| r.credential_type == target_cred)
-        .and_then(|r| r.signal.as_ref())
-        .map_or_else(
-            || crate::crypto::encode_signal(&Signal::from_string("")),
-            crate::crypto::encode_signal,
-        );
+        .map(Request::to_request_item)
+        .collect::<Result<Vec<_>>>()?;
 
-    (verification_level, signal)
+    // Convert constraints to protocol expression if provided
+    let protocol_constraints = constraints.map(crate::Constraints::to_protocol_expr);
+
+    // Build ProofRequest using the RpContext
+    Ok(ProofRequest::new(
+        rp_context.created_at,
+        rp_context.expires_at,
+        rp_context.rp_id.clone(),
+        action.to_string(),
+        rp_context.signature.clone(),
+        rp_context.nonce.clone(),
+        request_items,
+        protocol_constraints,
+    ))
 }
 
 /// Encrypted payload sent to/from the bridge
@@ -137,58 +145,42 @@ pub struct Session {
 
 // TODO: Let's explore alternatives for requests/constraints, and add syntactic sugar for the better DevEx
 impl Session {
-    /// Creates a new session
+    /// Creates a new session with full configuration
     ///
     /// # Arguments
     ///
     /// * `app_id` - Application ID from the Developer Portal
     /// * `action` - Action identifier
     /// * `requests` - One or more credential requests
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the session cannot be created or the request fails
-    pub async fn create(
-        app_id: AppId,
-        action: impl Into<String>,
-        requests: Vec<Request>,
-    ) -> Result<Self> {
-        Self::create_with_options(app_id, action, requests, None, None, None).await
-    }
-
-    /// Creates a new session with optional configuration
-    ///
-    /// # Arguments
-    ///
-    /// * `app_id` - Application ID from the Developer Portal
-    /// * `action` - Action identifier
-    /// * `requests` - One or more credential requests
+    /// * `rp_context` - RP context for building protocol-level `ProofRequest`
     /// * `action_description` - Optional action description shown to users
     /// * `constraints` - Optional constraints on which credentials are acceptable
+    /// * `legacy_verification_level` - Optional legacy verification level for World App 3.0 compatibility
+    /// * `legacy_signal` - Optional legacy signal for World App 3.0 compatibility
     /// * `bridge_url` - Optional bridge URL (defaults to production)
     ///
     /// # Errors
     ///
     /// Returns an error if the session cannot be created or the request fails
     #[allow(clippy::too_many_arguments)]
-    pub async fn create_with_options(
+    // TODO: Add Preset.OrbCompatible to support backwards compatibility with World ID 3.0
+    pub async fn create(
         app_id: AppId,
         action: impl Into<String>,
         requests: Vec<Request>,
+        rp_context: RpContext,
         action_description: Option<String>,
         constraints: Option<Constraints>,
+        legacy_verification_level: Option<VerificationLevel>,
+        legacy_signal: Option<String>,
         bridge_url: Option<BridgeUrl>,
     ) -> Result<Self> {
-        // Validate requests
-        for req in &requests {
-            req.validate()?;
-        }
-
         if let Some(ref constraints) = constraints {
             constraints.validate()?;
         }
 
         let bridge_url = bridge_url.unwrap_or_default();
+        let action_str = action.into();
 
         // Generate encryption key and IV
         #[cfg(feature = "native-crypto")]
@@ -200,18 +192,21 @@ impl Session {
         #[cfg(not(feature = "native-crypto"))]
         let (key_bytes, nonce_bytes) = crate::crypto::generate_key()?;
 
-        // Derive legacy fields for World App 3.0 compatibility
-        let (verification_level, signal) = derive_legacy_fields(&requests);
+        // Build ProofRequest from RpContext
+        let proof_request =
+            build_proof_request(&rp_context, &requests, &action_str, constraints.as_ref())?;
 
         // Prepare the payload
         let payload = BridgeRequestPayload {
             app_id: app_id.as_str().to_string(),
-            action: action.into(),
+            action: action_str,
             action_description,
-            requests: requests.clone(),
-            constraints,
-            signal,
-            verification_level,
+            proof_request,
+            // By default we only want to interact with World ID 4.0
+            // we use an invalid verification level to ensure users on older World App versions
+            // respond with an error.
+            verification_level: legacy_verification_level.unwrap_or(VerificationLevel::Deprecated),
+            signal: legacy_signal.unwrap_or_default(),
         };
 
         let payload_json = serde_json::to_vec(&payload)?;
@@ -377,44 +372,30 @@ impl From<Status> for StatusWrapper {
 #[cfg(feature = "ffi")]
 #[uniffi::export]
 #[allow(clippy::needless_pass_by_value)]
+// TODO: Let's explore a builder pattern to improve DevEx
 impl SessionWrapper {
     /// Creates a new session
     ///
-    /// # Errors
+    /// # Arguments
     ///
-    /// Returns an error if the session cannot be created or the request fails
-    #[uniffi::constructor]
-    pub fn create(
-        app_id: String,
-        action: String,
-        requests: Vec<Arc<Request>>,
-    ) -> std::result::Result<Self, crate::error::IdkitError> {
-        let runtime =
-            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
-                details: format!("Failed to create runtime: {e}"),
-            })?;
-
-        let app_id_parsed = AppId::new(&app_id)?;
-        let core_requests: Vec<Request> = requests.iter().map(|r| (**r).clone()).collect();
-
-        let inner = runtime
-            .block_on(Session::create(app_id_parsed, action, core_requests))
-            .map_err(crate::error::IdkitError::from)?;
-
-        Ok(Self { runtime, inner })
-    }
-
-    /// Creates a new session with optional configuration
+    /// * `app_id` - Application ID from the Developer Portal
+    /// * `action` - Action identifier
+    /// * `requests` - One or more credential requests
+    /// * `rp_context` - RP context for building protocol-level `ProofRequest`
+    /// * `action_description` - Optional action description shown to users
+    /// * `constraints` - Optional constraints on which credentials are acceptable
+    /// * `bridge_url` - Optional bridge URL (defaults to production)
     ///
     /// # Errors
     ///
     /// Returns an error if the session cannot be created or the request fails
     #[uniffi::constructor]
     #[allow(clippy::too_many_arguments)]
-    pub fn create_with_options(
+    pub fn create(
         app_id: String,
         action: String,
         requests: Vec<Arc<Request>>,
+        rp_context: Arc<RpContext>,
         action_description: Option<String>,
         constraints: Option<Arc<Constraints>>,
         bridge_url: Option<String>,
@@ -428,14 +409,18 @@ impl SessionWrapper {
         let core_requests: Vec<Request> = requests.iter().map(|r| (**r).clone()).collect();
         let core_constraints = constraints.map(|c| (*c).clone());
         let bridge_url_parsed = bridge_url.map(|url| BridgeUrl::new(&url)).transpose()?;
+        let core_rp_context = (*rp_context).clone();
 
         let inner = runtime
-            .block_on(Session::create_with_options(
+            .block_on(Session::create(
                 app_id_parsed,
                 action,
                 core_requests,
+                core_rp_context,
                 action_description,
                 core_constraints,
+                None, // legacy_verification_level
+                None, // legacy_signal
                 bridge_url_parsed,
             ))
             .map_err(crate::error::IdkitError::from)?;
@@ -502,29 +487,42 @@ impl SessionWrapper {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::CredentialType;
+    use crate::types::{CredentialType, Signal};
 
     #[test]
     fn test_bridge_request_payload_serialization() {
         let request = Request::new(CredentialType::Orb, Some(Signal::from_string("test")));
         let requests = vec![request];
-        let (verification_level, signal) = derive_legacy_fields(&requests);
+
+        // Create a test RpContext
+        let rp_context = RpContext::new(
+            "rp_test123456789abc",
+            "test-nonce",
+            1_700_000_000,
+            1_700_003_600,
+            "test-signature",
+        )
+        .unwrap();
+
+        // Build proof request
+        let proof_request =
+            build_proof_request(&rp_context, &requests, "test_action", None).unwrap();
 
         let payload = BridgeRequestPayload {
             app_id: "app_test".to_string(),
             action: "test_action".to_string(),
             action_description: Some("Test description".to_string()),
-            requests,
-            constraints: None,
-            signal,
-            verification_level,
+            signal: String::new(),
+            verification_level: VerificationLevel::Deprecated,
+            proof_request,
         };
 
         let json = serde_json::to_string(&payload).unwrap();
         assert!(json.contains("app_test"));
         assert!(json.contains("test_action"));
         assert!(json.contains("verification_level"));
-        assert!(json.contains("\"signal\":\"0x"));
+        assert!(json.contains("proof_request"));
+        assert!(json.contains("rp_test123456789abc"));
     }
 
     #[test]

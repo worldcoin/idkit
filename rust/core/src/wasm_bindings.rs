@@ -7,7 +7,7 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::future_not_send)]
 
-use crate::{CredentialType, Signal};
+use crate::{CredentialType, RpContext, Signal};
 use serde::Serialize;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -173,6 +173,40 @@ impl BridgeEncryption {
     }
 }
 
+/// RP Context for protocol-level proof requests (WASM binding)
+///
+/// Contains RP-specific data needed to construct a `ProofRequest`.
+#[wasm_bindgen(js_name = RpContextWasm)]
+pub struct RpContextWasm(RpContext);
+
+#[wasm_bindgen(js_class = RpContextWasm)]
+impl RpContextWasm {
+    /// Creates a new RP context
+    ///
+    /// # Arguments
+    /// * `rp_id` - The registered RP ID (e.g., `"rp_123456789abcdef0"`)
+    /// * `nonce` - Unique nonce for this proof request
+    /// * `created_at` - Unix timestamp (seconds since epoch) when created
+    /// * `expires_at` - Unix timestamp (seconds since epoch) when expires
+    /// * `signature` - The RP's ECDSA signature of the `nonce` and `created_at` timestamp
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `rp_id` is not a valid RP ID (must start with `rp_`)
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        rp_id: String,
+        nonce: String,
+        created_at: u64,
+        expires_at: u64,
+        signature: String,
+    ) -> Result<Self, JsValue> {
+        let ctx = RpContext::new(rp_id, nonce, created_at, expires_at, signature)
+            .map_err(|e| JsValue::from_str(&format!("Invalid RpContext: {e}")))?;
+        Ok(Self(ctx))
+    }
+}
+
 /// Hashes a signal string using Keccak256
 #[must_use]
 #[wasm_bindgen(js_name = hashSignal)]
@@ -251,24 +285,28 @@ pub struct Session {
 
 #[wasm_bindgen]
 impl Session {
-    /// Creates a new session from explicit requests and optional constraints
+    /// Creates a new session with explicit requests, RP context, and optional constraints
     ///
     /// # Arguments
     /// * `app_id` - Application ID from the Developer Portal
     /// * `action` - Action identifier
-    /// * `requests` - Array of objects: { `credential_type`, signal?, `signal_bytes`?, `face_auth`? }
+    /// * `requests` - Array of objects: { `credential_type`, signal? }
+    /// * `rp_context` - RP context for building protocol-level `ProofRequest`
     /// * `constraints` - Optional constraints JSON matching Rust `Constraints` (any/all of credential types)
     /// * `action_description` - Optional user-facing description
     /// * `bridge_url` - Optional custom bridge URL
-    #[wasm_bindgen(js_name = createWithRequests)]
-    pub fn create_with_requests(
+    pub fn create(
         app_id: String,
         action: String,
         requests: JsValue,
+        rp_context: &RpContextWasm,
         constraints: Option<JsValue>,
         action_description: Option<String>,
         bridge_url: Option<String>,
     ) -> js_sys::Promise {
+        // Clone the RpContext so we can move it into the async block
+        let rp_context_inner = rp_context.0.clone();
+
         future_to_promise(async move {
             let app_id = crate::AppId::new(app_id)
                 .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
@@ -303,12 +341,15 @@ impl Session {
                 .transpose()
                 .map_err(|e| JsValue::from_str(&format!("Invalid bridge_url: {e}")))?;
 
-            let session = crate::Session::create_with_options(
+            let session = crate::Session::create(
                 app_id,
                 action,
                 core_requests,
+                rp_context_inner,
                 action_description,
                 core_constraints,
+                None, // legacy_verification_level
+                None, // legacy_signal
                 bridge_url_parsed,
             )
             .await

@@ -5,7 +5,7 @@
  */
 
 // Session API (main entry point)
-export { createSession, type Session, type SessionOptions, type Status, type WaitOptions } from './session'
+export { createSession, type Session, type SessionOptions, type Status, type WaitOptions, type RpContext } from './session'
 
 // Types
 export type { IDKitConfig, AbiEncodedValue, RequestConfig, CredentialType } from './types/config'

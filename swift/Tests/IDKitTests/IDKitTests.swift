@@ -79,9 +79,9 @@ func credentialTypeExists() {
 @Test("All verification levels are available")
 func verificationLevelExists() {
     // Test that all verification levels are available from Rust
-    let levels: [VerificationLevel] = [.orb, .device, .secureDocument, .document]
+    let levels: [VerificationLevel] = [.orb, .face, .device, .secureDocument, .document, .deprecated]
 
-    #expect(levels.count == 4)
+    #expect(levels.count == 6)
 }
 
 // MARK: - Constraints Tests
@@ -141,23 +141,27 @@ func sessionCreationAPIShape() {
     let signal = Signal.fromString(s: "test")
     let request = Request(credentialType: .orb, signal: signal)
 
-    // These will throw without valid app_id - verify APIs exist
+    // Create a test RpContext (in production this would come from your backend)
+    let rpContext = try! RpContext(
+        rpId: "rp_test123456789abc",
+        nonce: "test-nonce",
+        createdAt: UInt64(Date().timeIntervalSince1970),
+        expiresAt: UInt64(Date().timeIntervalSince1970) + 3600,
+        signature: "test-signature"
+    )
+
+    // This will throw without valid app_id - verify API exists
     _ = try? Session.create(
         appId: "app_test_invalid",
         action: "test",
-        requests: [request]
-    )
-
-    _ = try? Session.createWithOptions(
-        appId: "app_test_invalid",
-        action: "test",
         requests: [request],
-        actionDescription: "Test",
+        rpContext: rpContext,
+        actionDescription: nil,
         constraints: nil,
         bridgeUrl: nil
     )
 
-    // If we reach here without crashing, the APIs exist
+    // If we reach here without crashing, the API exists
     #expect(Bool(true))
 }
 
@@ -199,7 +203,7 @@ struct SwiftExtensionsTests {
     func requestConvenienceInitWithString() throws {
         let request = try Request(
             credentialType: .orb,
-            signal: "test_signal"
+            stringSignal: "test_signal"
         )
 
         #expect(request.credentialType() == .orb)

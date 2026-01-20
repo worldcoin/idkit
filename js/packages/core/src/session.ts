@@ -3,7 +3,7 @@
  * Pure functional API for World ID verification - no dependencies
  */
 
-import type { IDKitConfig } from './types/config'
+import type { IDKitConfig, RpContext } from './types/config'
 import type { ISuccessResult } from './types/result'
 import { AppErrorCodes } from './types/bridge'
 import { validate_bridge_url } from './lib/validation'
@@ -29,6 +29,9 @@ export interface Status {
 
 /** Session configuration - same as IDKitConfig */
 export type SessionOptions = IDKitConfig
+
+// Re-export RpContext for convenience
+export type { RpContext }
 
 /**
  * A World ID verification session
@@ -112,7 +115,7 @@ class SessionImpl implements Session {
  *
  * This is a pure function with no global state. Each call creates an independent session.
  *
- * @param config - Session configuration
+ * @param config - Session configuration (requires rp_context)
  * @returns A new Session instance
  *
  * @example
@@ -129,23 +132,33 @@ class SessionImpl implements Session {
  *   requests: [
  *     { credential_type: 'orb', signal: 'user-id-123' },
  *   ],
+ *   // In production, rp_context should come from your backend
+ *   rp_context: {
+ *     rp_id: 'rp_123456789abcdef0',
+ *     nonce: 'unique-nonce',
+ *     created_at: Math.floor(Date.now() / 1000),
+ *     expires_at: Math.floor(Date.now() / 1000) + 3600,
+ *     signature: 'ecdsa-signature-from-backend',
+ *   },
  * })
  *
  * // Display QR code
  * console.log('Scan this:', session.connectorURI)
  *
  * // Wait for proof
- * try {
- *   const proof = await session.pollForUpdates()
- *   console.log('Success:', proof)
- * } catch (error) {
- *   console.error('Failed:', error)
- * }
+ * const proof = await session.pollForUpdates()
+ * console.log('Success:', proof)
  * ```
  */
+// TODO: Let's explore a builder pattern to improve DevEx
 export async function createSession(config: SessionOptions): Promise<Session> {
 	// Ensure WASM is initialized
 	await initIDKit()
+
+	// Validate rp_context
+	if (!config.rp_context) {
+		throw new Error('rp_context is required')
+	}
 
 	// Validate requests
 	if (!config.requests || config.requests.length === 0) {
@@ -165,15 +178,23 @@ export async function createSession(config: SessionOptions): Promise<Session> {
 	const reqs = config.requests.map((req) => ({
 		credential_type: req.credential_type,
 		signal: typeof req.signal === 'string' ? req.signal : undefined,
-		signal_bytes: req.signal_bytes,
-		face_auth: req.face_auth,
 	}))
 
-	// Create WASM session
-	const wasmSession = (await WasmModule.Session.createWithRequests(
+	// Create WASM RpContext
+	const rpContext = new WasmModule.RpContextWasm(
+		config.rp_context.rp_id,
+		config.rp_context.nonce,
+		BigInt(config.rp_context.created_at),
+		BigInt(config.rp_context.expires_at),
+		config.rp_context.signature
+	)
+
+	// Create WASM session with the new API
+	const wasmSession = (await WasmModule.Session.create(
 		config.app_id,
 		encodeAction(config.action),
 		reqs,
+		rpContext,
 		config.constraints ?? undefined,
 		config.action_description ?? null,
 		config.bridge_url ?? null

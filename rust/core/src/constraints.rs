@@ -1,11 +1,17 @@
 //! Constraint system for declarative credential requests
 //!
-//! This module implements the constraint tree structure that allows RPs to
-//! declaratively specify which credentials they'll accept, with support for
-//! AND/OR logic and priority ordering.
+//! This module provides a wrapper layer that:
+//! - Uses `CredentialType` for the public API (type-safe)
+//! - Converts to/from `protocol_types::ConstraintExpr` internally
+//! - Provides FFI/WASM bindings
+//!
+//! The underlying protocol types use string identifiers and lifetimes,
+//! which allows them to be decoupled (potentially replaced by an external crate).
 
+use crate::protocol_types::{ConstraintExpr as ProtocolExpr, ConstraintNode as ProtocolNode};
 use crate::types::CredentialType;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::collections::HashSet;
 
 #[cfg(feature = "ffi")]
@@ -162,6 +168,24 @@ impl ConstraintNode {
             }
         }
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Protocol conversion methods
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Converts this node to a protocol node
+    #[must_use]
+    pub fn to_protocol(&self) -> ProtocolNode<'static> {
+        match self {
+            Self::Credential(cred) => ProtocolNode::Type(Cow::Owned(cred.as_str().to_string())),
+            Self::Any { any } => ProtocolNode::Expr(ProtocolExpr::Any {
+                any: any.iter().map(Self::to_protocol).collect(),
+            }),
+            Self::All { all } => ProtocolNode::Expr(ProtocolExpr::All {
+                all: all.iter().map(Self::to_protocol).collect(),
+            }),
+        }
+    }
 }
 
 /// Top-level constraints for a request
@@ -225,6 +249,26 @@ impl Constraints {
     /// Returns an error if the constraints are invalid
     pub fn validate(&self) -> crate::Result<()> {
         self.root.validate()
+    }
+
+    /// Converts constraints to protocol expression format
+    #[must_use]
+    pub fn to_protocol_expr(&self) -> ProtocolExpr<'static> {
+        // The root node needs to be wrapped in the appropriate expression type
+        match &self.root {
+            ConstraintNode::Credential(cred) => {
+                // Single credential becomes Any with one element
+                ProtocolExpr::Any {
+                    any: vec![ProtocolNode::Type(Cow::Owned(cred.as_str().to_string()))],
+                }
+            }
+            ConstraintNode::Any { any } => ProtocolExpr::Any {
+                any: any.iter().map(ConstraintNode::to_protocol).collect(),
+            },
+            ConstraintNode::All { all } => ProtocolExpr::All {
+                all: all.iter().map(ConstraintNode::to_protocol).collect(),
+            },
+        }
     }
 }
 
@@ -421,7 +465,6 @@ mod tests {
 
     #[test]
     fn test_face_orb_example() {
-        // Any(orb with face_auth, face with face_auth)
         let node = ConstraintNode::any(vec![
             ConstraintNode::credential(CredentialType::Orb),
             ConstraintNode::credential(CredentialType::Face),
@@ -510,5 +553,34 @@ mod tests {
             constraints.first_satisfying(&available),
             Some(CredentialType::Device)
         );
+    }
+
+    #[test]
+    fn test_to_protocol_expr() {
+        // Test simple any constraint
+        let constraints = Constraints::any(vec![CredentialType::Orb, CredentialType::Face]);
+        let protocol_expr = constraints.to_protocol_expr();
+
+        // Verify it serializes to the expected JSON structure
+        let json = serde_json::to_string(&protocol_expr).unwrap();
+        assert!(json.contains("any"));
+        assert!(json.contains("orb"));
+        assert!(json.contains("face"));
+
+        // Test nested constraint: all(orb, any(document, device))
+        let nested = Constraints::new(ConstraintNode::all(vec![
+            ConstraintNode::credential(CredentialType::Orb),
+            ConstraintNode::any(vec![
+                ConstraintNode::credential(CredentialType::Document),
+                ConstraintNode::credential(CredentialType::Device),
+            ]),
+        ]));
+        let nested_expr = nested.to_protocol_expr();
+        let nested_json = serde_json::to_string(&nested_expr).unwrap();
+        assert!(nested_json.contains("all"));
+        assert!(nested_json.contains("any"));
+        assert!(nested_json.contains("orb"));
+        assert!(nested_json.contains("document"));
+        assert!(nested_json.contains("device"));
     }
 }
