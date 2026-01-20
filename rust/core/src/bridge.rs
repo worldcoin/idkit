@@ -370,6 +370,7 @@ impl From<Status> for StatusWrapper {
 #[cfg(feature = "ffi")]
 #[uniffi::export]
 #[allow(clippy::needless_pass_by_value)]
+// TODO: Let's explore a builder pattern to improve DevEx
 impl SessionWrapper {
     /// Creates a new session
     ///

@@ -73,6 +73,7 @@ object IdKit {
      * @param constraints Optional constraints on which credentials are acceptable
      * @param bridgeUrl Optional custom bridge URL
      */
+    // TODO: Let's explore a builder pattern to improve DevEx
     fun session(
         appId: String,
         action: String,

@@ -150,6 +150,7 @@ class SessionImpl implements Session {
  * console.log('Success:', proof)
  * ```
  */
+// TODO: Let's explore a builder pattern to improve DevEx
 export async function createSession(config: SessionOptions): Promise<Session> {
 	// Ensure WASM is initialized
 	await initIDKit()
