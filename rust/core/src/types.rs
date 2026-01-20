@@ -3,6 +3,8 @@
 use crate::protocol_types::RpId;
 use serde::{Deserialize, Serialize};
 
+use std::str::FromStr;
+
 #[cfg(feature = "ffi")]
 use std::sync::Arc;
 
@@ -470,12 +472,8 @@ impl RpContext {
         expires_at: u64,
         signature: impl Into<String>,
     ) -> crate::Result<Self> {
-        use std::str::FromStr;
-
         let rp_id = RpId::from_str(rp_id.as_ref()).map_err(|_| {
-            crate::Error::InvalidConfiguration(
-                "Invalid RP ID: must start with 'rp_'".to_string(),
-            )
+            crate::Error::InvalidConfiguration("Invalid RP ID: must start with 'rp_'".to_string())
         })?;
 
         Ok(Self {
@@ -517,7 +515,9 @@ impl RpContext {
         expires_at: u64,
         signature: String,
     ) -> std::result::Result<Arc<Self>, crate::error::IdkitError> {
-        Ok(Arc::new(Self::new(rp_id, nonce, created_at, expires_at, signature)?))
+        Ok(Arc::new(Self::new(
+            rp_id, nonce, created_at, expires_at, signature,
+        )?))
     }
 
     /// Gets the RP ID as a string
