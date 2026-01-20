@@ -163,6 +163,7 @@ impl Session {
     ///
     /// Returns an error if the session cannot be created or the request fails
     #[allow(clippy::too_many_arguments)]
+    // TODO: Add Preset.OrbCompatible to support backwards compatibility with World ID 3.0
     pub async fn create(
         app_id: AppId,
         action: impl Into<String>,
