@@ -476,6 +476,24 @@ impl RpContext {
             crate::Error::InvalidConfiguration("Invalid RP ID: must start with 'rp_'".to_string())
         })?;
 
+        // Validate created_at is not in the future
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        if created_at > now {
+            return Err(crate::Error::InvalidConfiguration(
+                "created_at cannot be in the future".to_string(),
+            ));
+        }
+
+        // Validate expires_at is after created_at
+        if created_at >= expires_at {
+            return Err(crate::Error::InvalidConfiguration(
+                "expires_at must be greater than created_at".to_string(),
+            ));
+        }
+
         Ok(Self {
             rp_id,
             nonce: nonce.into(),
