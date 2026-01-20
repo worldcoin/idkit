@@ -25,6 +25,9 @@ struct BridgeRequestPayload {
     // ---------------------------------------------------
     // -- Legacy fields for World ID 3.0 compatibility --
     // ---------------------------------------------------
+    // ---------------------------------------------------
+    // -- Legacy fields for World ID 3.0 compatibility --
+    // ---------------------------------------------------
     /// Application ID from the Developer Portal
     app_id: String,
 
@@ -39,6 +42,7 @@ struct BridgeRequestPayload {
     /// Derived from the request with the max verification level credential type
     signal: String,
 
+    /// Min verification level derived from requests (World App 3.0 compatibility)
     /// Min verification level derived from requests (World App 3.0 compatibility)
     verification_level: VerificationLevel,
 
@@ -516,13 +520,18 @@ mod tests {
         )
         .unwrap();
 
-        // Build proof request with valid hex action
-        let action = "0x0000000000000000000000000000000000000000000000000000000000000002";
-        let proof_request = build_proof_request(&rp_context, &requests, action, None).unwrap();
+        // Build proof request with valid hex action (action must be a valid field element)
+        let proof_request = build_proof_request(
+            &rp_context,
+            &requests,
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            None,
+        )
+        .unwrap();
 
         let payload = BridgeRequestPayload {
             app_id: "app_test".to_string(),
-            action: action.to_string(),
+            action: "test-action".to_string(),
             action_description: Some("Test description".to_string()),
             signal: String::new(),
             verification_level: VerificationLevel::Deprecated,
@@ -531,6 +540,7 @@ mod tests {
 
         let json = serde_json::to_string(&payload).unwrap();
         assert!(json.contains("app_test"));
+        assert!(json.contains("test-action"));
         assert!(json.contains("verification_level"));
         assert!(json.contains("proof_request"));
         assert!(json.contains("rp_1234567890abcdef"));

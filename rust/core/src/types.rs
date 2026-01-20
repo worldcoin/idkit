@@ -472,6 +472,7 @@ impl<'de> Deserialize<'de> for BridgeUrl {
 /// This includes timing information, nonce, and the RP's signature.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Object))]
+// TODO: use primitive types for rp context
 pub struct RpContext {
     /// The registered RP ID (e.g., `rp_123456789abcdef0`)
     pub rp_id: RpId,
