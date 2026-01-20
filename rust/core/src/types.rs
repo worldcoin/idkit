@@ -1,5 +1,6 @@
 //! Core types for the `IDKit` protocol
 
+use crate::protocol_types::RpId;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "ffi")]
@@ -437,6 +438,124 @@ impl<'de> Deserialize<'de> for BridgeUrl {
     }
 }
 
+/// Relying Party context for protocol-level proof requests
+///
+/// Contains the RP-specific data needed to construct a `ProofRequest`.
+/// This includes timing information, nonce, and the RP's signature.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Object))]
+pub struct RpContext {
+    /// The registered RP ID (e.g., `rp_123456789abcdef0`)
+    pub rp_id: RpId,
+    /// Unique nonce for this request
+    pub nonce: String,
+    /// Unix timestamp (seconds since epoch) when created
+    pub created_at: u64,
+    /// Unix timestamp (seconds since epoch) when expires
+    pub expires_at: u64,
+    /// The RP's ECDSA signature over the request
+    pub signature: String,
+}
+
+impl RpContext {
+    /// Creates a new RP context
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `rp_id` is not a valid RP ID (must start with `rp_`)
+    pub fn new(
+        rp_id: impl AsRef<str>,
+        nonce: impl Into<String>,
+        created_at: u64,
+        expires_at: u64,
+        signature: impl Into<String>,
+    ) -> crate::Result<Self> {
+        use std::str::FromStr;
+
+        let rp_id = RpId::from_str(rp_id.as_ref()).map_err(|_| {
+            crate::Error::InvalidConfiguration(
+                "Invalid RP ID: must start with 'rp_'".to_string(),
+            )
+        })?;
+
+        Ok(Self {
+            rp_id,
+            nonce: nonce.into(),
+            created_at,
+            expires_at,
+            signature: signature.into(),
+        })
+    }
+
+    /// Returns true if the context is expired
+    #[must_use]
+    pub const fn is_expired(&self, now: u64) -> bool {
+        now > self.expires_at
+    }
+
+    /// Returns the RP ID
+    #[must_use]
+    pub fn rp_id(&self) -> &RpId {
+        &self.rp_id
+    }
+}
+
+// UniFFI exports for RpContext
+#[cfg(feature = "ffi")]
+#[uniffi::export]
+impl RpContext {
+    /// Creates a new RP context
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `rp_id` is not a valid RP ID
+    #[uniffi::constructor]
+    pub fn ffi_new(
+        rp_id: String,
+        nonce: String,
+        created_at: u64,
+        expires_at: u64,
+        signature: String,
+    ) -> std::result::Result<Arc<Self>, crate::error::IdkitError> {
+        Ok(Arc::new(Self::new(rp_id, nonce, created_at, expires_at, signature)?))
+    }
+
+    /// Gets the RP ID as a string
+    #[must_use]
+    #[uniffi::method(name = "rp_id")]
+    pub fn ffi_rp_id(&self) -> String {
+        self.rp_id.to_string()
+    }
+
+    /// Gets the nonce
+    #[must_use]
+    #[uniffi::method(name = "nonce")]
+    pub fn ffi_nonce(&self) -> String {
+        self.nonce.clone()
+    }
+
+    /// Gets the created_at timestamp
+    #[must_use]
+    #[uniffi::method(name = "created_at")]
+    pub fn ffi_created_at(&self) -> u64 {
+        self.created_at
+    }
+
+    /// Gets the expires_at timestamp
+    #[must_use]
+    #[uniffi::method(name = "expires_at")]
+    pub fn ffi_expires_at(&self) -> u64 {
+        self.expires_at
+    }
+
+    /// Gets the signature
+    #[must_use]
+    #[uniffi::method(name = "signature")]
+    pub fn ffi_signature(&self) -> String {
+        self.signature.clone()
+    }
+}
+
 /// Verification level (for backward compatibility)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
@@ -722,5 +841,55 @@ mod tests {
             VerificationLevel::Document.primary_credential(),
             CredentialType::Document
         );
+    }
+
+    #[test]
+    fn test_rp_context_creation() {
+        let ctx = RpContext::new(
+            "rp_123456789abcdef0",
+            "unique-nonce-123",
+            1000,
+            2000,
+            "ecdsa-signature",
+        )
+        .unwrap();
+
+        assert_eq!(ctx.rp_id().as_str(), "rp_123456789abcdef0");
+        assert_eq!(ctx.nonce, "unique-nonce-123");
+        assert_eq!(ctx.created_at, 1000);
+        assert_eq!(ctx.expires_at, 2000);
+        assert_eq!(ctx.signature, "ecdsa-signature");
+    }
+
+    #[test]
+    fn test_rp_context_invalid_rp_id() {
+        let result = RpContext::new("invalid_rp_id", "nonce", 1000, 2000, "sig");
+        assert!(result.is_err());
+
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("Invalid RP ID"));
+    }
+
+    #[test]
+    fn test_rp_context_expiration() {
+        let ctx = RpContext::new("rp_0000000000000001", "nonce", 1000, 2000, "sig").unwrap();
+
+        assert!(!ctx.is_expired(1500)); // Within validity
+        assert!(!ctx.is_expired(2000)); // At expiry (not expired yet)
+        assert!(ctx.is_expired(2001)); // After expiry
+    }
+
+    #[test]
+    fn test_rp_context_serialization() {
+        let ctx = RpContext::new("rp_0000000000000001", "nonce", 1000, 2000, "sig").unwrap();
+
+        let json = serde_json::to_string(&ctx).unwrap();
+        assert!(json.contains("rp_0000000000000001"));
+        assert!(json.contains("nonce"));
+        assert!(json.contains("1000"));
+        assert!(json.contains("2000"));
+
+        let deserialized: RpContext = serde_json::from_str(&json).unwrap();
+        assert_eq!(ctx, deserialized);
     }
 }

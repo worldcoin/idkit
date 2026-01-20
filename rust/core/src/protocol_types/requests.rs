@@ -61,9 +61,6 @@ pub struct ProofRequest {
     /// The raw representation of the action (as a field element).
     /// TODO FIXME: Dummy type for now, protocol type expected `FieldElement`
     pub action: String,
-    /// The nullifier key of the RP
-    // TODO: Dummy type for now, this will be removed from proof request type
-    pub oprf_public_key: String,
     /// The RP's ECDSA signature over the request
     // TODO: Use a real signature type here
     pub signature: String,
@@ -76,6 +73,38 @@ pub struct ProofRequest {
     /// Constraint expression (all/any) optional
     #[serde(skip_serializing_if = "Option::is_none")]
     pub constraints: Option<ConstraintExpr<'static>>,
+}
+
+impl ProofRequest {
+    /// Creates a new proof request.
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        created_at: u64,
+        expires_at: u64,
+        rp_id: RpId,
+        action: String,
+        signature: String,
+        nonce: String,
+        requests: Vec<RequestItem>,
+        constraints: Option<ConstraintExpr<'static>>,
+    ) -> Self {
+        let oprf_key_id = rp_id.to_string(); // Current protocol uses RpId as OprfKeyId
+
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            version: RequestVersion::V1,
+            created_at,
+            expires_at,
+            rp_id,
+            oprf_key_id,
+            action,
+            signature,
+            nonce,
+            requests,
+            constraints,
+        }
+    }
 }
 
 /// Per-credential request payload.
