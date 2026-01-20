@@ -135,6 +135,7 @@ pub struct Session {
     client: reqwest::Client,
 }
 
+// TODO: Let's explore alternatives for requests/constraints, and add syntactic sugar for the better DevEx
 impl Session {
     /// Creates a new session
     ///

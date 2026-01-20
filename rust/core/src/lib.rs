@@ -31,7 +31,9 @@ pub use constraints::{ConstraintNode, Constraints};
 pub use crypto::CryptoKey;
 pub use error::{Error, Result};
 pub use issuer_schema::{credential_to_issuer_schema_id, issuer_schema_id_to_credential};
-pub use types::{AppId, BridgeUrl, CredentialType, Proof, Request, Signal, VerificationLevel};
+pub use types::{
+    AppId, BridgeUrl, CredentialType, Proof, Request, RpContext, Signal, VerificationLevel,
+};
 
 #[cfg(feature = "verification")]
 pub use verification::{verify_proof, verify_proof_with_endpoint};
