@@ -233,6 +233,31 @@ impl Request {
             Ok(())
         }
     }
+
+    /// Converts to a protocol `RequestItem`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the credential type cannot be mapped to an issuer schema ID
+    pub fn to_request_item(&self) -> crate::Result<crate::protocol_types::RequestItem> {
+        use crate::issuer_schema::credential_to_issuer_schema_id;
+
+        let identifier = self.credential_type.as_str().to_string();
+        let issuer_schema_id = credential_to_issuer_schema_id(&identifier).ok_or_else(|| {
+            crate::Error::InvalidConfiguration(format!("Unknown credential type: {identifier}"))
+        })?;
+
+        // Encode signal if present
+        let signal = self.signal.as_ref().map(crate::crypto::encode_signal);
+
+        Ok(crate::protocol_types::RequestItem::new(
+            identifier,
+            issuer_schema_id,
+            signal,
+            None, // genesis_issued_at_min
+            None, // session_id
+        ))
+    }
 }
 
 // UniFFI exports for Request
@@ -571,6 +596,11 @@ pub enum VerificationLevel {
     Document,
     /// Secure document verification (secure document or orb)
     SecureDocument,
+    /// Invalid verification level (used to signal World App 4.0+ only)
+    ///
+    /// When this is sent, older World App versions will reject the request
+    /// with an error, ensuring only 4.0+ versions can process the request.
+    Invalid,
 }
 
 impl VerificationLevel {
@@ -587,6 +617,8 @@ impl VerificationLevel {
                 CredentialType::SecureDocument,
                 CredentialType::Document,
             ],
+            // Invalid has no valid credentials - used to signal 4.0+ only
+            Self::Invalid => vec![],
         }
     }
 
@@ -612,10 +644,11 @@ impl VerificationLevel {
     /// Returns the primary credential type for this verification level.
     ///
     /// This is the credential type that determines the level (the least restrictive one).
+    /// For `Invalid`, returns `Orb` as a fallback (though this should not be used in practice).
     #[must_use]
     pub const fn primary_credential(&self) -> CredentialType {
         match self {
-            Self::Orb => CredentialType::Orb,
+            Self::Orb | Self::Invalid => CredentialType::Orb,
             Self::Face => CredentialType::Face,
             Self::Device => CredentialType::Device,
             Self::SecureDocument => CredentialType::SecureDocument,

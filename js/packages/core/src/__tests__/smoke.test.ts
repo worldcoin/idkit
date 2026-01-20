@@ -125,6 +125,15 @@ describe('Platform Detection', () => {
 })
 
 describe('Session API', () => {
+	// Helper to create a test RP context
+	const createTestRpContext = () => ({
+		rp_id: 'rp_test123456789abc',
+		nonce: 'test-nonce-' + Date.now(),
+		created_at: Math.floor(Date.now() / 1000),
+		expires_at: Math.floor(Date.now() / 1000) + 3600,
+		signature: 'test-signature',
+	})
+
 	it('should export createSession function', () => {
 		expect(typeof createSession).toBe('function')
 	})
@@ -135,8 +144,21 @@ describe('Session API', () => {
 				app_id: 'app_staging_test',
 				action: 'test-action',
 				requests: [],
+				rp_context: createTestRpContext(),
 			})
 		).rejects.toThrow('At least one request is required')
+	})
+
+	it('should throw error when rp_context is missing', async () => {
+		await expect(
+			createSession({
+				app_id: 'app_staging_test',
+				action: 'test-action',
+				requests: [{ credential_type: 'orb' }],
+				// @ts-expect-error - testing missing rp_context
+				rp_context: undefined,
+			})
+		).rejects.toThrow('rp_context is required')
 	})
 })
 

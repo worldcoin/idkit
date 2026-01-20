@@ -73,11 +73,22 @@
                 statusDiv.hidden = false;
                 statusText.textContent = 'Creating verification session...';
 
+                // TODO: Update this to use the new RP context API
+                const now = Math.floor(Date.now() / 1000);
+                const rpContext = {
+                    rp_id: 'rp_123',
+                    nonce: crypto.randomUUID(),
+                    created_at: now,
+                    expires_at: now + 3600, // 1 hour expiry
+                    signature: '',
+                };
+
                 // Create a new session with the requests
                 const session = await createSession({
                     app_id: APP_ID,
                     action: ACTION,
                     requests: requests,
+                    rp_context: rpContext,
                 });
 
                 // Get the connector URL from the session
