@@ -532,7 +532,7 @@ impl RpContext {
     /// # Errors
     ///
     /// Returns an error if `rp_id` is not a valid RP ID
-    #[uniffi::constructor]
+    #[uniffi::constructor(name = "new")]
     pub fn ffi_new(
         rp_id: String,
         nonce: String,

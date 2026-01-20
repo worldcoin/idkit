@@ -203,7 +203,7 @@ struct SwiftExtensionsTests {
     func requestConvenienceInitWithString() throws {
         let request = try Request(
             credentialType: .orb,
-            signal: "test_signal"
+            stringSignal: "test_signal"
         )
 
         #expect(request.credentialType() == .orb)
