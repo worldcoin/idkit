@@ -7,12 +7,15 @@ use crate::{
     types::{AppId, BridgeUrl, Proof, Request, RpContext, VerificationLevel},
     Constraints,
 };
+use alloy_primitives::Signature;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use world_id_primitives::FieldElement;
 
 #[cfg(feature = "native-crypto")]
 use crate::crypto::CryptoKey;
 
+use std::str::FromStr;
 #[cfg(feature = "ffi")]
 use std::sync::Arc;
 
@@ -64,14 +67,21 @@ fn build_proof_request(
     // Convert constraints to protocol expression if provided
     let protocol_constraints = constraints.map(crate::Constraints::to_protocol_expr);
 
+    let action = FieldElement::from_str(action)
+        .map_err(|_| Error::InvalidConfiguration("Invalid action".to_string()))?;
+    let signature = Signature::from_str(&rp_context.signature)
+        .map_err(|_| Error::InvalidConfiguration("Invalid signature".to_string()))?;
+    let nonce = FieldElement::from_str(&rp_context.nonce)
+        .map_err(|_| Error::InvalidConfiguration("Invalid nonce".to_string()))?;
+
     // Build ProofRequest using the RpContext
     Ok(ProofRequest::new(
         rp_context.created_at,
         rp_context.expires_at,
         rp_context.rp_id.clone(),
-        action.to_string(),
-        rp_context.signature.clone(),
-        rp_context.nonce.clone(),
+        action,
+        signature,
+        nonce,
         request_items,
         protocol_constraints,
     ))

@@ -3,12 +3,13 @@
 //! These types define the structure of proof requests and responses between
 //! Relying Parties (RPs) and Authenticators.
 
+use alloy_primitives::Signature;
 use serde::{de::Error as _, Deserialize, Serialize};
 use std::collections::HashSet;
+use world_id_primitives::rp::RpId;
+use world_id_primitives::{FieldElement, WorldIdProof};
 
 use super::constraints::{ConstraintExpr, MAX_CONSTRAINT_NODES};
-use super::primitives::{FieldElement, RpId};
-use super::proof::WorldIdProof;
 
 /// Protocol schema version for proof requests and responses.
 #[repr(u8)]
@@ -59,14 +60,11 @@ pub struct ProofRequest {
     /// Current protocol version sets `OprfKeyId` as the `RpId`
     pub oprf_key_id: String,
     /// The raw representation of the action (as a field element).
-    /// TODO FIXME: Dummy type for now, protocol type expected `FieldElement`
-    pub action: String,
+    pub action: FieldElement,
     /// The RP's ECDSA signature over the request
-    // TODO: Use a real signature type here
-    pub signature: String,
+    pub signature: Signature,
     /// Unique nonce for this request
-    /// TODO FIXME: Dummy type for now, protocol type expected `FieldElement`
-    pub nonce: String,
+    pub nonce: FieldElement,
     /// Specific credential requests
     #[serde(rename = "proof_requests")]
     pub requests: Vec<RequestItem>,
@@ -83,10 +81,9 @@ impl ProofRequest {
         created_at: u64,
         expires_at: u64,
         rp_id: RpId,
-        action: String,
-        // TODO: Add real signature type, consider using Vec<u8> for nonce
-        signature: String,
-        nonce: String,
+        action: FieldElement,
+        signature: Signature,
+        nonce: FieldElement,
         requests: Vec<RequestItem>,
         constraints: Option<ConstraintExpr<'static>>,
     ) -> Self {
@@ -149,7 +146,7 @@ impl RequestItem {
 }
 
 /// Overall response from the Authenticator to the RP.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProofResponse {
     /// The response id references request id
@@ -161,7 +158,7 @@ pub struct ProofResponse {
 }
 
 /// Per-credential response item returned by the authenticator.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResponseItem {
     /// Credential identifier matching the request.
@@ -343,7 +340,7 @@ mod tests {
     fn test_request_item_serialization() {
         let item = RequestItem {
             identifier: "orb".to_string(),
-            issuer_schema_id: FieldElement::from_u64(1),
+            issuer_schema_id: FieldElement::from(1_u64),
             signal: Some("test_signal".to_string()),
             genesis_issued_at_min: None,
             session_id: None,
@@ -356,12 +353,11 @@ mod tests {
 
     #[test]
     fn test_response_item_with_proof() {
-        let proof_hex = "00".repeat(160);
         let item = ResponseItem {
             identifier: "orb".to_string(),
-            issuer_schema_id: FieldElement::from_u64(1),
-            proof: Some(WorldIdProof::new(&proof_hex)),
-            nullifier: Some(FieldElement::from_u64(12345)),
+            issuer_schema_id: FieldElement::from(1_u64),
+            proof: Some(WorldIdProof::default()),
+            nullifier: Some(FieldElement::from(12345_u64)),
             session_id: None,
             error: None,
         };
@@ -375,7 +371,7 @@ mod tests {
     fn test_response_item_with_error() {
         let item = ResponseItem {
             identifier: "orb".to_string(),
-            issuer_schema_id: FieldElement::from_u64(1),
+            issuer_schema_id: FieldElement::from(1_u64),
             proof: None,
             nullifier: None,
             session_id: None,
@@ -398,15 +394,15 @@ mod tests {
             responses: vec![
                 ResponseItem {
                     identifier: "orb".to_string(),
-                    issuer_schema_id: FieldElement::from_u64(1),
-                    proof: Some(WorldIdProof::new("00".repeat(160))),
-                    nullifier: Some(FieldElement::from_u64(1)),
+                    issuer_schema_id: FieldElement::from(1_u64),
+                    proof: Some(WorldIdProof::default()),
+                    nullifier: Some(FieldElement::from(1_u64)),
                     session_id: None,
                     error: None,
                 },
                 ResponseItem {
                     identifier: "document".to_string(),
-                    issuer_schema_id: FieldElement::from_u64(2),
+                    issuer_schema_id: FieldElement::from(2_u64),
                     proof: None,
                     nullifier: None,
                     session_id: None,

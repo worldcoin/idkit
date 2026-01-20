@@ -33,18 +33,10 @@
 //! ```
 
 mod constraints;
-mod primitives;
-mod proof;
 mod requests;
-
-// Re-export primitives
-pub use primitives::{FieldElement, RpId};
 
 // Re-export constraints
 pub use constraints::{ConstraintExpr, ConstraintNode, MAX_CONSTRAINT_NODES};
-
-// Re-export proof
-pub use proof::WorldIdProof;
 
 // Re-export requests
 pub use requests::{
