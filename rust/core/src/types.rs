@@ -449,13 +449,13 @@ impl<'de> Deserialize<'de> for BridgeUrl {
 pub struct RpContext {
     /// The registered RP ID (e.g., `rp_123456789abcdef0`)
     pub rp_id: RpId,
-    /// Unique nonce for this request
+    /// Unique nonce for this proof request used in the signature
     pub nonce: String,
-    /// Unix timestamp (seconds since epoch) when created
+    /// Unix timestamp (seconds since epoch) used in the signature
     pub created_at: u64,
-    /// Unix timestamp (seconds since epoch) when expires
+    /// Unix timestamp (seconds since epoch) when the proof request expires
     pub expires_at: u64,
-    /// The RP's ECDSA signature over the request
+    /// The RP's ECDSA signature of the `nonce` and `created_at` timestamp
     pub signature: String,
 }
 
