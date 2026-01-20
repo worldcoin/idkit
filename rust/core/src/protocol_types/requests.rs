@@ -84,6 +84,7 @@ impl ProofRequest {
         expires_at: u64,
         rp_id: RpId,
         action: String,
+        // TODO: Add real signature type, consider using Vec<u8> for nonce
         signature: String,
         nonce: String,
         requests: Vec<RequestItem>,
