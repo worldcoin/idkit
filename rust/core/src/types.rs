@@ -534,14 +534,14 @@ impl RpContext {
         self.nonce.clone()
     }
 
-    /// Gets the created_at timestamp
+    /// Gets the `created_at` timestamp
     #[must_use]
     #[uniffi::method(name = "created_at")]
     pub fn ffi_created_at(&self) -> u64 {
         self.created_at
     }
 
-    /// Gets the expires_at timestamp
+    /// Gets the `expires_at` timestamp
     #[must_use]
     #[uniffi::method(name = "expires_at")]
     pub fn ffi_expires_at(&self) -> u64 {
