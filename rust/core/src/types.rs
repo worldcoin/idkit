@@ -254,6 +254,7 @@ impl Request {
             identifier,
             issuer_schema_id,
             signal,
+            // TODO: Allow the developer to select the genesis_issued_at_min
             None, // genesis_issued_at_min
             None, // session_id
         ))
@@ -618,61 +619,7 @@ pub enum VerificationLevel {
     ///
     /// When this is sent, older World App versions will reject the request
     /// with an error, ensuring only 4.0+ versions can process the request.
-    Invalid,
-}
-
-impl VerificationLevel {
-    /// Converts a verification level to a list of credential types in priority order
-    #[must_use]
-    pub fn to_credentials(&self) -> Vec<CredentialType> {
-        match self {
-            Self::Orb => vec![CredentialType::Orb],
-            Self::Face => vec![CredentialType::Orb, CredentialType::Face],
-            Self::Device => vec![CredentialType::Orb, CredentialType::Device],
-            Self::SecureDocument => vec![CredentialType::Orb, CredentialType::SecureDocument],
-            Self::Document => vec![
-                CredentialType::Orb,
-                CredentialType::SecureDocument,
-                CredentialType::Document,
-            ],
-            // Invalid has no valid credentials - used to signal 4.0+ only
-            Self::Invalid => vec![],
-        }
-    }
-
-    /// Derives the maximum (least restrictive) verification level from credential types.
-    ///
-    /// Priority (most to least restrictive): orb > `secure_document` > document > face > device
-    #[must_use]
-    pub fn from_credential_types(types: &[CredentialType]) -> Self {
-        // Check in reverse priority order (least restrictive first)
-        if types.contains(&CredentialType::Device) {
-            Self::Device
-        } else if types.contains(&CredentialType::Face) {
-            Self::Face
-        } else if types.contains(&CredentialType::Document) {
-            Self::Document
-        } else if types.contains(&CredentialType::SecureDocument) {
-            Self::SecureDocument
-        } else {
-            Self::Orb
-        }
-    }
-
-    /// Returns the primary credential type for this verification level.
-    ///
-    /// This is the credential type that determines the level (the least restrictive one).
-    /// For `Invalid`, returns `Orb` as a fallback (though this should not be used in practice).
-    #[must_use]
-    pub const fn primary_credential(&self) -> CredentialType {
-        match self {
-            Self::Orb | Self::Invalid => CredentialType::Orb,
-            Self::Face => CredentialType::Face,
-            Self::Device => CredentialType::Device,
-            Self::SecureDocument => CredentialType::SecureDocument,
-            Self::Document => CredentialType::Document,
-        }
-    }
+    Deprecated,
 }
 
 // UniFFI helper function for CredentialType
@@ -800,98 +747,6 @@ mod tests {
 
         let deserialized: CredentialType = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, CredentialType::Orb);
-    }
-
-    #[test]
-    fn test_verification_level_to_credentials() {
-        assert_eq!(
-            VerificationLevel::Orb.to_credentials(),
-            vec![CredentialType::Orb]
-        );
-
-        assert_eq!(
-            VerificationLevel::Device.to_credentials(),
-            vec![CredentialType::Orb, CredentialType::Device]
-        );
-
-        assert_eq!(
-            VerificationLevel::Document.to_credentials(),
-            vec![
-                CredentialType::Orb,
-                CredentialType::SecureDocument,
-                CredentialType::Document
-            ]
-        );
-    }
-
-    #[test]
-    fn test_verification_level_from_credential_types() {
-        // Priority (most → least restrictive): orb > secure_document > document > face > device
-
-        // Single credentials
-        assert_eq!(
-            VerificationLevel::from_credential_types(&[CredentialType::Orb]),
-            VerificationLevel::Orb
-        );
-        assert_eq!(
-            VerificationLevel::from_credential_types(&[CredentialType::Device]),
-            VerificationLevel::Device
-        );
-        assert_eq!(
-            VerificationLevel::from_credential_types(&[CredentialType::Face]),
-            VerificationLevel::Face
-        );
-
-        // Multiple credentials - should return least restrictive
-        assert_eq!(
-            VerificationLevel::from_credential_types(&[
-                CredentialType::Orb,
-                CredentialType::Device
-            ]),
-            VerificationLevel::Device
-        );
-        assert_eq!(
-            VerificationLevel::from_credential_types(&[CredentialType::Orb, CredentialType::Face]),
-            VerificationLevel::Face
-        );
-        assert_eq!(
-            VerificationLevel::from_credential_types(&[
-                CredentialType::Orb,
-                CredentialType::SecureDocument,
-                CredentialType::Document
-            ]),
-            VerificationLevel::Document
-        );
-
-        // Empty defaults to Orb
-        assert_eq!(
-            VerificationLevel::from_credential_types(&[]),
-            VerificationLevel::Orb
-        );
-    }
-
-    #[test]
-    fn test_verification_level_primary_credential() {
-        assert_eq!(
-            VerificationLevel::Orb.primary_credential(),
-            CredentialType::Orb
-        );
-        assert_eq!(
-            VerificationLevel::Device.primary_credential(),
-            CredentialType::Device
-        );
-        assert_eq!(
-            VerificationLevel::Face.primary_credential(),
-            CredentialType::Face
-        );
-        assert_eq!(
-            VerificationLevel::SecureDocument.primary_credential(),
-            CredentialType::SecureDocument
-        );
-        assert_eq!(
-            VerificationLevel::Document.primary_credential(),
-            CredentialType::Document
-        );
     }
 
     #[test]

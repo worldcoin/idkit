@@ -205,7 +205,7 @@ impl Session {
             // By default we only want to interact with World ID 4.0
             // we use an invalid verification level to ensure users on older World App versions
             // respond with an error.
-            verification_level: legacy_verification_level.unwrap_or(VerificationLevel::Invalid),
+            verification_level: legacy_verification_level.unwrap_or(VerificationLevel::Deprecated),
             signal: legacy_signal.unwrap_or_default(),
         };
 
@@ -513,7 +513,7 @@ mod tests {
             action: "test_action".to_string(),
             action_description: Some("Test description".to_string()),
             signal: String::new(),
-            verification_level: VerificationLevel::Invalid,
+            verification_level: VerificationLevel::Deprecated,
             proof_request,
         };
 

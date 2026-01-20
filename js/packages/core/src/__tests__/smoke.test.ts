@@ -125,6 +125,7 @@ describe('Platform Detection', () => {
 })
 
 describe('Session API', () => {
+	//TODO: We should try to find a test with a signed payload to test full e2e
 	// Helper to create a test RP context
 	const createTestRpContext = () => ({
 		rp_id: 'rp_test123456789abc',

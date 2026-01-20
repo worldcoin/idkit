@@ -80,6 +80,7 @@
                     nonce: crypto.randomUUID(),
                     created_at: now,
                     expires_at: now + 3600, // 1 hour expiry
+                    // TODO: Invalid signature should fail once we update types
                     signature: '',
                 };
 
