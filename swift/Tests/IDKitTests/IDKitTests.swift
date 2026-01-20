@@ -142,8 +142,9 @@ func sessionCreationAPIShape() {
     let request = Request(credentialType: .orb, signal: signal)
 
     // Create a test RpContext (in production this would come from your backend)
+    // Note: RpId must be "rp_" followed by exactly 16 hex characters
     let rpContext = try! RpContext(
-        rpId: "rp_test123456789abc",
+        rpId: "rp_1234567890abcdef",
         nonce: "test-nonce",
         createdAt: UInt64(Date().timeIntervalSince1970),
         expiresAt: UInt64(Date().timeIntervalSince1970) + 3600,
