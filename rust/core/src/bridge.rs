@@ -71,12 +71,11 @@ fn build_proof_request(
     // Convert constraints to protocol expression if provided
     let protocol_constraints = constraints.map(crate::Constraints::to_protocol_expr);
 
-    let action = FieldElement::from_str(action)
-        .map_err(|_| Error::InvalidConfiguration("Invalid action".to_string()))?;
+    let action = FieldElement::from_arbitrary_raw_bytes(action.as_bytes());
     let signature = Signature::from_str(&rp_context.signature)
         .map_err(|_| Error::InvalidConfiguration("Invalid signature".to_string()))?;
-    let nonce = FieldElement::from_str(&rp_context.nonce)
-        .map_err(|_| Error::InvalidConfiguration("Invalid nonce".to_string()))?;
+    // TODO: Once we add a utility function for rp signature and nonce generation, update this
+    let nonce = FieldElement::from_arbitrary_raw_bytes(rp_context.nonce.as_bytes());
 
     // Build ProofRequest using the RpContext
     Ok(ProofRequest::new(
