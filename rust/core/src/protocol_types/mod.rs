@@ -1,6 +1,6 @@
 //! Lightweight World ID Protocol 4.0 types.
 //!
-//! TODO: Migrate ProofRequest and ProofResponse once they are Wasm-compatible
+//! TODO: Migrate `ProofRequest` and `ProofResponse` once they are Wasm-compatible
 
 mod constraints;
 mod requests;

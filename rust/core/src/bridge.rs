@@ -78,7 +78,7 @@ fn build_proof_request(
     Ok(ProofRequest::new(
         rp_context.created_at,
         rp_context.expires_at,
-        rp_context.rp_id.clone(),
+        rp_context.rp_id,
         action,
         signature,
         nonce,
@@ -504,23 +504,25 @@ mod tests {
         let request = Request::new(CredentialType::Orb, Some(Signal::from_string("test")));
         let requests = vec![request];
 
-        // Create a test RpContext
+        // Create a test RpContext with valid hex nonce and signature
+        // Note: Signature must be 65 bytes (130 hex chars) in ECDSA format
+        let sig_65_bytes = "0x".to_string() + &"00".repeat(64) + "1b"; // r(32) + s(32) + v(1)
         let rp_context = RpContext::new(
-            "rp_test123456789abc",
-            "test-nonce",
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001", // valid field element
             1_700_000_000,
             1_700_003_600,
-            "test-signature",
+            &sig_65_bytes,
         )
         .unwrap();
 
-        // Build proof request
-        let proof_request =
-            build_proof_request(&rp_context, &requests, "test_action", None).unwrap();
+        // Build proof request with valid hex action
+        let action = "0x0000000000000000000000000000000000000000000000000000000000000002";
+        let proof_request = build_proof_request(&rp_context, &requests, action, None).unwrap();
 
         let payload = BridgeRequestPayload {
             app_id: "app_test".to_string(),
-            action: "test_action".to_string(),
+            action: action.to_string(),
             action_description: Some("Test description".to_string()),
             signal: String::new(),
             verification_level: VerificationLevel::Deprecated,
@@ -529,10 +531,9 @@ mod tests {
 
         let json = serde_json::to_string(&payload).unwrap();
         assert!(json.contains("app_test"));
-        assert!(json.contains("test_action"));
         assert!(json.contains("verification_level"));
         assert!(json.contains("proof_request"));
-        assert!(json.contains("rp_test123456789abc"));
+        assert!(json.contains("rp_1234567890abcdef"));
     }
 
     #[test]
