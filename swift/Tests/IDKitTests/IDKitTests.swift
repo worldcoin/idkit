@@ -79,7 +79,7 @@ func credentialTypeExists() {
 @Test("All verification levels are available")
 func verificationLevelExists() {
     // Test that all verification levels are available from Rust
-    let levels: [VerificationLevel] = [.orb, .face, .device, .secureDocument, .document, .invalid]
+    let levels: [VerificationLevel] = [.orb, .face, .device, .secureDocument, .document, .deprecated]
 
     #expect(levels.count == 6)
 }
