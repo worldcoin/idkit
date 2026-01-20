@@ -15,6 +15,7 @@ authors = ["World Contributors"]
 
 [workspace.dependencies]
 # World ID protocol
+# TODO: Update to stable release once available
 world-id-primitives = { git = "https://github.com/worldcoin/world-id-protocol.git", rev = "f195b0ee67c47639148f892f9b3fd2cffed61af6", default-features = false }
 
 # Serialization
