@@ -75,6 +75,7 @@ coverage/
 /.idea/
 /.claude/
 /.cursor/
+.planning/
 
 # Backup files
 *.bak

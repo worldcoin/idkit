@@ -7,18 +7,24 @@ use crate::{
     types::{AppId, BridgeUrl, Proof, Request, RpContext, VerificationLevel},
     Constraints,
 };
+use alloy_primitives::Signature;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use world_id_primitives::FieldElement;
 
 #[cfg(feature = "native-crypto")]
 use crate::crypto::CryptoKey;
 
+use std::str::FromStr;
 #[cfg(feature = "ffi")]
 use std::sync::Arc;
 
 /// Bridge request payload sent to initialize a session
 #[derive(Debug, Serialize)]
 struct BridgeRequestPayload {
+    // ---------------------------------------------------
+    // -- Legacy fields for World ID 3.0 compatibility --
+    // ---------------------------------------------------
     // ---------------------------------------------------
     // -- Legacy fields for World ID 3.0 compatibility --
     // ---------------------------------------------------
@@ -36,6 +42,7 @@ struct BridgeRequestPayload {
     /// Derived from the request with the max verification level credential type
     signal: String,
 
+    /// Min verification level derived from requests (World App 3.0 compatibility)
     /// Min verification level derived from requests (World App 3.0 compatibility)
     verification_level: VerificationLevel,
 
@@ -64,14 +71,20 @@ fn build_proof_request(
     // Convert constraints to protocol expression if provided
     let protocol_constraints = constraints.map(crate::Constraints::to_protocol_expr);
 
+    let action = FieldElement::from_arbitrary_raw_bytes(action.as_bytes());
+    let signature = Signature::from_str(&rp_context.signature)
+        .map_err(|_| Error::InvalidConfiguration("Invalid signature".to_string()))?;
+    // TODO: Once we add a utility function for rp signature and nonce generation, update this
+    let nonce = FieldElement::from_arbitrary_raw_bytes(rp_context.nonce.as_bytes());
+
     // Build ProofRequest using the RpContext
     Ok(ProofRequest::new(
         rp_context.created_at,
         rp_context.expires_at,
-        rp_context.rp_id.clone(),
-        action.to_string(),
-        rp_context.signature.clone(),
-        rp_context.nonce.clone(),
+        rp_context.rp_id,
+        action,
+        signature,
+        nonce,
         request_items,
         protocol_constraints,
     ))
@@ -494,23 +507,30 @@ mod tests {
         let request = Request::new(CredentialType::Orb, Some(Signal::from_string("test")));
         let requests = vec![request];
 
-        // Create a test RpContext
+        // Create a test RpContext with valid hex nonce and signature
+        // Note: Signature must be 65 bytes (130 hex chars) in ECDSA format
+        let sig_65_bytes = "0x".to_string() + &"00".repeat(64) + "1b"; // r(32) + s(32) + v(1)
         let rp_context = RpContext::new(
-            "rp_test123456789abc",
-            "test-nonce",
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001", // valid field element
             1_700_000_000,
             1_700_003_600,
-            "test-signature",
+            &sig_65_bytes,
         )
         .unwrap();
 
-        // Build proof request
-        let proof_request =
-            build_proof_request(&rp_context, &requests, "test_action", None).unwrap();
+        // Build proof request with valid hex action (action must be a valid field element)
+        let proof_request = build_proof_request(
+            &rp_context,
+            &requests,
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            None,
+        )
+        .unwrap();
 
         let payload = BridgeRequestPayload {
             app_id: "app_test".to_string(),
-            action: "test_action".to_string(),
+            action: "test-action".to_string(),
             action_description: Some("Test description".to_string()),
             signal: String::new(),
             verification_level: VerificationLevel::Deprecated,
@@ -519,10 +539,10 @@ mod tests {
 
         let json = serde_json::to_string(&payload).unwrap();
         assert!(json.contains("app_test"));
-        assert!(json.contains("test_action"));
+        assert!(json.contains("test-action"));
         assert!(json.contains("verification_level"));
         assert!(json.contains("proof_request"));
-        assert!(json.contains("rp_test123456789abc"));
+        assert!(json.contains("rp_1234567890abcdef"));
     }
 
     #[test]

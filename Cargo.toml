@@ -14,6 +14,10 @@ repository = "https://github.com/worldcoin/idkit"
 authors = ["World Contributors"]
 
 [workspace.dependencies]
+# World ID protocol
+# TODO: Update to stable release once available
+world-id-primitives = { git = "https://github.com/worldcoin/world-id-protocol.git", rev = "f195b0ee67c47639148f892f9b3fd2cffed61af6", default-features = false }
+
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -44,6 +48,7 @@ urlencoding = "2.1"
 
 # Solidity ABI types
 alloy-sol-types = "0.8.0"
+alloy-primitives = "1.5.2"
 ruint = "1.11.1"
 
 # UniFFI

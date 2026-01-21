@@ -1,7 +1,7 @@
 //! Core types for the `IDKit` protocol
 
-use crate::protocol_types::RpId;
 use serde::{Deserialize, Serialize};
+use world_id_primitives::rp::RpId;
 
 use std::str::FromStr;
 
@@ -472,6 +472,7 @@ impl<'de> Deserialize<'de> for BridgeUrl {
 /// This includes timing information, nonce, and the RP's signature.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Object))]
+// TODO: use primitive types for rp context
 pub struct RpContext {
     /// The registered RP ID (e.g., `rp_123456789abcdef0`)
     pub rp_id: RpId,
@@ -762,7 +763,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(ctx.rp_id().as_str(), "rp_123456789abcdef0");
+        assert_eq!(ctx.rp_id().to_string(), "rp_123456789abcdef0");
         assert_eq!(ctx.nonce, "unique-nonce-123");
         assert_eq!(ctx.created_at, 1000);
         assert_eq!(ctx.expires_at, 2000);

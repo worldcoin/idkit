@@ -8,6 +8,7 @@ public extension Request {
     /// generated uniffi init that accepts `Signal?`.
     convenience init(
         credentialType: CredentialType,
+        //TODO: this was a breaking change, we used "signal" instead of "stringSignal"
         stringSignal: String?
     ) throws {
         let signalObject = stringSignal.map { Signal.fromString(s: $0) }

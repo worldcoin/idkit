@@ -12,6 +12,7 @@ name = "idkit"
 crate-type = ["rlib", "cdylib", "staticlib"]
 
 [dependencies]
+world-id-primitives = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 aes-gcm = { workspace = true, optional = true }
@@ -22,6 +23,7 @@ hex = { workspace = true }
 thiserror = { workspace = true }
 url = { workspace = true }
 alloy-sol-types = { workspace = true }
+alloy-primitives = { workspace = true }
 ruint = { workspace = true }
 uniffi = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }

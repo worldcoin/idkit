@@ -3,7 +3,7 @@
 //! Maps between string credential identifiers (e.g., "orb", "face") and
 //! their corresponding `FieldElement` issuer schema IDs used in the protocol.
 
-use crate::protocol_types::FieldElement;
+use world_id_primitives::FieldElement;
 
 /// Maps credential identifier string to issuer schema ID.
 ///
@@ -16,11 +16,11 @@ use crate::protocol_types::FieldElement;
 #[must_use]
 pub fn credential_to_issuer_schema_id(identifier: &str) -> Option<FieldElement> {
     match identifier {
-        "orb" => Some(FieldElement::from_u64(1)),
-        "face" => Some(FieldElement::from_u64(2)),
-        "secure_document" => Some(FieldElement::from_u64(3)),
-        "document" => Some(FieldElement::from_u64(4)),
-        "device" => Some(FieldElement::from_u64(5)),
+        "orb" => Some(FieldElement::from(1_u64)),
+        "face" => Some(FieldElement::from(2_u64)),
+        "secure_document" => Some(FieldElement::from(3_u64)),
+        "document" => Some(FieldElement::from(4_u64)),
+        "device" => Some(FieldElement::from(5_u64)),
         _ => None,
     }
 }
@@ -36,15 +36,15 @@ pub fn credential_to_issuer_schema_id(identifier: &str) -> Option<FieldElement> 
 #[must_use]
 pub fn issuer_schema_id_to_credential(id: &FieldElement) -> Option<&'static str> {
     // Compare directly against known values
-    if *id == FieldElement::from_u64(1) {
+    if *id == FieldElement::from(1_u64) {
         Some("orb")
-    } else if *id == FieldElement::from_u64(2) {
+    } else if *id == FieldElement::from(2_u64) {
         Some("face")
-    } else if *id == FieldElement::from_u64(3) {
+    } else if *id == FieldElement::from(3_u64) {
         Some("secure_document")
-    } else if *id == FieldElement::from_u64(4) {
+    } else if *id == FieldElement::from(4_u64) {
         Some("document")
-    } else if *id == FieldElement::from_u64(5) {
+    } else if *id == FieldElement::from(5_u64) {
         Some("device")
     } else {
         None
@@ -68,15 +68,15 @@ mod tests {
     #[test]
     fn test_issuer_schema_id_to_credential() {
         assert_eq!(
-            issuer_schema_id_to_credential(&FieldElement::from_u64(1)),
+            issuer_schema_id_to_credential(&FieldElement::from(1_u64)),
             Some("orb")
         );
         assert_eq!(
-            issuer_schema_id_to_credential(&FieldElement::from_u64(5)),
+            issuer_schema_id_to_credential(&FieldElement::from(5_u64)),
             Some("device")
         );
         assert_eq!(
-            issuer_schema_id_to_credential(&FieldElement::from_u64(99)),
+            issuer_schema_id_to_credential(&FieldElement::from(99_u64)),
             None
         );
     }
