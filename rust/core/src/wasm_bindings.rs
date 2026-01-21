@@ -7,6 +7,7 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::future_not_send)]
 
+use crate::preset::{OrbLegacyPreset, Preset};
 use crate::{CredentialType, RpContext, Signal};
 use serde::Serialize;
 use std::cell::RefCell;
@@ -225,6 +226,22 @@ pub fn hash_signal_bytes(bytes: &[u8]) -> String {
     format!("{hash:#066x}")
 }
 
+/// Creates an OrbLegacy preset
+///
+/// Returns a preset object that can be passed to `sessionFromPreset`.
+///
+/// # Arguments
+/// * `signal` - Optional signal string
+///
+/// # Errors
+///
+/// Returns an error if serialization fails
+#[wasm_bindgen(js_name = createOrbLegacyPreset)]
+pub fn create_orb_legacy_preset(signal: Option<String>) -> Result<JsValue, JsValue> {
+    let preset = Preset::OrbLegacy(OrbLegacyPreset::new(signal));
+    serde_wasm_bindgen::to_value(&preset).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
 /// Request DTO for JS interop
 #[derive(serde::Deserialize)]
 struct JsRequestDto {
@@ -361,6 +378,58 @@ impl Session {
         })
     }
 
+    /// Creates a session from a preset
+    ///
+    /// This is a convenience method that creates a session with preset-defined
+    /// credentials and both World ID 3.0 and 4.0 compatibility.
+    ///
+    /// # Arguments
+    /// * `app_id` - Application ID from the Developer Portal
+    /// * `action` - Action identifier
+    /// * `preset` - Preset object from `createOrbLegacyPreset`
+    /// * `rp_context` - RP context from `RpContextWasm`
+    /// * `action_description` - Optional description shown to users
+    /// * `bridge_url` - Optional custom bridge URL
+    #[wasm_bindgen(js_name = createFromPreset)]
+    pub fn create_from_preset(
+        app_id: String,
+        action: String,
+        preset: JsValue,
+        rp_context: &RpContextWasm,
+        action_description: Option<String>,
+        bridge_url: Option<String>,
+    ) -> js_sys::Promise {
+        let rp_context_inner = rp_context.0.clone();
+
+        future_to_promise(async move {
+            let preset: Preset = serde_wasm_bindgen::from_value(preset)
+                .map_err(|e| JsValue::from_str(&format!("Invalid preset: {e}")))?;
+
+            let app_id_parsed = crate::AppId::new(app_id)
+                .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
+
+            let bridge_url_parsed = bridge_url
+                .map(crate::BridgeUrl::new)
+                .transpose()
+                .map_err(|e| JsValue::from_str(&format!("Invalid bridge_url: {e}")))?;
+
+            let session = crate::Session::create_from_preset(
+                app_id_parsed,
+                action,
+                preset,
+                rp_context_inner,
+                action_description,
+                bridge_url_parsed,
+            )
+            .await
+            .map_err(|e| JsValue::from_str(&format!("Failed to create session: {e}")))?;
+
+            Ok(JsValue::from(Self {
+                inner: Rc::new(RefCell::new(Some(session))),
+            }))
+        })
+    }
+
     /// Returns the connect URL for World App
     ///
     /// This URL should be displayed as a QR code for users to scan with World App.
@@ -457,4 +526,17 @@ export enum Credential {
     Document = "document",
     Device = "device"
 }
+"#;
+
+// Export preset types
+#[wasm_bindgen(typescript_custom_section)]
+const TS_PRESET: &str = r#"
+export interface OrbLegacyPresetData {
+    signal?: string;
+}
+
+export type Preset =
+    | { type: "OrbLegacy"; data: OrbLegacyPresetData };
+
+export function createOrbLegacyPreset(signal?: string): Preset;
 "#;

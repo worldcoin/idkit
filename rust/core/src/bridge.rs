@@ -3,6 +3,7 @@
 use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
+    preset::Preset,
     protocol_types::ProofRequest,
     types::{AppId, BridgeUrl, Proof, Request, RpContext, VerificationLevel},
     Constraints,
@@ -273,6 +274,49 @@ impl Session {
         })
     }
 
+    /// Creates a new session from a preset
+    ///
+    /// Presets provide a simplified way to create sessions with predefined
+    /// credential configurations. The preset is converted to both World ID 4.0
+    /// requests and World ID 3.0 legacy fields for backward compatibility.
+    ///
+    /// # Arguments
+    ///
+    /// * `app_id` - Application ID from the Developer Portal
+    /// * `action` - Action identifier
+    /// * `preset` - Credential preset (e.g., OrbLegacy)
+    /// * `rp_context` - RP context for building protocol-level `ProofRequest`
+    /// * `action_description` - Optional action description shown to users
+    /// * `bridge_url` - Optional bridge URL (defaults to production)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created or the request fails
+    pub async fn create_from_preset(
+        app_id: AppId,
+        action: impl Into<String>,
+        preset: Preset,
+        rp_context: RpContext,
+        action_description: Option<String>,
+        bridge_url: Option<BridgeUrl>,
+    ) -> Result<Self> {
+        let (requests, constraints, legacy_verification_level, legacy_signal) =
+            preset.to_bridge_params();
+
+        Self::create(
+            app_id,
+            action,
+            requests,
+            rp_context,
+            action_description,
+            constraints,
+            Some(legacy_verification_level),
+            legacy_signal,
+            bridge_url,
+        )
+        .await
+    }
+
     /// Returns the connect URL for World App
     #[must_use]
     pub fn connect_url(&self) -> String {
@@ -434,6 +478,56 @@ impl SessionWrapper {
                 core_constraints,
                 None, // legacy_verification_level
                 None, // legacy_signal
+                bridge_url_parsed,
+            ))
+            .map_err(crate::error::IdkitError::from)?;
+
+        Ok(Self { runtime, inner })
+    }
+
+    /// Creates a new session from a preset
+    ///
+    /// Presets provide a simplified way to create sessions with predefined
+    /// credential configurations. The preset is converted to both World ID 4.0
+    /// requests and World ID 3.0 legacy fields for backward compatibility.
+    ///
+    /// # Arguments
+    ///
+    /// * `app_id` - Application ID from the Developer Portal
+    /// * `action` - Action identifier
+    /// * `preset` - Credential preset (e.g., OrbLegacy)
+    /// * `rp_context` - RP context for building protocol-level `ProofRequest`
+    /// * `action_description` - Optional action description shown to users
+    /// * `bridge_url` - Optional bridge URL (defaults to production)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created or the request fails
+    #[uniffi::constructor]
+    pub fn create_from_preset(
+        app_id: String,
+        action: String,
+        preset: Preset,
+        rp_context: Arc<RpContext>,
+        action_description: Option<String>,
+        bridge_url: Option<String>,
+    ) -> std::result::Result<Self, crate::error::IdkitError> {
+        let runtime =
+            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
+                details: format!("Failed to create runtime: {e}"),
+            })?;
+
+        let app_id_parsed = AppId::new(&app_id)?;
+        let bridge_url_parsed = bridge_url.map(|url| BridgeUrl::new(&url)).transpose()?;
+        let core_rp_context = (*rp_context).clone();
+
+        let inner = runtime
+            .block_on(Session::create_from_preset(
+                app_id_parsed,
+                action,
+                preset,
+                core_rp_context,
+                action_description,
                 bridge_url_parsed,
             ))
             .map_err(crate::error::IdkitError::from)?;
