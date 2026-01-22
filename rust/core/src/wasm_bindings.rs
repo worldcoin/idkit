@@ -226,7 +226,7 @@ pub fn hash_signal_bytes(bytes: &[u8]) -> String {
     format!("{hash:#066x}")
 }
 
-/// Creates an OrbLegacy preset
+/// Creates an `OrbLegacy` preset
 ///
 /// Returns a preset object that can be passed to `sessionFromPreset`.
 ///

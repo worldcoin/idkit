@@ -495,7 +495,7 @@ impl SessionWrapper {
     ///
     /// * `app_id` - Application ID from the Developer Portal
     /// * `action` - Action identifier
-    /// * `preset` - Credential preset (e.g., OrbLegacy)
+    /// * `preset` - Credential preset (e.g., `OrbLegacy`)
     /// * `rp_context` - RP context for building protocol-level `ProofRequest`
     /// * `action_description` - Optional action description shown to users
     /// * `bridge_url` - Optional bridge URL (defaults to production)
