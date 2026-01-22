@@ -13,8 +13,6 @@ crate-type = ["rlib", "cdylib", "staticlib"]
 
 [dependencies]
 world-id-primitives = { workspace = true }
-# TODO: remove once we use update world-id-primtives
-ark-ff = "0.5"
 serde = { workspace = true }
 serde_json = { workspace = true }
 aes-gcm = { workspace = true, optional = true }
@@ -56,7 +54,7 @@ rp-signature = ["k256"]      # RP signature generation (ECDSA secp256k1)
 # Language bindings
 ffi = ["uniffi", "native-crypto", "bridge", "dep:tokio"]  # Enable UniFFI scaffolding for Swift/Kotlin bindings
 uniffi-bindings = ["ffi"]  # Deprecated alias for ffi feature
-wasm-bindings = ["wasm-crypto", "bridge-wasm", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys", "dep:serde-wasm-bindgen"]  # Enable WASM bindings
+wasm-bindings = ["wasm-crypto", "bridge-wasm", "rp-signature", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys", "dep:serde-wasm-bindgen"]  # Enable WASM bindings
 
 # Protocol features
 bridge = ["uuid/v4", "reqwest", "dep:tokio", "dep:urlencoding"]   # Bridge client and session management for verifications
