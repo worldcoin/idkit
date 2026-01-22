@@ -1,4 +1,4 @@
-import { isNode } from "./platform";
+import { isServerEnvironment } from "./platform";
 import { WasmModule } from "./wasm";
 import type { RpSignature } from "../../wasm/idkit_wasm";
 
@@ -29,7 +29,7 @@ export function computeRpSignature(
   signingKeyHex: string,
   ttlSeconds?: number,
 ): RpSignature {
-  if (!isNode()) {
+  if (!isServerEnvironment()) {
     throw new Error(
       "computeRpSignature can only be used in Node.js environments. " +
         "This function requires access to signing keys and should never be called from browser/client-side code.",
