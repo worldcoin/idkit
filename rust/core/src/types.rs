@@ -410,16 +410,69 @@ impl BridgeUrl {
     /// Default bridge URL
     pub const DEFAULT: &'static str = "https://bridge.worldcoin.org";
 
-    /// Creates a new bridge URL
+    /// Creates a new bridge URL with validation based on app context
+    ///
+    /// For staging apps (`app_staging_*`), allows localhost/127.0.0.1 with relaxed rules.
+    /// For production apps, enforces strict validation:
+    /// - Must use HTTPS
+    /// - Must use default port (443)
+    /// - Must not have a path, query parameters, or fragment
     ///
     /// # Errors
     ///
-    /// Returns an error if the URL is invalid
-    pub fn new(url: impl Into<String>) -> crate::Result<Self> {
-        let url = url.into();
-        // Validate it's a valid URL
-        url::Url::parse(&url)
-            .map_err(|e| crate::Error::InvalidConfiguration(format!("Invalid bridge URL: {e}")))?;
+    /// Returns an error if validation fails
+    pub fn new(url: impl Into<String>, app_id: &AppId) -> crate::Result<Self> {
+        Self::validated(url.into(), app_id.is_staging())
+    }
+
+    /// Creates a bridge URL with strict production validation
+    ///
+    /// Use this when no `AppId` is available (e.g., deserialization).
+    /// Always applies strict validation rules.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if validation fails
+    pub fn new_strict(url: impl Into<String>) -> crate::Result<Self> {
+        Self::validated(url.into(), false)
+    }
+
+    /// Internal validation with explicit staging flag
+    fn validated(url: String, is_staging: bool) -> crate::Result<Self> {
+        let parsed = url::Url::parse(&url).map_err(|e| {
+            crate::Error::InvalidConfiguration(format!("Failed to parse Bridge URL: {e}"))
+        })?;
+
+        let is_localhost = matches!(parsed.host_str(), Some("localhost" | "127.0.0.1"));
+
+        // Staging localhost: skip all validation
+        if is_staging && is_localhost {
+            return Ok(Self(url));
+        }
+
+        // Collect all validation errors
+        let mut errors = Vec::new();
+
+        if parsed.scheme() != "https" {
+            errors.push("Bridge URL must use HTTPS.");
+        }
+        if parsed.port().is_some() {
+            errors.push("Bridge URL must use the default port (443).");
+        }
+        if !matches!(parsed.path(), "/" | "") {
+            errors.push("Bridge URL must not have a path.");
+        }
+        if parsed.query().is_some() {
+            errors.push("Bridge URL must not have query parameters.");
+        }
+        if parsed.fragment().is_some() {
+            errors.push("Bridge URL must not have a fragment.");
+        }
+
+        if !errors.is_empty() {
+            return Err(crate::Error::InvalidConfiguration(errors.join(" ")));
+        }
+
         Ok(Self(url))
     }
 
@@ -463,7 +516,7 @@ impl<'de> Deserialize<'de> for BridgeUrl {
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Self::new(s).map_err(serde::de::Error::custom)
+        Self::new_strict(s).map_err(serde::de::Error::custom)
     }
 }
 
@@ -801,5 +854,57 @@ mod tests {
 
         let deserialized: RpContext = serde_json::from_str(&json).unwrap();
         assert_eq!(ctx, deserialized);
+    }
+
+    // BridgeUrl validation tests
+
+    #[test]
+    fn test_bridge_url_valid() {
+        let app_id = AppId::new("app_123").unwrap();
+        assert!(BridgeUrl::new("https://bridge.worldcoin.org", &app_id).is_ok());
+    }
+
+    #[test]
+    fn test_bridge_url_invalid_protocol() {
+        let app_id = AppId::new("app_123").unwrap();
+        let err = BridgeUrl::new("http://bridge.worldcoin.org", &app_id).unwrap_err();
+        assert!(err.to_string().contains("HTTPS"));
+    }
+
+    #[test]
+    fn test_bridge_url_invalid_port() {
+        let app_id = AppId::new("app_123").unwrap();
+        assert!(BridgeUrl::new("https://bridge.worldcoin.org:8080", &app_id).is_err());
+    }
+
+    #[test]
+    fn test_bridge_url_invalid_path() {
+        let app_id = AppId::new("app_123").unwrap();
+        assert!(BridgeUrl::new("https://bridge.worldcoin.org/api", &app_id).is_err());
+    }
+
+    #[test]
+    fn test_bridge_url_invalid_query() {
+        let app_id = AppId::new("app_123").unwrap();
+        assert!(BridgeUrl::new("https://bridge.worldcoin.org?foo=bar", &app_id).is_err());
+    }
+
+    #[test]
+    fn test_bridge_url_invalid_fragment() {
+        let app_id = AppId::new("app_123").unwrap();
+        assert!(BridgeUrl::new("https://bridge.worldcoin.org#section", &app_id).is_err());
+    }
+
+    #[test]
+    fn test_bridge_url_staging_localhost() {
+        let staging_app = AppId::new("app_staging_123").unwrap();
+        assert!(BridgeUrl::new("http://localhost:3000", &staging_app).is_ok());
+        assert!(BridgeUrl::new("http://127.0.0.1:8080", &staging_app).is_ok());
+    }
+
+    #[test]
+    fn test_bridge_url_prod_rejects_localhost() {
+        let prod_app = AppId::new("app_123").unwrap();
+        assert!(BridgeUrl::new("http://localhost:3000", &prod_app).is_err());
     }
 }

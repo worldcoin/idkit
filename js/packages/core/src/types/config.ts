@@ -38,8 +38,9 @@ export type RpContext = {
 export type IDKitConfig = {
 	/** Unique identifier for the app verifying the action. This should be the app ID obtained from the Developer Portal. */
 	app_id: `app_${string}`
-	/** Identifier for the action the user is performing. Should be left blank for [Sign in with Worldcoin](https://docs.world.org/id/sign-in). */
-	action: AbiEncodedValue | string
+  /** Identifier for the action the user is performing. Should be left blank for [Sign in with Worldcoin](https://docs.world.org/id/sign-in). */
+	// TODO: Expore how can we support AbiEncoded values for actions
+	action:  string
 	/** RP context for protocol-level proof requests (required) */
 	rp_context: RpContext
 	/** The description of the specific action (shown to users in World App). Only recommended for actions created on-the-fly. */
