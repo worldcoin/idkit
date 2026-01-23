@@ -58,6 +58,7 @@ impl CredentialType {
 /// - ABI-encoded bytes (for on-chain use cases)
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Object))]
+// TODO: Unify on a signal type that makes sense for both protocol
 pub enum Signal {
     /// UTF-8 string signal
     String(String),

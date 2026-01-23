@@ -1,0 +1,80 @@
+//! Credential presets for simplified World ID session creation
+//!
+//! Presets provide a simplified API for common credential request patterns,
+//! automatically handling both World ID 4.0 and 3.0 protocol formats.
+
+use crate::constraints::Constraints;
+use crate::types::{CredentialType, Request, Signal, VerificationLevel};
+use serde::{Deserialize, Serialize};
+
+/// Configuration for `OrbLegacy` preset
+///
+/// Requests orb-verified credentials only, with optional signal.
+/// The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct OrbLegacyPreset {
+    /// Optional signal to include in the proof.
+    /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
+    pub signal: Option<String>,
+}
+
+impl OrbLegacyPreset {
+    /// Creates a new `OrbLegacyPreset` with optional signal
+    #[must_use]
+    pub fn new(signal: Option<String>) -> Self {
+        Self { signal }
+    }
+}
+
+/// Credential presets for World ID verification
+///
+/// Each preset defines a pre-configured set of credential requests
+/// with sensible defaults. Presets convert to both World ID 4.0
+/// (requests array) and World ID 3.0 (`verification_level`) formats.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
+#[serde(tag = "type", content = "data")]
+pub enum Preset {
+    /// Orb-only verification (highest assurance level)
+    OrbLegacy(OrbLegacyPreset),
+}
+
+impl Preset {
+    /// Converts the preset to bridge session parameters
+    ///
+    /// Returns a tuple of:
+    /// - `Vec<Request>` - World ID 4.0 request format
+    /// - `Option<Constraints>` - Optional constraints for the session
+    /// - `VerificationLevel` - World ID 3.0 legacy verification level
+    /// - `Option<String>` - Legacy signal string (if configured)
+    #[must_use]
+    pub fn to_bridge_params(
+        &self,
+    ) -> (
+        Vec<Request>,
+        Option<Constraints>,
+        VerificationLevel,
+        Option<String>,
+    ) {
+        match self {
+            Self::OrbLegacy(config) => {
+                let signal = config
+                    .signal
+                    .as_ref()
+                    .map(|s| Signal::from_string(s.clone()));
+                let requests = vec![Request::new(CredentialType::Orb, signal)];
+                let constraints = None; // OrbLegacy doesn't need constraints
+                let legacy_verification_level = VerificationLevel::Orb;
+                let legacy_signal = config.signal.clone();
+
+                (
+                    requests,
+                    constraints,
+                    legacy_verification_level,
+                    legacy_signal,
+                )
+            }
+        }
+    }
+}

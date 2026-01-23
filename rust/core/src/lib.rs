@@ -16,6 +16,7 @@ pub mod constraints;
 pub mod crypto;
 pub mod error;
 pub mod issuer_schema;
+pub mod preset;
 pub mod protocol_types;
 pub mod types;
 #[cfg(feature = "verification")]
@@ -31,6 +32,7 @@ pub use constraints::{ConstraintNode, Constraints};
 pub use crypto::CryptoKey;
 pub use error::{Error, Result};
 pub use issuer_schema::{credential_to_issuer_schema_id, issuer_schema_id_to_credential};
+pub use preset::{OrbLegacyPreset, Preset};
 pub use types::{
     AppId, BridgeUrl, CredentialType, Proof, Request, RpContext, Signal, VerificationLevel,
 };
