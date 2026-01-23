@@ -522,7 +522,9 @@ impl SessionWrapper {
             })?;
 
         let app_id_parsed = AppId::new(&app_id)?;
-        let bridge_url_parsed = bridge_url.map(|url| BridgeUrl::new(&url)).transpose()?;
+        let bridge_url_parsed = bridge_url
+            .map(|url| BridgeUrl::new(&url, &app_id_parsed))
+            .transpose()?;
         let core_rp_context = (*rp_context).clone();
 
         let inner = runtime
