@@ -242,6 +242,126 @@ pub fn create_orb_legacy_preset(signal: Option<String>) -> Result<JsValue, JsVal
     serde_wasm_bindgen::to_value(&preset).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
+// RP Signature wrapper for WASM
+#[wasm_bindgen(js_name = RpSignature)]
+pub struct RpSignatureWasm {
+    sig: String,
+    nonce: String,
+    created_at: u64,
+    expires_at: u64,
+}
+
+#[wasm_bindgen(js_class = RpSignature)]
+impl RpSignatureWasm {
+    /// Gets the signature as hex string (0x-prefixed, 65 bytes)
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn sig(&self) -> String {
+        self.sig.clone()
+    }
+
+    /// Gets the nonce as hex string (0x-prefixed field element)
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn nonce(&self) -> String {
+        self.nonce.clone()
+    }
+
+    /// Gets the creation timestamp
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = createdAt)]
+    pub fn created_at(&self) -> u64 {
+        self.created_at
+    }
+
+    /// Gets the expiration timestamp
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = expiresAt)]
+    pub fn expires_at(&self) -> u64 {
+        self.expires_at
+    }
+
+    /// Converts to JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if setting object properties fails
+    #[wasm_bindgen(js_name = toJSON)]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn to_json(&self) -> Result<JsValue, JsValue> {
+        let obj = js_sys::Object::new();
+        js_sys::Reflect::set(&obj, &"sig".into(), &self.sig.clone().into())?;
+        js_sys::Reflect::set(&obj, &"nonce".into(), &self.nonce.clone().into())?;
+        // Convert u64 to f64 to avoid BigInt serialization issues in JSON
+        // Note: This may lose precision for values > 2^53, but timestamps fit within safe integer range
+        js_sys::Reflect::set(&obj, &"createdAt".into(), &(self.created_at as f64).into())?;
+        js_sys::Reflect::set(&obj, &"expiresAt".into(), &(self.expires_at as f64).into())?;
+        Ok(obj.into())
+    }
+}
+
+/// Computes an RP signature for a proof request
+///
+/// This function generates a cryptographic signature that RPs use to authenticate
+/// proof requests. It:
+/// 1. Generates a random nonce
+/// 2. Gets the current timestamp
+/// 3. Computes: keccak256(nonce || action || timestamp || `expires_at`)
+/// 4. Signs the hash with ECDSA secp256k1
+///
+/// # Arguments
+/// * `action` - The action identifier string (e.g., "verify-human")
+/// * `signing_key_hex` - The ECDSA private key as hex (0x-prefixed or not, 32 bytes)
+/// * `ttl_seconds` - Optional time-to-live in seconds (defaults to 300 = 5 minutes)
+///
+/// # Returns
+/// An `RpSignature` object
+///
+/// # Errors
+/// Returns an error if:
+/// - The signing key is invalid hex or wrong length
+/// - Random generation fails
+/// - Signing fails
+///
+/// # Example
+/// ```javascript
+/// import { computeRpSignature } from '@worldcoin/idkit-core'
+///
+/// const signingKey = '0x1234...' // 32-byte private key
+/// const signature = computeRpSignature('my-action', signingKey) // default 5 min TTL
+/// const customTtl = computeRpSignature('my-action', signingKey, 600) // 10 min TTL
+/// console.log(signature.sig, signature.nonce, signature.createdAt, signature.expiresAt)
+/// ```
+#[wasm_bindgen(js_name = computeRpSignature)]
+pub fn compute_rp_signature_wasm(
+    action: &str,
+    signing_key_hex: &str,
+    ttl_seconds: Option<u64>,
+) -> Result<RpSignatureWasm, JsValue> {
+    #[cfg(feature = "rp-signature")]
+    {
+        use world_id_primitives::FieldElement;
+
+        let action = FieldElement::from_arbitrary_raw_bytes(action.as_bytes());
+
+        // Compute signature using core implementation
+        let sig = crate::rp_signature::compute_rp_signature(signing_key_hex, action, ttl_seconds)
+            .map_err(|e| JsValue::from_str(&format!("Signature computation failed: {e}")))?;
+
+        Ok(RpSignatureWasm {
+            sig: sig.sig,
+            nonce: sig.nonce,
+            created_at: sig.created_at,
+            expires_at: sig.expires_at,
+        })
+    }
+
+    #[cfg(not(feature = "rp-signature"))]
+    {
+        Err(JsValue::from_str("RP signature feature not enabled"))
+    }
+}
+
 /// Request DTO for JS interop
 #[derive(serde::Deserialize)]
 struct JsRequestDto {
@@ -409,7 +529,7 @@ impl Session {
                 .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
 
             let bridge_url_parsed = bridge_url
-                .map(crate::BridgeUrl::new)
+                .map(|url| crate::BridgeUrl::new(url, &app_id_parsed))
                 .transpose()
                 .map_err(|e| JsValue::from_str(&format!("Invalid bridge_url: {e}")))?;
 
@@ -539,4 +659,18 @@ export type Preset =
     | { type: "OrbLegacy"; data: OrbLegacyPresetData };
 
 export function createOrbLegacyPreset(signal?: string): Preset;
+"#;
+
+// Export RP signature types
+#[wasm_bindgen(typescript_custom_section)]
+const TS_RP_SIGNATURE: &str = r#"
+export interface RpSignature {
+    sig: string;
+    nonce: string;
+    createdAt: number;
+    expiresAt: number;
+    toJSON(): { sig: string; nonce: string; createdAt: number; expiresAt: number };
+}
+
+export function computeRpSignature(action: string, signingKeyHex: string, ttlSeconds?: number): RpSignature;
 "#;

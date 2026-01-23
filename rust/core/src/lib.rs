@@ -18,6 +18,8 @@ pub mod error;
 pub mod issuer_schema;
 pub mod preset;
 pub mod protocol_types;
+#[cfg(feature = "rp-signature")]
+pub mod rp_signature;
 pub mod types;
 #[cfg(feature = "verification")]
 pub mod verification;

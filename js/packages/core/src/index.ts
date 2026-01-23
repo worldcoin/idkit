@@ -5,18 +5,39 @@
  */
 
 // Session API (main entry point)
-export { createSession, type Session, type SessionOptions, type Status, type WaitOptions, type RpContext } from './session'
+export {
+  createSession,
+  type Session,
+  type SessionOptions,
+  type Status,
+  type WaitOptions,
+  type RpContext,
+} from "./session";
 
 // Types
-export type { IDKitConfig, AbiEncodedValue, RequestConfig, CredentialType } from './types/config'
-export type { ISuccessResult, IErrorState } from './types/result'
-export { AppErrorCodes, VerificationState, ResponseStatus } from './types/bridge'
+export type {
+  IDKitConfig,
+  AbiEncodedValue,
+  RequestConfig,
+  CredentialType,
+} from "./types/config";
+export type { ISuccessResult, IErrorState } from "./types/result";
+export {
+  AppErrorCodes,
+  VerificationState,
+  ResponseStatus,
+} from "./types/bridge";
 
 // Backend verification
-export { verifyCloudProof, type IVerifyResponse } from './lib/backend'
+//TODO: Add back verifyCloudProof, when we implement rust binding for it.
+// export { verifyCloudProof, type IVerifyResponse } from "./lib/backend";
 
 // Utilities
-export { isReactNative, isWeb, isNode } from './lib/platform'
+export { isReactNative, isWeb, isNode } from "./lib/platform";
 
 // WASM exports
-export { initIDKit, isInitialized, WasmModule } from './lib/wasm'
+export { initIDKit, isInitialized, WasmModule } from "./lib/wasm";
+export type { RpSignature } from "../wasm/idkit_wasm";
+
+// RP Signature (server-side only)
+export { computeRpSignature } from "./lib/rp-signature";

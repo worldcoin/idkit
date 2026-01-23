@@ -20,6 +20,7 @@ getrandom = { workspace = true }
 tiny-keccak = { workspace = true }
 base64 = { workspace = true }
 hex = { workspace = true }
+k256 = { version = "0.13", features = ["ecdsa"], optional = true }
 thiserror = { workspace = true }
 url = { workspace = true }
 alloy-sol-types = { workspace = true }
@@ -48,11 +49,12 @@ default = ["native-crypto", "bridge", "verification"]
 # Cryptography implementations
 native-crypto = ["aes-gcm"]  # AES-256-GCM encryption for native platforms
 wasm-crypto = ["aes-gcm"]    # AES-256-GCM encryption for WebAssembly
+rp-signature = ["k256"]      # RP signature generation (ECDSA secp256k1)
 
 # Language bindings
 ffi = ["uniffi", "native-crypto", "bridge", "dep:tokio"]  # Enable UniFFI scaffolding for Swift/Kotlin bindings
 uniffi-bindings = ["ffi"]  # Deprecated alias for ffi feature
-wasm-bindings = ["wasm-crypto", "bridge-wasm", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys", "dep:serde-wasm-bindgen"]  # Enable WASM bindings
+wasm-bindings = ["wasm-crypto", "bridge-wasm", "rp-signature", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys", "dep:serde-wasm-bindgen"]  # Enable WASM bindings
 
 # Protocol features
 bridge = ["uuid/v4", "reqwest", "dep:tokio", "dep:urlencoding"]   # Bridge client and session management for verifications

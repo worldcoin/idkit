@@ -1582,6 +1582,7 @@ dependencies = [
  "getrandom 0.2.16",
  "hex",
  "js-sys",
+ "k256",
  "reqwest",
  "ruint",
  "serde",
@@ -3716,7 +3717,7 @@ checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
 [[package]]
 name = "world-id-primitives"
 version = "0.3.0"
-source = "git+https://github.com/worldcoin/world-id-protocol.git?rev=f195b0ee67c47639148f892f9b3fd2cffed61af6#f195b0ee67c47639148f892f9b3fd2cffed61af6"
+source = "git+https://github.com/worldcoin/world-id-protocol.git?rev=1508bd645f085ac1d3a451b082670cc14f91d1c4#1508bd645f085ac1d3a451b082670cc14f91d1c4"
 dependencies = [
  "alloy-primitives 1.5.2",
  "ark-bn254",

@@ -522,7 +522,9 @@ impl SessionWrapper {
             })?;
 
         let app_id_parsed = AppId::new(&app_id)?;
-        let bridge_url_parsed = bridge_url.map(|url| BridgeUrl::new(&url)).transpose()?;
+        let bridge_url_parsed = bridge_url
+            .map(|url| BridgeUrl::new(&url, &app_id_parsed))
+            .transpose()?;
         let core_rp_context = (*rp_context).clone();
 
         let inner = runtime
@@ -617,14 +619,9 @@ mod tests {
         )
         .unwrap();
 
-        // Build proof request with valid hex action (action must be a valid field element)
-        let proof_request = build_proof_request(
-            &rp_context,
-            &requests,
-            "0x0000000000000000000000000000000000000000000000000000000000000001",
-            None,
-        )
-        .unwrap();
+        // Build proof request - action is converted to field element from raw bytes
+        let proof_request =
+            build_proof_request(&rp_context, &requests, "test-action", None).unwrap();
 
         let payload = BridgeRequestPayload {
             app_id: "app_test".to_string(),
