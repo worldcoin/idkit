@@ -1,170 +1,195 @@
 name: CI
 permissions:
-    contents: read
+  contents: read
 
 on:
-    push:
-        branches: ['main']
-    pull_request:
+  push:
+    branches: ["main"]
+  pull_request:
 
 jobs:
-    rust-core:
-        name: Rust Core - Build & Test
-        runs-on: ubuntu-latest
-        permissions:
-            contents: read
-        steps:
-            - uses: actions/checkout@v4
+  rust-core:
+    name: Rust Core - Build & Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Free disk space
-              run: |
-                  df -h
-                  sudo rm -rf /usr/local/lib/android \
-                              /opt/hostedtoolcache/CodeQL \
-                              /usr/share/dotnet \
-                              /opt/ghc || true
-                  sudo apt-get clean
-                  docker system prune -af || true
-                  docker volume prune -f || true
-                  docker builder prune -af || true
-                  df -h
+      - name: Free disk space
+        run: |
+          df -h
+          sudo rm -rf /usr/local/lib/android \
+                      /opt/hostedtoolcache/CodeQL \
+                      /usr/share/dotnet \
+                      /opt/ghc || true
+          sudo apt-get clean
+          docker system prune -af || true
+          docker volume prune -f || true
+          docker builder prune -af || true
+          df -h
 
-            - name: Setup Rust toolchain
-              uses: actions-rust-lang/setup-rust-toolchain@v1
-              with:
-                  toolchain: stable
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
 
-            - name: Cache Cargo dependencies
-              uses: actions/cache@v4
-              with:
-                  path: |
-                      ~/.cargo/bin/
-                      ~/.cargo/registry/index/
-                      ~/.cargo/registry/cache/
-                      ~/.cargo/git/db/
-                      target/
-                  key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-                  restore-keys: |
-                      ${{ runner.os }}-cargo-
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
-            - name: Check formatting
-              run: cargo fmt --all -- --check
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
-            - name: Lint with Clippy
-              run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Lint with Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
-            - name: Build Rust core
-              run: cargo build --release --package idkit-core
+      - name: Build Rust core
+        run: cargo build --release --package idkit-core
 
-            - name: Run Rust tests
-              run: cargo test --package idkit-core
+      - name: Run Rust tests
+        run: cargo test --package idkit-core
 
-    swift-bindings:
-        name: Swift Bindings - Build & Test
-        runs-on: ${{ matrix.os }}
-        needs: rust-core
-        strategy:
-            fail-fast: false
-            matrix:
-                include:
-                    - os: macos-15
-                      xcode: "16.0"
-                    - os: macos-15
-                      xcode: "16.1"
-        env:
-            DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
-        permissions:
-            contents: read
-        steps:
-            - uses: actions/checkout@v4
+  swift-bindings:
+    name: Swift Bindings - Build & Test
+    runs-on: ${{ matrix.os }}
+    needs: rust-core
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            xcode: "16.0"
+          - os: macos-15
+            xcode: "16.1"
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Setup Rust toolchain
-              uses: actions-rust-lang/setup-rust-toolchain@v1
-              with:
-                  toolchain: stable
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
 
-            - name: Cache Cargo dependencies
-              uses: actions/cache@v4
-              with:
-                  path: |
-                      ~/.cargo/bin/
-                      ~/.cargo/registry/index/
-                      ~/.cargo/registry/cache/
-                      ~/.cargo/git/db/
-                      target/
-                  key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-                  restore-keys: |
-                      ${{ runner.os }}-cargo-
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
+      - name: Restore Swift .build cache
+        id: restore-swift-build
+        uses: actions/cache/restore@v4
+        with:
+          path: swift/.build
+          restore-keys: "swiftpm-build-${{ runner.os }}-${{ matrix.xcode }}-"
+          key: "swiftpm-build-${{ runner.os }}-${{ matrix.xcode }}-${{ hashFiles('**/Package.swift', '**/Package.resolved') }}"
 
-            - name: Restore Swift .build cache
-              id: restore-swift-build
-              uses: actions/cache/restore@v4
-              with:
-                  path: swift/.build
-                  restore-keys: "swiftpm-build-${{ runner.os }}-${{ matrix.xcode }}-"
-                  key: "swiftpm-build-${{ runner.os }}-${{ matrix.xcode }}-${{ hashFiles('**/Package.swift', '**/Package.resolved') }}"
+      - name: Build Swift artifacts (Rust + XCFramework + Bindings)
+        run: bash scripts/package-swift.sh
 
-            - name: Build Swift artifacts (Rust + XCFramework + Bindings)
-              run: bash scripts/package-swift.sh
+      - name: Build Swift package
+        working-directory: swift
+        run: swift build
 
-            - name: Build Swift package
-              working-directory: swift
-              run: swift build
+      - name: Run Swift tests
+        working-directory: swift
+        run: xcodebuild test -scheme IDKit -destination "platform=macOS"
 
-            - name: Run Swift tests
-              working-directory: swift
-              run: xcodebuild test -scheme IDKit -destination "platform=macOS"
+      - name: Cache Swift .build
+        if: steps.restore-swift-build.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: swift/.build
+          key: "swiftpm-build-${{ runner.os }}-${{ matrix.xcode }}-${{ hashFiles('**/Package.swift', '**/Package.resolved') }}"
 
-            - name: Cache Swift .build
-              if: steps.restore-swift-build.outputs.cache-hit != 'true'
-              uses: actions/cache/save@v4
-              with:
-                  path: swift/.build
-                  key: "swiftpm-build-${{ runner.os }}-${{ matrix.xcode }}-${{ hashFiles('**/Package.swift', '**/Package.resolved') }}"
+  js-packages:
+    name: JavaScript - Build & Test
+    runs-on: ubuntu-latest
+    needs: rust-core
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
 
-    kotlin-bindings:
-        name: Kotlin Bindings - Build (multi-ABI)
-        runs-on: ubuntu-latest
-        needs: rust-core
-        permissions:
-            contents: read
-        steps:
-            - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
-            - name: Free disk space
-              run: |
-                  df -h
-                  sudo rm -rf /usr/local/lib/android \
-                              /opt/hostedtoolcache/CodeQL \
-                              /usr/share/dotnet \
-                              /opt/ghc || true
-                  sudo apt-get clean
-                  docker system prune -af || true
-                  docker volume prune -f || true
-                  docker builder prune -af || true
-                  df -h
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
 
-            - name: Setup Rust toolchain
-              uses: actions-rust-lang/setup-rust-toolchain@v1
-              with:
-                  toolchain: stable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-            - name: Cache Cargo dependencies
-              uses: actions/cache@v4
-              with:
-                  path: |
-                      ~/.cargo/bin/
-                      ~/.cargo/registry/index/
-                      ~/.cargo/registry/cache/
-                      ~/.cargo/git/db/
-                      target/
-                  key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-                  restore-keys: |
-                      ${{ runner.os }}-cargo-
+      - name: Build packages
+        run: pnpm build
 
-            - name: Install cross (for Android targets)
-              run: cargo install cross --git https://github.com/cross-rs/cross --locked
+      - name: Run tests
+        run: pnpm test
 
-            - name: Build Kotlin bindings (host + Android ABIs)
-              run: ./scripts/build-kotlin.sh
+  kotlin-bindings:
+    name: Kotlin Bindings - Build (multi-ABI)
+    runs-on: ubuntu-latest
+    needs: rust-core
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          df -h
+          sudo rm -rf /usr/local/lib/android \
+                      /opt/hostedtoolcache/CodeQL \
+                      /usr/share/dotnet \
+                      /opt/ghc || true
+          sudo apt-get clean
+          docker system prune -af || true
+          docker volume prune -f || true
+          docker builder prune -af || true
+          df -h
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install cross (for Android targets)
+        run: cargo install cross --git https://github.com/cross-rs/cross --locked
+
+      - name: Build Kotlin bindings (host + Android ABIs)
+        run: ./scripts/build-kotlin.sh
