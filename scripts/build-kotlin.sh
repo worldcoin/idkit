@@ -40,6 +40,7 @@ if [ -n "${CI:-}" ]; then
   # Keep the final library in resources, but clean the target directory
   if [ -f "$RES_DIR/$(basename "$HOST_LIB")" ]; then
     cargo clean --package idkit-core --release || true
+    rm -rf ~/.cargo/registry/cache || true
   fi
 fi
 
