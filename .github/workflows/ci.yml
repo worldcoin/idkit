@@ -138,9 +138,6 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
-
       - name: Install cross (for Android targets)
         run: cargo install cross --git https://github.com/cross-rs/cross --locked
 
