@@ -26,9 +26,6 @@ struct BridgeRequestPayload {
     // ---------------------------------------------------
     // -- Legacy fields for World ID 3.0 compatibility --
     // ---------------------------------------------------
-    // ---------------------------------------------------
-    // -- Legacy fields for World ID 3.0 compatibility --
-    // ---------------------------------------------------
     /// Application ID from the Developer Portal
     app_id: String,
 
@@ -43,7 +40,6 @@ struct BridgeRequestPayload {
     /// Derived from the request with the max verification level credential type
     signal: String,
 
-    /// Min verification level derived from requests (World App 3.0 compatibility)
     /// Min verification level derived from requests (World App 3.0 compatibility)
     verification_level: VerificationLevel,
 
@@ -210,7 +206,7 @@ impl Session {
         let proof_request =
             build_proof_request(&rp_context, &requests, &action_str, constraints.as_ref())?;
 
-        // For backwards compatibility we encode the hash the signal
+        // For backwards compatibility we encode the hash of the signal
         // and default to empty string if it's not provided
         // Source: https://github.com/worldcoin/idkit-js/blob/main/packages/core/src/bridge.ts#L82C7-L82C45
         let legacy_signal_hash =
