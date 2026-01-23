@@ -32,13 +32,6 @@ export {
 export { verifyCloudProof, type IVerifyResponse } from "./lib/backend";
 
 // Utilities
-export { buffer_encode, buffer_decode } from "./lib/utils";
-export {
-  solidityEncode,
-  hashToField,
-  generateSignalHash,
-  encodeAction,
-} from "./lib/hashing";
 export { isReactNative, isWeb, isNode } from "./lib/platform";
 
 // WASM exports

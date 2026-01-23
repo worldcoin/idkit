@@ -474,7 +474,7 @@ impl Session {
             };
 
             let bridge_url_parsed = bridge_url
-                .map(crate::BridgeUrl::new)
+                .map(|url| crate::BridgeUrl::new(url, &app_id))
                 .transpose()
                 .map_err(|e| JsValue::from_str(&format!("Invalid bridge_url: {e}")))?;
 
