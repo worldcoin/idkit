@@ -290,4 +290,42 @@ mod tests {
         let result = compute_rp_signature(TEST_KEY_0X, action, None);
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn test_signature_is_recoverable_to_correct_public_key() {
+        use k256::ecdsa::{RecoveryId, VerifyingKey};
+
+        let action = FieldElement::from(42_u64);
+        let result = compute_rp_signature(TEST_KEY, action, None).unwrap();
+
+        // 1. Parse the signing key to get expected public key
+        let key_bytes = hex::decode(TEST_KEY).unwrap();
+        let signing_key = SigningKey::from_bytes(key_bytes.as_slice().into()).unwrap();
+        let expected_verifying_key = signing_key.verifying_key();
+
+        // 2. Reconstruct the message hash (same as in compute_rp_signature)
+        let nonce = FieldElement::from_str(&result.nonce).unwrap();
+        let msg = compute_rp_signature_msg(*nonce, *action, result.created_at, result.expires_at);
+
+        let mut hasher = Keccak::v256();
+        let mut hash = [0u8; 32];
+        hasher.update(&msg);
+        hasher.finalize(&mut hash);
+
+        // 3. Parse the signature
+        let sig_hex = result.sig.strip_prefix("0x").unwrap();
+        let sig_bytes = hex::decode(sig_hex).unwrap();
+        let signature = k256::ecdsa::Signature::from_slice(&sig_bytes[..64]).unwrap();
+        let recovery_id = RecoveryId::from_byte(sig_bytes[64] - 27).unwrap();
+
+        // 4. Recover the public key from the signature
+        let recovered_key = VerifyingKey::recover_from_prehash(&hash, &signature, recovery_id)
+            .expect("Failed to recover public key from signature");
+
+        // 5. Verify recovered key matches expected key
+        assert_eq!(
+            recovered_key, *expected_verifying_key,
+            "Recovered public key does not match the signer's public key"
+        );
+    }
 }
