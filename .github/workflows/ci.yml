@@ -10,42 +10,16 @@ on:
 jobs:
   rust-core:
     name: Rust Core - Build & Test
-    runs-on: ubuntu-latest
+    runs-on:
+      group: arc-public-large-amd64-runner
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Free disk space
-        run: |
-          df -h
-          sudo rm -rf /usr/local/lib/android \
-                      /opt/hostedtoolcache/CodeQL \
-                      /usr/share/dotnet \
-                      /opt/ghc || true
-          sudo apt-get clean
-          docker system prune -af || true
-          docker volume prune -f || true
-          docker builder prune -af || true
-          df -h
-
-      - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-
-      - name: Cache Cargo dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          components: rustfmt,clippy
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -76,25 +50,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Cache Cargo dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Restore Swift .build cache
         id: restore-swift-build
@@ -124,12 +83,13 @@ jobs:
 
   js-packages:
     name: JavaScript - Build & Test
-    runs-on: ubuntu-latest
+    runs-on:
+      group: arc-public-large-amd64-runner
     needs: rust-core
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -140,6 +100,9 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           version: 9
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -152,43 +115,16 @@ jobs:
 
   kotlin-bindings:
     name: Kotlin Bindings - Build (multi-ABI)
-    runs-on: ubuntu-latest
+    runs-on:
+      group: arc-public-large-amd64-runner
     needs: rust-core
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Free disk space
-        run: |
-          df -h
-          sudo rm -rf /usr/local/lib/android \
-                      /opt/hostedtoolcache/CodeQL \
-                      /usr/share/dotnet \
-                      /opt/ghc || true
-          sudo apt-get clean
-          docker system prune -af || true
-          docker volume prune -f || true
-          docker builder prune -af || true
-          df -h
-
-      - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Cache Cargo dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install cross (for Android targets)
         run: cargo install cross --git https://github.com/cross-rs/cross --locked
