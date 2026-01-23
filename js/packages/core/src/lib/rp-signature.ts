@@ -8,7 +8,7 @@ import type { RpSignature } from "../../wasm/idkit_wasm";
  * **Security Warning**: This function should ONLY be used in Node.js/server environments.
  * Never use this in browser/client-side code as it requires access to your signing key.
  *
- * @param actionHex - The action hash as a hex string (0x-prefixed, 32 bytes)
+ * @param action - The action tied to the proof request
  * @param signingKeyHex - The ECDSA private key as hex (0x-prefixed or not, 32 bytes)
  * @param ttlSeconds - Optional time-to-live in seconds (defaults to 300 = 5 minutes)
  * @returns RpSignature object with sig, nonce, createdAt, expiresAt
@@ -25,7 +25,7 @@ import type { RpSignature } from "../../wasm/idkit_wasm";
  * ```
  */
 export function computeRpSignature(
-  actionHex: string,
+  action: string,
   signingKeyHex: string,
   ttlSeconds?: number,
 ): RpSignature {
@@ -39,5 +39,5 @@ export function computeRpSignature(
   // Convert number to BigInt if TTL is provided
   const ttlBigInt = ttlSeconds !== undefined ? BigInt(ttlSeconds) : undefined;
 
-  return WasmModule.computeRpSignature(actionHex, signingKeyHex, ttlBigInt);
+  return WasmModule.computeRpSignature(action, signingKeyHex, ttlBigInt);
 }

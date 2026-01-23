@@ -54,7 +54,7 @@ export const isServerEnvironment = (): boolean => {
     return true;
   }
   // Bun
-  if (typeof (globalThis as any).Deno !== "undefined") {
+  if (typeof (globalThis as any).Bun !== "undefined") {
     return true;
   }
 
