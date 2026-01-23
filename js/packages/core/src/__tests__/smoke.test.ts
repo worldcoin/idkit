@@ -199,8 +199,7 @@ describe("RP Signature Generation", () => {
   const TEST_ACTION = "test-backend-action";
 
   it("should compute RP signature with default TTL", () => {
-    const actionHash = hashToField(TEST_ACTION);
-    const signature = computeRpSignature(actionHash.digest, TEST_SIGNING_KEY);
+    const signature = computeRpSignature(TEST_ACTION, TEST_SIGNING_KEY);
 
     // Verify signature format: 65 bytes (0x + 130 hex chars)
     expect(signature.sig).toMatch(/^0x[0-9a-f]{130}$/i);
@@ -220,10 +219,9 @@ describe("RP Signature Generation", () => {
   });
 
   it("should compute RP signature with custom TTL", () => {
-    const actionHash = hashToField(TEST_ACTION);
     const customTtl = 600; // 10 minutes
     const signature = computeRpSignature(
-      actionHash.digest,
+      TEST_ACTION,
       TEST_SIGNING_KEY,
       customTtl,
     );
@@ -235,9 +233,8 @@ describe("RP Signature Generation", () => {
   });
 
   it("should generate unique nonces", () => {
-    const actionHash = hashToField(TEST_ACTION);
-    const signature1 = computeRpSignature(actionHash.digest, TEST_SIGNING_KEY);
-    const signature2 = computeRpSignature(actionHash.digest, TEST_SIGNING_KEY);
+    const signature1 = computeRpSignature(TEST_ACTION, TEST_SIGNING_KEY);
+    const signature2 = computeRpSignature(TEST_ACTION, TEST_SIGNING_KEY);
 
     // Nonces should be different (proving randomness)
     expect(signature1.nonce).not.toBe(signature2.nonce);
@@ -248,20 +245,13 @@ describe("RP Signature Generation", () => {
   });
 
   it("should reject invalid signing keys", () => {
-    const actionHash = hashToField(TEST_ACTION);
-
     // Test with wrong-length key (should be 32 bytes = 64 hex chars)
     const shortKey = "0xabcd";
-    expect(() => computeRpSignature(actionHash.digest, shortKey)).toThrow();
+    expect(() => computeRpSignature(TEST_ACTION, shortKey)).toThrow();
 
     // Test with non-hex key
     const invalidKey =
       "0xZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
-    expect(() => computeRpSignature(actionHash.digest, invalidKey)).toThrow();
+    expect(() => computeRpSignature(TEST_ACTION, invalidKey)).toThrow();
   });
-
-  // Note: computeRpSignature includes a platform check that restricts usage to Node.js only
-  // This is a security feature to prevent signing keys from being exposed in browser environments
-  // The function will throw an error if called in a browser:
-  // "computeRpSignature can only be used in Node.js environments"
 });
