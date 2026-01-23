@@ -226,6 +226,22 @@ pub fn hash_signal_bytes(bytes: &[u8]) -> String {
     format!("{hash:#066x}")
 }
 
+/// Creates an `OrbLegacy` preset
+///
+/// Returns a preset object that can be passed to `sessionFromPreset`.
+///
+/// # Arguments
+/// * `signal` - Optional signal string
+///
+/// # Errors
+///
+/// Returns an error if serialization fails
+#[wasm_bindgen(js_name = createOrbLegacyPreset)]
+pub fn create_orb_legacy_preset(signal: Option<String>) -> Result<JsValue, JsValue> {
+    let preset = Preset::OrbLegacy(OrbLegacyPreset::new(signal));
+    serde_wasm_bindgen::to_value(&preset).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
 // RP Signature wrapper for WASM
 #[wasm_bindgen(js_name = RpSignature)]
 pub struct RpSignatureWasm {
@@ -646,6 +662,19 @@ export enum Credential {
     Document = "document",
     Device = "device"
 }
+"#;
+
+// Export preset types
+#[wasm_bindgen(typescript_custom_section)]
+const TS_PRESET: &str = r#"
+export interface OrbLegacyPresetData {
+    signal?: string;
+}
+
+export type Preset =
+    | { type: "OrbLegacy"; data: OrbLegacyPresetData };
+
+export function createOrbLegacyPreset(signal?: string): Preset;
 "#;
 
 // Export preset types

@@ -6,7 +6,7 @@ use crate::{
     preset::Preset,
     protocol_types::ProofRequest,
     types::{AppId, BridgeUrl, Proof, Request, RpContext, VerificationLevel},
-    Constraints,
+    Constraints, Signal,
 };
 use alloy_primitives::Signature;
 use serde::{Deserialize, Serialize};
@@ -26,9 +26,6 @@ struct BridgeRequestPayload {
     // ---------------------------------------------------
     // -- Legacy fields for World ID 3.0 compatibility --
     // ---------------------------------------------------
-    // ---------------------------------------------------
-    // -- Legacy fields for World ID 3.0 compatibility --
-    // ---------------------------------------------------
     /// Application ID from the Developer Portal
     app_id: String,
 
@@ -43,7 +40,6 @@ struct BridgeRequestPayload {
     /// Derived from the request with the max verification level credential type
     signal: String,
 
-    /// Min verification level derived from requests (World App 3.0 compatibility)
     /// Min verification level derived from requests (World App 3.0 compatibility)
     verification_level: VerificationLevel,
 
@@ -210,6 +206,12 @@ impl Session {
         let proof_request =
             build_proof_request(&rp_context, &requests, &action_str, constraints.as_ref())?;
 
+        // For backwards compatibility we encode the hash of the signal
+        // and default to empty string if it's not provided
+        // Source: https://github.com/worldcoin/idkit-js/blob/main/packages/core/src/bridge.ts#L82C7-L82C45
+        let legacy_signal_hash =
+            crate::crypto::encode_signal(&Signal::from_string(legacy_signal.unwrap_or_default()));
+
         // Prepare the payload
         let payload = BridgeRequestPayload {
             app_id: app_id.as_str().to_string(),
@@ -220,7 +222,7 @@ impl Session {
             // we use an invalid verification level to ensure users on older World App versions
             // respond with an error.
             verification_level: legacy_verification_level.unwrap_or(VerificationLevel::Deprecated),
-            signal: legacy_signal.unwrap_or_default(),
+            signal: legacy_signal_hash,
         };
 
         let payload_json = serde_json::to_vec(&payload)?;
