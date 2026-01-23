@@ -132,16 +132,6 @@ interface ISuccessResult {
 }
 ```
 
-### Utilities
-
-```typescript
-// Signal hashing (keccak256)
-hashToField(input: string): HashFunctionOutput
-
-// ABI encoding
-solidityEncode(types: string[], values: unknown[]): AbiEncodedValue
-```
-
 ## React Integration
 
 ```tsx
