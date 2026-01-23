@@ -284,7 +284,7 @@ impl Session {
     ///
     /// * `app_id` - Application ID from the Developer Portal
     /// * `action` - Action identifier
-    /// * `preset` - Credential preset (e.g., OrbLegacy)
+    /// * `preset` - Credential preset (e.g., `OrbLegacy`)
     /// * `rp_context` - RP context for building protocol-level `ProofRequest`
     /// * `action_description` - Optional action description shown to users
     /// * `bridge_url` - Optional bridge URL (defaults to production)
@@ -495,7 +495,7 @@ impl SessionWrapper {
     ///
     /// * `app_id` - Application ID from the Developer Portal
     /// * `action` - Action identifier
-    /// * `preset` - Credential preset (e.g., OrbLegacy)
+    /// * `preset` - Credential preset (e.g., `OrbLegacy`)
     /// * `rp_context` - RP context for building protocol-level `ProofRequest`
     /// * `action_description` - Optional action description shown to users
     /// * `bridge_url` - Optional bridge URL (defaults to production)
@@ -613,14 +613,9 @@ mod tests {
         )
         .unwrap();
 
-        // Build proof request with valid hex action (action must be a valid field element)
-        let proof_request = build_proof_request(
-            &rp_context,
-            &requests,
-            "0x0000000000000000000000000000000000000000000000000000000000000001",
-            None,
-        )
-        .unwrap();
+        // Build proof request - action is converted to field element from raw bytes
+        let proof_request =
+            build_proof_request(&rp_context, &requests, "test-action", None).unwrap();
 
         let payload = BridgeRequestPayload {
             app_id: "app_test".to_string(),

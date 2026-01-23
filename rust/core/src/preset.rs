@@ -7,7 +7,7 @@ use crate::constraints::Constraints;
 use crate::types::{CredentialType, Request, Signal, VerificationLevel};
 use serde::{Deserialize, Serialize};
 
-/// Configuration for OrbLegacy preset
+/// Configuration for `OrbLegacy` preset
 ///
 /// Requests orb-verified credentials only, with optional signal.
 /// The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
@@ -20,7 +20,7 @@ pub struct OrbLegacyPreset {
 }
 
 impl OrbLegacyPreset {
-    /// Creates a new OrbLegacyPreset with optional signal
+    /// Creates a new `OrbLegacyPreset` with optional signal
     #[must_use]
     pub fn new(signal: Option<String>) -> Self {
         Self { signal }
@@ -31,7 +31,7 @@ impl OrbLegacyPreset {
 ///
 /// Each preset defines a pre-configured set of credential requests
 /// with sensible defaults. Presets convert to both World ID 4.0
-/// (requests array) and World ID 3.0 (verification_level) formats.
+/// (requests array) and World ID 3.0 (`verification_level`) formats.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(tag = "type", content = "data")]
@@ -58,7 +58,7 @@ impl Preset {
         Option<String>,
     ) {
         match self {
-            Preset::OrbLegacy(config) => {
+            Self::OrbLegacy(config) => {
                 let signal = config
                     .signal
                     .as_ref()

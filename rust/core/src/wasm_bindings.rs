@@ -238,36 +238,46 @@ pub struct RpSignatureWasm {
 #[wasm_bindgen(js_class = RpSignature)]
 impl RpSignatureWasm {
     /// Gets the signature as hex string (0x-prefixed, 65 bytes)
+    #[must_use]
     #[wasm_bindgen(getter)]
     pub fn sig(&self) -> String {
         self.sig.clone()
     }
 
     /// Gets the nonce as hex string (0x-prefixed field element)
+    #[must_use]
     #[wasm_bindgen(getter)]
     pub fn nonce(&self) -> String {
         self.nonce.clone()
     }
 
     /// Gets the creation timestamp
+    #[must_use]
     #[wasm_bindgen(getter, js_name = createdAt)]
     pub fn created_at(&self) -> u64 {
         self.created_at
     }
 
     /// Gets the expiration timestamp
+    #[must_use]
     #[wasm_bindgen(getter, js_name = expiresAt)]
     pub fn expires_at(&self) -> u64 {
         self.expires_at
     }
 
     /// Converts to JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if setting object properties fails
     #[wasm_bindgen(js_name = toJSON)]
+    #[allow(clippy::cast_precision_loss)]
     pub fn to_json(&self) -> Result<JsValue, JsValue> {
         let obj = js_sys::Object::new();
         js_sys::Reflect::set(&obj, &"sig".into(), &self.sig.clone().into())?;
         js_sys::Reflect::set(&obj, &"nonce".into(), &self.nonce.clone().into())?;
         // Convert u64 to f64 to avoid BigInt serialization issues in JSON
+        // Note: This may lose precision for values > 2^53, but timestamps fit within safe integer range
         js_sys::Reflect::set(&obj, &"createdAt".into(), &(self.created_at as f64).into())?;
         js_sys::Reflect::set(&obj, &"expiresAt".into(), &(self.expires_at as f64).into())?;
         Ok(obj.into())
@@ -280,51 +290,43 @@ impl RpSignatureWasm {
 /// proof requests. It:
 /// 1. Generates a random nonce
 /// 2. Gets the current timestamp
-/// 3. Computes: keccak256(nonce || action || timestamp || expires_at)
+/// 3. Computes: keccak256(nonce || action || timestamp || `expires_at`)
 /// 4. Signs the hash with ECDSA secp256k1
 ///
 /// # Arguments
-/// * `action_hex` - The action as a hex string (0x-prefixed or not, 32 bytes)
+/// * `action` - The action identifier string (e.g., "verify-human")
 /// * `signing_key_hex` - The ECDSA private key as hex (0x-prefixed or not, 32 bytes)
 /// * `ttl_seconds` - Optional time-to-live in seconds (defaults to 300 = 5 minutes)
 ///
 /// # Returns
-/// An `RpSignature` object with:
-/// - `sig`: 65-byte signature (r || s || v) as hex string
-/// - `nonce`: Random nonce as hex string
-/// - `createdAt`: Unix timestamp in seconds
-/// - `expiresAt`: Expiration timestamp in seconds
+/// An `RpSignature` object
 ///
 /// # Errors
 /// Returns an error if:
-/// - The action or signing key is invalid hex or wrong length
+/// - The signing key is invalid hex or wrong length
 /// - Random generation fails
 /// - Signing fails
 ///
 /// # Example
 /// ```javascript
-/// import { computeRpSignature, hashSignal } from '@worldcoin/idkit-core'
+/// import { computeRpSignature } from '@worldcoin/idkit-core'
 ///
-/// const actionHash = hashSignal('my-action')
 /// const signingKey = '0x1234...' // 32-byte private key
-/// const signature = computeRpSignature(actionHash, signingKey) // default 5 min TTL
-/// const customTtl = computeRpSignature(actionHash, signingKey, 600) // 10 min TTL
+/// const signature = computeRpSignature('my-action', signingKey) // default 5 min TTL
+/// const customTtl = computeRpSignature('my-action', signingKey, 600) // 10 min TTL
 /// console.log(signature.sig, signature.nonce, signature.createdAt, signature.expiresAt)
 /// ```
 #[wasm_bindgen(js_name = computeRpSignature)]
 pub fn compute_rp_signature_wasm(
-    action_hex: &str,
+    action: &str,
     signing_key_hex: &str,
     ttl_seconds: Option<u64>,
 ) -> Result<RpSignatureWasm, JsValue> {
     #[cfg(feature = "rp-signature")]
     {
-        use std::str::FromStr;
         use world_id_primitives::FieldElement;
 
-        // Parse action from hex string to FieldElement
-        let action = FieldElement::from_str(action_hex)
-            .map_err(|e| JsValue::from_str(&format!("Invalid action hex: {e}")))?;
+        let action = FieldElement::from_arbitrary_raw_bytes(action.as_bytes());
 
         // Compute signature using core implementation
         let sig = crate::rp_signature::compute_rp_signature(signing_key_hex, action, ttl_seconds)
@@ -344,7 +346,7 @@ pub fn compute_rp_signature_wasm(
     }
 }
 
-/// Creates an OrbLegacy preset
+/// Creates an `OrbLegacy` preset
 ///
 /// Returns a preset object that can be passed to `sessionFromPreset`.
 ///
@@ -670,5 +672,5 @@ export interface RpSignature {
     toJSON(): { sig: string; nonce: string; createdAt: number; expiresAt: number };
 }
 
-export function computeRpSignature(actionHex: string, signingKeyHex: string, ttlSeconds?: number): RpSignature;
+export function computeRpSignature(action: string, signingKeyHex: string, ttlSeconds?: number): RpSignature;
 "#;
