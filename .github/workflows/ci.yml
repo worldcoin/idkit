@@ -21,6 +21,9 @@ jobs:
         with:
           components: rustfmt,clippy
 
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 
@@ -54,6 +57,9 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
 
       - name: Restore Swift .build cache
         id: restore-swift-build
@@ -104,6 +110,9 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
 
@@ -128,6 +137,9 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
 
       - name: Install cross (for Android targets)
         run: cargo install cross --git https://github.com/cross-rs/cross --locked
