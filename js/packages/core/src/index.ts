@@ -29,7 +29,8 @@ export {
 } from "./types/bridge";
 
 // Backend verification
-export { verifyCloudProof, type IVerifyResponse } from "./lib/backend";
+//TODO: Add back verifyCloudProof, when we implement rust binding for it.
+// export { verifyCloudProof, type IVerifyResponse } from "./lib/backend";
 
 // Utilities
 export { isReactNative, isWeb, isNode } from "./lib/platform";

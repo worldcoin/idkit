@@ -16,11 +16,10 @@ import type { RpSignature } from "../../wasm/idkit_wasm";
  *
  * @example
  * ```typescript
- * import { computeRpSignature, hashToField } from '@worldcoin/idkit-core'
+ * import { computeRpSignature } from '@worldcoin/idkit-core'
  *
- * const actionHash = hashToField('my-action')
  * const signingKey = process.env.RP_SIGNING_KEY // Load from secure env var
- * const signature = computeRpSignature(actionHash.digest, signingKey)
+ * const signature = computeRpSignature('my-action', signingKey)
  * console.log(signature.sig, signature.nonce, signature.createdAt, signature.expiresAt)
  * ```
  */
