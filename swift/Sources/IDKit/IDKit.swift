@@ -6,23 +6,36 @@ public enum IDKit {
     public static let version = "4.0.1"
 }
 
-// MARK: - Convenience wrappers around UniFFI-generated types
+// MARK: - RequestItem convenience extension
+//
+// UniFFI generates static methods from Rust constructors:
+//   - RequestItem.new(credentialType:signal:) - takes Signal?
+//   - RequestItem.withStringSignal(credentialType:signal:) - takes String?
+//
+// The static `create` method below provides a cleaner positional API:
+//   RequestItem.create(.orb, signal: "test")
 
-/// Creates a RequestItem for a credential type
-///
-/// - Parameters:
-///   - type: The credential type (e.g., .orb, .face)
-///   - signal: Optional signal string for cryptographic binding
-/// - Returns: A RequestItem instance
-///
-/// Example:
-/// ```swift
-/// let orb = RequestItem(.orb, signal: "user-123")
-/// let face = RequestItem(.face)
-/// ```
-public func RequestItem(_ type: CredentialType, signal: String? = nil) -> RequestItem {
-    RequestItem.new(credentialType: type, signal: signal.map { Signal.fromString(s: $0) })
+public extension RequestItem {
+    /// Creates a RequestItem for a credential type with an optional string signal
+    ///
+    /// This is a convenience factory method with a cleaner positional API.
+    ///
+    /// - Parameters:
+    ///   - type: The credential type (e.g., .orb, .face)
+    ///   - signal: Optional signal string for cryptographic binding
+    /// - Returns: A RequestItem instance
+    ///
+    /// Example:
+    /// ```swift
+    /// let orb = RequestItem.create(.orb, signal: "user-123")
+    /// let face = RequestItem.create(.face)
+    /// ```
+    static func create(_ type: CredentialType, signal: String? = nil) -> RequestItem {
+        RequestItem.withStringSignal(credentialType: type, signal: signal)
+    }
 }
+
+// MARK: - Convenience wrappers around UniFFI-generated types
 
 /// Creates an OR constraint - at least one child must be satisfied
 ///
@@ -31,7 +44,7 @@ public func RequestItem(_ type: CredentialType, signal: String? = nil) -> Reques
 ///
 /// Example:
 /// ```swift
-/// let constraint = anyOf(RequestItem(.orb), RequestItem(.face))
+/// let constraint = anyOf(RequestItem.create(.orb), RequestItem.create(.face))
 /// ```
 public func anyOf(_ items: RequestItem...) -> ConstraintNode {
     ConstraintNode.any(nodes: items.map { ConstraintNode.item(request: $0) })
@@ -73,7 +86,7 @@ public func anyOf(nodes: [ConstraintNode]) -> ConstraintNode {
 ///
 /// Example:
 /// ```swift
-/// let constraint = allOf(RequestItem(.orb), RequestItem(.document))
+/// let constraint = allOf(RequestItem.create(.orb), RequestItem.create(.document))
 /// ```
 public func allOf(_ items: RequestItem...) -> ConstraintNode {
     ConstraintNode.all(nodes: items.map { ConstraintNode.item(request: $0) })

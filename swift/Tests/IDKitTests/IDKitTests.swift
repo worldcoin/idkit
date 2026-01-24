@@ -4,30 +4,30 @@ import Testing
 
 // MARK: - RequestItem Tests
 
-@Test("RequestItem creation with signal via UniFFI")
+@Test("RequestItem creation with signal via UniFFI init")
 func requestItemCreationWithSignal() throws {
     let signal = Signal.fromString(s: "test_signal")
-    // Use the UniFFI-generated static method directly
-    let item = RequestItem.new(credentialType: .orb, signal: signal)
+    // Use the UniFFI-generated initializer directly
+    let item = RequestItem(credentialType: .orb, signal: signal)
 
-    #expect(item.credentialType == .orb)
-    #expect(item.signal != nil)
+    #expect(item.credentialType() == .orb)
+    #expect(item.getSignalBytes() != nil)
 }
 
-@Test("RequestItem creation without signal via UniFFI")
+@Test("RequestItem creation without signal via UniFFI init")
 func requestItemCreationWithoutSignal() {
-    // Use the UniFFI-generated static method directly
-    let item = RequestItem.new(credentialType: .device, signal: nil)
+    // Use the UniFFI-generated initializer directly
+    let item = RequestItem(credentialType: .device, signal: nil)
 
-    #expect(item.credentialType == .device)
-    #expect(item.signal == nil)
+    #expect(item.credentialType() == .device)
+    #expect(item.getSignalBytes() == nil)
 }
 
-@Test("RequestItem convenience function")
+@Test("RequestItem.create convenience method")
 func requestItemConvenience() {
-    let item = RequestItem(.orb, signal: "test-signal")
+    let item = RequestItem.create(.orb, signal: "test-signal")
 
-    #expect(item.credentialType == .orb)
+    #expect(item.credentialType() == .orb)
 }
 
 // MARK: - Signal Tests
@@ -88,7 +88,7 @@ func verificationLevelExists() {
 
 @Test("ConstraintNode item leaf")
 func constraintNodeItem() throws {
-    let item = RequestItem(.orb)
+    let item = RequestItem.create(.orb)
     let node = ConstraintNode.item(request: item)
 
     let json = try node.toJson()
@@ -97,8 +97,8 @@ func constraintNodeItem() throws {
 
 @Test("ConstraintNode with ANY operator")
 func constraintNodeAny() throws {
-    let orb = ConstraintNode.item(request: RequestItem(.orb))
-    let face = ConstraintNode.item(request: RequestItem(.face))
+    let orb = ConstraintNode.item(request: RequestItem.create(.orb))
+    let face = ConstraintNode.item(request: RequestItem.create(.face))
 
     let anyNode = ConstraintNode.any(nodes: [orb, face])
 
@@ -108,8 +108,8 @@ func constraintNodeAny() throws {
 
 @Test("ConstraintNode with ALL operator")
 func constraintNodeAll() throws {
-    let orb = ConstraintNode.item(request: RequestItem(.orb))
-    let doc = ConstraintNode.item(request: RequestItem(.secureDocument))
+    let orb = ConstraintNode.item(request: RequestItem.create(.orb))
+    let doc = ConstraintNode.item(request: RequestItem.create(.secureDocument))
 
     let allNode = ConstraintNode.all(nodes: [orb, doc])
 
@@ -119,7 +119,7 @@ func constraintNodeAll() throws {
 
 @Test("anyOf convenience function")
 func anyOfConvenience() throws {
-    let constraint = anyOf(RequestItem(.orb), RequestItem(.face))
+    let constraint = anyOf(RequestItem.create(.orb), RequestItem.create(.face))
 
     let json = try constraint.toJson()
     #expect(!json.isEmpty)
@@ -127,7 +127,7 @@ func anyOfConvenience() throws {
 
 @Test("allOf convenience function")
 func allOfConvenience() throws {
-    let constraint = allOf(RequestItem(.orb), RequestItem(.document))
+    let constraint = allOf(RequestItem.create(.orb), RequestItem.create(.document))
 
     let json = try constraint.toJson()
     #expect(!json.isEmpty)
@@ -158,7 +158,7 @@ func verifyBuilderAPIShape() {
 
     // This will throw without valid credentials - verify API exists
     let builder = verify(config: config)
-    _ = try? builder.constraints(constraints: anyOf(RequestItem(.orb)))
+    _ = try? builder.constraints(constraints: anyOf(RequestItem.create(.orb)))
 
     // If we reach here without crashing, the API exists
     #expect(Bool(true))
@@ -235,20 +235,20 @@ func proofSerialization() throws {
 @Suite("Swift Extension Convenience APIs")
 struct SwiftExtensionsTests {
 
-    @Test("RequestItem convenience function with string signal")
+    @Test("RequestItem.create with string signal")
     func requestItemConvenienceWithString() {
-        let item = RequestItem(.orb, signal: "test_signal")
+        let item = RequestItem.create(.orb, signal: "test_signal")
 
-        #expect(item.credentialType == .orb)
-        #expect(item.signal != nil)
+        #expect(item.credentialType() == .orb)
+        #expect(item.getSignalBytes() != nil)
     }
 
-    @Test("RequestItem convenience function without signal")
+    @Test("RequestItem.create without signal")
     func requestItemConvenienceWithoutSignal() {
-        let item = RequestItem(.face)
+        let item = RequestItem.create(.face)
 
-        #expect(item.credentialType == .face)
-        #expect(item.signal == nil)
+        #expect(item.credentialType() == .face)
+        #expect(item.getSignalBytes() == nil)
     }
 
     @Test("Signal convenience properties")
