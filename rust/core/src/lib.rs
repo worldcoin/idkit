@@ -29,14 +29,16 @@ pub mod wasm_bindings;
 
 #[cfg(any(feature = "bridge", feature = "bridge-wasm"))]
 pub use bridge::{Session, Status};
-pub use constraints::{ConstraintNode, Constraints};
+#[cfg(all(any(feature = "bridge", feature = "bridge-wasm"), feature = "ffi"))]
+pub use bridge::{VerifyBuilder, VerifyConfig};
+pub use constraints::ConstraintNode;
 #[cfg(any(feature = "native-crypto", feature = "wasm-crypto"))]
 pub use crypto::CryptoKey;
 pub use error::{Error, Result};
 pub use issuer_schema::{credential_to_issuer_schema_id, issuer_schema_id_to_credential};
 pub use preset::{OrbLegacyPreset, Preset};
 pub use types::{
-    AppId, BridgeUrl, CredentialType, Proof, Request, RpContext, Signal, VerificationLevel,
+    AppId, BridgeUrl, CredentialType, Proof, RequestItem, RpContext, Signal, VerificationLevel,
 };
 
 #[cfg(feature = "verification")]

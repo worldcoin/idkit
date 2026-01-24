@@ -3,8 +3,8 @@
 //! Presets provide a simplified API for common credential request patterns,
 //! automatically handling both World ID 4.0 and 3.0 protocol formats.
 
-use crate::constraints::Constraints;
-use crate::types::{CredentialType, Request, Signal, VerificationLevel};
+use crate::types::{CredentialType, RequestItem, Signal, VerificationLevel};
+use crate::ConstraintNode;
 use serde::{Deserialize, Serialize};
 
 /// Configuration for `OrbLegacy` preset
@@ -44,36 +44,23 @@ impl Preset {
     /// Converts the preset to bridge session parameters
     ///
     /// Returns a tuple of:
-    /// - `Vec<Request>` - World ID 4.0 request format
-    /// - `Option<Constraints>` - Optional constraints for the session
+    /// - `ConstraintNode` - World ID 4.0 constraint tree
     /// - `VerificationLevel` - World ID 3.0 legacy verification level
     /// - `Option<String>` - Legacy signal string (if configured)
     #[must_use]
-    pub fn to_bridge_params(
-        &self,
-    ) -> (
-        Vec<Request>,
-        Option<Constraints>,
-        VerificationLevel,
-        Option<String>,
-    ) {
+    pub fn to_bridge_params(&self) -> (ConstraintNode, VerificationLevel, Option<String>) {
         match self {
             Self::OrbLegacy(config) => {
                 let signal = config
                     .signal
                     .as_ref()
                     .map(|s| Signal::from_string(s.clone()));
-                let requests = vec![Request::new(CredentialType::Orb, signal)];
-                let constraints = None; // OrbLegacy doesn't need constraints
+                let orb = RequestItem::new(CredentialType::Orb, signal);
+                let constraints = ConstraintNode::Item(orb); // OrbLegacy doesn't need constraints
                 let legacy_verification_level = VerificationLevel::Orb;
                 let legacy_signal = config.signal.clone();
 
-                (
-                    requests,
-                    constraints,
-                    legacy_verification_level,
-                    legacy_signal,
-                )
+                (constraints, legacy_verification_level, legacy_signal)
             }
         }
     }

@@ -1,15 +1,18 @@
 //! Constraint system for declarative credential requests
 //!
 //! This module provides a wrapper layer that:
-//! - Uses `CredentialType` for the public API (type-safe)
+//! - Uses `RequestItem` for the public API (type-safe)
 //! - Converts to/from `protocol_types::ConstraintExpr` internally
 //! - Provides FFI/WASM bindings
 //!
 //! The underlying protocol types use string identifiers and lifetimes,
 //! which allows them to be decoupled (potentially replaced by an external crate).
 
-use crate::protocol_types::{ConstraintExpr as ProtocolExpr, ConstraintNode as ProtocolNode};
-use crate::types::CredentialType;
+use crate::protocol_types::{
+    ConstraintExpr as ProtocolExpr, ConstraintNode as ProtocolNode,
+    RequestItem as ProtocolRequestItem,
+};
+use crate::types::{CredentialType, RequestItem};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -18,12 +21,12 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 /// A node in the constraint tree
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Object))]
 #[serde(untagged)]
 pub enum ConstraintNode {
-    /// A leaf node representing a single credential type
-    Credential(CredentialType),
+    /// A leaf node representing a single credential request item
+    Item(RequestItem),
 
     /// An OR node - at least one child must be satisfied
     /// Order matters: earlier credentials have higher priority
@@ -40,45 +43,45 @@ pub enum ConstraintNode {
 }
 
 impl ConstraintNode {
-    /// Creates an Any constraint from credentials
+    /// Creates an Any constraint from nodes
     #[must_use]
     pub fn any(nodes: Vec<Self>) -> Self {
         Self::Any { any: nodes }
     }
 
-    /// Creates an All constraint from credentials
+    /// Creates an All constraint from nodes
     #[must_use]
     pub fn all(nodes: Vec<Self>) -> Self {
         Self::All { all: nodes }
     }
 
-    /// Creates a credential node
+    /// Creates an item node from a `RequestItem`
     #[must_use]
-    pub fn credential(cred: CredentialType) -> Self {
-        Self::Credential(cred)
+    pub fn item(request: RequestItem) -> Self {
+        Self::Item(request)
     }
 
     /// Evaluates the constraint against available credentials
     #[must_use]
     pub fn evaluate(&self, available: &HashSet<CredentialType>) -> bool {
         match self {
-            Self::Credential(cred) => available.contains(cred),
+            Self::Item(item) => available.contains(&item.credential_type),
             Self::Any { any } => any.iter().any(|node| node.evaluate(available)),
             Self::All { all } => all.iter().all(|node| node.evaluate(available)),
         }
     }
 
-    /// Returns the first satisfying credential in priority order
+    /// Returns the first satisfying credential type in priority order
     ///
     /// For Any nodes, returns the first child that evaluates to true.
     /// For All nodes, returns None if not all satisfied, or attempts to find a single credential.
-    /// For Credential nodes, returns the credential if available.
+    /// For Item nodes, returns the credential type if available.
     #[must_use]
     pub fn first_satisfying(&self, available: &HashSet<CredentialType>) -> Option<CredentialType> {
         match self {
-            Self::Credential(cred) => {
-                if available.contains(cred) {
-                    Some(*cred)
+            Self::Item(item) => {
+                if available.contains(&item.credential_type) {
+                    Some(item.credential_type)
                 } else {
                     None
                 }
@@ -110,29 +113,39 @@ impl ConstraintNode {
         }
     }
 
-    /// Collects all credentials mentioned in this constraint tree
+    /// Collects all credential types mentioned in this constraint tree
     #[must_use]
-    pub fn collect_credentials(&self) -> HashSet<CredentialType> {
+    pub fn collect_credential_types(&self) -> HashSet<CredentialType> {
         let mut result = HashSet::new();
-        self.collect_credentials_recursive(&mut result);
+        self.collect_credential_types_recursive(&mut result);
         result
     }
 
-    fn collect_credentials_recursive(&self, result: &mut HashSet<CredentialType>) {
+    fn collect_credential_types_recursive(&self, result: &mut HashSet<CredentialType>) {
         match self {
-            Self::Credential(cred) => {
-                result.insert(*cred);
+            Self::Item(item) => {
+                result.insert(item.credential_type);
             }
             Self::Any { any } => {
                 for node in any {
-                    node.collect_credentials_recursive(result);
+                    node.collect_credential_types_recursive(result);
                 }
             }
             Self::All { all } => {
                 for node in all {
-                    node.collect_credentials_recursive(result);
+                    node.collect_credential_types_recursive(result);
                 }
             }
+        }
+    }
+
+    /// Collects all `RequestItem`s from this constraint tree
+    #[must_use]
+    pub fn collect_items(&self) -> Vec<&RequestItem> {
+        match self {
+            Self::Item(item) => vec![item],
+            Self::Any { any } => any.iter().flat_map(Self::collect_items).collect(),
+            Self::All { all } => all.iter().flat_map(Self::collect_items).collect(),
         }
     }
 
@@ -143,7 +156,7 @@ impl ConstraintNode {
     /// Returns an error if the tree is invalid (e.g., empty Any/All nodes)
     pub fn validate(&self) -> crate::Result<()> {
         match self {
-            Self::Credential(_) => Ok(()),
+            Self::Item(_) => Ok(()),
             Self::Any { any } => {
                 if any.is_empty() {
                     return Err(crate::Error::InvalidConfiguration(
@@ -173,102 +186,86 @@ impl ConstraintNode {
     // Protocol conversion methods
     // ─────────────────────────────────────────────────────────────────────────
 
-    /// Converts this node to a protocol node
-    #[must_use]
-    pub fn to_protocol(&self) -> ProtocolNode<'static> {
+    /// Converts this node to a protocol constraint node (expression form)
+    fn to_protocol_node(&self) -> ProtocolNode<'static> {
         match self {
-            Self::Credential(cred) => ProtocolNode::Type(Cow::Owned(cred.as_str().to_string())),
+            Self::Item(item) => {
+                ProtocolNode::Type(Cow::Owned(item.credential_type.as_str().to_string()))
+            }
             Self::Any { any } => ProtocolNode::Expr(ProtocolExpr::Any {
-                any: any.iter().map(Self::to_protocol).collect(),
+                any: any.iter().map(Self::to_protocol_node).collect(),
             }),
             Self::All { all } => ProtocolNode::Expr(ProtocolExpr::All {
-                all: all.iter().map(Self::to_protocol).collect(),
+                all: all.iter().map(Self::to_protocol_node).collect(),
             }),
         }
     }
-}
 
-/// Top-level constraints for a request
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "ffi", derive(uniffi::Object))]
-pub struct Constraints {
-    /// The root constraint node
-    #[serde(flatten)]
-    pub root: ConstraintNode,
-}
-
-impl Constraints {
-    /// Creates new constraints from a node
-    #[must_use]
-    pub fn new(root: ConstraintNode) -> Self {
-        Self { root }
-    }
-
-    /// Creates constraints requiring any of the given credentials
-    #[must_use]
-    pub fn any(credentials: Vec<CredentialType>) -> Self {
-        Self {
-            root: ConstraintNode::any(
-                credentials
-                    .into_iter()
-                    .map(ConstraintNode::credential)
-                    .collect(),
-            ),
-        }
-    }
-
-    /// Creates constraints requiring all of the given credentials
-    #[must_use]
-    pub fn all(credentials: Vec<CredentialType>) -> Self {
-        Self {
-            root: ConstraintNode::all(
-                credentials
-                    .into_iter()
-                    .map(ConstraintNode::credential)
-                    .collect(),
-            ),
-        }
-    }
-
-    /// Evaluates the constraints against available credentials
-    #[must_use]
-    pub fn evaluate(&self, available: &HashSet<CredentialType>) -> bool {
-        self.root.evaluate(available)
-    }
-
-    /// Returns the first satisfying credential
-    #[must_use]
-    pub fn first_satisfying(&self, available: &HashSet<CredentialType>) -> Option<CredentialType> {
-        self.root.first_satisfying(available)
-    }
-
-    /// Validates the constraints
+    /// Converts constraint tree to protocol types
+    ///
+    /// Returns (`request_items`, `constraint_expression`) tuple.
+    /// The constraint expression is always wrapped at the top level.
     ///
     /// # Errors
     ///
-    /// Returns an error if the constraints are invalid
-    pub fn validate(&self) -> crate::Result<()> {
-        self.root.validate()
+    /// Returns an error if any `RequestItem` cannot be converted to protocol format
+    pub fn to_protocol(&self) -> crate::Result<(Vec<ProtocolRequestItem>, ProtocolExpr<'static>)> {
+        // Extract unique request items and convert to protocol
+        let items = self.collect_items();
+        let protocol_items: Vec<ProtocolRequestItem> = items
+            .iter()
+            .map(|item| item.to_protocol_item())
+            .collect::<crate::Result<Vec<_>>>()?;
+
+        // Build constraint expression
+        let expr = match self {
+            // If a constraint tree is only one item, we convert it to any(item)
+            Self::Item(item) => ProtocolExpr::Any {
+                any: vec![ProtocolNode::Type(Cow::Owned(
+                    item.credential_type.as_str().to_string(),
+                ))],
+            },
+            Self::Any { any } => ProtocolExpr::Any {
+                any: any.iter().map(Self::to_protocol_node).collect(),
+            },
+            Self::All { all } => ProtocolExpr::All {
+                all: all.iter().map(Self::to_protocol_node).collect(),
+            },
+        };
+
+        Ok((protocol_items, expr))
     }
 
-    /// Converts constraints to protocol expression format
-    #[must_use]
-    pub fn to_protocol_expr(&self) -> ProtocolExpr<'static> {
-        // The root node needs to be wrapped in the appropriate expression type
-        match &self.root {
-            ConstraintNode::Credential(cred) => {
-                // Single credential becomes Any with one element
-                ProtocolExpr::Any {
-                    any: vec![ProtocolNode::Type(Cow::Owned(cred.as_str().to_string()))],
-                }
-            }
-            ConstraintNode::Any { any } => ProtocolExpr::Any {
-                any: any.iter().map(ConstraintNode::to_protocol).collect(),
-            },
-            ConstraintNode::All { all } => ProtocolExpr::All {
-                all: all.iter().map(ConstraintNode::to_protocol).collect(),
-            },
-        }
+    /// Converts constraint tree to protocol types (for top-level usage)
+    ///
+    /// Returns (`request_items`, `optional_constraint_expression`) tuple.
+    /// The constraint expression is None for single items (no constraint needed).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any `RequestItem` cannot be converted to protocol format
+    pub fn to_protocol_top_level(
+        &self,
+    ) -> crate::Result<(Vec<ProtocolRequestItem>, Option<ProtocolExpr<'static>>)> {
+        // Extract unique request items and convert to protocol
+        let items = self.collect_items();
+        let protocol_items: Vec<ProtocolRequestItem> = items
+            .iter()
+            .map(|item| item.to_protocol_item())
+            .collect::<crate::Result<Vec<_>>>()?;
+
+        // Single item doesn't need constraint expression
+        let expr = match self {
+            Self::Item(_) => None, // Just one credential, no constraint needed
+            Self::Any { any } => Some(ProtocolExpr::Any {
+                any: any.iter().map(Self::to_protocol_node).collect(),
+            }),
+            Self::All { all } => Some(ProtocolExpr::All {
+                all: all.iter().map(Self::to_protocol_node).collect(),
+            }),
+        };
+
+        Ok((protocol_items, expr))
     }
 }
 
@@ -277,11 +274,11 @@ impl Constraints {
 #[uniffi::export]
 #[allow(clippy::needless_pass_by_value)]
 impl ConstraintNode {
-    /// Creates a credential constraint node
+    /// Creates an item constraint node from a `RequestItem`
     #[must_use]
-    #[uniffi::constructor(name = "credential")]
-    pub fn ffi_credential(credential_type: CredentialType) -> Arc<Self> {
-        Arc::new(Self::credential(credential_type))
+    #[uniffi::constructor(name = "item")]
+    pub fn ffi_item(request: Arc<RequestItem>) -> Arc<Self> {
+        Arc::new(Self::item((*request).clone()))
     }
 
     /// Creates an "any" (OR) constraint node
@@ -323,62 +320,33 @@ impl ConstraintNode {
     }
 }
 
-// UniFFI exports for Constraints
-#[cfg(feature = "ffi")]
-#[uniffi::export]
-#[allow(clippy::needless_pass_by_value)]
-impl Constraints {
-    /// Creates constraints from a root node
-    #[must_use]
-    #[uniffi::constructor(name = "from_root")]
-    pub fn ffi_from_root(root: Arc<ConstraintNode>) -> Arc<Self> {
-        Arc::new(Self::new((*root).clone()))
-    }
-
-    /// Creates an "any" constraint (at least one credential must match)
-    #[must_use]
-    #[uniffi::constructor(name = "any")]
-    pub fn ffi_any(credentials: Vec<CredentialType>) -> Arc<Self> {
-        Arc::new(Self::any(credentials))
-    }
-
-    /// Creates an "all" constraint (all credentials must match)
-    #[must_use]
-    #[uniffi::constructor(name = "all")]
-    pub fn ffi_all(credentials: Vec<CredentialType>) -> Arc<Self> {
-        Arc::new(Self::all(credentials))
-    }
-
-    /// Serializes constraints to JSON
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if JSON serialization fails
-    pub fn to_json(&self) -> std::result::Result<String, crate::error::IdkitError> {
-        serde_json::to_string(&self)
-            .map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
-    }
-
-    /// Deserializes constraints from JSON
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if JSON deserialization fails
-    #[uniffi::constructor(name = "from_json")]
-    pub fn ffi_from_json(json: &str) -> std::result::Result<Arc<Self>, crate::error::IdkitError> {
-        serde_json::from_str(json)
-            .map(Arc::new)
-            .map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn orb_item() -> RequestItem {
+        RequestItem::new(CredentialType::Orb, None)
+    }
+
+    fn face_item() -> RequestItem {
+        RequestItem::new(CredentialType::Face, None)
+    }
+
+    fn device_item() -> RequestItem {
+        RequestItem::new(CredentialType::Device, None)
+    }
+
+    fn document_item() -> RequestItem {
+        RequestItem::new(CredentialType::Document, None)
+    }
+
+    fn secure_document_item() -> RequestItem {
+        RequestItem::new(CredentialType::SecureDocument, None)
+    }
+
     #[test]
-    fn test_credential_node() {
-        let node = ConstraintNode::credential(CredentialType::Orb);
+    fn test_item_node() {
+        let node = ConstraintNode::item(orb_item());
         let mut available = HashSet::new();
         available.insert(CredentialType::Orb);
 
@@ -389,9 +357,9 @@ mod tests {
     #[test]
     fn test_any_node() {
         let node = ConstraintNode::any(vec![
-            ConstraintNode::credential(CredentialType::Orb),
-            ConstraintNode::credential(CredentialType::Face),
-            ConstraintNode::credential(CredentialType::Device),
+            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(face_item()),
+            ConstraintNode::item(device_item()),
         ]);
 
         let mut available = HashSet::new();
@@ -410,8 +378,8 @@ mod tests {
     fn test_any_node_priority() {
         // Orb has highest priority, Face second
         let node = ConstraintNode::any(vec![
-            ConstraintNode::credential(CredentialType::Orb),
-            ConstraintNode::credential(CredentialType::Face),
+            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(face_item()),
         ]);
 
         let mut available = HashSet::new();
@@ -425,8 +393,8 @@ mod tests {
     #[test]
     fn test_all_node() {
         let node = ConstraintNode::all(vec![
-            ConstraintNode::credential(CredentialType::Orb),
-            ConstraintNode::credential(CredentialType::Face),
+            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(face_item()),
         ]);
 
         let mut available = HashSet::new();
@@ -446,10 +414,10 @@ mod tests {
     fn test_nested_constraints() {
         // Orb OR (secure_document OR document)
         let node = ConstraintNode::any(vec![
-            ConstraintNode::credential(CredentialType::Orb),
+            ConstraintNode::item(orb_item()),
             ConstraintNode::any(vec![
-                ConstraintNode::credential(CredentialType::SecureDocument),
-                ConstraintNode::credential(CredentialType::Document),
+                ConstraintNode::item(secure_document_item()),
+                ConstraintNode::item(document_item()),
             ]),
         ]);
 
@@ -466,8 +434,8 @@ mod tests {
     #[test]
     fn test_face_orb_example() {
         let node = ConstraintNode::any(vec![
-            ConstraintNode::credential(CredentialType::Orb),
-            ConstraintNode::credential(CredentialType::Face),
+            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(face_item()),
         ]);
 
         let mut available = HashSet::new();
@@ -489,10 +457,10 @@ mod tests {
     fn test_credential_categories_example() {
         // Example: Orb AND (secure_document OR document)
         let node = ConstraintNode::all(vec![
-            ConstraintNode::credential(CredentialType::Orb),
+            ConstraintNode::item(orb_item()),
             ConstraintNode::any(vec![
-                ConstraintNode::credential(CredentialType::SecureDocument),
-                ConstraintNode::credential(CredentialType::Document),
+                ConstraintNode::item(secure_document_item()),
+                ConstraintNode::item(document_item()),
             ]),
         ]);
 
@@ -504,16 +472,16 @@ mod tests {
     }
 
     #[test]
-    fn test_collect_credentials() {
+    fn test_collect_credential_types() {
         let node = ConstraintNode::any(vec![
-            ConstraintNode::credential(CredentialType::Orb),
+            ConstraintNode::item(orb_item()),
             ConstraintNode::all(vec![
-                ConstraintNode::credential(CredentialType::Face),
-                ConstraintNode::credential(CredentialType::Device),
+                ConstraintNode::item(face_item()),
+                ConstraintNode::item(device_item()),
             ]),
         ]);
 
-        let credentials = node.collect_credentials();
+        let credentials = node.collect_credential_types();
         assert_eq!(credentials.len(), 3);
         assert!(credentials.contains(&CredentialType::Orb));
         assert!(credentials.contains(&CredentialType::Face));
@@ -521,8 +489,22 @@ mod tests {
     }
 
     #[test]
+    fn test_collect_items() {
+        let node = ConstraintNode::any(vec![
+            ConstraintNode::item(orb_item()),
+            ConstraintNode::all(vec![
+                ConstraintNode::item(face_item()),
+                ConstraintNode::item(device_item()),
+            ]),
+        ]);
+
+        let items = node.collect_items();
+        assert_eq!(items.len(), 3);
+    }
+
+    #[test]
     fn test_validation() {
-        let valid = ConstraintNode::any(vec![ConstraintNode::credential(CredentialType::Orb)]);
+        let valid = ConstraintNode::any(vec![ConstraintNode::item(orb_item())]);
         assert!(valid.validate().is_ok());
 
         let invalid = ConstraintNode::any(vec![]);
@@ -532,51 +514,73 @@ mod tests {
     #[test]
     fn test_serialization() {
         let node = ConstraintNode::any(vec![
-            ConstraintNode::credential(CredentialType::Orb),
-            ConstraintNode::credential(CredentialType::Face),
+            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(face_item()),
         ]);
 
         let json = serde_json::to_string(&node).unwrap();
         let deserialized: ConstraintNode = serde_json::from_str(&json).unwrap();
-        assert_eq!(node, deserialized);
-    }
 
-    #[test]
-    fn test_constraints_wrapper() {
-        let constraints = Constraints::any(vec![CredentialType::Orb, CredentialType::Device]);
-
-        let mut available = HashSet::new();
-        available.insert(CredentialType::Device);
-
-        assert!(constraints.evaluate(&available));
+        // Check both have same credential types
         assert_eq!(
-            constraints.first_satisfying(&available),
-            Some(CredentialType::Device)
+            node.collect_credential_types(),
+            deserialized.collect_credential_types()
         );
     }
 
     #[test]
-    fn test_to_protocol_expr() {
-        // Test simple any constraint
-        let constraints = Constraints::any(vec![CredentialType::Orb, CredentialType::Face]);
-        let protocol_expr = constraints.to_protocol_expr();
+    fn test_to_protocol() {
+        // Test any constraint
+        let node = ConstraintNode::any(vec![
+            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(face_item()),
+        ]);
+        let (items, expr) = node.to_protocol().unwrap();
 
-        // Verify it serializes to the expected JSON structure
-        let json = serde_json::to_string(&protocol_expr).unwrap();
+        assert_eq!(items.len(), 2);
+        let json = serde_json::to_string(&expr).unwrap();
         assert!(json.contains("any"));
         assert!(json.contains("orb"));
         assert!(json.contains("face"));
+    }
 
+    #[test]
+    fn test_to_protocol_top_level_single_item() {
+        // Single item should not have constraint expression
+        let node = ConstraintNode::item(orb_item());
+        let (items, expr) = node.to_protocol_top_level().unwrap();
+
+        assert_eq!(items.len(), 1);
+        assert!(expr.is_none());
+    }
+
+    #[test]
+    fn test_to_protocol_top_level_multiple() {
+        // Multiple items should have constraint expression
+        let node = ConstraintNode::any(vec![
+            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(face_item()),
+        ]);
+        let (items, expr) = node.to_protocol_top_level().unwrap();
+
+        assert_eq!(items.len(), 2);
+        assert!(expr.is_some());
+    }
+
+    #[test]
+    fn test_to_protocol_nested() {
         // Test nested constraint: all(orb, any(document, device))
-        let nested = Constraints::new(ConstraintNode::all(vec![
-            ConstraintNode::credential(CredentialType::Orb),
+        let nested = ConstraintNode::all(vec![
+            ConstraintNode::item(orb_item()),
             ConstraintNode::any(vec![
-                ConstraintNode::credential(CredentialType::Document),
-                ConstraintNode::credential(CredentialType::Device),
+                ConstraintNode::item(document_item()),
+                ConstraintNode::item(device_item()),
             ]),
-        ]));
-        let nested_expr = nested.to_protocol_expr();
-        let nested_json = serde_json::to_string(&nested_expr).unwrap();
+        ]);
+        let (items, expr) = nested.to_protocol().unwrap();
+
+        assert_eq!(items.len(), 3);
+        let nested_json = serde_json::to_string(&expr).unwrap();
         assert!(nested_json.contains("all"));
         assert!(nested_json.contains("any"));
         assert!(nested_json.contains("orb"));

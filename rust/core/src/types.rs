@@ -174,10 +174,13 @@ impl<'de> Deserialize<'de> for Signal {
     }
 }
 
-/// A single credential request
+/// A credential request item
+///
+/// Represents a single credential type that can be requested, with optional
+/// signal and genesis timestamp constraints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Object))]
-pub struct Request {
+pub struct RequestItem {
     /// The type of credential being requested
     #[serde(rename = "type")]
     pub credential_type: CredentialType,
@@ -187,19 +190,34 @@ pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signal: Option<Signal>,
 
-    /// Whether face authentication is required (only valid for orb and face credentials)
+    /// Optional minimum genesis timestamp constraint
+    /// Only credentials issued at or after this timestamp will be accepted
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub face_auth: Option<bool>,
+    pub genesis_issued_at_min: Option<u64>,
 }
 
-impl Request {
-    /// Creates a new request with an optional signal
+impl RequestItem {
+    /// Creates a new request item with an optional signal
     #[must_use]
     pub fn new(credential_type: CredentialType, signal: Option<Signal>) -> Self {
         Self {
             credential_type,
             signal,
-            face_auth: None,
+            genesis_issued_at_min: None,
+        }
+    }
+
+    /// Creates a new request item with a genesis timestamp constraint
+    #[must_use]
+    pub fn with_genesis_min(
+        credential_type: CredentialType,
+        signal: Option<Signal>,
+        genesis_min: u64,
+    ) -> Self {
+        Self {
+            credential_type,
+            signal,
+            genesis_issued_at_min: Some(genesis_min),
         }
     }
 
@@ -209,38 +227,12 @@ impl Request {
         self.signal.as_ref().map(Signal::to_bytes)
     }
 
-    /// Adds face authentication requirement
-    #[must_use]
-    pub fn with_face_auth(mut self, face_auth: bool) -> Self {
-        self.face_auth = Some(face_auth);
-        self
-    }
-
-    /// Validates the request
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `face_auth` is set for an incompatible credential type
-    pub fn validate(&self) -> crate::Result<()> {
-        if self.face_auth == Some(true) {
-            match self.credential_type {
-                CredentialType::Orb | CredentialType::Face => Ok(()),
-                _ => Err(crate::Error::InvalidConfiguration(format!(
-                    "face_auth is only supported for orb and face credentials, got: {:?}",
-                    self.credential_type
-                ))),
-            }
-        } else {
-            Ok(())
-        }
-    }
-
     /// Converts to a protocol `RequestItem`
     ///
     /// # Errors
     ///
     /// Returns an error if the credential type cannot be mapped to an issuer schema ID
-    pub fn to_request_item(&self) -> crate::Result<crate::protocol_types::RequestItem> {
+    pub fn to_protocol_item(&self) -> crate::Result<crate::protocol_types::RequestItem> {
         use crate::issuer_schema::credential_to_issuer_schema_id;
 
         let identifier = self.credential_type.as_str().to_string();
@@ -255,19 +247,18 @@ impl Request {
             identifier,
             issuer_schema_id,
             signal,
-            // TODO: Allow the developer to select the genesis_issued_at_min
-            None, // genesis_issued_at_min
+            self.genesis_issued_at_min,
             None, // session_id
         ))
     }
 }
 
-// UniFFI exports for Request
+// UniFFI exports for RequestItem
 #[cfg(feature = "ffi")]
 #[uniffi::export]
 #[allow(clippy::needless_pass_by_value)]
-impl Request {
-    /// Creates a new credential request
+impl RequestItem {
+    /// Creates a new credential request item
     #[must_use]
     #[uniffi::constructor(name = "new")]
     pub fn ffi_new(credential_type: CredentialType, signal: Option<Arc<Signal>>) -> Arc<Self> {
@@ -275,14 +266,23 @@ impl Request {
         Arc::new(Self::new(credential_type, signal_opt))
     }
 
-    /// Sets the face authentication requirement on a request
+    /// Creates a new credential request item with a genesis timestamp constraint
     #[must_use]
-    #[uniffi::method(name = "with_face_auth")]
-    pub fn ffi_with_face_auth(&self, face_auth: bool) -> Arc<Self> {
-        Arc::new(self.clone().with_face_auth(face_auth))
+    #[uniffi::constructor(name = "with_genesis_min")]
+    pub fn ffi_with_genesis_min(
+        credential_type: CredentialType,
+        signal: Option<Arc<Signal>>,
+        genesis_min: u64,
+    ) -> Arc<Self> {
+        let signal_opt = signal.map(|s| (*s).clone());
+        Arc::new(Self::with_genesis_min(
+            credential_type,
+            signal_opt,
+            genesis_min,
+        ))
     }
 
-    /// Gets the signal as raw bytes from a request
+    /// Gets the signal as raw bytes from a request item
     #[must_use]
     pub fn get_signal_bytes(&self) -> Option<Vec<u8>> {
         self.signal_bytes()
@@ -294,13 +294,13 @@ impl Request {
         self.credential_type
     }
 
-    /// Gets the `face_auth` setting
+    /// Gets the genesis timestamp constraint
     #[must_use]
-    pub fn face_auth(&self) -> Option<bool> {
-        self.face_auth
+    pub fn genesis_issued_at_min(&self) -> Option<u64> {
+        self.genesis_issued_at_min
     }
 
-    /// Serializes a request to JSON
+    /// Serializes a request item to JSON
     ///
     /// # Errors
     ///
@@ -310,7 +310,7 @@ impl Request {
             .map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
     }
 
-    /// Deserializes a request from JSON
+    /// Deserializes a request item from JSON
     ///
     /// # Errors
     ///
@@ -709,53 +709,60 @@ mod tests {
     }
 
     #[test]
-    fn test_request_validation() {
-        let valid = Request::new(CredentialType::Orb, Some(Signal::from_string("signal")))
-            .with_face_auth(true);
-        assert!(valid.validate().is_ok());
-
-        let invalid = Request::new(CredentialType::Device, Some(Signal::from_string("signal")))
-            .with_face_auth(true);
-        assert!(invalid.validate().is_err());
+    fn test_request_item_creation() {
+        let item = RequestItem::new(CredentialType::Orb, Some(Signal::from_string("signal")));
+        assert_eq!(item.credential_type, CredentialType::Orb);
+        assert_eq!(item.signal, Some(Signal::from_string("signal")));
+        assert_eq!(item.genesis_issued_at_min, None);
 
         // Test without signal
-        let no_signal = Request::new(CredentialType::Face, None);
-        assert!(no_signal.validate().is_ok());
+        let no_signal = RequestItem::new(CredentialType::Face, None);
         assert_eq!(no_signal.signal, None);
     }
 
     #[test]
-    fn test_request_with_abi_encoded_signal() {
-        // Test creating request with ABI-encoded bytes
+    fn test_request_item_with_genesis_min() {
+        let item = RequestItem::with_genesis_min(
+            CredentialType::Orb,
+            Some(Signal::from_string("signal")),
+            1_700_000_000,
+        );
+        assert_eq!(item.credential_type, CredentialType::Orb);
+        assert_eq!(item.genesis_issued_at_min, Some(1_700_000_000));
+    }
+
+    #[test]
+    fn test_request_item_with_abi_encoded_signal() {
+        // Test creating request item with ABI-encoded bytes
         let bytes = b"arbitrary\x00\xFF\xFE data";
-        let request = Request::new(CredentialType::Orb, Some(Signal::from_abi_encoded(bytes)));
+        let item = RequestItem::new(CredentialType::Orb, Some(Signal::from_abi_encoded(bytes)));
 
         // Verify signal is stored as ABI-encoded
-        assert!(request.signal.is_some());
-        let signal = request.signal.as_ref().unwrap();
+        assert!(item.signal.is_some());
+        let signal = item.signal.as_ref().unwrap();
         assert_eq!(signal, &Signal::from_abi_encoded(bytes));
 
         // Verify we can decode back to bytes
-        let decoded = request.signal_bytes().unwrap();
+        let decoded = item.signal_bytes().unwrap();
         assert_eq!(decoded, bytes);
     }
 
     #[test]
-    fn test_request_with_string_signal() {
-        // Test creating request with string signal
-        let request = Request::new(CredentialType::Face, Some(Signal::from_string("my_signal")));
-        assert_eq!(request.signal, Some(Signal::from_string("my_signal")));
+    fn test_request_item_with_string_signal() {
+        // Test creating request item with string signal
+        let item = RequestItem::new(CredentialType::Face, Some(Signal::from_string("my_signal")));
+        assert_eq!(item.signal, Some(Signal::from_string("my_signal")));
 
         // String signals should also be retrievable as bytes
-        let bytes = request.signal_bytes().unwrap();
+        let bytes = item.signal_bytes().unwrap();
         assert_eq!(bytes, b"my_signal");
     }
 
     #[test]
-    fn test_request_without_signal() {
-        let request = Request::new(CredentialType::Device, None);
-        assert_eq!(request.signal, None);
-        assert_eq!(request.signal_bytes(), None);
+    fn test_request_item_without_signal() {
+        let item = RequestItem::new(CredentialType::Device, None);
+        assert_eq!(item.signal, None);
+        assert_eq!(item.signal_bytes(), None);
     }
 
     #[test]
