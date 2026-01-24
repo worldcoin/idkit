@@ -4,18 +4,20 @@ import Testing
 
 // MARK: - RequestItem Tests
 
-@Test("RequestItem creation with signal")
+@Test("RequestItem creation with signal via UniFFI")
 func requestItemCreationWithSignal() throws {
     let signal = Signal.fromString(s: "test_signal")
-    let item = idkit_core.RequestItem.new(credentialType: .orb, signal: signal)
+    // Use the UniFFI-generated static method directly
+    let item = RequestItem.new(credentialType: .orb, signal: signal)
 
     #expect(item.credentialType == .orb)
     #expect(item.signal != nil)
 }
 
-@Test("RequestItem creation without signal")
+@Test("RequestItem creation without signal via UniFFI")
 func requestItemCreationWithoutSignal() {
-    let item = idkit_core.RequestItem.new(credentialType: .device, signal: nil)
+    // Use the UniFFI-generated static method directly
+    let item = RequestItem.new(credentialType: .device, signal: nil)
 
     #expect(item.credentialType == .device)
     #expect(item.signal == nil)

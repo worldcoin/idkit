@@ -20,8 +20,8 @@ public enum IDKit {
 /// let orb = RequestItem(.orb, signal: "user-123")
 /// let face = RequestItem(.face)
 /// ```
-public func RequestItem(_ type: CredentialType, signal: String? = nil) -> idkit_core.RequestItem {
-    idkit_core.RequestItem.new(credentialType: type, signal: signal.map { Signal.fromString(s: $0) })
+public func RequestItem(_ type: CredentialType, signal: String? = nil) -> RequestItem {
+    RequestItem.new(credentialType: type, signal: signal.map { Signal.fromString(s: $0) })
 }
 
 /// Creates an OR constraint - at least one child must be satisfied
@@ -33,7 +33,7 @@ public func RequestItem(_ type: CredentialType, signal: String? = nil) -> idkit_
 /// ```swift
 /// let constraint = anyOf(RequestItem(.orb), RequestItem(.face))
 /// ```
-public func anyOf(_ items: idkit_core.RequestItem...) -> ConstraintNode {
+public func anyOf(_ items: RequestItem...) -> ConstraintNode {
     ConstraintNode.any(nodes: items.map { ConstraintNode.item(request: $0) })
 }
 
@@ -41,7 +41,7 @@ public func anyOf(_ items: idkit_core.RequestItem...) -> ConstraintNode {
 ///
 /// - Parameter items: Array of request items (at least one must be satisfied)
 /// - Returns: A ConstraintNode representing an "any" constraint
-public func anyOf(_ items: [idkit_core.RequestItem]) -> ConstraintNode {
+public func anyOf(_ items: [RequestItem]) -> ConstraintNode {
     ConstraintNode.any(nodes: items.map { ConstraintNode.item(request: $0) })
 }
 
@@ -75,7 +75,7 @@ public func anyOf(nodes: [ConstraintNode]) -> ConstraintNode {
 /// ```swift
 /// let constraint = allOf(RequestItem(.orb), RequestItem(.document))
 /// ```
-public func allOf(_ items: idkit_core.RequestItem...) -> ConstraintNode {
+public func allOf(_ items: RequestItem...) -> ConstraintNode {
     ConstraintNode.all(nodes: items.map { ConstraintNode.item(request: $0) })
 }
 
@@ -83,7 +83,7 @@ public func allOf(_ items: idkit_core.RequestItem...) -> ConstraintNode {
 ///
 /// - Parameter items: Array of request items (all must be satisfied)
 /// - Returns: A ConstraintNode representing an "all" constraint
-public func allOf(_ items: [idkit_core.RequestItem]) -> ConstraintNode {
+public func allOf(_ items: [RequestItem]) -> ConstraintNode {
     ConstraintNode.all(nodes: items.map { ConstraintNode.item(request: $0) })
 }
 
@@ -126,23 +126,17 @@ public func orbLegacy(signal: String? = nil) -> Preset {
     .orbLegacy(OrbLegacyPreset(signal: signal))
 }
 
-// MARK: - Usage example - Explicit constraints
-//
-// let orb = RequestItem(.orb, signal: "user-123")
-// let face = RequestItem(.face)
-//
-// let config = VerifyConfig(
-//     appId: "app_staging_xxxxx",
-//     action: "my-action",
-//     rpContext: rpContext,
-//     actionDescription: nil,
-//     bridgeUrl: nil
-// )
-//
-// let session = try verify(config: config).constraints(constraints: anyOf(orb, face))
-// let connectUrl = session.connectUrl()
-// let status = session.pollStatus(pollIntervalMs: 2000, timeoutMs: 300000)
-//
-// MARK: - Usage example - Preset (World ID 3.0 legacy support)
-//
-// let session = try verify(config: config).preset(preset: orbLegacy(signal: "user-123"))
+// MARK: - Signal convenience extensions
+
+public extension Signal {
+    /// Returns the signal bytes as Foundation Data
+    var bytesData: Data {
+        Data(self.asBytes())
+    }
+
+    /// Returns the signal as a string if it's valid UTF-8, nil otherwise
+    var stringValue: String? {
+        self.asString()
+    }
+}
+

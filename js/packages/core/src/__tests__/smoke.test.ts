@@ -82,6 +82,32 @@ describe("Session API", () => {
       }),
     ).toThrow("rp_context is required");
   });
+
+  it("should allow any() with no items (validation happens in WASM)", () => {
+    // any() returns an empty constraint object - validation happens in WASM layer
+    const emptyConstraint = any();
+    expect(emptyConstraint).toHaveProperty("any");
+    expect(emptyConstraint.any).toHaveLength(0);
+  });
+
+  it("should reject empty constraints when creating session", async () => {
+    const createTestRpContext = () => ({
+      rp_id: "rp_test123456789abc",
+      nonce: "test-nonce-" + Date.now(),
+      created_at: Math.floor(Date.now() / 1000),
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      signature: "test-signature",
+    });
+
+    // Empty any() constraint should fail validation in WASM layer
+    await expect(
+      verify({
+        app_id: "app_staging_test",
+        action: "test-action",
+        rp_context: createTestRpContext(),
+      }).constraints({ any: [] }),
+    ).rejects.toThrow();
+  });
 });
 
 describe("Enums", () => {
