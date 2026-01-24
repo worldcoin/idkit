@@ -38,7 +38,7 @@
 
     <script type="module">
         // Import IDKit core (pure TypeScript, no dependencies)
-        import { createSession, initIDKit } from '@worldcoin/idkit-core';
+        import { verify, RequestItem, initIDKit } from '@worldcoin/idkit-core';
 
         // Demo app configuration
         const APP_ID = 'app_ce4cb73cb75fc3b73b71ffb4de178410'; // Replace with your actual app ID
@@ -65,8 +65,8 @@
         // Initialize WASM on page load
         await initIDKit();
 
-        // Function to verify with World ID using the new Session API
-        async function verify(requests) {
+        // Function to verify with World ID using the new verify().constraints() API
+        async function startVerification(credentialType, signal) {
             try {
                 hideAll();
 
@@ -84,13 +84,12 @@
                     signature: '',
                 };
 
-                // Create a new session with the requests
-                const session = await createSession({
+                // Create a new session using the builder pattern
+                const session = await verify({
                     app_id: APP_ID,
                     action: ACTION,
-                    requests: requests,
                     rp_context: rpContext,
-                });
+                }).constraints(RequestItem(credentialType, { signal }));
 
                 // Get the connector URL from the session
                 const url = session.connectorURI;
@@ -127,13 +126,13 @@
 
         // Button event listeners
         document.getElementById('verifyOrb').addEventListener('click', () =>
-            verify([{ credential_type: 'orb', signal: makeSignal() }])
+            startVerification('orb', makeSignal())
         );
         document.getElementById('verifyFace').addEventListener('click', () =>
-            verify([{ credential_type: 'face', signal: makeSignal() }])
+            startVerification('face', makeSignal())
         );
         document.getElementById('verifyDevice').addEventListener('click', () =>
-            verify([{ credential_type: 'device', signal: makeSignal() }])
+            startVerification('device', makeSignal())
         );
 
     </script>
