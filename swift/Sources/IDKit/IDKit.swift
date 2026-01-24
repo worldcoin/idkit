@@ -1,5 +1,4 @@
 import Foundation
-import idkit_core
 
 /// Main entry point for IDKit Swift SDK
 public enum IDKit {

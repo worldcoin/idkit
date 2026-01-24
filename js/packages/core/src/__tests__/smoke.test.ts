@@ -7,7 +7,10 @@ import { describe, it, expect } from "vitest";
 import {
   initIDKit,
   isInitialized,
-  createSession,
+  verify,
+  RequestItem,
+  any,
+  orbLegacy,
   isNode,
   AppErrorCodes,
   VerificationState,
@@ -37,40 +40,47 @@ describe("Platform Detection", () => {
 
 describe("Session API", () => {
   //TODO: We should try to find a test with a signed payload to test full e2e
-  // Helper to create a test RP context
-  const createTestRpContext = () => ({
-    rp_id: "rp_test123456789abc",
-    nonce: "test-nonce-" + Date.now(),
-    created_at: Math.floor(Date.now() / 1000),
-    expires_at: Math.floor(Date.now() / 1000) + 3600,
-    signature: "test-signature",
+
+  it("should export verify function", () => {
+    expect(typeof verify).toBe("function");
   });
 
-  it("should export createSession function", () => {
-    expect(typeof createSession).toBe("function");
+  it("should export RequestItem and constraint helpers", () => {
+    expect(typeof RequestItem).toBe("function");
+    expect(typeof any).toBe("function");
+    expect(typeof orbLegacy).toBe("function");
   });
 
-  it("should throw error when requests is empty", async () => {
-    await expect(
-      createSession({
+  it("should create RequestItem correctly", () => {
+    const item = RequestItem("orb", { signal: "test-signal" });
+    expect(item).toHaveProperty("type", "orb");
+    expect(item).toHaveProperty("signal", "test-signal");
+  });
+
+  it("should create any() constraint correctly", () => {
+    const orb = RequestItem("orb");
+    const face = RequestItem("face");
+    const constraint = any(orb, face);
+    expect(constraint).toHaveProperty("any");
+    expect(constraint.any).toHaveLength(2);
+  });
+
+  it("should create orbLegacy preset correctly", () => {
+    const preset = orbLegacy({ signal: "test-signal" });
+    expect(preset).toHaveProperty("type", "OrbLegacy");
+    expect(preset).toHaveProperty("data");
+    expect(preset.data).toHaveProperty("signal", "test-signal");
+  });
+
+  it("should throw error when rp_context is missing", () => {
+    expect(() =>
+      verify({
         app_id: "app_staging_test",
         action: "test-action",
-        requests: [],
-        rp_context: createTestRpContext(),
-      }),
-    ).rejects.toThrow("At least one request is required");
-  });
-
-  it("should throw error when rp_context is missing", async () => {
-    await expect(
-      createSession({
-        app_id: "app_staging_test",
-        action: "test-action",
-        requests: [{ credential_type: "orb" }],
         // @ts-expect-error - testing missing rp_context
         rp_context: undefined,
       }),
-    ).rejects.toThrow("rp_context is required");
+    ).toThrow("rp_context is required");
   });
 });
 

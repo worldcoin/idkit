@@ -2,32 +2,30 @@ import Foundation
 import Testing
 @testable import IDKit
 
-// MARK: - Request Tests
+// MARK: - RequestItem Tests
 
-@Test("Request creation with signal")
-func requestCreationWithSignal() throws {
+@Test("RequestItem creation with signal")
+func requestItemCreationWithSignal() throws {
     let signal = Signal.fromString(s: "test_signal")
-    let request = Request(credentialType: .orb, signal: signal)
+    let item = idkit_core.RequestItem.new(credentialType: .orb, signal: signal)
 
-    #expect(request.credentialType() == .orb)
-    #expect(request.getSignalBytes() != nil)
+    #expect(item.credentialType == .orb)
+    #expect(item.signal != nil)
 }
 
-@Test("Request creation without signal")
-func requestCreationWithoutSignal() {
-    let request = Request(credentialType: .device, signal: nil)
+@Test("RequestItem creation without signal")
+func requestItemCreationWithoutSignal() {
+    let item = idkit_core.RequestItem.new(credentialType: .device, signal: nil)
 
-    #expect(request.credentialType() == .device)
-    #expect(request.getSignalBytes() == nil)
+    #expect(item.credentialType == .device)
+    #expect(item.signal == nil)
 }
 
-@Test("Request with face authentication")
-func requestWithFaceAuth() {
-    let signal = Signal.fromString(s: "test")
-    let request = Request(credentialType: .orb, signal: signal)
-    let withAuth = request.withFaceAuth(faceAuth: true)
+@Test("RequestItem convenience function")
+func requestItemConvenience() {
+    let item = RequestItem(.orb, signal: "test-signal")
 
-    #expect(withAuth.faceAuth() == true)
+    #expect(item.credentialType == .orb)
 }
 
 // MARK: - Signal Tests
@@ -84,28 +82,12 @@ func verificationLevelExists() {
     #expect(levels.count == 6)
 }
 
-// MARK: - Constraints Tests
+// MARK: - ConstraintNode Tests
 
-@Test("Constraints with ANY logic")
-func constraintsAny() throws {
-    let constraints = Constraints.any(credentials: [.orb, .face])
-
-    // Verify it can be serialized
-    let json = try constraints.toJson()
-    #expect(!json.isEmpty)
-}
-
-@Test("Constraints with ALL logic")
-func constraintsAll() throws {
-    let constraints = Constraints.all(credentials: [.orb, .secureDocument])
-
-    let json = try constraints.toJson()
-    #expect(!json.isEmpty)
-}
-
-@Test("ConstraintNode credential leaf")
-func constraintNodeCredential() throws {
-    let node = ConstraintNode.credential(credentialType: .orb)
+@Test("ConstraintNode item leaf")
+func constraintNodeItem() throws {
+    let item = RequestItem(.orb)
+    let node = ConstraintNode.item(request: item)
 
     let json = try node.toJson()
     #expect(!json.isEmpty)
@@ -113,8 +95,8 @@ func constraintNodeCredential() throws {
 
 @Test("ConstraintNode with ANY operator")
 func constraintNodeAny() throws {
-    let orb = ConstraintNode.credential(credentialType: .orb)
-    let face = ConstraintNode.credential(credentialType: .face)
+    let orb = ConstraintNode.item(request: RequestItem(.orb))
+    let face = ConstraintNode.item(request: RequestItem(.face))
 
     let anyNode = ConstraintNode.any(nodes: [orb, face])
 
@@ -124,8 +106,8 @@ func constraintNodeAny() throws {
 
 @Test("ConstraintNode with ALL operator")
 func constraintNodeAll() throws {
-    let orb = ConstraintNode.credential(credentialType: .orb)
-    let doc = ConstraintNode.credential(credentialType: .secureDocument)
+    let orb = ConstraintNode.item(request: RequestItem(.orb))
+    let doc = ConstraintNode.item(request: RequestItem(.secureDocument))
 
     let allNode = ConstraintNode.all(nodes: [orb, doc])
 
@@ -133,14 +115,27 @@ func constraintNodeAll() throws {
     #expect(!json.isEmpty)
 }
 
+@Test("anyOf convenience function")
+func anyOfConvenience() throws {
+    let constraint = anyOf(RequestItem(.orb), RequestItem(.face))
+
+    let json = try constraint.toJson()
+    #expect(!json.isEmpty)
+}
+
+@Test("allOf convenience function")
+func allOfConvenience() throws {
+    let constraint = allOf(RequestItem(.orb), RequestItem(.document))
+
+    let json = try constraint.toJson()
+    #expect(!json.isEmpty)
+}
+
 // MARK: - Session Creation Tests
 // Note: These tests verify API shape, actual sessions need valid credentials
 
-@Test("Session creation API shape")
-func sessionCreationAPIShape() {
-    let signal = Signal.fromString(s: "test")
-    let request = Request(credentialType: .orb, signal: signal)
-
+@Test("verify() builder API shape")
+func verifyBuilderAPIShape() {
     // Create a test RpContext (in production this would come from your backend)
     // Note: RpId must be "rp_" followed by exactly 16 hex characters
     let rpContext = try! RpContext(
@@ -151,16 +146,54 @@ func sessionCreationAPIShape() {
         signature: "test-signature"
     )
 
-    // This will throw without valid app_id - verify API exists
-    _ = try? Session.create(
+    let config = VerifyConfig(
         appId: "app_test_invalid",
         action: "test",
-        requests: [request],
         rpContext: rpContext,
         actionDescription: nil,
-        constraints: nil,
         bridgeUrl: nil
     )
+
+    // This will throw without valid credentials - verify API exists
+    let builder = verify(config: config)
+    _ = try? builder.constraints(constraints: anyOf(RequestItem(.orb)))
+
+    // If we reach here without crashing, the API exists
+    #expect(Bool(true))
+}
+
+@Test("orbLegacy preset helper")
+func orbLegacyPresetHelper() {
+    let preset = orbLegacy(signal: "test-signal")
+
+    // Verify the preset was created
+    switch preset {
+    case .orbLegacy(let data):
+        #expect(data.signal == "test-signal")
+    }
+}
+
+@Test("verify().preset() API shape")
+func verifyPresetAPIShape() {
+    let rpContext = try! RpContext(
+        rpId: "rp_1234567890abcdef",
+        nonce: "test-nonce",
+        createdAt: UInt64(Date().timeIntervalSince1970),
+        expiresAt: UInt64(Date().timeIntervalSince1970) + 3600,
+        signature: "test-signature"
+    )
+
+    let config = VerifyConfig(
+        appId: "app_test_invalid",
+        action: "test",
+        rpContext: rpContext,
+        actionDescription: nil,
+        bridgeUrl: nil
+    )
+
+    // This will throw without valid credentials - verify API exists
+    let builder = verify(config: config)
+    _ = try? builder.preset(preset: orbLegacy())
 
     // If we reach here without crashing, the API exists
     #expect(Bool(true))
@@ -200,27 +233,20 @@ func proofSerialization() throws {
 @Suite("Swift Extension Convenience APIs")
 struct SwiftExtensionsTests {
 
-    @Test("Request convenience init with string signal")
-    func requestConvenienceInitWithString() throws {
-        let request = try Request(
-            credentialType: .orb,
-            stringSignal: "test_signal"
-        )
+    @Test("RequestItem convenience function with string signal")
+    func requestItemConvenienceWithString() {
+        let item = RequestItem(.orb, signal: "test_signal")
 
-        #expect(request.credentialType() == .orb)
-        #expect(request.getSignalBytes() != nil)
+        #expect(item.credentialType == .orb)
+        #expect(item.signal != nil)
     }
 
-    @Test("Request convenience init with ABI-encoded data")
-    func requestConvenienceInitWithData() throws {
-        let bytes = Data([0x00, 0x01, 0x02, 0x03])
-        let request = try Request(
-            credentialType: .orb,
-            abiEncodedSignal: bytes
-        )
+    @Test("RequestItem convenience function without signal")
+    func requestItemConvenienceWithoutSignal() {
+        let item = RequestItem(.face)
 
-        #expect(request.credentialType() == .orb)
-        #expect(request.getSignalBytes() != nil)
+        #expect(item.credentialType == .face)
+        #expect(item.signal == nil)
     }
 
     @Test("Signal convenience properties")
