@@ -3,6 +3,9 @@
   "version": "4.0.1",
   "private": true,
   "description": "IDKit - World ID SDK with Rust Core",
+  "devDependencies": {
+    "prettier": "^3.3"
+  },
   "scripts": {
     "build": "pnpm -r build",
     "test": "pnpm -r test",
