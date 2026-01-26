@@ -7,8 +7,8 @@
     "build": "pnpm -r build",
     "dev": "pnpm -r dev",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
     "lint": "pnpm -r lint",
+    "lint:format": "prettier --check .",
     "test": "pnpm -r test"
   },
   "devDependencies": {

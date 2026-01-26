@@ -120,8 +120,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Check formatting
-        working-directory: js
-        run: pnpm format:check
+        run: pnpm lint:js
 
       - name: Build packages
         run: pnpm build
