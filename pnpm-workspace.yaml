@@ -1,4 +1,5 @@
 packages:
+  - js
   - js/packages/*
   - js/examples/*
 
