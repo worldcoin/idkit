@@ -7,22 +7,19 @@ on:
       - main
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
+  id-token: write
 
 jobs:
   pre-release-checks:
     if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
 
     outputs:
       new_version: ${{ steps.version.outputs.new_version }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Get new version from package.json
         id: version
@@ -34,10 +31,10 @@ jobs:
       - name: Check latest published version on npm
         run: |
           NEW_VERSION="${{ steps.version.outputs.new_version }}"
-          
+
           # Check npm for latest version
           LATEST_RELEASE=$(npm view @worldcoin/idkit-core version 2>/dev/null || echo "0.0.0")
-          
+
           echo "Latest release on npm: $LATEST_RELEASE"
           echo "New version: $NEW_VERSION"
 
@@ -49,47 +46,16 @@ jobs:
               exit 1
             fi
           fi
-          
+
           echo "✅ Version check passed: $NEW_VERSION > $LATEST_RELEASE"
 
   publish-js:
     needs: pre-release-checks
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.12.2
-
-      - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Install wasm-pack
-        run: cargo install wasm-pack --locked
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-          registry-url: https://registry.npmjs.org
-          cache: pnpm
-
-      - name: Install dependencies
-        working-directory: js
-        run: pnpm install
-
-      - name: Build packages
-        working-directory: js
-        run: pnpm -r build
-
-      - name: Publish @worldcoin/idkit-core
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        working-directory: js
-        run: pnpm --filter @worldcoin/idkit-core publish --access public --no-git-checks
+    uses: ./.github/workflows/_build-publish-js.yml
+    with:
+      version: ${{ needs.pre-release-checks.outputs.new_version }}
+      npm_tag: latest
+      environment: production
+    permissions:
+      contents: read
+      id-token: write

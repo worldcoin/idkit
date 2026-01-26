@@ -1,0 +1,54 @@
+name: Dev Release JS
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Commit SHA to release (defaults to HEAD of current branch)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.commit_sha || github.sha }}
+
+      - name: Generate dev version
+        id: version
+        run: |
+          # Get base version from package.json
+          BASE_VERSION=$(node -p "require('./js/packages/core/package.json').version")
+
+          # Strip any existing pre-release suffix to get clean base
+          BASE_VERSION=$(echo "$BASE_VERSION" | sed 's/-.*$//')
+
+          # Get short SHA
+          SHORT_SHA=$(git rev-parse --short HEAD)
+
+          # Create dev version
+          DEV_VERSION="${BASE_VERSION}-dev.${SHORT_SHA}"
+
+          echo "version=$DEV_VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Dev version: $DEV_VERSION"
+
+  publish-dev:
+    needs: prepare
+    uses: ./.github/workflows/_build-publish-js.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      npm_tag: dev
+      environment: development
+      ref: ${{ inputs.commit_sha || github.sha }}
+    permissions:
+      contents: read
+      id-token: write
