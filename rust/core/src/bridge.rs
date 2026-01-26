@@ -4,9 +4,7 @@ use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
     preset::Preset,
-    protocol_types::{
-        ConstraintExpr as ProtocolExpr, ProofRequest, RequestItem as ProtocolRequestItem,
-    },
+    protocol_types::ProofRequest,
     types::{AppId, BridgeUrl, Proof, RpContext, VerificationLevel},
     ConstraintNode, Signal,
 };
@@ -50,32 +48,6 @@ struct BridgeRequestPayload {
     // -----------------------------------------------
     /// The protocol-level proof request
     proof_request: ProofRequest,
-}
-
-/// Builds a `ProofRequest` from `RpContext`, request items, and constraint expression.
-fn build_proof_request(
-    rp_context: &RpContext,
-    request_items: Vec<ProtocolRequestItem>,
-    action: &str,
-    constraints: Option<ProtocolExpr<'static>>,
-) -> Result<ProofRequest> {
-    let action = FieldElement::from_arbitrary_raw_bytes(action.as_bytes());
-    let signature = Signature::from_str(&rp_context.signature)
-        .map_err(|_| Error::InvalidConfiguration("Invalid signature".to_string()))?;
-    // TODO: Once we add a utility function for rp signature and nonce generation, update this
-    let nonce = FieldElement::from_arbitrary_raw_bytes(rp_context.nonce.as_bytes());
-
-    // Build ProofRequest using the RpContext
-    Ok(ProofRequest::new(
-        rp_context.created_at,
-        rp_context.expires_at,
-        rp_context.rp_id,
-        action,
-        signature,
-        nonce,
-        request_items,
-        constraints,
-    ))
 }
 
 /// Encrypted payload sent to/from the bridge
@@ -186,12 +158,24 @@ impl Session {
         #[cfg(not(feature = "native-crypto"))]
         let (key_bytes, nonce_bytes) = crate::crypto::generate_key()?;
 
-        // Extract protocol types from constraints
+        // Build ProofRequest protocol type
+        // TODO: Import it from world-id-protocol crate once it's WASM compatible
         let (request_items, constraint_expr) = constraints.to_protocol_top_level()?;
-
-        // Build ProofRequest from RpContext
-        let proof_request =
-            build_proof_request(&rp_context, request_items, &action_str, constraint_expr)?;
+        let action = FieldElement::from_arbitrary_raw_bytes(action_str.as_bytes());
+        let signature = Signature::from_str(&rp_context.signature)
+            .map_err(|_| Error::InvalidConfiguration("Invalid signature".to_string()))?;
+        // TODO: Once we add a utility function for rp signature and nonce generation, update this
+        let nonce = FieldElement::from_arbitrary_raw_bytes(rp_context.nonce.as_bytes());
+        let proof_request = ProofRequest::new(
+            rp_context.created_at,
+            rp_context.expires_at,
+            rp_context.rp_id,
+            action,
+            signature,
+            nonce,
+            request_items,
+            constraint_expr,
+        );
 
         // For backwards compatibility we encode the hash of the signal
         // and default to empty string if it's not provided
@@ -608,6 +592,10 @@ impl SessionWrapper {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use alloy_primitives::Signature;
+
     use super::*;
     use crate::types::{CredentialType, RequestItem, Signal};
 
@@ -632,9 +620,19 @@ mod tests {
         let (request_items, constraint_expr) = constraints.to_protocol_top_level().unwrap();
 
         // Build proof request - action is converted to field element from raw bytes
-        let proof_request =
-            build_proof_request(&rp_context, request_items, "test-action", constraint_expr)
-                .unwrap();
+        let action = FieldElement::from_arbitrary_raw_bytes("test-action".as_bytes());
+        let signature = Signature::from_str(&sig_65_bytes).unwrap();
+        let nonce = FieldElement::from_arbitrary_raw_bytes(rp_context.nonce.as_bytes());
+        let proof_request = ProofRequest::new(
+            rp_context.created_at,
+            rp_context.expires_at,
+            rp_context.rp_id,
+            action,
+            signature,
+            nonce,
+            request_items,
+            constraint_expr,
+        );
 
         let payload = BridgeRequestPayload {
             app_id: "app_test".to_string(),
