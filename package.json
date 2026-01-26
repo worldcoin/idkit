@@ -7,8 +7,8 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "type-check": "pnpm -r type-check",
-    "format:js": "pnpm --filter idkit-monorepo format",
-    "lint:js": "pnpm --filter idkit-monorepo lint:format",
+    "format:js": "pnpm -C js format",
+    "lint:js": "pnpm -C js lint:format",
     "lint:rust": "cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings"
   },
   "keywords": [
