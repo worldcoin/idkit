@@ -6,6 +6,8 @@
   "scripts": {
     "build": "pnpm -r build",
     "dev": "pnpm -r dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test"
   },

@@ -1,141 +1,145 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IDKit Browser Example</title>
-</head>
-<body>
+  </head>
+  <body>
     <h1>IDKit Browser Example</h1>
     <p>Minimal example showing World ID verification via the Rust/WASM core.</p>
 
     <div>
-        <button id="verifyOrb">Verify with Orb</button>
-        <button id="verifyFace">Verify with Face</button>
-        <button id="verifyDevice">Verify with Device</button>
+      <button id="verifyOrb">Verify with Orb</button>
+      <button id="verifyFace">Verify with Face</button>
+      <button id="verifyDevice">Verify with Device</button>
     </div>
 
     <section id="qr" hidden>
-        <h3>Scan with World App</h3>
-        <p id="qrUrl"></p>
-        <div id="qrCode"></div>
+      <h3>Scan with World App</h3>
+      <p id="qrUrl"></p>
+      <div id="qrCode"></div>
     </section>
 
     <section id="status" hidden>
-        <h3>Status</h3>
-        <p id="statusText"></p>
+      <h3>Status</h3>
+      <p id="statusText"></p>
     </section>
 
     <section id="result" hidden>
-        <h3>Verification Successful</h3>
-        <pre id="resultData"></pre>
+      <h3>Verification Successful</h3>
+      <pre id="resultData"></pre>
     </section>
 
     <section id="error" hidden>
-        <h3>Error</h3>
-        <p id="errorText"></p>
+      <h3>Error</h3>
+      <p id="errorText"></p>
     </section>
 
     <script type="module">
-        // Import IDKit core (pure TypeScript, no dependencies)
-        import { createSession, initIDKit } from '@worldcoin/idkit-core';
+      // Import IDKit core (pure TypeScript, no dependencies)
+      import { createSession, initIDKit } from "@worldcoin/idkit-core";
 
-        // Demo app configuration
-        const APP_ID = 'app_ce4cb73cb75fc3b73b71ffb4de178410'; // Replace with your actual app ID
-        const ACTION = 'test-action';
+      // Demo app configuration
+      const APP_ID = "app_ce4cb73cb75fc3b73b71ffb4de178410"; // Replace with your actual app ID
+      const ACTION = "test-action";
 
-        // UI elements
-        const qrDiv = document.getElementById('qr');
-        const qrUrl = document.getElementById('qrUrl');
-        const qrCode = document.getElementById('qrCode');
-        const statusDiv = document.getElementById('status');
-        const statusText = document.getElementById('statusText');
-        const resultDiv = document.getElementById('result');
-        const resultData = document.getElementById('resultData');
-        const errorDiv = document.getElementById('error');
-        const errorText = document.getElementById('errorText');
+      // UI elements
+      const qrDiv = document.getElementById("qr");
+      const qrUrl = document.getElementById("qrUrl");
+      const qrCode = document.getElementById("qrCode");
+      const statusDiv = document.getElementById("status");
+      const statusText = document.getElementById("statusText");
+      const resultDiv = document.getElementById("result");
+      const resultData = document.getElementById("resultData");
+      const errorDiv = document.getElementById("error");
+      const errorText = document.getElementById("errorText");
 
-        const hideAll = () => {
-            qrDiv.hidden = true;
-            statusDiv.hidden = true;
-            resultDiv.hidden = true;
-            errorDiv.hidden = true;
-        };
+      const hideAll = () => {
+        qrDiv.hidden = true;
+        statusDiv.hidden = true;
+        resultDiv.hidden = true;
+        errorDiv.hidden = true;
+      };
 
-        // Initialize WASM on page load
-        await initIDKit();
+      // Initialize WASM on page load
+      await initIDKit();
 
-        // Function to verify with World ID using the new Session API
-        async function verify(requests) {
-            try {
-                hideAll();
+      // Function to verify with World ID using the new Session API
+      async function verify(requests) {
+        try {
+          hideAll();
 
-                statusDiv.hidden = false;
-                statusText.textContent = 'Creating verification session...';
+          statusDiv.hidden = false;
+          statusText.textContent = "Creating verification session...";
 
-                // TODO: Update this to use the new RP context API
-                const now = Math.floor(Date.now() / 1000);
-                const rpContext = {
-                    rp_id: 'rp_123',
-                    nonce: crypto.randomUUID(),
-                    created_at: now,
-                    expires_at: now + 3600, // 1 hour expiry
-                    // TODO: Invalid signature should fail once we update types
-                    signature: '',
-                };
+          // TODO: Update this to use the new RP context API
+          const now = Math.floor(Date.now() / 1000);
+          const rpContext = {
+            rp_id: "rp_123",
+            nonce: crypto.randomUUID(),
+            created_at: now,
+            expires_at: now + 3600, // 1 hour expiry
+            // TODO: Invalid signature should fail once we update types
+            signature: "",
+          };
 
-                // Create a new session with the requests
-                const session = await createSession({
-                    app_id: APP_ID,
-                    action: ACTION,
-                    requests: requests,
-                    rp_context: rpContext,
-                });
+          // Create a new session with the requests
+          const session = await createSession({
+            app_id: APP_ID,
+            action: ACTION,
+            requests: requests,
+            rp_context: rpContext,
+          });
 
-                // Get the connector URL from the session
-                const url = session.connectorURI;
-                console.log('Connect URL:', url);
+          // Get the connector URL from the session
+          const url = session.connectorURI;
+          console.log("Connect URL:", url);
 
-                qrDiv.hidden = false;
-                qrUrl.textContent = url;
+          qrDiv.hidden = false;
+          qrUrl.textContent = url;
 
-                qrCode.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}" alt="QR Code">`;
+          qrCode.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}" alt="QR Code">`;
 
-                statusText.textContent = 'Waiting for scan...';
+          statusText.textContent = "Waiting for scan...";
 
-                // Poll for updates until proof is received
-                const proof = await session.pollForUpdates({
-                    pollInterval: 2000,  // Poll every 2 seconds
-                    timeout: 120000,     // 2 minute timeout
-                });
+          // Poll for updates until proof is received
+          const proof = await session.pollForUpdates({
+            pollInterval: 2000, // Poll every 2 seconds
+            timeout: 120000, // 2 minute timeout
+          });
 
-                statusDiv.hidden = true;
-                qrDiv.hidden = true;
-                resultDiv.hidden = false;
-                resultData.textContent = JSON.stringify(proof, null, 2);
-
-            } catch (error) {
-                console.error('Verification error:', error);
-                hideAll();
-                errorDiv.hidden = false;
-                errorText.textContent = error.message;
-            }
+          statusDiv.hidden = true;
+          qrDiv.hidden = true;
+          resultDiv.hidden = false;
+          resultData.textContent = JSON.stringify(proof, null, 2);
+        } catch (error) {
+          console.error("Verification error:", error);
+          hideAll();
+          errorDiv.hidden = false;
+          errorText.textContent = error.message;
         }
+      }
 
-        // Helper to create a signal with timestamp
-        const makeSignal = () => 'demo-signal-' + Date.now();
+      // Helper to create a signal with timestamp
+      const makeSignal = () => "demo-signal-" + Date.now();
 
-        // Button event listeners
-        document.getElementById('verifyOrb').addEventListener('click', () =>
-            verify([{ credential_type: 'orb', signal: makeSignal() }])
+      // Button event listeners
+      document
+        .getElementById("verifyOrb")
+        .addEventListener("click", () =>
+          verify([{ credential_type: "orb", signal: makeSignal() }]),
         );
-        document.getElementById('verifyFace').addEventListener('click', () =>
-            verify([{ credential_type: 'face', signal: makeSignal() }])
+      document
+        .getElementById("verifyFace")
+        .addEventListener("click", () =>
+          verify([{ credential_type: "face", signal: makeSignal() }]),
         );
-        document.getElementById('verifyDevice').addEventListener('click', () =>
-            verify([{ credential_type: 'device', signal: makeSignal() }])
+      document
+        .getElementById("verifyDevice")
+        .addEventListener("click", () =>
+          verify([{ credential_type: "device", signal: makeSignal() }]),
         );
-
     </script>
-</body>
+  </body>
 </html>

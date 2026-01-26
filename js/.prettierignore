@@ -1,0 +1,16 @@
+# Build outputs
+dist/
+build/
+.next/
+.nuxt/
+wasm/
+
+# Dependencies
+node_modules/
+
+# Generated files
+*.min.js
+
+# Other
+coverage/
+.turbo/
