@@ -4,9 +4,11 @@ use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
     preset::Preset,
-    protocol_types::ProofRequest,
-    types::{AppId, BridgeUrl, Proof, Request, RpContext, VerificationLevel},
-    Constraints, Signal,
+    protocol_types::{
+        ConstraintExpr as ProtocolExpr, ProofRequest, RequestItem as ProtocolRequestItem,
+    },
+    types::{AppId, BridgeUrl, Proof, RpContext, VerificationLevel},
+    ConstraintNode, Signal,
 };
 use alloy_primitives::Signature;
 use serde::{Deserialize, Serialize};
@@ -50,24 +52,13 @@ struct BridgeRequestPayload {
     proof_request: ProofRequest,
 }
 
-/// Builds a `ProofRequest` from `RpContext`, requests, constraints, and action.
+/// Builds a `ProofRequest` from `RpContext`, request items, and constraint expression.
 fn build_proof_request(
     rp_context: &RpContext,
-    requests: &[Request],
+    request_items: Vec<ProtocolRequestItem>,
     action: &str,
-    constraints: Option<&Constraints>,
+    constraints: Option<ProtocolExpr<'static>>,
 ) -> Result<ProofRequest> {
-    use crate::protocol_types::RequestItem;
-
-    // Convert requests to RequestItems
-    let request_items: Vec<RequestItem> = requests
-        .iter()
-        .map(Request::to_request_item)
-        .collect::<Result<Vec<_>>>()?;
-
-    // Convert constraints to protocol expression if provided
-    let protocol_constraints = constraints.map(crate::Constraints::to_protocol_expr);
-
     let action = FieldElement::from_arbitrary_raw_bytes(action.as_bytes());
     let signature = Signature::from_str(&rp_context.signature)
         .map_err(|_| Error::InvalidConfiguration("Invalid signature".to_string()))?;
@@ -83,7 +74,7 @@ fn build_proof_request(
         signature,
         nonce,
         request_items,
-        protocol_constraints,
+        constraints,
     ))
 }
 
@@ -153,41 +144,34 @@ pub struct Session {
     client: reqwest::Client,
 }
 
-// TODO: Let's explore alternatives for requests/constraints, and add syntactic sugar for the better DevEx
 impl Session {
-    /// Creates a new session with full configuration
+    /// Creates a new session with constraint-based configuration
     ///
     /// # Arguments
     ///
     /// * `app_id` - Application ID from the Developer Portal
     /// * `action` - Action identifier
-    /// * `requests` - One or more credential requests
+    /// * `constraints` - Constraint tree containing credential requests
     /// * `rp_context` - RP context for building protocol-level `ProofRequest`
     /// * `action_description` - Optional action description shown to users
-    /// * `constraints` - Optional constraints on which credentials are acceptable
-    /// * `legacy_verification_level` - Optional legacy verification level for World App 3.0 compatibility
-    /// * `legacy_signal` - Optional legacy signal for World App 3.0 compatibility
     /// * `bridge_url` - Optional bridge URL (defaults to production)
     ///
     /// # Errors
     ///
     /// Returns an error if the session cannot be created or the request fails
     #[allow(clippy::too_many_arguments)]
-    // TODO: Add Preset.OrbCompatible to support backwards compatibility with World ID 3.0
     pub async fn create(
         app_id: AppId,
         action: impl Into<String>,
-        requests: Vec<Request>,
+        constraints: ConstraintNode,
         rp_context: RpContext,
         action_description: Option<String>,
-        constraints: Option<Constraints>,
         legacy_verification_level: Option<VerificationLevel>,
         legacy_signal: Option<String>,
         bridge_url: Option<BridgeUrl>,
     ) -> Result<Self> {
-        if let Some(ref constraints) = constraints {
-            constraints.validate()?;
-        }
+        // Validate constraints
+        constraints.validate()?;
 
         let bridge_url = bridge_url.unwrap_or_default();
         let action_str = action.into();
@@ -202,9 +186,12 @@ impl Session {
         #[cfg(not(feature = "native-crypto"))]
         let (key_bytes, nonce_bytes) = crate::crypto::generate_key()?;
 
+        // Extract protocol types from constraints
+        let (request_items, constraint_expr) = constraints.to_protocol_top_level()?;
+
         // Build ProofRequest from RpContext
         let proof_request =
-            build_proof_request(&rp_context, &requests, &action_str, constraints.as_ref())?;
+            build_proof_request(&rp_context, request_items, &action_str, constraint_expr)?;
 
         // For backwards compatibility we encode the hash of the signal
         // and default to empty string if it's not provided
@@ -302,16 +289,14 @@ impl Session {
         action_description: Option<String>,
         bridge_url: Option<BridgeUrl>,
     ) -> Result<Self> {
-        let (requests, constraints, legacy_verification_level, legacy_signal) =
-            preset.to_bridge_params();
+        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
 
         Self::create(
             app_id,
             action,
-            requests,
+            constraints,
             rp_context,
             action_description,
-            constraints,
             Some(legacy_verification_level),
             legacy_signal,
             bridge_url,
@@ -393,6 +378,139 @@ impl Session {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// UniFFI bindings
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Configuration for `verify()`
+#[cfg(feature = "ffi")]
+#[derive(Clone, uniffi::Record)]
+pub struct VerifyConfig {
+    /// Application ID from the Developer Portal
+    pub app_id: String,
+    /// Action identifier
+    pub action: String,
+    /// RP context for building protocol-level `ProofRequest`
+    pub rp_context: Arc<RpContext>,
+    /// Optional action description shown to users
+    pub action_description: Option<String>,
+    /// Optional bridge URL (defaults to production)
+    pub bridge_url: Option<String>,
+}
+
+/// Builder for creating verification sessions
+#[cfg(feature = "ffi")]
+#[derive(uniffi::Object)]
+pub struct VerifyBuilder {
+    config: VerifyConfig,
+}
+
+#[cfg(feature = "ffi")]
+#[uniffi::export]
+impl VerifyBuilder {
+    /// Creates a new `VerifyBuilder` with the given configuration
+    #[must_use]
+    #[uniffi::constructor]
+    pub fn new(config: VerifyConfig) -> Arc<Self> {
+        Arc::new(Self { config })
+    }
+
+    /// Creates a verification session with the given constraints
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn constraints(
+        &self,
+        constraints: Arc<ConstraintNode>,
+    ) -> std::result::Result<Arc<SessionWrapper>, crate::error::IdkitError> {
+        let runtime =
+            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
+                details: format!("Failed to create runtime: {e}"),
+            })?;
+
+        let app_id = AppId::new(&self.config.app_id)?;
+        let bridge_url = self
+            .config
+            .bridge_url
+            .as_ref()
+            .map(|url| BridgeUrl::new(url, &app_id))
+            .transpose()?;
+        let rp_context = (*self.config.rp_context).clone();
+
+        let inner = runtime
+            .block_on(Session::create(
+                app_id,
+                &self.config.action,
+                (*constraints).clone(),
+                rp_context,
+                self.config.action_description.clone(),
+                None, // legacy_verification_level - not needed for explicit constraints
+                None, // legacy_signal - not needed for explicit constraints
+                bridge_url,
+            ))
+            .map_err(crate::error::IdkitError::from)?;
+
+        Ok(Arc::new(SessionWrapper { runtime, inner }))
+    }
+
+    /// Creates a verification session from a preset
+    ///
+    /// Presets provide a simplified way to create sessions with predefined
+    /// credential configurations. The preset is converted to both World ID 4.0
+    /// constraints and World ID 3.0 legacy fields for backward compatibility.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn preset(
+        &self,
+        preset: Preset,
+    ) -> std::result::Result<Arc<SessionWrapper>, crate::error::IdkitError> {
+        let runtime =
+            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
+                details: format!("Failed to create runtime: {e}"),
+            })?;
+
+        let app_id = AppId::new(&self.config.app_id)?;
+        let bridge_url = self
+            .config
+            .bridge_url
+            .as_ref()
+            .map(|url| BridgeUrl::new(url, &app_id))
+            .transpose()?;
+        let rp_context = (*self.config.rp_context).clone();
+
+        // Convert preset to constraints + legacy params
+        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+
+        let inner = runtime
+            .block_on(Session::create(
+                app_id,
+                &self.config.action,
+                constraints,
+                rp_context,
+                self.config.action_description.clone(),
+                Some(legacy_verification_level),
+                legacy_signal,
+                bridge_url,
+            ))
+            .map_err(crate::error::IdkitError::from)?;
+
+        Ok(Arc::new(SessionWrapper { runtime, inner }))
+    }
+}
+
+/// Entry point for creating verification sessions
+#[cfg(feature = "ffi")]
+#[must_use]
+#[uniffi::export]
+pub fn verify(config: VerifyConfig) -> Arc<VerifyBuilder> {
+    VerifyBuilder::new(config)
+}
+
 // UniFFI wrapper for Session with tokio runtime
 #[cfg(feature = "ffi")]
 #[derive(uniffi::Object)]
@@ -431,116 +549,7 @@ impl From<Status> for StatusWrapper {
 #[cfg(feature = "ffi")]
 #[uniffi::export]
 #[allow(clippy::needless_pass_by_value)]
-// TODO: Let's explore a builder pattern to improve DevEx
 impl SessionWrapper {
-    /// Creates a new session
-    ///
-    /// # Arguments
-    ///
-    /// * `app_id` - Application ID from the Developer Portal
-    /// * `action` - Action identifier
-    /// * `requests` - One or more credential requests
-    /// * `rp_context` - RP context for building protocol-level `ProofRequest`
-    /// * `action_description` - Optional action description shown to users
-    /// * `constraints` - Optional constraints on which credentials are acceptable
-    /// * `bridge_url` - Optional bridge URL (defaults to production)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the session cannot be created or the request fails
-    #[uniffi::constructor]
-    #[allow(clippy::too_many_arguments)]
-    pub fn create(
-        app_id: String,
-        action: String,
-        requests: Vec<Arc<Request>>,
-        rp_context: Arc<RpContext>,
-        action_description: Option<String>,
-        constraints: Option<Arc<Constraints>>,
-        bridge_url: Option<String>,
-    ) -> std::result::Result<Self, crate::error::IdkitError> {
-        let runtime =
-            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
-                details: format!("Failed to create runtime: {e}"),
-            })?;
-
-        let app_id_parsed = AppId::new(&app_id)?;
-        let core_requests: Vec<Request> = requests.iter().map(|r| (**r).clone()).collect();
-        let core_constraints = constraints.map(|c| (*c).clone());
-        let bridge_url_parsed = bridge_url
-            .map(|url| BridgeUrl::new(&url, &app_id_parsed))
-            .transpose()?;
-        let core_rp_context = (*rp_context).clone();
-
-        let inner = runtime
-            .block_on(Session::create(
-                app_id_parsed,
-                action,
-                core_requests,
-                core_rp_context,
-                action_description,
-                core_constraints,
-                None, // legacy_verification_level
-                None, // legacy_signal
-                bridge_url_parsed,
-            ))
-            .map_err(crate::error::IdkitError::from)?;
-
-        Ok(Self { runtime, inner })
-    }
-
-    /// Creates a new session from a preset
-    ///
-    /// Presets provide a simplified way to create sessions with predefined
-    /// credential configurations. The preset is converted to both World ID 4.0
-    /// requests and World ID 3.0 legacy fields for backward compatibility.
-    ///
-    /// # Arguments
-    ///
-    /// * `app_id` - Application ID from the Developer Portal
-    /// * `action` - Action identifier
-    /// * `preset` - Credential preset (e.g., `OrbLegacy`)
-    /// * `rp_context` - RP context for building protocol-level `ProofRequest`
-    /// * `action_description` - Optional action description shown to users
-    /// * `bridge_url` - Optional bridge URL (defaults to production)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the session cannot be created or the request fails
-    #[uniffi::constructor]
-    pub fn create_from_preset(
-        app_id: String,
-        action: String,
-        preset: Preset,
-        rp_context: Arc<RpContext>,
-        action_description: Option<String>,
-        bridge_url: Option<String>,
-    ) -> std::result::Result<Self, crate::error::IdkitError> {
-        let runtime =
-            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
-                details: format!("Failed to create runtime: {e}"),
-            })?;
-
-        let app_id_parsed = AppId::new(&app_id)?;
-        let bridge_url_parsed = bridge_url
-            .map(|url| BridgeUrl::new(&url, &app_id_parsed))
-            .transpose()?;
-        let core_rp_context = (*rp_context).clone();
-
-        let inner = runtime
-            .block_on(Session::create_from_preset(
-                app_id_parsed,
-                action,
-                preset,
-                core_rp_context,
-                action_description,
-                bridge_url_parsed,
-            ))
-            .map_err(crate::error::IdkitError::from)?;
-
-        Ok(Self { runtime, inner })
-    }
-
     /// Returns the connect URL for World App
     #[must_use]
     pub fn connect_url(&self) -> String {
@@ -600,12 +609,12 @@ impl SessionWrapper {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{CredentialType, Signal};
+    use crate::types::{CredentialType, RequestItem, Signal};
 
     #[test]
     fn test_bridge_request_payload_serialization() {
-        let request = Request::new(CredentialType::Orb, Some(Signal::from_string("test")));
-        let requests = vec![request];
+        let item = RequestItem::new(CredentialType::Orb, Some(Signal::from_string("test")));
+        let constraints = ConstraintNode::item(item);
 
         // Create a test RpContext with valid hex nonce and signature
         // Note: Signature must be 65 bytes (130 hex chars) in ECDSA format
@@ -619,9 +628,13 @@ mod tests {
         )
         .unwrap();
 
+        // Extract protocol types from constraints
+        let (request_items, constraint_expr) = constraints.to_protocol_top_level().unwrap();
+
         // Build proof request - action is converted to field element from raw bytes
         let proof_request =
-            build_proof_request(&rp_context, &requests, "test-action", None).unwrap();
+            build_proof_request(&rp_context, request_items, "test-action", constraint_expr)
+                .unwrap();
 
         let payload = BridgeRequestPayload {
             app_id: "app_test".to_string(),

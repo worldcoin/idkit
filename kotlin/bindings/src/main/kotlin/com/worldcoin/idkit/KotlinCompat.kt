@@ -5,30 +5,32 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import uniffi.idkit.Request
-import uniffi.idkit.Session
-import uniffi.idkit.Signal
-import uniffi.idkit.Status
+import uniffi.idkit_core.RequestItem
+import uniffi.idkit_core.SessionWrapper
+import uniffi.idkit_core.Signal
+import uniffi.idkit_core.StatusWrapper
 import uniffi.idkit_core.CredentialType
 
-fun Request(
+/**
+ * Create a RequestItem from a credential type and optional signal string.
+ */
+fun RequestItem(
     credentialType: CredentialType,
     signal: String? = null,
-    faceAuth: Boolean? = null,
-): Request {
+): RequestItem {
     val signalObj = signal?.let { Signal.fromString(it) }
-    val base = Request(credentialType, signalObj)
-    return faceAuth?.let { base.withFaceAuth(it) } ?: base
+    return RequestItem.new(credentialType, signalObj)
 }
 
-fun Request(
+/**
+ * Create a RequestItem from a credential type and ABI-encoded signal bytes.
+ */
+fun RequestItem(
     credentialType: CredentialType,
     abiEncodedSignal: ByteArray,
-    faceAuth: Boolean? = null,
-): Request {
+): RequestItem {
     val signalObj = Signal.fromAbiEncoded(abiEncodedSignal)
-    val base = Request(credentialType, signalObj)
-    return faceAuth?.let { base.withFaceAuth(it) } ?: base
+    return RequestItem.new(credentialType, signalObj)
 }
 
 val Signal.data: ByteArray
@@ -38,25 +40,28 @@ val Signal.string: String?
     get() = this.asString()
 
 /**
- * Flow-based status helper.
+ * Flow-based status helper for SessionWrapper.
  *
  * @param pollInterval How long to wait between polls.
  */
-fun Session.statusFlow(pollInterval: Duration = 3.seconds): Flow<Status> = flow {
-    var last: Status? = null
+fun SessionWrapper.statusFlow(pollInterval: Duration = 3.seconds): Flow<StatusWrapper> = flow {
+    var last: StatusWrapper? = null
 
     while (true) {
-        val current = pollForStatus()
+        val current = pollStatus(
+            pollIntervalMs = pollInterval.inWholeMilliseconds.toULong(),
+            timeoutMs = null
+        )
         if (current != last) {
             last = current
             emit(current)
         }
 
         when (current) {
-            is Status.Confirmed,
-            is Status.Failed -> return@flow
-            Status.AwaitingConfirmation,
-            Status.WaitingForConnection -> {
+            is StatusWrapper.Confirmed,
+            is StatusWrapper.Failed -> return@flow
+            StatusWrapper.AwaitingConfirmation,
+            StatusWrapper.WaitingForConnection -> {
                 delay(pollInterval)
             }
         }

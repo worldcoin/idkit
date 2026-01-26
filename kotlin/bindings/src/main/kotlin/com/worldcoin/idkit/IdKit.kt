@@ -1,12 +1,15 @@
 package com.worldcoin.idkit
 
-import uniffi.idkit.ConstraintNode
-import uniffi.idkit.Constraints
-import uniffi.idkit.Request
-import uniffi.idkit.RpContext
-import uniffi.idkit.Session
-import uniffi.idkit.Signal
+import uniffi.idkit_core.ConstraintNode
+import uniffi.idkit_core.RequestItem
+import uniffi.idkit_core.RpContext
+import uniffi.idkit_core.Signal
 import uniffi.idkit_core.CredentialType
+import uniffi.idkit_core.VerifyBuilder
+import uniffi.idkit_core.VerifyConfig
+import uniffi.idkit_core.verify
+import uniffi.idkit_core.Preset
+import uniffi.idkit_core.OrbLegacyPreset
 
 /**
  * Lightweight Kotlin conveniences mirroring the Swift helpers and adding
@@ -16,32 +19,94 @@ import uniffi.idkit_core.CredentialType
  */
 object IdKit {
     /**
-     * Create a request from a credential type and optional signal string.
+     * Create a RequestItem from a credential type and optional signal string.
+     *
+     * Example:
+     * ```kotlin
+     * val orb = IdKit.requestItem(CredentialType.ORB, signal = "user-123")
+     * val face = IdKit.requestItem(CredentialType.FACE)
+     * ```
      */
-    fun request(
+    fun requestItem(
         credentialType: CredentialType,
         signal: String? = null,
-    ): Request = Request(credentialType, signal?.let { Signal.fromString(it) })
+    ): RequestItem = RequestItem.new(credentialType, signal?.let { Signal.fromString(it) })
 
     /**
-     * Create a request from ABI-encoded signal bytes.
+     * Create a RequestItem from ABI-encoded signal bytes.
      */
-    fun requestAbi(
+    fun requestItemAbi(
         credentialType: CredentialType,
         abiEncodedSignal: ByteArray,
-    ): Request = Request(credentialType, Signal.fromAbiEncoded(abiEncodedSignal))
+    ): RequestItem = RequestItem.new(credentialType, Signal.fromAbiEncoded(abiEncodedSignal))
 
     /**
-     * Build constraints requiring at least one credential from the provided list.
+     * Build an OR constraint - at least one item must be satisfied.
+     *
+     * Example:
+     * ```kotlin
+     * val constraint = IdKit.anyOf(orb, face)
+     * ```
      */
-    fun anyOf(vararg credentials: CredentialType): Constraints =
-        Constraints.any(credentials.toList())
+    fun anyOf(vararg items: RequestItem): ConstraintNode =
+        ConstraintNode.any(items.map { ConstraintNode.item(it) })
 
     /**
-     * Build constraints requiring all provided credentials.
+     * Build an OR constraint from a list of items.
      */
-    fun allOf(vararg credentials: CredentialType): Constraints =
-        Constraints.all(credentials.toList())
+    fun anyOf(items: List<RequestItem>): ConstraintNode =
+        ConstraintNode.any(items.map { ConstraintNode.item(it) })
+
+    /**
+     * Build an OR constraint from constraint nodes.
+     *
+     * Example:
+     * ```kotlin
+     * val constraint = IdKit.anyOfNodes(orbNode, anyOf(document, secureDocument))
+     * ```
+     */
+    fun anyOfNodes(vararg nodes: ConstraintNode): ConstraintNode =
+        ConstraintNode.any(nodes.toList())
+
+    /**
+     * Build an OR constraint from a list of constraint nodes.
+     */
+    fun anyOfNodes(nodes: List<ConstraintNode>): ConstraintNode =
+        ConstraintNode.any(nodes)
+
+    /**
+     * Build an AND constraint - all items must be satisfied.
+     *
+     * Example:
+     * ```kotlin
+     * val constraint = IdKit.allOf(orb, document)
+     * ```
+     */
+    fun allOf(vararg items: RequestItem): ConstraintNode =
+        ConstraintNode.all(items.map { ConstraintNode.item(it) })
+
+    /**
+     * Build an AND constraint from a list of items.
+     */
+    fun allOf(items: List<RequestItem>): ConstraintNode =
+        ConstraintNode.all(items.map { ConstraintNode.item(it) })
+
+    /**
+     * Build an AND constraint from constraint nodes.
+     *
+     * Example:
+     * ```kotlin
+     * val constraint = IdKit.allOfNodes(orbNode, anyOf(document, secureDocument))
+     * ```
+     */
+    fun allOfNodes(vararg nodes: ConstraintNode): ConstraintNode =
+        ConstraintNode.all(nodes.toList())
+
+    /**
+     * Build an AND constraint from a list of constraint nodes.
+     */
+    fun allOfNodes(nodes: List<ConstraintNode>): ConstraintNode =
+        ConstraintNode.all(nodes)
 
     /**
      * Create an RP context for session creation.
@@ -63,32 +128,108 @@ object IdKit {
     ): RpContext = RpContext(rpId, nonce, createdAt, expiresAt, signature)
 
     /**
-     * Build a session from multiple requests.
+     * Create a VerifyConfig for building verification sessions.
      *
      * @param appId Application ID from the Developer Portal
      * @param action Action identifier
-     * @param requests List of credential requests
      * @param rpContext RP context for protocol-level proof requests (required)
      * @param actionDescription Optional action description shown to users
-     * @param constraints Optional constraints on which credentials are acceptable
      * @param bridgeUrl Optional custom bridge URL
      */
-    // TODO: Let's explore a builder pattern to improve DevEx
-    fun session(
+    fun verifyConfig(
         appId: String,
         action: String,
-        requests: List<Request>,
         rpContext: RpContext,
         actionDescription: String? = null,
-        constraints: Constraints? = null,
         bridgeUrl: String? = null,
-    ): Session = Session.create(
-        appId,
-        action,
-        requests,
-        rpContext,
-        actionDescription,
-        constraints,
-        bridgeUrl,
+    ): VerifyConfig = VerifyConfig(
+        appId = appId,
+        action = action,
+        rpContext = rpContext,
+        actionDescription = actionDescription,
+        bridgeUrl = bridgeUrl,
     )
+
+    /**
+     * Create an OrbLegacy preset for World ID 3.0 legacy support.
+     *
+     * This preset creates a session compatible with both World ID 4.0 and 3.0 protocols.
+     * Use this when you need backward compatibility with older World App versions.
+     *
+     * @param signal Optional signal string
+     * @return An OrbLegacy preset
+     *
+     * Example:
+     * ```kotlin
+     * val session = verify(config).preset(orbLegacy(signal = "user-123"))
+     * ```
+     */
+    fun orbLegacy(signal: String? = null): Preset =
+        Preset.OrbLegacy(OrbLegacyPreset(signal = signal))
 }
+
+// Top-level convenience functions for more idiomatic Kotlin usage
+
+/**
+ * Create a RequestItem for a credential type.
+ *
+ * Example:
+ * ```kotlin
+ * val orb = RequestItem(CredentialType.ORB, signal = "user-123")
+ * val face = RequestItem(CredentialType.FACE)
+ * ```
+ */
+fun RequestItem(type: CredentialType, signal: String? = null): RequestItem =
+    IdKit.requestItem(type, signal)
+
+/**
+ * Build an OR constraint - at least one item must be satisfied.
+ *
+ * Example:
+ * ```kotlin
+ * val constraint = anyOf(orb, face)
+ * ```
+ */
+fun anyOf(vararg items: RequestItem): ConstraintNode =
+    IdKit.anyOf(*items)
+
+/**
+ * Build an AND constraint - all items must be satisfied.
+ *
+ * Example:
+ * ```kotlin
+ * val constraint = allOf(orb, document)
+ * ```
+ */
+fun allOf(vararg items: RequestItem): ConstraintNode =
+    IdKit.allOf(*items)
+
+/**
+ * Create an OrbLegacy preset for World ID 3.0 legacy support.
+ *
+ * Example:
+ * ```kotlin
+ * val session = verify(config).preset(orbLegacy(signal = "user-123"))
+ * ```
+ */
+fun orbLegacy(signal: String? = null): Preset =
+    IdKit.orbLegacy(signal)
+
+// Usage example - Explicit constraints:
+//
+// val orb = RequestItem(CredentialType.ORB, signal = "user-123")
+// val face = RequestItem(CredentialType.FACE)
+//
+// val config = IdKit.verifyConfig(
+//     appId = "app_staging_xxxxx",
+//     action = "my-action",
+//     rpContext = rpContext,
+// )
+//
+// val session = verify(config).constraints(anyOf(orb, face))
+// val connectUrl = session.connectUrl()
+// val status = session.pollStatus(pollIntervalMs = 2000u, timeoutMs = 300000u)
+//
+// Usage example - Preset (World ID 3.0 legacy support):
+//
+// val session = verify(config).preset(orbLegacy(signal = "user-123"))

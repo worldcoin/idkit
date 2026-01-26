@@ -8,59 +8,84 @@
 #![allow(clippy::future_not_send)]
 
 use crate::preset::{OrbLegacyPreset, Preset};
-use crate::{CredentialType, RpContext, Signal};
+use crate::{ConstraintNode, CredentialType, RequestItem, RpContext, Signal};
 use serde::Serialize;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
 
-#[wasm_bindgen]
-pub struct IDKitRequest(crate::Request);
+/// WASM wrapper for `RequestItem`
+#[wasm_bindgen(js_name = RequestItemWasm)]
+pub struct RequestItemWasm(RequestItem);
 
-#[wasm_bindgen]
-impl IDKitRequest {
-    /// Creates a new request
+#[wasm_bindgen(js_class = RequestItemWasm)]
+impl RequestItemWasm {
+    /// Creates a new request item
+    ///
+    /// # Arguments
+    /// * `credential_type` - The type of credential to request (e.g., "orb", "face")
+    /// * `signal` - Optional signal string
     ///
     /// # Errors
     ///
-    /// Returns an error if the credential type cannot be deserialized
-    ///
-    /// # Arguments
-    /// * `credential_type` - The type of credential to request
-    /// * `signal` - Optional signal string. Pass `null` or `undefined` for no signal.
+    /// Returns an error if the credential type is invalid
     #[wasm_bindgen(constructor)]
     pub fn new(credential_type: JsValue, signal: Option<String>) -> Result<Self, JsValue> {
         let cred: CredentialType = serde_wasm_bindgen::from_value(credential_type)?;
         let signal_opt = signal.map(Signal::from_string);
-        Ok(Self(crate::Request::new(cred, signal_opt)))
+        Ok(Self(RequestItem::new(cred, signal_opt)))
     }
 
-    /// Creates a new request with ABI-encoded bytes for the signal
-    ///
-    /// This is useful for on-chain use cases where RPs need ABI-encoded signals
-    /// according to Solidity encoding rules.
+    /// Creates a new request item with ABI-encoded bytes for the signal
     ///
     /// # Errors
     ///
-    /// Returns an error if the credential type cannot be deserialized
+    /// Returns an error if the credential type is invalid
     #[wasm_bindgen(js_name = withBytes)]
     pub fn with_bytes(credential_type: JsValue, signal_bytes: &[u8]) -> Result<Self, JsValue> {
         let cred: CredentialType = serde_wasm_bindgen::from_value(credential_type)?;
-        Ok(Self(crate::Request::new(
+        Ok(Self(RequestItem::new(
             cred,
             Some(Signal::from_abi_encoded(signal_bytes)),
         )))
+    }
+
+    /// Creates a new request item with genesis minimum timestamp
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the credential type is invalid
+    #[wasm_bindgen(js_name = withGenesisMin)]
+    pub fn with_genesis_min(
+        credential_type: JsValue,
+        signal: Option<String>,
+        genesis_min: u64,
+    ) -> Result<Self, JsValue> {
+        let cred: CredentialType = serde_wasm_bindgen::from_value(credential_type)?;
+        let signal_opt = signal.map(Signal::from_string);
+        Ok(Self(RequestItem::with_genesis_min(
+            cred,
+            signal_opt,
+            genesis_min,
+        )))
+    }
+
+    /// Gets the credential type
+    #[must_use]
+    #[wasm_bindgen(js_name = credentialType)]
+    pub fn credential_type(&self) -> JsValue {
+        serde_wasm_bindgen::to_value(&self.0.credential_type).unwrap_or(JsValue::NULL)
     }
 
     /// Gets the signal as raw bytes
     #[must_use]
     #[wasm_bindgen(js_name = getSignalBytes)]
     pub fn get_signal_bytes(&self) -> Option<Vec<u8>> {
-        self.0.signal_bytes()
+        self.0.signal.as_ref().map(Signal::as_bytes).map(Vec::from)
     }
 
-    /// Converts the request to JSON
+    /// Converts the request item to JSON
     ///
     /// # Errors
     ///
@@ -206,6 +231,11 @@ impl RpContextWasm {
             .map_err(|e| JsValue::from_str(&format!("Invalid RpContext: {e}")))?;
         Ok(Self(ctx))
     }
+
+    /// Returns the inner `RpContext` (for internal use)
+    pub(crate) fn into_inner(self) -> RpContext {
+        self.0
+    }
 }
 
 /// Hashes a signal string using Keccak256
@@ -226,9 +256,9 @@ pub fn hash_signal_bytes(bytes: &[u8]) -> String {
     format!("{hash:#066x}")
 }
 
-/// Creates an `OrbLegacy` preset
+/// Creates an `OrbLegacy` preset for World ID 3.0 legacy support
 ///
-/// Returns a preset object that can be passed to `sessionFromPreset`.
+/// Returns a preset object that can be passed to `verify().preset()`.
 ///
 /// # Arguments
 /// * `signal` - Optional signal string
@@ -236,8 +266,8 @@ pub fn hash_signal_bytes(bytes: &[u8]) -> String {
 /// # Errors
 ///
 /// Returns an error if serialization fails
-#[wasm_bindgen(js_name = createOrbLegacyPreset)]
-pub fn create_orb_legacy_preset(signal: Option<String>) -> Result<JsValue, JsValue> {
+#[wasm_bindgen(js_name = orbLegacy)]
+pub fn orb_legacy(signal: Option<String>) -> Result<JsValue, JsValue> {
     let preset = Preset::OrbLegacy(OrbLegacyPreset::new(signal));
     serde_wasm_bindgen::to_value(&preset).map_err(|e| JsValue::from_str(&e.to_string()))
 }
@@ -362,37 +392,6 @@ pub fn compute_rp_signature_wasm(
     }
 }
 
-/// Request DTO for JS interop
-#[derive(serde::Deserialize)]
-struct JsRequestDto {
-    credential_type: CredentialType,
-    #[serde(default)]
-    signal: Option<String>,
-    #[serde(default)]
-    signal_bytes: Option<Vec<u8>>,
-    #[serde(default)]
-    face_auth: Option<bool>,
-}
-
-fn js_request_to_core(req: JsRequestDto) -> Result<crate::Request, JsValue> {
-    let signal = match (req.signal, req.signal_bytes) {
-        (Some(s), None) => Some(Signal::from_string(s)),
-        (None, Some(bytes)) => Some(Signal::from_abi_encoded(bytes)),
-        (None, None) => None,
-        (Some(_), Some(_)) => {
-            return Err(JsValue::from_str(
-                "Provide either signal (string) or signal_bytes, not both",
-            ))
-        }
-    };
-
-    let mut core_req = crate::Request::new(req.credential_type, signal);
-    if let Some(face) = req.face_auth {
-        core_req = core_req.with_face_auth(face);
-    }
-    Ok(core_req)
-}
-
 /// Encodes data to base64
 #[must_use]
 #[wasm_bindgen(js_name = base64Encode)]
@@ -411,67 +410,65 @@ pub fn base64_decode(data: &str) -> Result<Vec<u8>, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("Base64 decode failed: {e}")))
 }
 
-/// World ID verification session
-///
-/// Manages the verification flow with World App via the bridge.
-#[wasm_bindgen]
-pub struct Session {
-    #[wasm_bindgen(skip)]
-    inner: Rc<RefCell<Option<crate::Session>>>,
+/// Builder for creating verification sessions (WASM)
+#[wasm_bindgen(js_name = VerifyBuilderWasm)]
+pub struct VerifyBuilderWasm {
+    app_id: String,
+    action: String,
+    rp_context: RpContext,
+    action_description: Option<String>,
+    bridge_url: Option<String>,
 }
 
-#[wasm_bindgen]
-impl Session {
-    /// Creates a new session with explicit requests, RP context, and optional constraints
+#[wasm_bindgen(js_class = VerifyBuilderWasm)]
+impl VerifyBuilderWasm {
+    /// Creates a new `VerifyBuilder`
     ///
     /// # Arguments
     /// * `app_id` - Application ID from the Developer Portal
     /// * `action` - Action identifier
-    /// * `requests` - Array of objects: { `credential_type`, signal? }
     /// * `rp_context` - RP context for building protocol-level `ProofRequest`
-    /// * `constraints` - Optional constraints JSON matching Rust `Constraints` (any/all of credential types)
-    /// * `action_description` - Optional user-facing description
-    /// * `bridge_url` - Optional custom bridge URL
-    pub fn create(
+    /// * `action_description` - Optional action description shown to users
+    /// * `bridge_url` - Optional bridge URL (defaults to production)
+    #[must_use]
+    #[wasm_bindgen(constructor)]
+    pub fn new(
         app_id: String,
         action: String,
-        requests: JsValue,
-        rp_context: &RpContextWasm,
-        constraints: Option<JsValue>,
+        rp_context: RpContextWasm,
         action_description: Option<String>,
         bridge_url: Option<String>,
-    ) -> js_sys::Promise {
-        // Clone the RpContext so we can move it into the async block
-        let rp_context_inner = rp_context.0.clone();
+    ) -> Self {
+        Self {
+            app_id,
+            action,
+            rp_context: rp_context.into_inner(),
+            action_description,
+            bridge_url,
+        }
+    }
+
+    /// Creates a verification session with the given constraints
+    ///
+    /// # Arguments
+    /// * `constraints_json` - Constraint tree as JSON (`RequestItem` or `{any: []}` or `{all: []}`)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created
+    pub fn constraints(self, constraints_json: JsValue) -> js_sys::Promise {
+        let app_id = self.app_id;
+        let action = self.action;
+        let rp_context = self.rp_context;
+        let action_description = self.action_description;
+        let bridge_url = self.bridge_url;
 
         future_to_promise(async move {
-            let app_id = crate::AppId::new(app_id)
+            let app_id = crate::AppId::new(&app_id)
                 .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
 
-            let req_vec: Vec<JsRequestDto> = serde_wasm_bindgen::from_value(requests)
-                .map_err(|e| JsValue::from_str(&format!("Invalid requests payload: {e}")))?;
-            if req_vec.is_empty() {
-                return Err(JsValue::from_str("At least one request is required"));
-            }
-            let core_requests: Vec<crate::Request> = req_vec
-                .into_iter()
-                .map(js_request_to_core)
-                .collect::<Result<_, _>>()?;
-
-            let core_constraints = if let Some(c) = constraints {
-                Some(
-                    serde_wasm_bindgen::from_value::<crate::Constraints>(c).map_err(|e| {
-                        JsValue::from_str(&format!("Invalid constraints payload: {e}"))
-                    })?,
-                )
-            } else {
-                // Default: any-of the provided credentials in order
-                let nodes = core_requests
-                    .iter()
-                    .map(|r| crate::ConstraintNode::credential(r.credential_type))
-                    .collect();
-                Some(crate::Constraints::new(crate::ConstraintNode::any(nodes)))
-            };
+            let constraints: ConstraintNode = serde_wasm_bindgen::from_value(constraints_json)
+                .map_err(|e| JsValue::from_str(&format!("Invalid constraints payload: {e}")))?;
 
             let bridge_url_parsed = bridge_url
                 .map(|url| crate::BridgeUrl::new(url, &app_id))
@@ -481,51 +478,46 @@ impl Session {
             let session = crate::Session::create(
                 app_id,
                 action,
-                core_requests,
-                rp_context_inner,
+                constraints,
+                rp_context,
                 action_description,
-                core_constraints,
-                None, // legacy_verification_level
-                None, // legacy_signal
+                None, // legacy_verification_level - not needed for explicit constraints
+                None, // legacy_signal - not needed for explicit constraints
                 bridge_url_parsed,
             )
             .await
             .map_err(|e| JsValue::from_str(&format!("Failed to create session: {e}")))?;
 
-            Ok(JsValue::from(Self {
+            Ok(JsValue::from(Session {
                 inner: Rc::new(RefCell::new(Some(session))),
             }))
         })
     }
 
-    /// Creates a session from a preset
+    /// Creates a verification session from a preset
     ///
-    /// This is a convenience method that creates a session with preset-defined
-    /// credentials and both World ID 3.0 and 4.0 compatibility.
+    /// Presets provide a simplified way to create sessions with predefined
+    /// credential configurations. The preset is converted to both World ID 4.0
+    /// constraints and World ID 3.0 legacy fields for backward compatibility.
     ///
     /// # Arguments
-    /// * `app_id` - Application ID from the Developer Portal
-    /// * `action` - Action identifier
-    /// * `preset` - Preset object from `createOrbLegacyPreset`
-    /// * `rp_context` - RP context from `RpContextWasm`
-    /// * `action_description` - Optional description shown to users
-    /// * `bridge_url` - Optional custom bridge URL
-    #[wasm_bindgen(js_name = createFromPreset)]
-    pub fn create_from_preset(
-        app_id: String,
-        action: String,
-        preset: JsValue,
-        rp_context: &RpContextWasm,
-        action_description: Option<String>,
-        bridge_url: Option<String>,
-    ) -> js_sys::Promise {
-        let rp_context_inner = rp_context.0.clone();
+    /// * `preset_json` - Preset object from `orbLegacy()`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session cannot be created
+    pub fn preset(self, preset_json: JsValue) -> js_sys::Promise {
+        let app_id = self.app_id;
+        let action = self.action;
+        let rp_context = self.rp_context;
+        let action_description = self.action_description;
+        let bridge_url = self.bridge_url;
 
         future_to_promise(async move {
-            let preset: Preset = serde_wasm_bindgen::from_value(preset)
+            let preset: Preset = serde_wasm_bindgen::from_value(preset_json)
                 .map_err(|e| JsValue::from_str(&format!("Invalid preset: {e}")))?;
 
-            let app_id_parsed = crate::AppId::new(app_id)
+            let app_id_parsed = crate::AppId::new(&app_id)
                 .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
 
             let bridge_url_parsed = bridge_url
@@ -537,19 +529,51 @@ impl Session {
                 app_id_parsed,
                 action,
                 preset,
-                rp_context_inner,
+                rp_context,
                 action_description,
                 bridge_url_parsed,
             )
             .await
             .map_err(|e| JsValue::from_str(&format!("Failed to create session: {e}")))?;
 
-            Ok(JsValue::from(Self {
+            Ok(JsValue::from(Session {
                 inner: Rc::new(RefCell::new(Some(session))),
             }))
         })
     }
+}
 
+/// Entry point for creating verification sessions (WASM)
+///
+/// # Arguments
+/// * `app_id` - Application ID from the Developer Portal
+/// * `action` - Action identifier
+/// * `rp_context` - RP context for building protocol-level `ProofRequest`
+/// * `action_description` - Optional action description shown to users
+/// * `bridge_url` - Optional bridge URL (defaults to production)
+#[must_use]
+#[wasm_bindgen(js_name = verify)]
+pub fn verify(
+    app_id: String,
+    action: String,
+    rp_context: RpContextWasm,
+    action_description: Option<String>,
+    bridge_url: Option<String>,
+) -> VerifyBuilderWasm {
+    VerifyBuilderWasm::new(app_id, action, rp_context, action_description, bridge_url)
+}
+
+/// World ID verification session
+///
+/// Manages the verification flow with World App via the bridge.
+#[wasm_bindgen]
+pub struct Session {
+    #[wasm_bindgen(skip)]
+    inner: Rc<RefCell<Option<crate::Session>>>,
+}
+
+#[wasm_bindgen]
+impl Session {
     /// Returns the connect URL for World App
     ///
     /// This URL should be displayed as a QR code for users to scan with World App.
@@ -636,29 +660,34 @@ impl Session {
     }
 }
 
-// Export credential enum
+// TypeScript type definitions
 #[wasm_bindgen(typescript_custom_section)]
-const TS_CREDENTIAL: &str = r#"
-export enum Credential {
-    Orb = "orb",
-    Face = "face",
-    SecureDocument = "secure_document",
-    Document = "document",
-    Device = "device"
+const TS_TYPES: &str = r#"
+export type CredentialType = "orb" | "face" | "secure_document" | "document" | "device";
+
+export interface RequestItemType {
+    type: CredentialType;
+    signal?: string;
+    genesis_issued_at_min?: number;
 }
+
+export type ConstraintNode =
+    | RequestItemType
+    | { any: ConstraintNode[] }
+    | { all: ConstraintNode[] };
 "#;
 
 // Export preset types
 #[wasm_bindgen(typescript_custom_section)]
 const TS_PRESET: &str = r#"
-export interface OrbLegacyPresetData {
-    signal?: string;
+export interface OrbLegacyPreset {
+    type: "OrbLegacy";
+    data: { signal?: string };
 }
 
-export type Preset =
-    | { type: "OrbLegacy"; data: OrbLegacyPresetData };
+export type Preset = OrbLegacyPreset;
 
-export function createOrbLegacyPreset(signal?: string): Preset;
+export function orbLegacy(signal?: string): Preset;
 "#;
 
 // Export RP signature types
