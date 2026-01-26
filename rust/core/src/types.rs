@@ -266,6 +266,20 @@ impl RequestItem {
         Arc::new(Self::new(credential_type, signal_opt))
     }
 
+    /// Creates a new credential request item with an optional string signal.
+    ///
+    /// This is a convenience constructor that accepts a string signal directly,
+    /// converting it to a Signal internally. Generates a proper Swift initializer.
+    #[must_use]
+    #[uniffi::constructor]
+    pub fn with_string_signal(
+        credential_type: CredentialType,
+        signal: Option<String>,
+    ) -> Arc<Self> {
+        let signal_opt = signal.map(Signal::from_string);
+        Arc::new(Self::new(credential_type, signal_opt))
+    }
+
     /// Creates a new credential request item with a genesis timestamp constraint
     #[must_use]
     #[uniffi::constructor(name = "with_genesis_min")]

@@ -6,19 +6,29 @@
 
 // Session API (main entry point)
 export {
-  createSession,
+  // Builder pattern
+  verify,
+  // Constraint helpers
+  RequestItem,
+  any,
+  all,
+  // Preset helpers
+  orbLegacy,
+  // Types
   type Session,
-  type SessionOptions,
   type Status,
   type WaitOptions,
   type RpContext,
+  type Preset,
+  type OrbLegacyPreset,
 } from "./session";
 
 // Types
 export type {
-  IDKitConfig,
+  VerifyConfig,
+  ConstraintNode,
+  RequestItemType,
   AbiEncodedValue,
-  RequestConfig,
   CredentialType,
 } from "./types/config";
 export type { ISuccessResult, IErrorState } from "./types/result";
