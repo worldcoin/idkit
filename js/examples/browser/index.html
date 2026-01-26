@@ -126,7 +126,9 @@
       // Button event listeners
       document
         .getElementById("verifyOrb")
-        .addEventListener("click", () => startVerification("orb", makeSignal()));
+        .addEventListener("click", () =>
+          startVerification("orb", makeSignal()),
+        );
       document
         .getElementById("verifyFace")
         .addEventListener("click", () =>
