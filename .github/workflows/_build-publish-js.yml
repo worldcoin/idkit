@@ -62,11 +62,14 @@ jobs:
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
 
+      # Use env vars to avoid shell injection from workflow inputs
       - name: Set package version
         working-directory: js/packages/core
+        env:
+          PKG_VERSION: ${{ inputs.version }}
         run: |
-          npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
-          echo "📦 Package version set to: ${{ inputs.version }}"
+          npm version "$PKG_VERSION" --no-git-tag-version --allow-same-version
+          echo "📦 Package version set to: $PKG_VERSION"
 
       - name: Install dependencies
         working-directory: js
@@ -78,6 +81,9 @@ jobs:
 
       - name: Publish @worldcoin/idkit-core
         working-directory: js
+        env:
+          PKG_VERSION: ${{ inputs.version }}
+          NPM_TAG: ${{ inputs.npm_tag }}
         run: |
-          echo "🚀 Publishing @worldcoin/idkit-core@${{ inputs.version }} with tag '${{ inputs.npm_tag }}'"
-          pnpm --filter @worldcoin/idkit-core publish --access public --no-git-checks --provenance --tag ${{ inputs.npm_tag }}
+          echo "🚀 Publishing @worldcoin/idkit-core@$PKG_VERSION with tag '$NPM_TAG'"
+          pnpm --filter @worldcoin/idkit-core publish --access public --no-git-checks --provenance --tag "$NPM_TAG"
