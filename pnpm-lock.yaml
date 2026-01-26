@@ -9,7 +9,7 @@ importers:
   .:
     devDependencies:
       prettier:
-        specifier: ^3.3
+        specifier: ^3.8
         version: 3.8.1
 
   js/examples/browser:
