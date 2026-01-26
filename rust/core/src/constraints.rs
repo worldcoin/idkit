@@ -1,7 +1,7 @@
 //! Constraint system for declarative credential requests
 //!
 //! This module provides a wrapper layer that:
-//! - Uses `RequestItem` for the public API (type-safe)
+//! - Uses `CredentialRequest` for the public API (type-safe)
 //! - Converts to/from `protocol_types::ConstraintExpr` internally
 //! - Provides FFI/WASM bindings
 //!
@@ -10,9 +10,9 @@
 
 use crate::protocol_types::{
     ConstraintExpr as ProtocolExpr, ConstraintNode as ProtocolNode,
-    RequestItem as ProtocolRequestItem,
+    CredentialRequest as ProtocolCredentialRequest,
 };
-use crate::types::{CredentialType, RequestItem};
+use crate::types::{CredentialRequest, CredentialType};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -26,7 +26,7 @@ use std::sync::Arc;
 #[serde(untagged)]
 pub enum ConstraintNode {
     /// A leaf node representing a single credential request item
-    Item(RequestItem),
+    Item(CredentialRequest),
 
     /// An OR node - at least one child must be satisfied
     /// Order matters: earlier credentials have higher priority
@@ -55,9 +55,9 @@ impl ConstraintNode {
         Self::All { all: nodes }
     }
 
-    /// Creates an item node from a `RequestItem`
+    /// Creates an item node from a `CredentialRequest`
     #[must_use]
-    pub fn item(request: RequestItem) -> Self {
+    pub fn item(request: CredentialRequest) -> Self {
         Self::Item(request)
     }
 
@@ -139,9 +139,9 @@ impl ConstraintNode {
         }
     }
 
-    /// Collects all `RequestItem`s from this constraint tree
+    /// Collects all `CredentialRequest`s from this constraint tree
     #[must_use]
-    pub fn collect_items(&self) -> Vec<&RequestItem> {
+    pub fn collect_items(&self) -> Vec<&CredentialRequest> {
         match self {
             Self::Item(item) => vec![item],
             Self::Any { any } => any.iter().flat_map(Self::collect_items).collect(),
@@ -208,11 +208,11 @@ impl ConstraintNode {
     ///
     /// # Errors
     ///
-    /// Returns an error if any `RequestItem` cannot be converted to protocol format
-    pub fn to_protocol(&self) -> crate::Result<(Vec<ProtocolRequestItem>, ProtocolExpr<'static>)> {
+    /// Returns an error if any `CredentialRequest` cannot be converted to protocol format
+    pub fn to_protocol(&self) -> crate::Result<(Vec<ProtocolCredentialRequest>, ProtocolExpr<'static>)> {
         // Extract unique request items and convert to protocol
         let items = self.collect_items();
-        let protocol_items: Vec<ProtocolRequestItem> = items
+        let protocol_items: Vec<ProtocolCredentialRequest> = items
             .iter()
             .map(|item| item.to_protocol_item())
             .collect::<crate::Result<Vec<_>>>()?;
@@ -243,13 +243,13 @@ impl ConstraintNode {
     ///
     /// # Errors
     ///
-    /// Returns an error if any `RequestItem` cannot be converted to protocol format
+    /// Returns an error if any `CredentialRequest` cannot be converted to protocol format
     pub fn to_protocol_top_level(
         &self,
-    ) -> crate::Result<(Vec<ProtocolRequestItem>, Option<ProtocolExpr<'static>>)> {
+    ) -> crate::Result<(Vec<ProtocolCredentialRequest>, Option<ProtocolExpr<'static>>)> {
         // Extract unique request items and convert to protocol
         let items = self.collect_items();
-        let protocol_items: Vec<ProtocolRequestItem> = items
+        let protocol_items: Vec<ProtocolCredentialRequest> = items
             .iter()
             .map(|item| item.to_protocol_item())
             .collect::<crate::Result<Vec<_>>>()?;
@@ -274,10 +274,10 @@ impl ConstraintNode {
 #[uniffi::export]
 #[allow(clippy::needless_pass_by_value)]
 impl ConstraintNode {
-    /// Creates an item constraint node from a `RequestItem`
+    /// Creates an item constraint node from a `CredentialRequest`
     #[must_use]
     #[uniffi::constructor(name = "item")]
-    pub fn ffi_item(request: Arc<RequestItem>) -> Arc<Self> {
+    pub fn ffi_item(request: Arc<CredentialRequest>) -> Arc<Self> {
         Arc::new(Self::item((*request).clone()))
     }
 
@@ -324,24 +324,24 @@ impl ConstraintNode {
 mod tests {
     use super::*;
 
-    fn orb_item() -> RequestItem {
-        RequestItem::new(CredentialType::Orb, None)
+    fn orb_item() -> CredentialRequest {
+        CredentialRequest::new(CredentialType::Orb, None)
     }
 
-    fn face_item() -> RequestItem {
-        RequestItem::new(CredentialType::Face, None)
+    fn face_item() -> CredentialRequest {
+        CredentialRequest::new(CredentialType::Face, None)
     }
 
-    fn device_item() -> RequestItem {
-        RequestItem::new(CredentialType::Device, None)
+    fn device_item() -> CredentialRequest {
+        CredentialRequest::new(CredentialType::Device, None)
     }
 
-    fn document_item() -> RequestItem {
-        RequestItem::new(CredentialType::Document, None)
+    fn document_item() -> CredentialRequest {
+        CredentialRequest::new(CredentialType::Document, None)
     }
 
-    fn secure_document_item() -> RequestItem {
-        RequestItem::new(CredentialType::SecureDocument, None)
+    fn secure_document_item() -> CredentialRequest {
+        CredentialRequest::new(CredentialType::SecureDocument, None)
     }
 
     #[test]

@@ -5,32 +5,32 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import uniffi.idkit_core.RequestItem
+import uniffi.idkit_core.CredentialRequest
 import uniffi.idkit_core.SessionWrapper
 import uniffi.idkit_core.Signal
 import uniffi.idkit_core.StatusWrapper
 import uniffi.idkit_core.CredentialType
 
 /**
- * Create a RequestItem from a credential type and optional signal string.
+ * Create a CredentialRequest from a credential type and optional signal string.
  */
-fun RequestItem(
+fun CredentialRequest(
     credentialType: CredentialType,
     signal: String? = null,
-): RequestItem {
+): CredentialRequest {
     val signalObj = signal?.let { Signal.fromString(it) }
-    return RequestItem.new(credentialType, signalObj)
+    return CredentialRequest.new(credentialType, signalObj)
 }
 
 /**
- * Create a RequestItem from a credential type and ABI-encoded signal bytes.
+ * Create a CredentialRequest from a credential type and ABI-encoded signal bytes.
  */
-fun RequestItem(
+fun CredentialRequest(
     credentialType: CredentialType,
     abiEncodedSignal: ByteArray,
-): RequestItem {
+): CredentialRequest {
     val signalObj = Signal.fromAbiEncoded(abiEncodedSignal)
-    return RequestItem.new(credentialType, signalObj)
+    return CredentialRequest.new(credentialType, signalObj)
 }
 
 val Signal.data: ByteArray

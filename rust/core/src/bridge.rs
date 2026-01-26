@@ -597,11 +597,11 @@ mod tests {
     use alloy_primitives::Signature;
 
     use super::*;
-    use crate::types::{CredentialType, RequestItem, Signal};
+    use crate::types::{CredentialRequest, CredentialType, Signal};
 
     #[test]
     fn test_bridge_request_payload_serialization() {
-        let item = RequestItem::new(CredentialType::Orb, Some(Signal::from_string("test")));
+        let item = CredentialRequest::new(CredentialType::Orb, Some(Signal::from_string("test")));
         let constraints = ConstraintNode::item(item);
 
         // Create a test RpContext with valid hex nonce and signature

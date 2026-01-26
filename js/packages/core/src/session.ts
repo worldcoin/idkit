@@ -7,7 +7,7 @@ import type {
   VerifyConfig,
   ConstraintNode,
   CredentialType,
-  RequestItemType,
+  CredentialRequestType,
   RpContext,
 } from "./types/config";
 import type { ISuccessResult } from "./types/result";
@@ -116,26 +116,26 @@ class SessionImpl implements Session {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RequestItem and Constraint helpers
+// CredentialRequest and Constraint helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Creates a RequestItem for a credential type
+ * Creates a CredentialRequest for a credential type
  *
  * @param credential_type - The type of credential to request (e.g., 'orb', 'face')
  * @param options - Optional signal and genesis_issued_at_min
- * @returns A RequestItem object
+ * @returns A CredentialRequest object
  *
  * @example
  * ```typescript
- * const orb = RequestItem('orb', { signal: 'user-123' })
- * const face = RequestItem('face')
+ * const orb = CredentialRequest('orb', { signal: 'user-123' })
+ * const face = CredentialRequest('face')
  * ```
  */
-export function RequestItem(
+export function CredentialRequest(
   credential_type: CredentialType,
   options?: { signal?: string; genesis_issued_at_min?: number },
-): RequestItemType {
+): CredentialRequestType {
   return {
     type: credential_type,
     signal: options?.signal,
@@ -146,12 +146,12 @@ export function RequestItem(
 /**
  * Creates an OR constraint - at least one child must be satisfied
  *
- * @param nodes - Constraint nodes (RequestItems or nested constraints)
+ * @param nodes - Constraint nodes (CredentialRequests or nested constraints)
  * @returns An "any" constraint node
  *
  * @example
  * ```typescript
- * const constraint = any(RequestItem('orb'), RequestItem('face'))
+ * const constraint = any(CredentialRequest('orb'), CredentialRequest('face'))
  * ```
  */
 export function any(...nodes: ConstraintNode[]): { any: ConstraintNode[] } {
@@ -161,12 +161,12 @@ export function any(...nodes: ConstraintNode[]): { any: ConstraintNode[] } {
 /**
  * Creates an AND constraint - all children must be satisfied
  *
- * @param nodes - Constraint nodes (RequestItems or nested constraints)
+ * @param nodes - Constraint nodes (CredentialRequests or nested constraints)
  * @returns An "all" constraint node
  *
  * @example
  * ```typescript
- * const constraint = all(RequestItem('orb'), any(RequestItem('document'), RequestItem('secure_document')))
+ * const constraint = all(CredentialRequest('orb'), any(CredentialRequest('document'), CredentialRequest('secure_document')))
  * ```
  */
 export function all(...nodes: ConstraintNode[]): { all: ConstraintNode[] } {
@@ -226,13 +226,13 @@ class VerifyBuilder {
   /**
    * Creates a verification session with the given constraints
    *
-   * @param constraints - Constraint tree (RequestItem or any/all combinators)
+   * @param constraints - Constraint tree (CredentialRequest or any/all combinators)
    * @returns A new Session instance
    *
    * @example
    * ```typescript
    * const session = await verify({ app_id, action, rp_context })
-   *   .constraints(any(RequestItem('orb'), RequestItem('face')))
+   *   .constraints(any(CredentialRequest('orb'), CredentialRequest('face')))
    * ```
    */
   async constraints(constraints: ConstraintNode): Promise<Session> {
@@ -321,14 +321,14 @@ class VerifyBuilder {
  *
  * @example
  * ```typescript
- * import { verify, RequestItem, any, initIDKit } from '@worldcoin/idkit-core'
+ * import { verify, CredentialRequest, any, initIDKit } from '@worldcoin/idkit-core'
  *
  * // Initialize WASM (only needed once)
  * await initIDKit()
  *
  * // Create request items
- * const orb = RequestItem('orb', { signal: 'user-123' })
- * const face = RequestItem('face')
+ * const orb = CredentialRequest('orb', { signal: 'user-123' })
+ * const face = CredentialRequest('face')
  *
  * // Create a verification session with constraints
  * const session = await verify({

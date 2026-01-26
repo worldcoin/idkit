@@ -10,5 +10,5 @@ pub use constraints::{ConstraintExpr, ConstraintNode, MAX_CONSTRAINT_NODES};
 
 // Re-export requests
 pub use requests::{
-    ProofRequest, ProofResponse, RequestItem, RequestVersion, ResponseItem, ValidationError,
+    CredentialRequest, ProofRequest, ProofResponse, RequestVersion, ResponseItem, ValidationError,
 };

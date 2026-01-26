@@ -9,7 +9,7 @@ export {
   // Builder pattern
   verify,
   // Constraint helpers
-  RequestItem,
+  CredentialRequest,
   any,
   all,
   // Preset helpers
@@ -27,7 +27,7 @@ export {
 export type {
   VerifyConfig,
   ConstraintNode,
-  RequestItemType,
+  CredentialRequestType,
   AbiEncodedValue,
   CredentialType,
 } from "./types/config";

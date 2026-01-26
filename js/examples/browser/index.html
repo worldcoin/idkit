@@ -38,7 +38,7 @@
 
     <script type="module">
         // Import IDKit core (pure TypeScript, no dependencies)
-        import { verify, RequestItem, initIDKit } from '@worldcoin/idkit-core';
+        import { verify, CredentialRequest, initIDKit } from '@worldcoin/idkit-core';
 
         // Demo app configuration
         const APP_ID = 'app_ce4cb73cb75fc3b73b71ffb4de178410'; // Replace with your actual app ID
@@ -89,7 +89,7 @@
                     app_id: APP_ID,
                     action: ACTION,
                     rp_context: rpContext,
-                }).constraints(RequestItem(credentialType, { signal }));
+                }).constraints(CredentialRequest(credentialType, { signal }));
 
                 // Get the connector URL from the session
                 const url = session.connectorURI;

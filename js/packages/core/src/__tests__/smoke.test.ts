@@ -8,7 +8,7 @@ import {
   initIDKit,
   isInitialized,
   verify,
-  RequestItem,
+  CredentialRequest,
   any,
   orbLegacy,
   isNode,
@@ -45,21 +45,21 @@ describe("Session API", () => {
     expect(typeof verify).toBe("function");
   });
 
-  it("should export RequestItem and constraint helpers", () => {
-    expect(typeof RequestItem).toBe("function");
+  it("should export CredentialRequest and constraint helpers", () => {
+    expect(typeof CredentialRequest).toBe("function");
     expect(typeof any).toBe("function");
     expect(typeof orbLegacy).toBe("function");
   });
 
-  it("should create RequestItem correctly", () => {
-    const item = RequestItem("orb", { signal: "test-signal" });
+  it("should create CredentialRequest correctly", () => {
+    const item = CredentialRequest("orb", { signal: "test-signal" });
     expect(item).toHaveProperty("type", "orb");
     expect(item).toHaveProperty("signal", "test-signal");
   });
 
   it("should create any() constraint correctly", () => {
-    const orb = RequestItem("orb");
-    const face = RequestItem("face");
+    const orb = CredentialRequest("orb");
+    const face = CredentialRequest("face");
     const constraint = any(orb, face);
     expect(constraint).toHaveProperty("any");
     expect(constraint.any).toHaveLength(2);
