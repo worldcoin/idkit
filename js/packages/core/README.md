@@ -1,19 +1,19 @@
-# @worldcoin/idkit
+# @worldcoin/idkit-core
 
 Core bridge logic for IDKit (World ID SDK) powered by Rust/WASM.
 
 ## Installation
 
 ```bash
-npm install @worldcoin/idkit
+npm install @worldcoin/idkit-core
 # or
-pnpm add @worldcoin/idkit
+pnpm add @worldcoin/idkit-core
 ```
 
 ## Quick Start
 
 ```typescript
-import { useWorldBridgeStore } from '@worldcoin/idkit'
+import { useWorldBridgeStore } from '@worldcoin/idkit-core'
 
 // 1. Get store instance
 const store = useWorldBridgeStore()
@@ -135,7 +135,7 @@ interface ISuccessResult {
 ## React Integration
 
 ```tsx
-import { useWorldBridgeStore, IDKitWidget } from '@worldcoin/idkit'
+import { useWorldBridgeStore, IDKitWidget } from '@worldcoin/idkit-core'
 
 function MyComponent() {
   const handleSuccess = (result) => {
