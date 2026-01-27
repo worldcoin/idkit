@@ -1,6 +1,12 @@
 name: Publish Swift Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Commit SHA to publish as dev release (leave empty for HEAD)"
+        required: false
+        type: string
   pull_request:
     types: [closed]
     branches:
@@ -10,35 +16,83 @@ permissions:
   contents: write
 
 jobs:
-  pre-release-checks:
-    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+  prepare:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
 
     outputs:
-      new_version: ${{ steps.version.outputs.new_version }}
+      version: ${{ steps.version.outputs.version }}
+      is_prerelease: ${{ steps.config.outputs.is_prerelease }}
+      ref: ${{ steps.config.outputs.ref }}
+      should_publish: ${{ steps.config.outputs.should_publish }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Determine release configuration
+        id: config
+        # Use env vars instead of ${{ }} interpolation to prevent shell injection
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+          GITHUB_SHA_VAL: ${{ github.sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            # Dev release triggered manually
+            REF="$INPUT_COMMIT_SHA"
+            if [ -z "$REF" ]; then
+              REF="$GITHUB_SHA_VAL"
+            fi
+            echo "ref=$REF" >> $GITHUB_OUTPUT
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+            echo "release_type=dev" >> $GITHUB_OUTPUT
+            echo "📦 Dev release from commit: $REF"
+          else
+            # Production release from PR merge
+            echo "ref=$GITHUB_SHA_VAL" >> $GITHUB_OUTPUT
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+            echo "release_type=production" >> $GITHUB_OUTPUT
+            echo "📦 Production release from PR merge"
+          fi
 
-      - name: Get new version
+      - name: Checkout code
+        if: steps.config.outputs.should_publish == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.config.outputs.ref }}
+
+      - name: Get version
+        if: steps.config.outputs.should_publish == 'true'
         id: version
         run: |
-          NEW_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
-          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "Version from Cargo.toml: $NEW_VERSION"
+          BASE_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
+
+          if [ "${{ steps.config.outputs.is_prerelease }}" = "true" ]; then
+            # Dev release: append -dev.SHORT_SHA
+            SHORT_SHA=$(echo "${{ steps.config.outputs.ref }}" | cut -c1-7)
+            VERSION="${BASE_VERSION}-dev.${SHORT_SHA}"
+          else
+            # Production release: use base version as-is
+            VERSION="$BASE_VERSION"
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
 
       - name: Check latest published version
+        if: steps.config.outputs.should_publish == 'true' && steps.config.outputs.is_prerelease == 'false'
         env:
           GH_TOKEN: ${{ secrets.IDKIT_BOT_TOKEN }}
         run: |
-          LATEST_RELEASE=$(gh release list -L 1 --repo worldcoin/idkit-swift --json tagName -q '.[0].tagName' 2>/dev/null || echo "0.0.0")
-          
+          LATEST_RELEASE=$(gh release list -L 1 --exclude-pre-releases --repo worldcoin/idkit-swift --json tagName -q '.[0].tagName' 2>/dev/null || echo "0.0.0")
+
           # Remove 'v' prefix if present
           LATEST_RELEASE="${LATEST_RELEASE#v}"
-          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+          NEW_VERSION="${{ steps.version.outputs.version }}"
 
           echo "Latest release: $LATEST_RELEASE"
           echo "New version: $NEW_VERSION"
@@ -51,15 +105,18 @@ jobs:
               exit 1
             fi
           fi
-          
+
           echo "✅ Version check passed: $NEW_VERSION > $LATEST_RELEASE"
 
   publish-swift:
-    needs: pre-release-checks
+    needs: prepare
+    if: needs.prepare.outputs.should_publish == 'true'
     runs-on: macos-15
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
 
       - name: Setup Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -86,15 +143,16 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           repository: worldcoin/idkit-swift
-          name: ${{ needs.pre-release-checks.outputs.new_version }}
-          tag_name: ${{ needs.pre-release-checks.outputs.new_version }}
+          name: ${{ needs.prepare.outputs.version }}
+          tag_name: ${{ needs.prepare.outputs.version }}
           make_latest: false
           draft: true
+          prerelease: ${{ needs.prepare.outputs.is_prerelease == 'true' }}
           fail_on_unmatched_files: true
           files: IDKitFFI.xcframework.zip
           token: ${{ secrets.IDKIT_BOT_TOKEN }}
           body: |
-            Please review https://github.com/worldcoin/idkit/releases/tag/${{ needs.pre-release-checks.outputs.new_version }} for release notes.
+            Please review https://github.com/worldcoin/idkit/releases/tag/${{ needs.prepare.outputs.version }} for release notes.
 
       - name: Checkout idkit-swift repository
         uses: actions/checkout@v4
@@ -112,19 +170,19 @@ jobs:
 
       - name: Generate Package.swift
         env:
-          ASSET_URL: https://github.com/worldcoin/idkit-swift/releases/download/${{ needs.pre-release-checks.outputs.new_version }}/IDKitFFI.xcframework.zip
-          VERSION: ${{ needs.pre-release-checks.outputs.new_version }}
+          ASSET_URL: https://github.com/worldcoin/idkit-swift/releases/download/${{ needs.prepare.outputs.version }}/IDKitFFI.xcframework.zip
+          VERSION: ${{ needs.prepare.outputs.version }}
           CHECKSUM: ${{ steps.checksum.outputs.checksum }}
         run: |
           # Install swiftlint for Package.swift formatting
           brew install swiftlint
-          
+
           # Use archive-swift.sh to generate Package.swift
           ./scripts/archive-swift.sh \
             --asset-url "$ASSET_URL" \
             --checksum "$CHECKSUM" \
             --release-version "$VERSION"
-          
+
           # Copy generated Package.swift to target repo
           cp Package.swift idkit-swift/
           rm -f idkit-swift/Package.resolved
@@ -132,7 +190,7 @@ jobs:
       - name: Commit and tag release
         working-directory: idkit-swift
         env:
-          VERSION: ${{ needs.pre-release-checks.outputs.new_version }}
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -145,9 +203,15 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.IDKIT_BOT_TOKEN }}
-          VERSION: ${{ needs.pre-release-checks.outputs.new_version }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          IS_PRERELEASE: ${{ needs.prepare.outputs.is_prerelease }}
         run: |
+          LATEST_FLAG=""
+          if [ "$IS_PRERELEASE" = "false" ]; then
+            LATEST_FLAG="--latest"
+          fi
+
           gh release edit "$VERSION" \
             --repo worldcoin/idkit-swift \
             --draft=false \
-            --latest
+            $LATEST_FLAG
