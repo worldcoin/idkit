@@ -13,7 +13,10 @@ group = "com.worldcoin"
 val cargoToml = file("../../Cargo.toml")
 val versionRegex = """version\s*=\s*"([^"]+)"""".toRegex()
 val cargoContent = cargoToml.readText()
-version = versionRegex.find(cargoContent)?.groupValues?.get(1)
+
+// Support version override from CI for dev releases
+version = System.getenv("PKG_VERSION")?.takeIf { it.isNotBlank() }
+    ?: versionRegex.find(cargoContent)?.groupValues?.get(1)
     ?: throw GradleException("Could not find version in Cargo.toml")
 
 java {

@@ -1,6 +1,12 @@
 name: Publish Kotlin Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Commit SHA to publish as dev release (leave empty for HEAD)"
+        required: false
+        type: string
   pull_request:
     types: [closed]
     branches:
@@ -10,59 +16,121 @@ permissions:
   contents: write
 
 jobs:
-  pre-release-checks:
-    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
+  prepare:
+    name: Prepare Release
     runs-on: ubuntu-latest
     permissions:
       contents: read
 
     outputs:
-      new_version: ${{ steps.version.outputs.new_version }}
+      version: ${{ steps.version.outputs.version }}
+      environment: ${{ steps.release-type.outputs.environment }}
+      ref: ${{ steps.release-type.outputs.ref }}
+      should_publish: ${{ steps.release-type.outputs.should_publish }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Determine release type
+        id: release-type
+        # Use env vars instead of direct ${{ }} interpolation in run scripts
+        # to prevent command injection via crafted PR labels or workflow inputs
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+          GH_SHA: ${{ github.sha }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "Release type: dev"
+            echo "environment=development" >> $GITHUB_OUTPUT
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+            if [ -n "$INPUT_COMMIT_SHA" ]; then
+              echo "ref=$INPUT_COMMIT_SHA" >> $GITHUB_OUTPUT
+            else
+              echo "ref=$GH_SHA" >> $GITHUB_OUTPUT
+            fi
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
+            if [ "$PR_MERGED" = "true" ] && \
+               echo "$PR_LABELS" | grep -q '"release"'; then
+              echo "Release type: production"
+              echo "environment=production" >> $GITHUB_OUTPUT
+              echo "should_publish=true" >> $GITHUB_OUTPUT
+              echo "ref=$GH_SHA" >> $GITHUB_OUTPUT
+            else
+              echo "PR not merged with release label, skipping"
+              echo "should_publish=false" >> $GITHUB_OUTPUT
+              echo "environment=" >> $GITHUB_OUTPUT
+              echo "ref=" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Unknown event, skipping"
+            echo "should_publish=false" >> $GITHUB_OUTPUT
+            echo "environment=" >> $GITHUB_OUTPUT
+            echo "ref=" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Get new version from Cargo.toml
+      - name: Checkout code
+        if: steps.release-type.outputs.should_publish == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release-type.outputs.ref }}
+
+      - name: Generate version
+        if: steps.release-type.outputs.should_publish == 'true'
         id: version
         run: |
-          NEW_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
-          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "Version from Cargo.toml: $NEW_VERSION"
+          BASE_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-core") | .version')
 
-      - name: Check latest published version on Maven Central
+          if [ "${{ steps.release-type.outputs.environment }}" = "development" ]; then
+            SHORT_SHA=$(echo "${{ steps.release-type.outputs.ref }}" | cut -c1-7)
+            VERSION="${BASE_VERSION}-dev.${SHORT_SHA}"
+            echo "Dev version: $VERSION"
+          else
+            VERSION="$BASE_VERSION"
+            echo "Production version: $VERSION"
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Validate version (production only)
+        if: steps.release-type.outputs.should_publish == 'true' && steps.release-type.outputs.environment == 'production'
         run: |
-          NEW_VERSION="${{ steps.version.outputs.new_version }}"
-          
+          VERSION="${{ steps.version.outputs.version }}"
+
           # Check Maven Central for latest version
           LATEST_RELEASE=$(curl -s "https://repo1.maven.org/maven2/com/worldcoin/idkit/maven-metadata.xml" | grep -oP '(?<=<latest>)[^<]+' || echo "0.0.0")
-          
+
           echo "Latest release on Maven Central: $LATEST_RELEASE"
-          echo "New version: $NEW_VERSION"
+          echo "New version: $VERSION"
 
           # Ensure the new version is greater than the latest published version
           if [ "$LATEST_RELEASE" != "0.0.0" ]; then
-            if ! { [ "$(printf '%s\n' "$LATEST_RELEASE" "$NEW_VERSION" | sort -V | tail -n1)" = "$NEW_VERSION" ] && \
-                   [ "$NEW_VERSION" != "$LATEST_RELEASE" ]; }; then
-              echo "Error: New version ($NEW_VERSION) is not greater than latest release ($LATEST_RELEASE)"
+            if ! { [ "$(printf '%s\n' "$LATEST_RELEASE" "$VERSION" | sort -V | tail -n1)" = "$VERSION" ] && \
+                   [ "$VERSION" != "$LATEST_RELEASE" ]; }; then
+              echo "Error: New version ($VERSION) is not greater than latest release ($LATEST_RELEASE)"
               exit 1
             fi
           fi
-          
-          echo "✅ Version check passed: $NEW_VERSION > $LATEST_RELEASE"
+
+          echo "Version check passed: $VERSION > $LATEST_RELEASE"
 
   build-host:
     name: Build Host Library & UniFFI Bindings
     runs-on: ubuntu-latest
-    needs: pre-release-checks
+    needs: prepare
+    if: needs.prepare.outputs.should_publish == 'true'
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
 
       - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
 
       - name: Build host library and generate UniFFI bindings
         run: |
@@ -102,7 +170,8 @@ jobs:
   build-android:
     name: Build Android ${{ matrix.abi }}
     runs-on: ubuntu-latest
-    needs: pre-release-checks
+    needs: prepare
+    if: needs.prepare.outputs.should_publish == 'true'
     strategy:
       matrix:
         include:
@@ -114,9 +183,12 @@ jobs:
             abi: x86_64
           - target: i686-linux-android
             abi: x86
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
 
       - name: Free disk space
         run: |
@@ -140,9 +212,12 @@ jobs:
           df -h
 
       - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
         with:
-          toolchain: stable
+          key: android-${{ matrix.abi }}
 
       - name: Install cross
         run: cargo install cross --git https://github.com/cross-rs/cross --locked
@@ -167,13 +242,17 @@ jobs:
           path: android-libs/${{ matrix.abi }}/
           retention-days: 1
 
-  publish-kotlin:
-    name: Publish Kotlin Artifacts
+  publish:
+    name: Publish to Maven Central
     runs-on: ubuntu-latest
-    needs: [pre-release-checks, build-host, build-android]
+    needs: [prepare, build-host, build-android]
+    environment: ${{ needs.prepare.outputs.environment }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
 
       - name: Download host artifacts
         uses: actions/download-artifact@v4
@@ -217,6 +296,8 @@ jobs:
         with:
           gradle-version: 8.9
           arguments: -p kotlin bindings:build
+        env:
+          PKG_VERSION: ${{ needs.prepare.outputs.version }}
 
       - name: Publish to Maven Central (Sonatype)
         uses: gradle/gradle-build-action@v3
@@ -224,6 +305,7 @@ jobs:
           gradle-version: 8.9
           arguments: -p kotlin publishToSonatype closeAndReleaseSonatypeStagingRepository
         env:
+          PKG_VERSION: ${{ needs.prepare.outputs.version }}
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
