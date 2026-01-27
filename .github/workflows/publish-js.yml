@@ -1,6 +1,12 @@
 name: Publish JS Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Commit SHA to publish as dev release (leave empty for HEAD)"
+        required: false
+        type: string
   pull_request:
     types: [closed]
     branches:
@@ -11,26 +17,63 @@ permissions:
   id-token: write
 
 jobs:
-  pre-release-checks:
-    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')
-    runs-on: ubuntu-latest
-
+  prepare:
+    runs-on:
+      group: arc-public-large-amd64-runner
     outputs:
-      new_version: ${{ steps.version.outputs.new_version }}
+      version: ${{ steps.version.outputs.version }}
+      npm_tag: ${{ steps.config.outputs.npm_tag }}
+      environment: ${{ steps.config.outputs.environment }}
+      ref: ${{ steps.config.outputs.ref }}
+      should_publish: ${{ steps.config.outputs.should_publish }}
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Determine release type
+        id: config
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "npm_tag=dev" >> $GITHUB_OUTPUT
+            echo "environment=development" >> $GITHUB_OUTPUT
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+            echo "ref=${{ inputs.commit_sha || github.sha }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release') }}" = "true" ]; then
+            echo "npm_tag=latest" >> $GITHUB_OUTPUT
+            echo "environment=production" >> $GITHUB_OUTPUT
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+            echo "ref=${{ github.sha }}" >> $GITHUB_OUTPUT
+          else
+            echo "should_publish=false" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Get new version from package.json
+      - uses: actions/checkout@v6
+        if: steps.config.outputs.should_publish == 'true'
+        with:
+          ref: ${{ steps.config.outputs.ref }}
+
+      - name: Generate version
+        if: steps.config.outputs.should_publish == 'true'
         id: version
         run: |
-          NEW_VERSION=$(node -p "require('./js/packages/core/package.json').version")
-          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "Version from package.json: $NEW_VERSION"
+          # Get base version from package.json
+          BASE_VERSION=$(node -p "require('./js/packages/core/package.json').version")
 
-      - name: Check latest published version on npm
+          if [ "${{ steps.config.outputs.npm_tag }}" = "dev" ]; then
+            # Strip any existing pre-release suffix to get clean base
+            BASE_VERSION=$(echo "$BASE_VERSION" | sed 's/-.*$//')
+            # Get short SHA
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            VERSION="${BASE_VERSION}-dev.${SHORT_SHA}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "Dev version: $VERSION"
+          else
+            echo "version=$BASE_VERSION" >> $GITHUB_OUTPUT
+            echo "Production version: $BASE_VERSION"
+          fi
+
+      - name: Validate version against npm
+        if: steps.config.outputs.should_publish == 'true' && steps.config.outputs.npm_tag == 'latest'
         run: |
-          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+          NEW_VERSION="${{ steps.version.outputs.version }}"
 
           # Check npm for latest version
           LATEST_RELEASE=$(npm view @worldcoin/idkit-core version 2>/dev/null || echo "0.0.0")
@@ -47,15 +90,68 @@ jobs:
             fi
           fi
 
-          echo "✅ Version check passed: $NEW_VERSION > $LATEST_RELEASE"
+          echo "Version check passed: $NEW_VERSION > $LATEST_RELEASE"
 
-  publish-js:
-    needs: pre-release-checks
-    uses: ./.github/workflows/_build-publish-js.yml
-    with:
-      version: ${{ needs.pre-release-checks.outputs.new_version }}
-      npm_tag: latest
-      environment: production
+  publish:
+    needs: prepare
+    if: needs.prepare.outputs.should_publish == 'true'
+    runs-on:
+      group: arc-public-large-amd64-runner
+    environment: ${{ needs.prepare.outputs.environment }}
     permissions:
       contents: read
       id-token: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Update npm for OIDC trusted publishing
+        run: |
+          # npm trusted publishing requires npm >= 11.5.1
+          echo "Current npm version: $(npm --version)"
+          npm install -g npm@latest
+          echo "Updated npm version: $(npm --version)"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
+
+      - name: Set package version
+        working-directory: js/packages/core
+        env:
+          PKG_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          npm version "$PKG_VERSION" --no-git-tag-version --allow-same-version
+          echo "Package version set to: $PKG_VERSION"
+
+      - name: Install dependencies
+        working-directory: js
+        run: pnpm install
+
+      - name: Build packages
+        working-directory: js
+        run: pnpm -r build
+
+      - name: Publish @worldcoin/idkit-core
+        working-directory: js
+        env:
+          PKG_VERSION: ${{ needs.prepare.outputs.version }}
+          NPM_TAG: ${{ needs.prepare.outputs.npm_tag }}
+        run: |
+          echo "Publishing @worldcoin/idkit-core@$PKG_VERSION with tag '$NPM_TAG'"
+          pnpm --filter @worldcoin/idkit-core publish --access public --no-git-checks --provenance --tag "$NPM_TAG"
