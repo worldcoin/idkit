@@ -31,23 +31,31 @@ jobs:
     steps:
       - name: Determine release type
         id: release-type
+        # Use env vars instead of direct ${{ }} interpolation in run scripts
+        # to prevent command injection via crafted PR labels or workflow inputs
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+          GH_SHA: ${{ github.sha }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "Release type: dev"
             echo "environment=development" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
-            if [ -n "${{ inputs.commit_sha }}" ]; then
-              echo "ref=${{ inputs.commit_sha }}" >> $GITHUB_OUTPUT
+            if [ -n "$INPUT_COMMIT_SHA" ]; then
+              echo "ref=$INPUT_COMMIT_SHA" >> $GITHUB_OUTPUT
             else
-              echo "ref=${{ github.sha }}" >> $GITHUB_OUTPUT
+              echo "ref=$GH_SHA" >> $GITHUB_OUTPUT
             fi
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            if [ "${{ github.event.pull_request.merged }}" = "true" ] && \
-               echo "${{ toJson(github.event.pull_request.labels.*.name) }}" | grep -q '"release"'; then
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
+            if [ "$PR_MERGED" = "true" ] && \
+               echo "$PR_LABELS" | grep -q '"release"'; then
               echo "Release type: production"
               echo "environment=production" >> $GITHUB_OUTPUT
               echo "should_publish=true" >> $GITHUB_OUTPUT
-              echo "ref=${{ github.sha }}" >> $GITHUB_OUTPUT
+              echo "ref=$GH_SHA" >> $GITHUB_OUTPUT
             else
               echo "PR not merged with release label, skipping"
               echo "should_publish=false" >> $GITHUB_OUTPUT
