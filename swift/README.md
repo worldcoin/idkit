@@ -44,10 +44,10 @@ import IDKit
 // Create RpContext (in production this comes from your backend)
 let rpContext = try RpContext(
     rpId: "rp_1234567890abcdef",
-    nonce: "0x...",  // From computeRpSignature on backend
+    nonce: "0x...",  // From signRequest on backend
     createdAt: UInt64(Date().timeIntervalSince1970),
     expiresAt: UInt64(Date().timeIntervalSince1970) + 3600,
-    signature: "0x..."  // From computeRpSignature on backend
+    signature: "0x..."  // From signRequest on backend
 )
 
 let config = IDKitRequestConfig(

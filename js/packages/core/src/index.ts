@@ -41,6 +41,6 @@ export {
 // Utilities
 export { isReactNative, isWeb, isNode } from "./lib/platform";
 
-// RP Signature (server-side only)
-export { computeRpSignature } from "./lib/rp-signature";
+// RP Request Signing (server-side only)
+export { signRequest } from "./lib/rp-signature";
 export type { RpSignature } from "./lib/rp-signature";

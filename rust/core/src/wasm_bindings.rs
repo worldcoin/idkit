@@ -343,7 +343,10 @@ impl RpSignatureWasm {
     }
 }
 
-/// Computes an RP signature for a proof request
+/// Signs an RP request for World ID proof verification
+///
+/// **Backend-only**: This function should only be used in server-side environments.
+/// Never expose your signing key to client-side code.
 ///
 /// This function generates a cryptographic signature that RPs use to authenticate
 /// proof requests. It:
@@ -358,7 +361,8 @@ impl RpSignatureWasm {
 /// * `ttl_seconds` - Optional time-to-live in seconds (defaults to 300 = 5 minutes)
 ///
 /// # Returns
-/// An `RpSignature` object
+/// An `RpSignature` object containing the signature, nonce, and timestamps
+/// to be passed as `rp_context` in the proof request
 ///
 /// # Errors
 /// Returns an error if:
@@ -368,14 +372,14 @@ impl RpSignatureWasm {
 ///
 /// # Example
 /// ```javascript
-/// import { computeRpSignature } from '@worldcoin/idkit-core'
+/// import { signRequest } from '@worldcoin/idkit-core'
 ///
-/// const signingKey = '0x1234...' // 32-byte private key
-/// const signature = computeRpSignature('my-action', signingKey) // default 5 min TTL
-/// const customTtl = computeRpSignature('my-action', signingKey, 600) // 10 min TTL
+/// const signingKey = process.env.RP_SIGNING_KEY // Load from secure env var
+/// const signature = signRequest('my-action', signingKey) // default 5 min TTL
+/// const customTtl = signRequest('my-action', signingKey, 600) // 10 min TTL
 /// console.log(signature.sig, signature.nonce, signature.createdAt, signature.expiresAt)
 /// ```
-#[wasm_bindgen(js_name = computeRpSignature)]
+#[wasm_bindgen(js_name = signRequest)]
 pub fn compute_rp_signature_wasm(
     action: &str,
     signing_key_hex: &str,
@@ -714,5 +718,5 @@ export interface RpSignature {
     toJSON(): { sig: string; nonce: string; createdAt: number; expiresAt: number };
 }
 
-export function computeRpSignature(action: string, signingKeyHex: string, ttlSeconds?: number): RpSignature;
+export function signRequest(action: string, signingKeyHex: string, ttlSeconds?: number): RpSignature;
 "#;

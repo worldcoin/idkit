@@ -6,7 +6,7 @@ private enum ExampleError: Error {
 }
 
 // Helper to create a mock RpContext for examples
-// In production, this should come from your backend using computeRpSignature
+// In production, this should come from your backend using signRequest
 private func createMockRpContext() throws -> RpContext {
     try RpContext(
         rpId: "rp_1234567890abcdef",

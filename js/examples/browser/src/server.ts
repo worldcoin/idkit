@@ -1,5 +1,5 @@
 import express from "express";
-import { IDKit, computeRpSignature } from "@worldcoin/idkit-core";
+import { IDKit, signRequest } from "@worldcoin/idkit-core";
 
 const app = express();
 app.use(express.json());
@@ -21,7 +21,7 @@ app.post("/api/rp-signature", (req, res) => {
   }
 
   try {
-    const sig = computeRpSignature(
+    const sig = signRequest(
       action,
       DEMO_SIGNING_KEY,
       ttl ? Number(ttl) : undefined,
