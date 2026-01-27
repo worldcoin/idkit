@@ -4,28 +4,28 @@
  * Pure TypeScript - no dependencies
  */
 
-// Session API (main entry point)
+// Main API (IDKit namespace)
 export {
-  // Builder pattern
-  verify,
-  // Constraint helpers
-  RequestItem,
+  // IDKit namespace (main entry point)
+  IDKit,
+  // Constraint helpers (also available on IDKit namespace)
+  CredentialRequest,
   any,
   all,
   // Preset helpers
   orbLegacy,
   // Types
-  type Session,
+  type IDKitRequest,
   type Status,
   type WaitOptions,
   type RpContext,
   type Preset,
   type OrbLegacyPreset,
-} from "./session";
+} from "./request";
 
 // Types
 export type {
-  VerifyConfig,
+  IDKitRequestConfig,
   ConstraintNode,
   RequestItemType,
   AbiEncodedValue,

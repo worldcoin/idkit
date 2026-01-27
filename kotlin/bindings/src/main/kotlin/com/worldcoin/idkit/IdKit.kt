@@ -5,9 +5,9 @@ import uniffi.idkit_core.RequestItem
 import uniffi.idkit_core.RpContext
 import uniffi.idkit_core.Signal
 import uniffi.idkit_core.CredentialType
-import uniffi.idkit_core.VerifyBuilder
-import uniffi.idkit_core.VerifyConfig
-import uniffi.idkit_core.verify
+import uniffi.idkit_core.IDKitRequestBuilder
+import uniffi.idkit_core.IDKitRequestConfig
+import uniffi.idkit_core.request
 import uniffi.idkit_core.Preset
 import uniffi.idkit_core.OrbLegacyPreset
 
@@ -109,7 +109,7 @@ object IdKit {
         ConstraintNode.all(nodes)
 
     /**
-     * Create an RP context for session creation.
+     * Create an RP context for request creation.
      *
      * In production, the rp_context should be generated and signed by your backend.
      *
@@ -128,7 +128,7 @@ object IdKit {
     ): RpContext = RpContext(rpId, nonce, createdAt, expiresAt, signature)
 
     /**
-     * Create a VerifyConfig for building verification sessions.
+     * Create an IDKitRequestConfig for building verification requests.
      *
      * @param appId Application ID from the Developer Portal
      * @param action Action identifier
@@ -136,13 +136,13 @@ object IdKit {
      * @param actionDescription Optional action description shown to users
      * @param bridgeUrl Optional custom bridge URL
      */
-    fun verifyConfig(
+    fun requestConfig(
         appId: String,
         action: String,
         rpContext: RpContext,
         actionDescription: String? = null,
         bridgeUrl: String? = null,
-    ): VerifyConfig = VerifyConfig(
+    ): IDKitRequestConfig = IDKitRequestConfig(
         appId = appId,
         action = action,
         rpContext = rpContext,
@@ -151,9 +151,28 @@ object IdKit {
     )
 
     /**
+     * Create an IDKit request builder.
+     *
+     * This is the main entry point for creating World ID verification requests.
+     * Use the builder pattern with constraints to specify which credentials to accept.
+     *
+     * @param config Request configuration
+     * @return An IDKitRequestBuilder instance
+     *
+     * Example:
+     * ```kotlin
+     * val idkitRequest = IdKit.request(config).constraints(anyOf(orb, face))
+     * val connectUrl = idkitRequest.connectUrl()
+     * val status = idkitRequest.pollStatus(pollIntervalMs = 2000u, timeoutMs = 300000u)
+     * ```
+     */
+    fun request(config: IDKitRequestConfig): IDKitRequestBuilder =
+        uniffi.idkit_core.request(config)
+
+    /**
      * Create an OrbLegacy preset for World ID 3.0 legacy support.
      *
-     * This preset creates a session compatible with both World ID 4.0 and 3.0 protocols.
+     * This preset creates a request compatible with both World ID 4.0 and 3.0 protocols.
      * Use this when you need backward compatibility with older World App versions.
      *
      * @param signal Optional signal string
@@ -161,7 +180,7 @@ object IdKit {
      *
      * Example:
      * ```kotlin
-     * val session = verify(config).preset(orbLegacy(signal = "user-123"))
+     * val request = IdKit.request(config).preset(orbLegacy(signal = "user-123"))
      * ```
      */
     fun orbLegacy(signal: String? = null): Preset =
@@ -209,7 +228,7 @@ fun allOf(vararg items: RequestItem): ConstraintNode =
  *
  * Example:
  * ```kotlin
- * val session = verify(config).preset(orbLegacy(signal = "user-123"))
+ * val request = IdKit.request(config).preset(orbLegacy(signal = "user-123"))
  * ```
  */
 fun orbLegacy(signal: String? = null): Preset =
@@ -220,16 +239,16 @@ fun orbLegacy(signal: String? = null): Preset =
 // val orb = RequestItem(CredentialType.ORB, signal = "user-123")
 // val face = RequestItem(CredentialType.FACE)
 //
-// val config = IdKit.verifyConfig(
+// val config = IdKit.requestConfig(
 //     appId = "app_staging_xxxxx",
 //     action = "my-action",
 //     rpContext = rpContext,
 // )
 //
-// val session = verify(config).constraints(anyOf(orb, face))
-// val connectUrl = session.connectUrl()
-// val status = session.pollStatus(pollIntervalMs = 2000u, timeoutMs = 300000u)
+// val request = IdKit.request(config).constraints(anyOf(orb, face))
+// val connectUrl = request.connectUrl()
+// val status = request.pollStatus(pollIntervalMs = 2000u, timeoutMs = 300000u)
 //
 // Usage example - Preset (World ID 3.0 legacy support):
 //
-// val session = verify(config).preset(orbLegacy(signal = "user-123"))
+// val request = IdKit.request(config).preset(orbLegacy(signal = "user-123"))

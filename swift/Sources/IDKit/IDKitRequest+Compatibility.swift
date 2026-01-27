@@ -1,12 +1,12 @@
 import Foundation
 
-/// Type alias for backwards compatibility - the generated type is SessionWrapper
-public typealias Session = SessionWrapper
+/// Type alias for backwards compatibility - the generated type is IDKitRequestWrapper
+public typealias IDKitRequest = IDKitRequestWrapper
 /// Type alias for backwards compatibility - the generated type is StatusWrapper
 public typealias Status = StatusWrapper
 
 /// Errors surfaced by the high-level Swift conveniences.
-public enum SessionError: Error, LocalizedError {
+public enum IDKitRequestError: Error, LocalizedError {
     case timeout
     case verificationFailed(String)
     case invalidURL(String)
@@ -23,7 +23,7 @@ public enum SessionError: Error, LocalizedError {
     }
 }
 
-public extension SessionWrapper {
+public extension IDKitRequestWrapper {
     /// Matches the IDKit v2 `status()` helper
     func status(pollInterval: TimeInterval = 3.0) -> AsyncThrowingStream<StatusWrapper, Error> {
         AsyncThrowingStream { continuation in
