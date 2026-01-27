@@ -42,8 +42,11 @@ impl<'de> serde::Deserialize<'de> for RequestVersion {
 }
 
 /// Default value for `share_epoch` field.
+pub const DEFAULT_SHARE_EPOCH: &str = "0";
+
+/// Returns the default share epoch as a String (for serde).
 fn default_share_epoch() -> String {
-    "0".to_string()
+    DEFAULT_SHARE_EPOCH.to_string()
 }
 
 /// A proof request from a relying party for an authenticator.
@@ -112,7 +115,7 @@ impl ProofRequest {
             oprf_key_id,
             action,
             session_id,
-            share_epoch: default_share_epoch(),
+            share_epoch: DEFAULT_SHARE_EPOCH.to_string(),
             signature,
             nonce,
             requests,
@@ -424,11 +427,12 @@ mod tests {
 
     #[test]
     fn test_share_epoch_defaults_to_zero() {
-        // Verify that default_share_epoch returns "0"
-        assert_eq!(default_share_epoch(), "0");
-
-        // Verify that ProofRequest::new() sets share_epoch to "0"
         use std::str::FromStr;
+
+        // Verify that DEFAULT_SHARE_EPOCH is "0"
+        assert_eq!(DEFAULT_SHARE_EPOCH, "0");
+
+        // Verify that ProofRequest::new() sets share_epoch to DEFAULT_SHARE_EPOCH
         let rp_id = world_id_primitives::rp::RpId::from_str("rp_0000000000000001").unwrap();
         let sig_bytes = [0u8; 65];
         let signature = Signature::try_from(sig_bytes.as_slice()).unwrap();
@@ -446,7 +450,7 @@ mod tests {
             None,
         );
 
-        assert_eq!(request.share_epoch, "0");
+        assert_eq!(request.share_epoch, DEFAULT_SHARE_EPOCH);
         assert!(request.session_id.is_none());
         assert!(request.action.is_some());
     }
