@@ -645,8 +645,9 @@ impl Session {
                 crate::Status::AwaitingConfirmation => {
                     serde_json::json!({"type": "awaiting_confirmation"}).serialize(&serializer)
                 }
-                crate::Status::Confirmed(proof) => {
-                    serde_json::json!({"type": "confirmed", "proof": proof}).serialize(&serializer)
+                crate::Status::Confirmed(result) => {
+                    serde_json::json!({"type": "confirmed", "result": result})
+                        .serialize(&serializer)
                 }
                 crate::Status::Failed(error) => {
                     serde_json::json!({"type": "failed", "error": format!("{error:?}")})
@@ -675,6 +676,74 @@ export type ConstraintNode =
     | CredentialRequestType
     | { any: ConstraintNode[] }
     | { all: ConstraintNode[] };
+"#;
+
+// Export IDKitResult/ProofData types for unified response
+#[wasm_bindgen(typescript_custom_section)]
+const TS_IDKIT_RESULT: &str = r#"
+/** V4 proof data - contains all fields for Verifier.sol */
+export interface V4ProofData {
+    type: "v4";
+    /** Compressed Groth16 proof (hex) */
+    proof: string;
+    /** RP-scoped nullifier (hex) */
+    nullifier: string;
+    /** Authenticator merkle root (hex) */
+    merkle_root: string;
+    /** Unix timestamp when proof was generated */
+    proof_timestamp: number;
+    /** Credential issuer ID (hex) */
+    issuer_schema_id: string;
+}
+
+/** Legacy v3 proof data (backward compatibility) */
+export interface LegacyProofData {
+    type: "legacy";
+    /** ABI-encoded proof (hex) */
+    proof: string;
+    /** Merkle root (hex) */
+    merkle_root: string;
+    /** Nullifier hash (hex) */
+    nullifier_hash: string;
+}
+
+/** Discriminated union for V4 vs Legacy proofs */
+export type ProofData = V4ProofData | LegacyProofData;
+
+/** A single credential response item */
+export interface IDKitResponseItem {
+    /** The type of credential this response is for */
+    credential_type: CredentialType;
+    /** Proof data if verification succeeded */
+    proof_data?: ProofData;
+    /** Error message if verification failed */
+    error?: string;
+}
+
+/** The unified response structure */
+export interface IDKitResult {
+    /** Session ID (for session proofs) */
+    session_id?: string;
+    /** Array of credential responses */
+    responses: IDKitResponseItem[];
+}
+
+/** Status returned from pollForStatus() */
+export type Status =
+    | { type: "waiting_for_connection" }
+    | { type: "awaiting_confirmation" }
+    | { type: "confirmed"; result: IDKitResult }
+    | { type: "failed"; error: string };
+
+/** Type guard: check if proof is V4 */
+export function isV4Proof(data: ProofData): data is V4ProofData {
+    return data.type === "v4";
+}
+
+/** Type guard: check if proof is Legacy */
+export function isLegacyProof(data: ProofData): data is LegacyProofData {
+    return data.type === "legacy";
+}
 "#;
 
 // Export preset types

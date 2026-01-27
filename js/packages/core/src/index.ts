@@ -31,7 +31,30 @@ export type {
   AbiEncodedValue,
   CredentialType,
 } from "./types/config";
-export type { ISuccessResult, IErrorState } from "./types/result";
+export type {
+  // Legacy types (backward compatibility)
+  ISuccessResult,
+  IErrorState,
+  // Unified response types (World ID 4.0)
+  IDKitResult,
+  IDKitResponse,
+  IDKitResponseItem,
+  ProofData,
+  V4ProofData,
+  LegacyProofData,
+} from "./types/result";
+
+// Type guards and helper functions
+export {
+  isV4Proof,
+  isLegacyProof,
+  firstSuccessful,
+  allSuccessful,
+  isAllSuccessful,
+  hasAnySuccessful,
+  successCount,
+  failureCount,
+} from "./types/result";
 export {
   AppErrorCodes,
   VerificationState,

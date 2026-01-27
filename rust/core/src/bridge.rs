@@ -3,9 +3,13 @@
 use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
+    issuer_schema::issuer_schema_id_to_credential,
     preset::Preset,
     protocol_types::ProofRequest,
-    types::{AppId, BridgeUrl, Proof, RpContext, VerificationLevel},
+    types::{
+        AppId, BridgeUrl, CredentialType, IDKitResponseItem, IDKitResult, Proof, RpContext,
+        VerificationLevel,
+    },
     ConstraintNode, Signal,
 };
 use alloy_primitives::Signature;
@@ -77,6 +81,115 @@ struct BridgePollResponse {
     response: Option<EncryptedPayload>,
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// V4 Response Types (World ID 4.0)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A single credential response item from V4 bridge response
+#[derive(Debug, Deserialize)]
+struct V4ResponseItem {
+    /// Credential issuer schema ID (maps to `CredentialType`)
+    issuer_schema_id: String,
+    /// Compressed Groth16 proof (hex)
+    #[serde(default)]
+    proof: Option<String>,
+    /// RP-scoped nullifier (hex)
+    #[serde(default)]
+    nullifier: Option<String>,
+    /// Authenticator merkle root (hex)
+    #[serde(default)]
+    merkle_root: Option<String>,
+    /// Unix timestamp when proof was generated
+    #[serde(default)]
+    proof_timestamp: Option<u64>,
+    /// Error message if this credential failed
+    #[serde(default)]
+    error: Option<String>,
+}
+
+/// V4 bridge response with multi-credential support
+#[derive(Debug, Deserialize)]
+struct V4BridgeResponse {
+    /// Request ID
+    #[allow(dead_code)]
+    id: Option<String>,
+    /// Session ID (for session proofs)
+    #[serde(default)]
+    session_id: Option<String>,
+    /// Array of credential responses
+    responses: Vec<V4ResponseItem>,
+}
+
+impl V4BridgeResponse {
+    /// Converts the V4 bridge response into an `IDKitResult`
+    fn into_idkit_result(self) -> IDKitResult {
+        let responses: Vec<IDKitResponseItem> = self
+            .responses
+            .into_iter()
+            .map(|item| {
+                // Try to parse issuer_schema_id as a FieldElement to map to CredentialType
+                let credential_type =
+                    parse_credential_type(&item.issuer_schema_id).unwrap_or(CredentialType::Orb); // Default to Orb if parsing fails
+
+                if let Some(error) = item.error {
+                    IDKitResponseItem::failure(credential_type, error)
+                } else if let (
+                    Some(proof),
+                    Some(nullifier),
+                    Some(merkle_root),
+                    Some(proof_timestamp),
+                ) = (
+                    item.proof,
+                    item.nullifier,
+                    item.merkle_root,
+                    item.proof_timestamp,
+                ) {
+                    IDKitResponseItem::v4_success(
+                        credential_type,
+                        proof,
+                        nullifier,
+                        merkle_root,
+                        proof_timestamp,
+                        item.issuer_schema_id,
+                    )
+                } else {
+                    IDKitResponseItem::failure(credential_type, "Incomplete proof data")
+                }
+            })
+            .collect();
+
+        if let Some(session_id) = self.session_id {
+            IDKitResult::with_session_id(session_id, responses)
+        } else {
+            IDKitResult::new(responses)
+        }
+    }
+}
+
+/// Parse credential type from `issuer_schema_id` string
+fn parse_credential_type(issuer_schema_id: &str) -> Option<CredentialType> {
+    // Try to parse as hex field element
+    let clean_id = issuer_schema_id
+        .strip_prefix("0x")
+        .unwrap_or(issuer_schema_id);
+    let value = u64::from_str_radix(clean_id, 16).ok()?;
+    let field_element = FieldElement::from(value);
+
+    let cred_str = issuer_schema_id_to_credential(&field_element)?;
+    match cred_str {
+        "orb" => Some(CredentialType::Orb),
+        "face" => Some(CredentialType::Face),
+        "secure_document" => Some(CredentialType::SecureDocument),
+        "document" => Some(CredentialType::Document),
+        "device" => Some(CredentialType::Device),
+        _ => None,
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bridge Response Types
+// ─────────────────────────────────────────────────────────────────────────────
+
 /// Decrypted response from the World App
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
@@ -84,8 +197,11 @@ enum BridgeResponse {
     /// Error response
     Error { error_code: AppError },
 
-    /// Success response with proof
-    Success(Proof),
+    /// V4 response with multi-credential support (World ID 4.0)
+    V4Response(V4BridgeResponse),
+
+    /// Legacy success response with proof (World ID 3.0)
+    LegacySuccess(Proof),
 }
 
 /// Status of a verification request
@@ -97,8 +213,8 @@ pub enum Status {
     /// World App has retrieved the request, waiting for user confirmation
     AwaitingConfirmation,
 
-    /// User has confirmed and provided a proof
-    Confirmed(Proof),
+    /// User has confirmed and provided proof(s)
+    Confirmed(IDKitResult),
 
     /// Request has failed
     Failed(AppError),
@@ -348,7 +464,21 @@ impl Session {
 
                 match bridge_response {
                     BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
-                    BridgeResponse::Success(proof) => Ok(Status::Confirmed(proof)),
+                    BridgeResponse::V4Response(v4_response) => {
+                        let result = v4_response.into_idkit_result();
+                        Ok(Status::Confirmed(result))
+                    }
+                    BridgeResponse::LegacySuccess(proof) => {
+                        // Convert legacy Proof to IDKitResult with a single Legacy proof
+                        let response_item = IDKitResponseItem::legacy_success(
+                            proof.verification_level,
+                            proof.proof,
+                            proof.merkle_root,
+                            proof.nullifier_hash,
+                        );
+                        let result = IDKitResult::new(vec![response_item]);
+                        Ok(Status::Confirmed(result))
+                    }
                 }
             }
             _ => Err(Error::UnexpectedResponse),
@@ -510,8 +640,8 @@ pub enum StatusWrapper {
     WaitingForConnection,
     /// World App has retrieved the request, waiting for user confirmation
     AwaitingConfirmation,
-    /// User has confirmed and provided a proof
-    Confirmed { proof: Proof },
+    /// User has confirmed and provided proof(s)
+    Confirmed { result: IDKitResult },
     /// Request has failed
     Failed { error: String },
 }
@@ -522,7 +652,7 @@ impl From<Status> for StatusWrapper {
         match status {
             Status::WaitingForConnection => Self::WaitingForConnection,
             Status::AwaitingConfirmation => Self::AwaitingConfirmation,
-            Status::Confirmed(proof) => Self::Confirmed { proof },
+            Status::Confirmed(result) => Self::Confirmed { result },
             Status::Failed(app_error) => Self::Failed {
                 error: app_error.to_string(),
             },
@@ -571,8 +701,8 @@ impl SessionWrapper {
                         std::thread::sleep(poll_interval);
                         elapsed += poll_interval;
                     }
-                    Status::Confirmed(proof) => {
-                        return StatusWrapper::Confirmed { proof };
+                    Status::Confirmed(result) => {
+                        return StatusWrapper::Confirmed { result };
                     }
                     Status::Failed(app_error) => {
                         return StatusWrapper::Failed {
@@ -698,5 +828,174 @@ mod tests {
 
             assert_eq!(decrypted, plaintext);
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // V4 Response Parsing Tests
+    // ─────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_v4_response_parsing() {
+        let json = r#"{
+            "id": "test-id",
+            "session_id": "session-123",
+            "responses": [
+                {
+                    "issuer_schema_id": "0x1",
+                    "proof": "0xproof123",
+                    "nullifier": "0xnullifier123",
+                    "merkle_root": "0xroot123",
+                    "proof_timestamp": 1700000000
+                }
+            ]
+        }"#;
+
+        let response: V4BridgeResponse = serde_json::from_str(json).unwrap();
+        let result = response.into_idkit_result();
+
+        assert_eq!(result.session_id.as_ref().unwrap(), "session-123");
+        assert_eq!(result.responses.len(), 1);
+
+        let item = &result.responses[0];
+        assert!(item.is_success());
+        assert_eq!(item.credential_type, CredentialType::Orb);
+
+        if let Some(crate::types::ProofData::V4 {
+            proof,
+            nullifier,
+            merkle_root,
+            proof_timestamp,
+            issuer_schema_id,
+        }) = &item.proof_data
+        {
+            assert_eq!(proof, "0xproof123");
+            assert_eq!(nullifier, "0xnullifier123");
+            assert_eq!(merkle_root, "0xroot123");
+            assert_eq!(*proof_timestamp, 1700000000);
+            assert_eq!(issuer_schema_id, "0x1");
+        } else {
+            panic!("Expected V4 proof data");
+        }
+    }
+
+    #[test]
+    fn test_v4_response_with_error() {
+        let json = r#"{
+            "responses": [
+                {
+                    "issuer_schema_id": "0x2",
+                    "error": "credential_unavailable"
+                }
+            ]
+        }"#;
+
+        let response: V4BridgeResponse = serde_json::from_str(json).unwrap();
+        let result = response.into_idkit_result();
+
+        assert!(result.session_id.is_none());
+        assert_eq!(result.responses.len(), 1);
+
+        let item = &result.responses[0];
+        assert!(item.is_error());
+        assert_eq!(item.credential_type, CredentialType::Face);
+        assert_eq!(item.error.as_ref().unwrap(), "credential_unavailable");
+    }
+
+    #[test]
+    fn test_v4_response_multi_credential() {
+        let json = r#"{
+            "responses": [
+                {
+                    "issuer_schema_id": "0x1",
+                    "proof": "0xproof1",
+                    "nullifier": "0xnull1",
+                    "merkle_root": "0xroot1",
+                    "proof_timestamp": 1700000000
+                },
+                {
+                    "issuer_schema_id": "0x4",
+                    "proof": "0xproof2",
+                    "nullifier": "0xnull2",
+                    "merkle_root": "0xroot2",
+                    "proof_timestamp": 1700000001
+                },
+                {
+                    "issuer_schema_id": "0x5",
+                    "error": "user_rejected"
+                }
+            ]
+        }"#;
+
+        let response: V4BridgeResponse = serde_json::from_str(json).unwrap();
+        let result = response.into_idkit_result();
+
+        assert_eq!(result.responses.len(), 3);
+        assert_eq!(result.success_count(), 2);
+        assert_eq!(result.failure_count(), 1);
+
+        assert_eq!(result.responses[0].credential_type, CredentialType::Orb);
+        assert!(result.responses[0].is_success());
+
+        assert_eq!(
+            result.responses[1].credential_type,
+            CredentialType::Document
+        );
+        assert!(result.responses[1].is_success());
+
+        assert_eq!(result.responses[2].credential_type, CredentialType::Device);
+        assert!(result.responses[2].is_error());
+    }
+
+    #[test]
+    fn test_bridge_response_v4_deserialization() {
+        let json = r#"{
+            "responses": [
+                {
+                    "issuer_schema_id": "0x1",
+                    "proof": "0xproof",
+                    "nullifier": "0xnull",
+                    "merkle_root": "0xroot",
+                    "proof_timestamp": 1700000000
+                }
+            ]
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        assert!(matches!(response, BridgeResponse::V4Response(_)));
+    }
+
+    #[test]
+    fn test_bridge_response_legacy_deserialization() {
+        let json = r#"{
+            "proof": "0xproof",
+            "merkle_root": "0xroot",
+            "nullifier_hash": "0xnull",
+            "verification_level": "orb"
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        assert!(matches!(response, BridgeResponse::LegacySuccess(_)));
+    }
+
+    #[test]
+    fn test_bridge_response_error_deserialization() {
+        let json = r#"{"error_code": "user_rejected"}"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        assert!(matches!(response, BridgeResponse::Error { .. }));
+    }
+
+    #[test]
+    fn test_parse_credential_type() {
+        assert_eq!(parse_credential_type("0x1"), Some(CredentialType::Orb));
+        assert_eq!(parse_credential_type("0x2"), Some(CredentialType::Face));
+        assert_eq!(
+            parse_credential_type("0x3"),
+            Some(CredentialType::SecureDocument)
+        );
+        assert_eq!(parse_credential_type("0x4"), Some(CredentialType::Document));
+        assert_eq!(parse_credential_type("0x5"), Some(CredentialType::Device));
+        assert_eq!(parse_credential_type("1"), Some(CredentialType::Orb));
+        assert_eq!(parse_credential_type("0x99"), None);
     }
 }
