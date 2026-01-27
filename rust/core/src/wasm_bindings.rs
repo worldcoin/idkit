@@ -8,7 +8,7 @@
 #![allow(clippy::future_not_send)]
 
 use crate::preset::{OrbLegacyPreset, Preset};
-use crate::{ConstraintNode, CredentialType, CredentialRequest, RpContext, Signal};
+use crate::{ConstraintNode, CredentialRequest, CredentialType, RpContext, Signal};
 use serde::Serialize;
 use std::cell::RefCell;
 use std::rc::Rc;

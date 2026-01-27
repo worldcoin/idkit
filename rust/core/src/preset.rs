@@ -3,7 +3,7 @@
 //! Presets provide a simplified API for common credential request patterns,
 //! automatically handling both World ID 4.0 and 3.0 protocol formats.
 
-use crate::types::{CredentialType, CredentialRequest, Signal, VerificationLevel};
+use crate::types::{CredentialRequest, CredentialType, Signal, VerificationLevel};
 use crate::ConstraintNode;
 use serde::{Deserialize, Serialize};
 

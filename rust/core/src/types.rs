@@ -749,7 +749,8 @@ mod tests {
     fn test_request_item_with_abi_encoded_signal() {
         // Test creating request item with ABI-encoded bytes
         let bytes = b"arbitrary\x00\xFF\xFE data";
-        let item = CredentialRequest::new(CredentialType::Orb, Some(Signal::from_abi_encoded(bytes)));
+        let item =
+            CredentialRequest::new(CredentialType::Orb, Some(Signal::from_abi_encoded(bytes)));
 
         // Verify signal is stored as ABI-encoded
         assert!(item.signal.is_some());
@@ -764,7 +765,8 @@ mod tests {
     #[test]
     fn test_request_item_with_string_signal() {
         // Test creating request item with string signal
-        let item = CredentialRequest::new(CredentialType::Face, Some(Signal::from_string("my_signal")));
+        let item =
+            CredentialRequest::new(CredentialType::Face, Some(Signal::from_string("my_signal")));
         assert_eq!(item.signal, Some(Signal::from_string("my_signal")));
 
         // String signals should also be retrievable as bytes
