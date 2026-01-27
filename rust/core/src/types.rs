@@ -248,7 +248,6 @@ impl CredentialRequest {
             issuer_schema_id,
             signal,
             self.genesis_issued_at_min,
-            None, // session_id
         ))
     }
 }

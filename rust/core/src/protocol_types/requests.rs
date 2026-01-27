@@ -41,6 +41,11 @@ impl<'de> serde::Deserialize<'de> for RequestVersion {
     }
 }
 
+/// Default value for `share_epoch` field.
+fn default_share_epoch() -> String {
+    "0".to_string()
+}
+
 /// A proof request from a relying party for an authenticator.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -60,7 +65,15 @@ pub struct ProofRequest {
     /// Current protocol version sets `OprfKeyId` as the `RpId`
     pub oprf_key_id: String,
     /// The raw representation of the action (as a field element).
-    pub action: FieldElement,
+    /// Optional for session-only proofs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<FieldElement>,
+    /// Session ID for session proofs (optional).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<FieldElement>,
+    /// Share epoch for OPRF key versioning. Defaults to "0".
+    #[serde(default = "default_share_epoch")]
+    pub share_epoch: String,
     /// The RP's ECDSA signature over the request
     pub signature: Signature,
     /// Unique nonce for this request
@@ -81,7 +94,8 @@ impl ProofRequest {
         created_at: u64,
         expires_at: u64,
         rp_id: RpId,
-        action: FieldElement,
+        action: Option<FieldElement>,
+        session_id: Option<FieldElement>,
         signature: Signature,
         nonce: FieldElement,
         requests: Vec<CredentialRequest>,
@@ -97,6 +111,8 @@ impl ProofRequest {
             rp_id,
             oprf_key_id,
             action,
+            session_id,
+            share_epoch: default_share_epoch(),
             signature,
             nonce,
             requests,
@@ -120,9 +136,6 @@ pub struct CredentialRequest {
     /// Optional constraint on minimum genesis issued at timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub genesis_issued_at_min: Option<u64>,
-    /// If provided, a Session Proof will be generated.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub session_id: Option<FieldElement>,
 }
 
 impl CredentialRequest {
@@ -133,14 +146,12 @@ impl CredentialRequest {
         issuer_schema_id: FieldElement,
         signal: Option<String>,
         genesis_issued_at_min: Option<u64>,
-        session_id: Option<FieldElement>,
     ) -> Self {
         Self {
             identifier,
             issuer_schema_id,
             signal,
             genesis_issued_at_min,
-            session_id,
         }
     }
 }
@@ -153,6 +164,9 @@ pub struct ProofResponse {
     pub id: String,
     /// Version corresponding to request version
     pub version: RequestVersion,
+    /// Session ID echoed from request (optional).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<FieldElement>,
     /// Per-credential results
     pub responses: Vec<ResponseItem>,
 }
@@ -171,9 +185,6 @@ pub struct ResponseItem {
     /// RP-scoped nullifier (present if successful)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nullifier: Option<FieldElement>,
-    /// Optional session identifier
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub session_id: Option<FieldElement>,
     /// Present if credential not provided
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -343,7 +354,6 @@ mod tests {
             issuer_schema_id: FieldElement::from(1_u64),
             signal: Some("test_signal".to_string()),
             genesis_issued_at_min: None,
-            session_id: None,
         };
 
         let json = serde_json::to_string(&item).unwrap();
@@ -358,7 +368,6 @@ mod tests {
             issuer_schema_id: FieldElement::from(1_u64),
             proof: Some(WorldIdProof::default()),
             nullifier: Some(FieldElement::from(12345_u64)),
-            session_id: None,
             error: None,
         };
 
@@ -374,7 +383,6 @@ mod tests {
             issuer_schema_id: FieldElement::from(1_u64),
             proof: None,
             nullifier: None,
-            session_id: None,
             error: Some("credential_not_available".to_string()),
         };
 
@@ -391,13 +399,13 @@ mod tests {
         let response = ProofResponse {
             id: "req_1".to_string(),
             version: RequestVersion::V1,
+            session_id: None,
             responses: vec![
                 ResponseItem {
                     identifier: "orb".to_string(),
                     issuer_schema_id: FieldElement::from(1_u64),
                     proof: Some(WorldIdProof::default()),
                     nullifier: Some(FieldElement::from(1_u64)),
-                    session_id: None,
                     error: None,
                 },
                 ResponseItem {
@@ -405,7 +413,6 @@ mod tests {
                     issuer_schema_id: FieldElement::from(2_u64),
                     proof: None,
                     nullifier: None,
-                    session_id: None,
                     error: Some("not_available".to_string()),
                 },
             ],
@@ -413,5 +420,34 @@ mod tests {
 
         let successful = response.successful_credentials();
         assert_eq!(successful, vec!["orb"]);
+    }
+
+    #[test]
+    fn test_share_epoch_defaults_to_zero() {
+        // Verify that default_share_epoch returns "0"
+        assert_eq!(default_share_epoch(), "0");
+
+        // Verify that ProofRequest::new() sets share_epoch to "0"
+        use std::str::FromStr;
+        let rp_id = world_id_primitives::rp::RpId::from_str("rp_0000000000000001").unwrap();
+        let sig_bytes = [0u8; 65];
+        let signature = Signature::try_from(sig_bytes.as_slice()).unwrap();
+        let nonce = FieldElement::from(1_u64);
+
+        let request = ProofRequest::new(
+            1000,
+            2000,
+            rp_id,
+            Some(FieldElement::from(1_u64)), // action
+            None,                            // session_id
+            signature,
+            nonce,
+            vec![],
+            None,
+        );
+
+        assert_eq!(request.share_epoch, "0");
+        assert!(request.session_id.is_none());
+        assert!(request.action.is_some());
     }
 }

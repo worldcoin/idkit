@@ -170,7 +170,8 @@ impl Session {
             rp_context.created_at,
             rp_context.expires_at,
             rp_context.rp_id,
-            action,
+            Some(action),
+            None, // session_id
             signature,
             nonce,
             request_items,
@@ -627,7 +628,8 @@ mod tests {
             rp_context.created_at,
             rp_context.expires_at,
             rp_context.rp_id,
-            action,
+            Some(action),
+            None, // session_id
             signature,
             nonce,
             request_items,
