@@ -30,17 +30,23 @@ jobs:
     steps:
       - name: Determine release type
         id: config
+        # Use env vars to avoid script injection via github context interpolation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+          GITHUB_SHA: ${{ github.sha }}
+          IS_RELEASE_PR: ${{ github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release') }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "npm_tag=dev" >> $GITHUB_OUTPUT
             echo "environment=development" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
-            echo "ref=${{ inputs.commit_sha || github.sha }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release') }}" = "true" ]; then
+            echo "ref=${INPUT_COMMIT_SHA:-$GITHUB_SHA}" >> $GITHUB_OUTPUT
+          elif [ "$IS_RELEASE_PR" = "true" ]; then
             echo "npm_tag=latest" >> $GITHUB_OUTPUT
             echo "environment=production" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
-            echo "ref=${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "ref=$GITHUB_SHA" >> $GITHUB_OUTPUT
           else
             echo "should_publish=false" >> $GITHUB_OUTPUT
           fi
