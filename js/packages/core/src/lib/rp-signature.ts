@@ -40,3 +40,5 @@ export function computeRpSignature(
 
   return WasmModule.computeRpSignature(action, signingKeyHex, ttlBigInt);
 }
+
+export type { RpSignature } from "../../wasm/idkit_wasm";

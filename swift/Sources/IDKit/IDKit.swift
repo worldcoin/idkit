@@ -19,7 +19,7 @@ public enum IDKit {
     ///     .constraints(anyOf(CredentialRequest.create(.orb), CredentialRequest.create(.face)))
     /// ```
     public static func request(config: IDKitRequestConfig) -> IDKitRequestBuilder {
-        IDKitRequestBuilder.new(config: config)
+        IDKitRequestBuilder(config: config)
     }
 }
 

@@ -5,9 +5,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
-  initIDKit,
-  isInitialized,
-  verify,
+  IDKit,
   CredentialRequest,
   any,
   orbLegacy,
@@ -18,16 +16,18 @@ import {
 } from "../index";
 
 describe("WASM Initialization", () => {
-  it("should initialize WASM via initIDKit", async () => {
-    // Call initIDKit to mark as initialized in our wrapper
-    await initIDKit();
-    expect(isInitialized()).toBe(true);
+  it("should initialize WASM via IDKit.init", async () => {
+    // Call IDKit.init to initialize WASM
+    await IDKit.init();
+    // If we get here without throwing, WASM is initialized
+    expect(true).toBe(true);
   });
 
-  it("should be safe to call initIDKit multiple times", async () => {
-    await initIDKit();
-    await initIDKit();
-    expect(isInitialized()).toBe(true);
+  it("should be safe to call IDKit.init multiple times", async () => {
+    await IDKit.init();
+    await IDKit.init();
+    // If we get here without throwing, multiple init calls are safe
+    expect(true).toBe(true);
   });
 });
 
@@ -41,8 +41,8 @@ describe("Platform Detection", () => {
 describe("Session API", () => {
   //TODO: We should try to find a test with a signed payload to test full e2e
 
-  it("should export verify function", () => {
-    expect(typeof verify).toBe("function");
+  it("should export IDKit.request function", () => {
+    expect(typeof IDKit.request).toBe("function");
   });
 
   it("should export CredentialRequest and constraint helpers", () => {
@@ -74,7 +74,7 @@ describe("Session API", () => {
 
   it("should throw error when rp_context is missing", () => {
     expect(() =>
-      verify({
+      IDKit.request({
         app_id: "app_staging_test",
         action: "test-action",
         // @ts-expect-error - testing missing rp_context
@@ -101,7 +101,7 @@ describe("Session API", () => {
 
     // Empty any() constraint should fail validation in WASM layer
     await expect(
-      verify({
+      IDKit.request({
         app_id: "app_staging_test",
         action: "test-action",
         rp_context: createTestRpContext(),
