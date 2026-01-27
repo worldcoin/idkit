@@ -42,7 +42,12 @@ export {
 export { isReactNative, isWeb, isNode } from "./lib/platform";
 
 // WASM exports
-export { initIDKit, initIDKitServer, isInitialized, WasmModule } from "./lib/wasm";
+export {
+  initIDKit,
+  initIDKitServer,
+  isInitialized,
+  WasmModule,
+} from "./lib/wasm";
 export type { RpSignature } from "../wasm/idkit_wasm";
 
 // RP Signature (server-side only)
