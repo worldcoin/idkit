@@ -168,8 +168,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Install cross (for Android targets)
-        run: cargo install cross --git https://github.com/cross-rs/cross --locked
+      - name: Install cross (for Android targets, if not cached)
+        run: command -v cross || cargo install cross --git https://github.com/cross-rs/cross --locked
 
       - name: Build Kotlin bindings (host + Android ABIs)
         run: ./scripts/build-kotlin.sh
