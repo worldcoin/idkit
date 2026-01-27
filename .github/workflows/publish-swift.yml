@@ -33,14 +33,17 @@ jobs:
     steps:
       - name: Determine release configuration
         id: config
+        # Use env vars instead of ${{ }} interpolation to prevent shell injection
         env:
-          GH_TOKEN: ${{ secrets.IDKIT_BOT_TOKEN }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+          GITHUB_SHA_VAL: ${{ github.sha }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             # Dev release triggered manually
-            REF="${{ inputs.commit_sha }}"
+            REF="$INPUT_COMMIT_SHA"
             if [ -z "$REF" ]; then
-              REF="${{ github.sha }}"
+              REF="$GITHUB_SHA_VAL"
             fi
             echo "ref=$REF" >> $GITHUB_OUTPUT
             echo "is_prerelease=true" >> $GITHUB_OUTPUT
@@ -49,7 +52,7 @@ jobs:
             echo "📦 Dev release from commit: $REF"
           else
             # Production release from PR merge
-            echo "ref=${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "ref=$GITHUB_SHA_VAL" >> $GITHUB_OUTPUT
             echo "is_prerelease=false" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
             echo "release_type=production" >> $GITHUB_OUTPUT
