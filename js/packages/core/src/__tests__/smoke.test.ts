@@ -163,11 +163,7 @@ describe("RP Signature Generation", () => {
 
   it("should compute RP signature with custom TTL", () => {
     const customTtl = 600; // 10 minutes
-    const signature = signRequest(
-      TEST_ACTION,
-      TEST_SIGNING_KEY,
-      customTtl,
-    );
+    const signature = signRequest(TEST_ACTION, TEST_SIGNING_KEY, customTtl);
 
     // Verify TTL matches custom value (±2 seconds for timing variance)
     const actualTtl = Number(signature.expiresAt) - Number(signature.createdAt);
