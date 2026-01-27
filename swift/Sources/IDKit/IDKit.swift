@@ -23,32 +23,32 @@ public enum IDKit {
     }
 }
 
-// MARK: - RequestItem convenience extension
+// MARK: - CredentialRequest convenience extension
 //
 // UniFFI generates static methods from Rust constructors:
-//   - RequestItem.new(credentialType:signal:) - takes Signal?
-//   - RequestItem.withStringSignal(credentialType:signal:) - takes String?
+//   - CredentialRequest.new(credentialType:signal:) - takes Signal?
+//   - CredentialRequest.withStringSignal(credentialType:signal:) - takes String?
 //
 // The static `create` method below provides a cleaner positional API:
-//   RequestItem.create(.orb, signal: "test")
+//   CredentialRequest.create(.orb, signal: "test")
 
-public extension RequestItem {
-    /// Creates a RequestItem for a credential type with an optional string signal
+public extension CredentialRequest {
+    /// Creates a CredentialRequest for a credential type with an optional string signal
     ///
     /// This is a convenience factory method with a cleaner positional API.
     ///
     /// - Parameters:
     ///   - type: The credential type (e.g., .orb, .face)
     ///   - signal: Optional signal string for cryptographic binding
-    /// - Returns: A RequestItem instance
+    /// - Returns: A CredentialRequest instance
     ///
     /// Example:
     /// ```swift
-    /// let orb = RequestItem.create(.orb, signal: "user-123")
-    /// let face = RequestItem.create(.face)
+    /// let orb = CredentialRequest.create(.orb, signal: "user-123")
+    /// let face = CredentialRequest.create(.face)
     /// ```
-    static func create(_ type: CredentialType, signal: String? = nil) -> RequestItem {
-        RequestItem.withStringSignal(credentialType: type, signal: signal)
+    static func create(_ type: CredentialType, signal: String? = nil) -> CredentialRequest {
+        CredentialRequest.withStringSignal(credentialType: type, signal: signal)
     }
 }
 
@@ -61,9 +61,9 @@ public extension RequestItem {
 ///
 /// Example:
 /// ```swift
-/// let constraint = anyOf(RequestItem.create(.orb), RequestItem.create(.face))
+/// let constraint = anyOf(CredentialRequest.create(.orb), CredentialRequest.create(.face))
 /// ```
-public func anyOf(_ items: RequestItem...) -> ConstraintNode {
+public func anyOf(_ items: CredentialRequest...) -> ConstraintNode {
     ConstraintNode.any(nodes: items.map { ConstraintNode.item(request: $0) })
 }
 
@@ -71,7 +71,7 @@ public func anyOf(_ items: RequestItem...) -> ConstraintNode {
 ///
 /// - Parameter items: Array of request items (at least one must be satisfied)
 /// - Returns: A ConstraintNode representing an "any" constraint
-public func anyOf(_ items: [RequestItem]) -> ConstraintNode {
+public func anyOf(_ items: [CredentialRequest]) -> ConstraintNode {
     ConstraintNode.any(nodes: items.map { ConstraintNode.item(request: $0) })
 }
 
@@ -103,9 +103,9 @@ public func anyOf(nodes: [ConstraintNode]) -> ConstraintNode {
 ///
 /// Example:
 /// ```swift
-/// let constraint = allOf(RequestItem.create(.orb), RequestItem.create(.document))
+/// let constraint = allOf(CredentialRequest.create(.orb), CredentialRequest.create(.document))
 /// ```
-public func allOf(_ items: RequestItem...) -> ConstraintNode {
+public func allOf(_ items: CredentialRequest...) -> ConstraintNode {
     ConstraintNode.all(nodes: items.map { ConstraintNode.item(request: $0) })
 }
 
@@ -113,7 +113,7 @@ public func allOf(_ items: RequestItem...) -> ConstraintNode {
 ///
 /// - Parameter items: Array of request items (all must be satisfied)
 /// - Returns: A ConstraintNode representing an "all" constraint
-public func allOf(_ items: [RequestItem]) -> ConstraintNode {
+public func allOf(_ items: [CredentialRequest]) -> ConstraintNode {
     ConstraintNode.all(nodes: items.map { ConstraintNode.item(request: $0) })
 }
 

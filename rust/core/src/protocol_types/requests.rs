@@ -67,7 +67,7 @@ pub struct ProofRequest {
     pub nonce: FieldElement,
     /// Specific credential requests
     #[serde(rename = "proof_requests")]
-    pub requests: Vec<RequestItem>,
+    pub requests: Vec<CredentialRequest>,
     /// Constraint expression (all/any) optional
     #[serde(skip_serializing_if = "Option::is_none")]
     pub constraints: Option<ConstraintExpr<'static>>,
@@ -84,7 +84,7 @@ impl ProofRequest {
         action: FieldElement,
         signature: Signature,
         nonce: FieldElement,
-        requests: Vec<RequestItem>,
+        requests: Vec<CredentialRequest>,
         constraints: Option<ConstraintExpr<'static>>,
     ) -> Self {
         let oprf_key_id = rp_id.to_string(); // Current protocol uses RpId as OprfKeyId
@@ -108,7 +108,7 @@ impl ProofRequest {
 /// Per-credential request payload.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct RequestItem {
+pub struct CredentialRequest {
     /// An RP-defined identifier for this request item.
     /// Example: `orb`, `document`.
     pub identifier: String,
@@ -125,7 +125,7 @@ pub struct RequestItem {
     pub session_id: Option<FieldElement>,
 }
 
-impl RequestItem {
+impl CredentialRequest {
     /// Create a new request item.
     #[must_use]
     pub fn new(
@@ -338,7 +338,7 @@ mod tests {
 
     #[test]
     fn test_request_item_serialization() {
-        let item = RequestItem {
+        let item = CredentialRequest {
             identifier: "orb".to_string(),
             issuer_schema_id: FieldElement::from(1_u64),
             signal: Some("test_signal".to_string()),
@@ -347,7 +347,7 @@ mod tests {
         };
 
         let json = serde_json::to_string(&item).unwrap();
-        let parsed: RequestItem = serde_json::from_str(&json).unwrap();
+        let parsed: CredentialRequest = serde_json::from_str(&json).unwrap();
         assert_eq!(item, parsed);
     }
 

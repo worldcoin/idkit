@@ -7,7 +7,7 @@ import type {
   IDKitRequestConfig,
   ConstraintNode,
   CredentialType,
-  RequestItemType,
+  CredentialRequestType,
   RpContext,
 } from "./types/config";
 import type { ISuccessResult } from "./types/result";
@@ -135,7 +135,7 @@ class IDKitRequestImpl implements IDKitRequest {
 export function CredentialRequest(
   credential_type: CredentialType,
   options?: { signal?: string; genesis_issued_at_min?: number },
-): RequestItemType {
+): CredentialRequestType {
   return {
     type: credential_type,
     signal: options?.signal,

@@ -1,7 +1,7 @@
 package com.worldcoin.idkit
 
 import uniffi.idkit_core.ConstraintNode
-import uniffi.idkit_core.RequestItem
+import uniffi.idkit_core.CredentialRequest
 import uniffi.idkit_core.RpContext
 import uniffi.idkit_core.Signal
 import uniffi.idkit_core.CredentialType
@@ -19,26 +19,26 @@ import uniffi.idkit_core.OrbLegacyPreset
  */
 object IdKit {
     /**
-     * Create a RequestItem from a credential type and optional signal string.
+     * Create a CredentialRequest from a credential type and optional signal string.
      *
      * Example:
      * ```kotlin
-     * val orb = IdKit.requestItem(CredentialType.ORB, signal = "user-123")
-     * val face = IdKit.requestItem(CredentialType.FACE)
+     * val orb = IdKit.credentialRequest(CredentialType.ORB, signal = "user-123")
+     * val face = IdKit.credentialRequest(CredentialType.FACE)
      * ```
      */
-    fun requestItem(
+    fun credentialRequest(
         credentialType: CredentialType,
         signal: String? = null,
-    ): RequestItem = RequestItem.new(credentialType, signal?.let { Signal.fromString(it) })
+    ): CredentialRequest = CredentialRequest.new(credentialType, signal?.let { Signal.fromString(it) })
 
     /**
-     * Create a RequestItem from ABI-encoded signal bytes.
+     * Create a CredentialRequest from ABI-encoded signal bytes.
      */
-    fun requestItemAbi(
+    fun credentialRequestAbi(
         credentialType: CredentialType,
         abiEncodedSignal: ByteArray,
-    ): RequestItem = RequestItem.new(credentialType, Signal.fromAbiEncoded(abiEncodedSignal))
+    ): CredentialRequest = CredentialRequest.new(credentialType, Signal.fromAbiEncoded(abiEncodedSignal))
 
     /**
      * Build an OR constraint - at least one item must be satisfied.
@@ -48,13 +48,13 @@ object IdKit {
      * val constraint = IdKit.anyOf(orb, face)
      * ```
      */
-    fun anyOf(vararg items: RequestItem): ConstraintNode =
+    fun anyOf(vararg items: CredentialRequest): ConstraintNode =
         ConstraintNode.any(items.map { ConstraintNode.item(it) })
 
     /**
      * Build an OR constraint from a list of items.
      */
-    fun anyOf(items: List<RequestItem>): ConstraintNode =
+    fun anyOf(items: List<CredentialRequest>): ConstraintNode =
         ConstraintNode.any(items.map { ConstraintNode.item(it) })
 
     /**
@@ -82,13 +82,13 @@ object IdKit {
      * val constraint = IdKit.allOf(orb, document)
      * ```
      */
-    fun allOf(vararg items: RequestItem): ConstraintNode =
+    fun allOf(vararg items: CredentialRequest): ConstraintNode =
         ConstraintNode.all(items.map { ConstraintNode.item(it) })
 
     /**
      * Build an AND constraint from a list of items.
      */
-    fun allOf(items: List<RequestItem>): ConstraintNode =
+    fun allOf(items: List<CredentialRequest>): ConstraintNode =
         ConstraintNode.all(items.map { ConstraintNode.item(it) })
 
     /**
@@ -190,16 +190,16 @@ object IdKit {
 // Top-level convenience functions for more idiomatic Kotlin usage
 
 /**
- * Create a RequestItem for a credential type.
+ * Create a CredentialRequest for a credential type.
  *
  * Example:
  * ```kotlin
- * val orb = RequestItem(CredentialType.ORB, signal = "user-123")
- * val face = RequestItem(CredentialType.FACE)
+ * val orb = CredentialRequest(CredentialType.ORB, signal = "user-123")
+ * val face = CredentialRequest(CredentialType.FACE)
  * ```
  */
-fun RequestItem(type: CredentialType, signal: String? = null): RequestItem =
-    IdKit.requestItem(type, signal)
+fun CredentialRequest(type: CredentialType, signal: String? = null): CredentialRequest =
+    IdKit.credentialRequest(type, signal)
 
 /**
  * Build an OR constraint - at least one item must be satisfied.
@@ -209,7 +209,7 @@ fun RequestItem(type: CredentialType, signal: String? = null): RequestItem =
  * val constraint = anyOf(orb, face)
  * ```
  */
-fun anyOf(vararg items: RequestItem): ConstraintNode =
+fun anyOf(vararg items: CredentialRequest): ConstraintNode =
     IdKit.anyOf(*items)
 
 /**
@@ -220,7 +220,7 @@ fun anyOf(vararg items: RequestItem): ConstraintNode =
  * val constraint = allOf(orb, document)
  * ```
  */
-fun allOf(vararg items: RequestItem): ConstraintNode =
+fun allOf(vararg items: CredentialRequest): ConstraintNode =
     IdKit.allOf(*items)
 
 /**
@@ -236,8 +236,8 @@ fun orbLegacy(signal: String? = null): Preset =
 
 // Usage example - Explicit constraints:
 //
-// val orb = RequestItem(CredentialType.ORB, signal = "user-123")
-// val face = RequestItem(CredentialType.FACE)
+// val orb = CredentialRequest(CredentialType.ORB, signal = "user-123")
+// val face = CredentialRequest(CredentialType.FACE)
 //
 // val config = IdKit.requestConfig(
 //     appId = "app_staging_xxxxx",

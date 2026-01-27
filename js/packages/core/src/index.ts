@@ -27,7 +27,7 @@ export {
 export type {
   IDKitRequestConfig,
   ConstraintNode,
-  RequestItemType,
+  CredentialRequestType,
   AbiEncodedValue,
   CredentialType,
 } from "./types/config";

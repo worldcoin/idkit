@@ -180,7 +180,7 @@ impl<'de> Deserialize<'de> for Signal {
 /// signal and genesis timestamp constraints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Object))]
-pub struct RequestItem {
+pub struct CredentialRequest {
     /// The type of credential being requested
     #[serde(rename = "type")]
     pub credential_type: CredentialType,
@@ -196,8 +196,8 @@ pub struct RequestItem {
     pub genesis_issued_at_min: Option<u64>,
 }
 
-impl RequestItem {
-    /// Creates a new request item with an optional signal
+impl CredentialRequest {
+    /// Creates a new credential request with an optional signal
     #[must_use]
     pub fn new(credential_type: CredentialType, signal: Option<Signal>) -> Self {
         Self {
@@ -227,12 +227,12 @@ impl RequestItem {
         self.signal.as_ref().map(Signal::to_bytes)
     }
 
-    /// Converts to a protocol `RequestItem`
+    /// Converts to a protocol `CredentialRequest`
     ///
     /// # Errors
     ///
     /// Returns an error if the credential type cannot be mapped to an issuer schema ID
-    pub fn to_protocol_item(&self) -> crate::Result<crate::protocol_types::RequestItem> {
+    pub fn to_protocol_item(&self) -> crate::Result<crate::protocol_types::CredentialRequest> {
         use crate::issuer_schema::credential_to_issuer_schema_id;
 
         let identifier = self.credential_type.as_str().to_string();
@@ -243,7 +243,7 @@ impl RequestItem {
         // Encode signal if present
         let signal = self.signal.as_ref().map(crate::crypto::encode_signal);
 
-        Ok(crate::protocol_types::RequestItem::new(
+        Ok(crate::protocol_types::CredentialRequest::new(
             identifier,
             issuer_schema_id,
             signal,
@@ -253,11 +253,11 @@ impl RequestItem {
     }
 }
 
-// UniFFI exports for RequestItem
+// UniFFI exports for CredentialRequest
 #[cfg(feature = "ffi")]
 #[uniffi::export]
 #[allow(clippy::needless_pass_by_value)]
-impl RequestItem {
+impl CredentialRequest {
     /// Creates a new credential request item
     #[must_use]
     #[uniffi::constructor(name = "new")]
@@ -724,19 +724,19 @@ mod tests {
 
     #[test]
     fn test_request_item_creation() {
-        let item = RequestItem::new(CredentialType::Orb, Some(Signal::from_string("signal")));
+        let item = CredentialRequest::new(CredentialType::Orb, Some(Signal::from_string("signal")));
         assert_eq!(item.credential_type, CredentialType::Orb);
         assert_eq!(item.signal, Some(Signal::from_string("signal")));
         assert_eq!(item.genesis_issued_at_min, None);
 
         // Test without signal
-        let no_signal = RequestItem::new(CredentialType::Face, None);
+        let no_signal = CredentialRequest::new(CredentialType::Face, None);
         assert_eq!(no_signal.signal, None);
     }
 
     #[test]
     fn test_request_item_with_genesis_min() {
-        let item = RequestItem::with_genesis_min(
+        let item = CredentialRequest::with_genesis_min(
             CredentialType::Orb,
             Some(Signal::from_string("signal")),
             1_700_000_000,
@@ -749,7 +749,8 @@ mod tests {
     fn test_request_item_with_abi_encoded_signal() {
         // Test creating request item with ABI-encoded bytes
         let bytes = b"arbitrary\x00\xFF\xFE data";
-        let item = RequestItem::new(CredentialType::Orb, Some(Signal::from_abi_encoded(bytes)));
+        let item =
+            CredentialRequest::new(CredentialType::Orb, Some(Signal::from_abi_encoded(bytes)));
 
         // Verify signal is stored as ABI-encoded
         assert!(item.signal.is_some());
@@ -764,7 +765,8 @@ mod tests {
     #[test]
     fn test_request_item_with_string_signal() {
         // Test creating request item with string signal
-        let item = RequestItem::new(CredentialType::Face, Some(Signal::from_string("my_signal")));
+        let item =
+            CredentialRequest::new(CredentialType::Face, Some(Signal::from_string("my_signal")));
         assert_eq!(item.signal, Some(Signal::from_string("my_signal")));
 
         // String signals should also be retrievable as bytes
@@ -774,7 +776,7 @@ mod tests {
 
     #[test]
     fn test_request_item_without_signal() {
-        let item = RequestItem::new(CredentialType::Device, None);
+        let item = CredentialRequest::new(CredentialType::Device, None);
         assert_eq!(item.signal, None);
         assert_eq!(item.signal_bytes(), None);
     }

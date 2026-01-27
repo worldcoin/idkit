@@ -16,7 +16,7 @@ export type CredentialType =
 /**
  * A single credential request item
  */
-export interface RequestItemType {
+export interface CredentialRequestType {
   /** The type of credential being requested */
   type: CredentialType;
   /** Optional signal string for cryptographic binding */
@@ -26,10 +26,10 @@ export interface RequestItemType {
 }
 
 /**
- * Constraint node - can be a RequestItem or a combinator (any/all)
+ * Constraint node - can be a CredentialRequest or a combinator (any/all)
  */
 export type ConstraintNode =
-  | RequestItemType
+  | CredentialRequestType
   | { any: ConstraintNode[] }
   | { all: ConstraintNode[] };
 
