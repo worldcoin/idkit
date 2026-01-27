@@ -8,19 +8,19 @@
 #![allow(clippy::future_not_send)]
 
 use crate::preset::{OrbLegacyPreset, Preset};
-use crate::{ConstraintNode, CredentialType, RequestItem, RpContext, Signal};
+use crate::{ConstraintNode, CredentialRequest, CredentialType, RpContext, Signal};
 use serde::Serialize;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
 
-/// WASM wrapper for `RequestItem`
-#[wasm_bindgen(js_name = RequestItemWasm)]
-pub struct RequestItemWasm(RequestItem);
+/// WASM wrapper for `CredentialRequest`
+#[wasm_bindgen(js_name = CredentialRequestWasm)]
+pub struct CredentialRequestWasm(CredentialRequest);
 
-#[wasm_bindgen(js_class = RequestItemWasm)]
-impl RequestItemWasm {
+#[wasm_bindgen(js_class = CredentialRequestWasm)]
+impl CredentialRequestWasm {
     /// Creates a new request item
     ///
     /// # Arguments
@@ -34,7 +34,7 @@ impl RequestItemWasm {
     pub fn new(credential_type: JsValue, signal: Option<String>) -> Result<Self, JsValue> {
         let cred: CredentialType = serde_wasm_bindgen::from_value(credential_type)?;
         let signal_opt = signal.map(Signal::from_string);
-        Ok(Self(RequestItem::new(cred, signal_opt)))
+        Ok(Self(CredentialRequest::new(cred, signal_opt)))
     }
 
     /// Creates a new request item with ABI-encoded bytes for the signal
@@ -45,7 +45,7 @@ impl RequestItemWasm {
     #[wasm_bindgen(js_name = withBytes)]
     pub fn with_bytes(credential_type: JsValue, signal_bytes: &[u8]) -> Result<Self, JsValue> {
         let cred: CredentialType = serde_wasm_bindgen::from_value(credential_type)?;
-        Ok(Self(RequestItem::new(
+        Ok(Self(CredentialRequest::new(
             cred,
             Some(Signal::from_abi_encoded(signal_bytes)),
         )))
@@ -64,7 +64,7 @@ impl RequestItemWasm {
     ) -> Result<Self, JsValue> {
         let cred: CredentialType = serde_wasm_bindgen::from_value(credential_type)?;
         let signal_opt = signal.map(Signal::from_string);
-        Ok(Self(RequestItem::with_genesis_min(
+        Ok(Self(CredentialRequest::with_genesis_min(
             cred,
             signal_opt,
             genesis_min,
@@ -451,7 +451,7 @@ impl VerifyBuilderWasm {
     /// Creates a verification session with the given constraints
     ///
     /// # Arguments
-    /// * `constraints_json` - Constraint tree as JSON (`RequestItem` or `{any: []}` or `{all: []}`)
+    /// * `constraints_json` - Constraint tree as JSON (`CredentialRequest` or `{any: []}` or `{all: []}`)
     ///
     /// # Errors
     ///
@@ -665,14 +665,14 @@ impl Session {
 const TS_TYPES: &str = r#"
 export type CredentialType = "orb" | "face" | "secure_document" | "document" | "device";
 
-export interface RequestItemType {
+export interface CredentialRequestType {
     type: CredentialType;
     signal?: string;
     genesis_issued_at_min?: number;
 }
 
 export type ConstraintNode =
-    | RequestItemType
+    | CredentialRequestType
     | { any: ConstraintNode[] }
     | { all: ConstraintNode[] };
 "#;

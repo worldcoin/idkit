@@ -3,7 +3,7 @@
 //! Presets provide a simplified API for common credential request patterns,
 //! automatically handling both World ID 4.0 and 3.0 protocol formats.
 
-use crate::types::{CredentialType, RequestItem, Signal, VerificationLevel};
+use crate::types::{CredentialRequest, CredentialType, Signal, VerificationLevel};
 use crate::ConstraintNode;
 use serde::{Deserialize, Serialize};
 
@@ -55,7 +55,7 @@ impl Preset {
                     .signal
                     .as_ref()
                     .map(|s| Signal::from_string(s.clone()));
-                let orb = RequestItem::new(CredentialType::Orb, signal);
+                let orb = CredentialRequest::new(CredentialType::Orb, signal);
                 let constraints = ConstraintNode::Item(orb); // OrbLegacy doesn't need constraints
                 let legacy_verification_level = VerificationLevel::Orb;
                 let legacy_signal = config.signal.clone();
