@@ -1,13 +1,13 @@
 import Foundation
 
-/// Type alias for the new naming convention - maps to generated VerifyBuilder
-public typealias IDKitRequestBuilder = VerifyBuilder
-/// Type alias for the new naming convention - maps to generated VerifyConfig
-public typealias IDKitRequestConfig = VerifyConfig
-/// Type alias for the new naming convention - maps to generated SessionWrapper
-public typealias IDKitRequestWrapper = SessionWrapper
+/// Type alias for public API - maps to generated IdKitRequestBuilder
+public typealias IDKitRequestBuilder = IdKitRequestBuilder
+/// Type alias for public API - maps to generated IdKitRequestConfig
+public typealias IDKitRequestConfig = IdKitRequestConfig
+/// Type alias for public API - maps to generated IdKitRequestWrapper
+public typealias IDKitRequestWrapper = IdKitRequestWrapper
 /// Type alias for backwards compatibility
-public typealias IDKitRequest = SessionWrapper
+public typealias IDKitRequest = IdKitRequestWrapper
 /// Type alias for backwards compatibility - the generated type is StatusWrapper
 public typealias Status = StatusWrapper
 
