@@ -12,7 +12,7 @@ import type {
 } from "./types/config";
 import type { ISuccessResult } from "./types/result";
 import { AppErrorCodes } from "./types/bridge";
-import { WasmModule, initIDKit } from "./lib/wasm";
+import { WasmModule, initIDKit, initIDKitServer } from "./lib/wasm";
 
 /** Options for pollForUpdates() */
 export interface WaitOptions {
@@ -389,8 +389,10 @@ function createRequest(config: IDKitRequestConfig): IDKitRequestBuilder {
  * ```
  */
 export const IDKit = {
-  /** Initialize the WASM module (must be called before creating requests) */
+  /** Initialize WASM for browser environments */
   init: initIDKit,
+  /** Initialize WASM for Node.js/server environments */
+  initServer: initIDKitServer,
   /** Create a new verification request */
   request: createRequest,
   /** Create a CredentialRequest for a credential type */

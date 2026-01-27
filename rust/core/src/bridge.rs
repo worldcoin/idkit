@@ -164,8 +164,8 @@ impl IDKitRequest {
         let action = FieldElement::from_arbitrary_raw_bytes(action_str.as_bytes());
         let signature = Signature::from_str(&rp_context.signature)
             .map_err(|_| Error::InvalidConfiguration("Invalid signature".to_string()))?;
-        // TODO: Once we add a utility function for rp signature and nonce generation, update this
-        let nonce = FieldElement::from_arbitrary_raw_bytes(rp_context.nonce.as_bytes());
+        let nonce = FieldElement::from_str(&rp_context.nonce)
+            .map_err(|_| Error::InvalidConfiguration("Invalid nonce format".to_string()))?;
         let proof_request = ProofRequest::new(
             rp_context.created_at,
             rp_context.expires_at,
@@ -622,7 +622,7 @@ mod tests {
         // Build proof request - action is converted to field element from raw bytes
         let action = FieldElement::from_arbitrary_raw_bytes(b"test-action");
         let signature = Signature::from_str(&sig_65_bytes).unwrap();
-        let nonce = FieldElement::from_arbitrary_raw_bytes(rp_context.nonce.as_bytes());
+        let nonce = FieldElement::from_str(&rp_context.nonce).unwrap();
         let proof_request = ProofRequest::new(
             rp_context.created_at,
             rp_context.expires_at,

@@ -38,15 +38,11 @@ export {
   ResponseStatus,
 } from "./types/bridge";
 
-// Backend verification
-//TODO: Add back verifyCloudProof, when we implement rust binding for it.
-// export { verifyCloudProof, type IVerifyResponse } from "./lib/backend";
-
 // Utilities
 export { isReactNative, isWeb, isNode } from "./lib/platform";
 
 // WASM exports
-export { initIDKit, isInitialized, WasmModule } from "./lib/wasm";
+export { initIDKit, initIDKitServer, isInitialized, WasmModule } from "./lib/wasm";
 export type { RpSignature } from "../wasm/idkit_wasm";
 
 // RP Signature (server-side only)

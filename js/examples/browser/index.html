@@ -4,8 +4,88 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IDKit Browser Example</title>
+    <style>
+      :root {
+        --bg-color: #1a1a1a;
+        --text-color: #e0e0e0;
+        --button-bg: #333;
+        --button-text: #e0e0e0;
+        --section-bg: #252525;
+        --border-color: #444;
+      }
+
+      [data-theme="light"] {
+        --bg-color: #ffffff;
+        --text-color: #1a1a1a;
+        --button-bg: #f0f0f0;
+        --button-text: #1a1a1a;
+        --section-bg: #f5f5f5;
+        --border-color: #ddd;
+      }
+
+      body {
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        padding: 20px;
+        transition:
+          background-color 0.3s,
+          color 0.3s;
+      }
+
+      button {
+        background-color: var(--button-bg);
+        color: var(--button-text);
+        border: 1px solid var(--border-color);
+        padding: 10px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        margin: 4px;
+      }
+
+      button:hover {
+        opacity: 0.8;
+      }
+
+      section {
+        background-color: var(--section-bg);
+        padding: 16px;
+        border-radius: 8px;
+        margin-top: 16px;
+        border: 1px solid var(--border-color);
+      }
+
+      pre {
+        background-color: var(--button-bg);
+        padding: 12px;
+        border-radius: 4px;
+        overflow-x: auto;
+      }
+
+      .theme-toggle {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        background: var(--button-bg);
+        border: 1px solid var(--border-color);
+        color: var(--button-text);
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+    </style>
   </head>
   <body>
+    <button
+      class="theme-toggle"
+      id="themeToggle"
+      aria-label="Toggle theme"
+    ></button>
+
     <h1>IDKit Browser Example</h1>
     <p>Minimal example showing World ID verification via the Rust/WASM core.</p>
 
@@ -36,9 +116,29 @@
       <p id="errorText"></p>
     </section>
 
+    <script>
+      // Theme toggle functionality
+      const themeToggle = document.getElementById("themeToggle");
+      const html = document.documentElement;
+
+      function updateToggleText() {
+        const isDark = html.getAttribute("data-theme") !== "light";
+        themeToggle.textContent = isDark ? "Light" : "Dark";
+      }
+
+      themeToggle.addEventListener("click", () => {
+        const isDark = html.getAttribute("data-theme") !== "light";
+        html.setAttribute("data-theme", isDark ? "light" : "dark");
+        updateToggleText();
+      });
+
+      // Initialize toggle text
+      updateToggleText();
+    </script>
+
     <script type="module">
       // Import IDKit core (pure TypeScript, no dependencies)
-      import { IDKit, CredentialRequest } from "@worldcoin/idkit-core";
+      import { IDKit, orbLegacy } from "@worldcoin/idkit-core";
 
       // Demo app configuration
       const APP_ID = "app_ce4cb73cb75fc3b73b71ffb4de178410"; // Replace with your actual app ID
@@ -65,31 +165,50 @@
       // Initialize WASM on page load
       await IDKit.init();
 
+      // Fetch RP signature from the backend
+      async function fetchRpSignature(action) {
+        const res = await fetch("/api/rp-signature", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        });
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error || "Failed to fetch RP signature");
+        }
+
+        return res.json();
+      }
+
       // Function to verify with World ID using the new IDKit.request().constraints() API
       async function startVerification(credentialType, signal) {
         try {
           hideAll();
 
           statusDiv.hidden = false;
-          statusText.textContent = "Creating verification request...";
+          statusText.textContent = "Fetching RP signature...";
 
-          // TODO: Update this to use the new RP context API
-          const now = Math.floor(Date.now() / 1000);
+          // Fetch RP signature from the backend
+          const rpSig = await fetchRpSignature(ACTION);
+          console.log("RP signature response:", rpSig);
           const rpContext = {
-            rp_id: "rp_123",
-            nonce: crypto.randomUUID(),
-            created_at: now,
-            expires_at: now + 3600, // 1 hour expiry
-            // TODO: Invalid signature should fail once we update types
-            signature: "",
+            rp_id: "rp_1234567890abcdef", // Valid 16 hex char RP ID
+            nonce: rpSig.nonce,
+            created_at: rpSig.created_at,
+            expires_at: rpSig.expires_at,
+            signature: rpSig.sig,
           };
+          console.log("RP context:", rpContext);
+
+          statusText.textContent = "Creating verification request...";
 
           // Create a new request using the builder pattern
           const request = await IDKit.request({
             app_id: APP_ID,
             action: ACTION,
             rp_context: rpContext,
-          }).constraints(CredentialRequest(credentialType, { signal }));
+          }).preset(orbLegacy({ signal }));
 
           // Get the connector URL from the request
           const url = request.connectorURI;

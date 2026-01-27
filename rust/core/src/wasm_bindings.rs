@@ -12,8 +12,21 @@ use crate::{ConstraintNode, CredentialRequest, CredentialType, RpContext, Signal
 use serde::Serialize;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Once;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
+
+static PANIC_HOOK: Once = Once::new();
+
+/// Initialize the WASM module.
+/// This sets up panic hooks for better error messages in the browser console.
+/// Safe to call multiple times - initialization only happens once.
+#[wasm_bindgen(start)]
+pub fn init_wasm() {
+    PANIC_HOOK.call_once(|| {
+        console_error_panic_hook::set_once();
+    });
+}
 
 /// WASM wrapper for `CredentialRequest`
 #[wasm_bindgen(js_name = CredentialRequestWasm)]
