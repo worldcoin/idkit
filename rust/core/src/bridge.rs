@@ -871,7 +871,7 @@ mod tests {
             assert_eq!(proof, "0xproof123");
             assert_eq!(nullifier, "0xnullifier123");
             assert_eq!(merkle_root, "0xroot123");
-            assert_eq!(*proof_timestamp, 1700000000);
+            assert_eq!(*proof_timestamp, 1_700_000_000);
             assert_eq!(issuer_schema_id, "0x1");
         } else {
             panic!("Expected V4 proof data");

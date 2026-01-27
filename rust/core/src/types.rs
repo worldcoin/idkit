@@ -1153,7 +1153,7 @@ mod tests {
             proof: "0xproof".to_string(),
             nullifier: "0xnullifier".to_string(),
             merkle_root: "0xroot".to_string(),
-            proof_timestamp: 1700000000,
+            proof_timestamp: 1_700_000_000,
             issuer_schema_id: "0x1".to_string(),
         };
 
@@ -1185,7 +1185,7 @@ mod tests {
             proof: "0xproof".to_string(),
             nullifier: "0xnullifier".to_string(),
             merkle_root: "0xroot".to_string(),
-            proof_timestamp: 1700000000,
+            proof_timestamp: 1_700_000_000,
             issuer_schema_id: "0x1".to_string(),
         };
 
@@ -1222,7 +1222,7 @@ mod tests {
             "0xproof".to_string(),
             "0xnullifier".to_string(),
             "0xroot".to_string(),
-            1700000000,
+            1_700_000_000,
             "0x1".to_string(),
         );
 
@@ -1265,7 +1265,7 @@ mod tests {
             "0xproof".to_string(),
             "0xnullifier".to_string(),
             "0xroot".to_string(),
-            1700000000,
+            1_700_000_000,
             "0x1".to_string(),
         );
 
@@ -1289,7 +1289,7 @@ mod tests {
             "0xproof".to_string(),
             "0xnullifier".to_string(),
             "0xroot".to_string(),
-            1700000000,
+            1_700_000_000,
             "0x1".to_string(),
         )];
 
@@ -1305,7 +1305,7 @@ mod tests {
             "0xproof".to_string(),
             "0xnullifier".to_string(),
             "0xroot".to_string(),
-            1700000000,
+            1_700_000_000,
             "0x1".to_string(),
         )];
 
@@ -1321,7 +1321,7 @@ mod tests {
                 "0xproof1".to_string(),
                 "0xnullifier1".to_string(),
                 "0xroot1".to_string(),
-                1700000000,
+                1_700_000_000,
                 "0x1".to_string(),
             ),
             IDKitResponseItem::failure(CredentialType::Face, "credential_unavailable"),
@@ -1330,7 +1330,7 @@ mod tests {
                 "0xproof2".to_string(),
                 "0xnullifier2".to_string(),
                 "0xroot2".to_string(),
-                1700000001,
+                1_700_000_001,
                 "0x4".to_string(),
             ),
         ];
@@ -1356,7 +1356,7 @@ mod tests {
             "0xproof".to_string(),
             "0xnullifier".to_string(),
             "0xroot".to_string(),
-            1700000000,
+            1_700_000_000,
             "0x1".to_string(),
         )];
 
@@ -1371,7 +1371,7 @@ mod tests {
             "0xproof".to_string(),
             "0xnullifier".to_string(),
             "0xroot".to_string(),
-            1700000000,
+            1_700_000_000,
             "0x1".to_string(),
         )];
 
