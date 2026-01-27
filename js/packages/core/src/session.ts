@@ -365,4 +365,3 @@ export function verify(config: VerifyConfig): VerifyBuilder {
 
   return new VerifyBuilder(config);
 }
-

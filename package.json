@@ -3,10 +3,15 @@
   "version": "4.0.1",
   "private": true,
   "description": "IDKit - World ID SDK with Rust Core",
+  "devDependencies": {
+    "prettier": "^3.8"
+  },
   "scripts": {
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "type-check": "pnpm -r type-check",
+    "format:js": "pnpm -C js format",
+    "lint:js": "pnpm -C js lint:format",
     "lint:rust": "cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings"
   },
   "keywords": [
