@@ -133,11 +133,11 @@ func allOfConvenience() throws {
     #expect(!json.isEmpty)
 }
 
-// MARK: - Session Creation Tests
-// Note: These tests verify API shape, actual sessions need valid credentials
+// MARK: - IDKitRequest Creation Tests
+// Note: These tests verify API shape, actual requests need valid credentials
 
-@Test("verify() builder API shape")
-func verifyBuilderAPIShape() {
+@Test("request() builder API shape")
+func requestBuilderAPIShape() {
     // Create a test RpContext (in production this would come from your backend)
     // Note: RpId must be "rp_" followed by exactly 16 hex characters
     let rpContext = try! RpContext(
@@ -175,8 +175,8 @@ func orbLegacyPresetHelper() {
     }
 }
 
-@Test("verify().preset() API shape")
-func verifyPresetAPIShape() {
+@Test("request().preset() API shape")
+func requestPresetAPIShape() {
     let rpContext = try! RpContext(
         rpId: "rp_1234567890abcdef",
         nonce: "test-nonce",

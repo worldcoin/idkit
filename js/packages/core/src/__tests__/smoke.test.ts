@@ -38,7 +38,7 @@ describe("Platform Detection", () => {
   });
 });
 
-describe("Session API", () => {
+describe("IDKitRequest API", () => {
   //TODO: We should try to find a test with a signed payload to test full e2e
 
   it("should export IDKit.request function", () => {

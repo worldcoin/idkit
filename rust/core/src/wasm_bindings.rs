@@ -271,7 +271,7 @@ pub fn hash_signal_bytes(bytes: &[u8]) -> String {
 
 /// Creates an `OrbLegacy` preset for World ID 3.0 legacy support
 ///
-/// Returns a preset object that can be passed to `verify().preset()`.
+/// Returns a preset object that can be passed to `request().preset()`.
 ///
 /// # Arguments
 /// * `signal` - Optional signal string

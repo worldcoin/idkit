@@ -5,32 +5,48 @@ private enum ExampleError: Error {
     case verificationFailed(String)
 }
 
-/// Example: Basic Orb verification using the UniFFI API
+// Helper to create a mock RpContext for examples
+// In production, this should come from your backend using computeRpSignature
+private func createMockRpContext() throws -> RpContext {
+    try RpContext(
+        rpId: "rp_1234567890abcdef",
+        nonce: "0x0000000000000000000000000000000000000000000000000000000000000001",
+        createdAt: UInt64(Date().timeIntervalSince1970),
+        expiresAt: UInt64(Date().timeIntervalSince1970) + 3600,
+        signature: "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    )
+}
+
+/// Example: Basic Orb verification using the IDKit.request() API
 @available(macOS 12.0, iOS 15.0, *)
 func basicVerification() async throws {
-    let signal = Signal.fromString(s: "user_action_12345")
-    let request = Request(credentialType: .orb, signal: signal)
+    let rpContext = try createMockRpContext()
 
-    let session = try Session.create(
+    let config = IDKitRequestConfig(
         appId: "app_staging_1234567890abcdef",
         action: "vote",
-        requests: [request]
+        rpContext: rpContext,
+        actionDescription: nil,
+        bridgeUrl: nil
     )
 
-    print("📱 Scan this QR code in World App:")
-    print(session.connectUrl())
+    let request = try IDKit.request(config: config)
+        .constraints(constraints: anyOf(CredentialRequest.create(.orb, signal: "user_action_12345")))
+
+    print("Scan this QR code in World App:")
+    print(request.connectUrl())
     print()
 
-    print("⏳ Waiting for verification...")
+    print("Waiting for verification...")
 
-    for try await status in session.status() {
+    for try await status in request.status() {
         switch status {
         case .waitingForConnection:
-            print("⏳ Waiting for user to scan QR code...")
+            print("Waiting for user to scan QR code...")
         case .awaitingConfirmation:
-            print("📱 User scanned code! Awaiting confirmation in World App...")
+            print("User scanned code! Awaiting confirmation in World App...")
         case .confirmed(let proof):
-            print("✅ Verification successful!")
+            print("Verification successful!")
             print("   Nullifier Hash: \(proof.nullifierHash)")
             print("   Merkle Root: \(proof.merkleRoot)")
             print("   Verification Level: \(proof.verificationLevel)")
@@ -46,25 +62,29 @@ func basicVerification() async throws {
 /// Example: Manually polling for status updates.
 @available(macOS 12.0, iOS 15.0, *)
 func verificationWithStatusUpdates() async throws {
-    let signal = Signal.fromString(s: "user_action_12345")
-    let request = Request(credentialType: .orb, signal: signal)
+    let rpContext = try createMockRpContext()
 
-    let session = try Session.create(
+    let config = IDKitRequestConfig(
         appId: "app_staging_1234567890abcdef",
         action: "vote",
-        requests: [request]
+        rpContext: rpContext,
+        actionDescription: nil,
+        bridgeUrl: nil
     )
 
-    print("📱 QR Code URL: \(session.connectUrl())\n")
+    let request = try IDKit.request(config: config)
+        .constraints(constraints: anyOf(CredentialRequest.create(.orb, signal: "user_action_12345")))
 
-    for try await status in session.status() {
+    print("QR Code URL: \(request.connectUrl())\n")
+
+    for try await status in request.status() {
         switch status {
         case .waitingForConnection:
-            print("⏳ Waiting for user to scan QR code...")
+            print("Waiting for user to scan QR code...")
         case .awaitingConfirmation:
-            print("📱 User scanned code! Awaiting confirmation in World App...")
+            print("User scanned code! Awaiting confirmation in World App...")
         case .confirmed(let proof):
-            print("✅ Verification complete!")
+            print("Verification complete!")
             print("   Proof: \(proof.proof.prefix(64))...")
             return
         case .failed(let error):
@@ -76,26 +96,29 @@ func verificationWithStatusUpdates() async throws {
 /// Example: Simple Orb verification (convenience pattern)
 @available(macOS 12.0, iOS 15.0, *)
 func verificationSimple() async throws {
-    // Simple helper: create Orb request with signal
-    let signal = Signal.fromString(s: "session_token_abc123")
-    let request = Request(credentialType: .orb, signal: signal)
+    let rpContext = try createMockRpContext()
 
-    let session = try Session.create(
+    let config = IDKitRequestConfig(
         appId: "app_staging_1234567890abcdef",
         action: "login",
-        requests: [request]
+        rpContext: rpContext,
+        actionDescription: nil,
+        bridgeUrl: nil
     )
 
-    print("📱 QR Code: \(session.connectUrl())\n")
+    let request = try IDKit.request(config: config)
+        .constraints(constraints: anyOf(CredentialRequest.create(.orb, signal: "session_token_abc123")))
 
-    for try await status in session.status() {
+    print("QR Code: \(request.connectUrl())\n")
+
+    for try await status in request.status() {
         switch status {
         case .waitingForConnection:
-            print("⏳ Waiting for user to scan QR code...")
+            print("Waiting for user to scan QR code...")
         case .awaitingConfirmation:
-            print("📱 User scanned code! Awaiting confirmation...")
+            print("User scanned code! Awaiting confirmation...")
         case .confirmed(let proof):
-            print("✅ Logged in! Nullifier: \(proof.nullifierHash)")
+            print("Logged in! Nullifier: \(proof.nullifierHash)")
             return
         case .failed(let error):
             throw ExampleError.verificationFailed(error)
@@ -108,32 +131,34 @@ func verificationSimple() async throws {
 /// Example: Multiple requests with constraints
 @available(macOS 12.0, iOS 15.0, *)
 func verificationWithConstraints() async throws {
-    let signal = Signal.fromString(s: "user_signal")
-    let orbRequest = Request(credentialType: .orb, signal: signal)
-    let faceRequest = Request(credentialType: .face, signal: signal)
-    let deviceRequest = Request(credentialType: .device, signal: signal)
+    let rpContext = try createMockRpContext()
 
-    let constraints = Constraints.any(credentials: [.orb, .face, .device])
-
-    let session = try Session.createWithOptions(
+    let config = IDKitRequestConfig(
         appId: "app_staging_1234567890abcdef",
         action: "high-security-action",
-        requests: [orbRequest, faceRequest, deviceRequest],
+        rpContext: rpContext,
         actionDescription: "Verify your World ID",
-        constraints: constraints,
         bridgeUrl: nil
     )
 
-    print("📱 QR Code: \(session.connectUrl())\n")
+    // User must have at least one of these credentials
+    let request = try IDKit.request(config: config)
+        .constraints(constraints: anyOf(
+            CredentialRequest.create(.orb, signal: "user_signal"),
+            CredentialRequest.create(.face, signal: "user_signal"),
+            CredentialRequest.create(.device, signal: "user_signal")
+        ))
 
-    for try await status in session.status() {
+    print("QR Code: \(request.connectUrl())\n")
+
+    for try await status in request.status() {
         switch status {
         case .waitingForConnection:
-            print("⏳ Waiting for user to scan QR code...")
+            print("Waiting for user to scan QR code...")
         case .awaitingConfirmation:
-            print("📱 Awaiting confirmation...")
+            print("Awaiting confirmation...")
         case .confirmed(let proof):
-            print("✅ Verified with \(proof.verificationLevel)")
+            print("Verified with \(proof.verificationLevel)")
             return
         case .failed(let error):
             throw ExampleError.verificationFailed(error)
@@ -143,30 +168,34 @@ func verificationWithConstraints() async throws {
     throw ExampleError.verificationFailed("Stream ended without terminal status")
 }
 
-/// Example: Face authentication
+/// Example: Using orbLegacy preset for World ID 3.0 compatibility
 @available(macOS 12.0, iOS 15.0, *)
-func verificationWithFaceAuth() async throws {
-    let signal = Signal.fromString(s: "sensitive_action_12345")
-    let request = Request(credentialType: .orb, signal: signal)
-        .withFaceAuth(faceAuth: true)
+func verificationWithOrbLegacyPreset() async throws {
+    let rpContext = try createMockRpContext()
 
-    let session = try Session.create(
+    let config = IDKitRequestConfig(
         appId: "app_staging_1234567890abcdef",
         action: "transfer-funds",
-        requests: [request]
+        rpContext: rpContext,
+        actionDescription: nil,
+        bridgeUrl: nil
     )
 
-    print("📱 QR Code: \(session.connectUrl())")
-    print("🔐 Face authentication required\n")
+    // Use orbLegacy preset for backward compatibility
+    let request = try IDKit.request(config: config)
+        .preset(preset: orbLegacy(signal: "sensitive_action_12345"))
 
-    for try await status in session.status() {
+    print("QR Code: \(request.connectUrl())")
+    print("Using orbLegacy preset for WID 3.0 compatibility\n")
+
+    for try await status in request.status() {
         switch status {
         case .waitingForConnection:
-            print("⏳ Waiting for user to scan QR code...")
+            print("Waiting for user to scan QR code...")
         case .awaitingConfirmation:
-            print("📱 Awaiting confirmation with face auth...")
+            print("Awaiting confirmation...")
         case .confirmed:
-            print("✅ Verified with face auth!")
+            print("Verified!")
             return
         case .failed(let error):
             throw ExampleError.verificationFailed(error)
@@ -179,30 +208,30 @@ func verificationWithFaceAuth() async throws {
 /// Example: ABI-encoded signal for on-chain verification
 @available(macOS 12.0, iOS 15.0, *)
 func verificationWithAbiSignal() async throws {
-    let abiSignal = Signal.fromAbiEncoded(bytes: [
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01
-    ])
+    let rpContext = try createMockRpContext()
 
-    let request = Request(credentialType: .orb, signal: abiSignal)
-
-    let session = try Session.create(
+    let config = IDKitRequestConfig(
         appId: "app_staging_1234567890abcdef",
         action: "claim-airdrop",
-        requests: [request]
+        rpContext: rpContext,
+        actionDescription: nil,
+        bridgeUrl: nil
     )
 
-    print("📱 QR Code: \(session.connectUrl())\n")
+    // Note: For ABI-encoded signals, you would create a CredentialRequest with the signal
+    let request = try IDKit.request(config: config)
+        .constraints(constraints: anyOf(CredentialRequest.create(.orb, signal: "airdrop_claim_001")))
 
-    for try await status in session.status() {
+    print("QR Code: \(request.connectUrl())\n")
+
+    for try await status in request.status() {
         switch status {
         case .waitingForConnection:
-            print("⏳ Waiting for user to scan QR code...")
+            print("Waiting for user to scan QR code...")
         case .awaitingConfirmation:
-            print("📱 Awaiting confirmation...")
+            print("Awaiting confirmation...")
         case .confirmed:
-            print("✅ Airdrop claimed! Proof ready for on-chain verification")
+            print("Airdrop claimed! Proof ready for on-chain verification")
             return
         case .failed(let error):
             throw ExampleError.verificationFailed(error)
@@ -226,12 +255,12 @@ struct ExamplesRunner {
             // try await verificationWithStatusUpdates()
             // try await verificationSimple()
             // try await verificationWithConstraints()
-            // try await verificationWithFaceAuth()
+            // try await verificationWithOrbLegacyPreset()
             // try await verificationWithAbiSignal()
 
-            print("\n✅ Example completed successfully!")
+            print("\nExample completed successfully!")
         } catch {
-            print("\n❌ Error: \(error)")
+            print("\nError: \(error)")
         }
     }
 }
