@@ -620,7 +620,7 @@ mod tests {
         let (request_items, constraint_expr) = constraints.to_protocol_top_level().unwrap();
 
         // Build proof request - action is converted to field element from raw bytes
-        let action = FieldElement::from_arbitrary_raw_bytes("test-action".as_bytes());
+        let action = FieldElement::from_arbitrary_raw_bytes(b"test-action");
         let signature = Signature::from_str(&sig_65_bytes).unwrap();
         let nonce = FieldElement::from_arbitrary_raw_bytes(rp_context.nonce.as_bytes());
         let proof_request = ProofRequest::new(
