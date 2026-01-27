@@ -4,7 +4,12 @@
   "private": true,
   "description": "IDKit - World ID SDK with Rust Core",
   "devDependencies": {
-    "prettier": "^3.8"
+    "prettier": "^3.8.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "happy-dom": ">=20.0.0"
+    }
   },
   "scripts": {
     "build": "pnpm -r build",
