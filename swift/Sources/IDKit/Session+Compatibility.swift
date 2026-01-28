@@ -83,40 +83,6 @@ public extension IdkitResponseItem {
     }
 }
 
-// MARK: - IdkitResult Extensions
-
-public extension IdkitResult {
-    /// Returns the first successful response item, if any.
-    func firstSuccessful() -> IdkitResponseItem? {
-        responses.first { $0.isSuccess }
-    }
-
-    /// Returns all successful response items.
-    func allSuccessful() -> [IdkitResponseItem] {
-        responses.filter { $0.isSuccess }
-    }
-
-    /// Returns true if all responses are successful.
-    func isAllSuccessful() -> Bool {
-        !responses.isEmpty && responses.allSatisfy { $0.isSuccess }
-    }
-
-    /// Returns true if at least one response is successful.
-    func hasAnySuccessful() -> Bool {
-        responses.contains { $0.isSuccess }
-    }
-
-    /// Returns the count of successful responses.
-    func successCount() -> Int {
-        responses.filter { $0.isSuccess }.count
-    }
-
-    /// Returns the count of failed responses.
-    func failureCount() -> Int {
-        responses.filter { $0.isError }.count
-    }
-}
-
 // MARK: - SessionWrapper Extensions
 
 public extension SessionWrapper {

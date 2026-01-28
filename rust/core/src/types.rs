@@ -49,6 +49,21 @@ impl CredentialType {
             Self::Device => "device",
         }
     }
+
+    /// Creates a `CredentialType` from an issuer schema ID
+    ///
+    /// Returns `None` if the ID doesn't map to a known credential type.
+    #[must_use]
+    pub const fn from_issuer_schema_id(id: u64) -> Option<Self> {
+        match id {
+            1 => Some(Self::Orb),
+            2 => Some(Self::Face),
+            3 => Some(Self::SecureDocument),
+            4 => Some(Self::Document),
+            5 => Some(Self::Device),
+            _ => None,
+        }
+    }
 }
 
 /// A signal value that can be either a UTF-8 string or ABI-encoded data
@@ -533,61 +548,13 @@ pub struct IDKitResult {
 pub type IDKitResponse = Vec<IDKitResponseItem>;
 
 impl IDKitResult {
-    /// Creates a new `IDKitResult` with the given responses
+    /// Creates a new `IDKitResult` with an optional session ID and responses
     #[must_use]
-    pub fn new(responses: Vec<IDKitResponseItem>) -> Self {
+    pub fn new(session_id: Option<String>, responses: Vec<IDKitResponseItem>) -> Self {
         Self {
-            session_id: None,
+            session_id,
             responses,
         }
-    }
-
-    /// Creates a new `IDKitResult` with a session ID
-    #[must_use]
-    pub fn with_session_id(
-        session_id: impl Into<String>,
-        responses: Vec<IDKitResponseItem>,
-    ) -> Self {
-        Self {
-            session_id: Some(session_id.into()),
-            responses,
-        }
-    }
-
-    /// Returns the first successful response item, if any
-    #[must_use]
-    pub fn first_successful(&self) -> Option<&IDKitResponseItem> {
-        self.responses.iter().find(|r| r.is_success())
-    }
-
-    /// Returns all successful response items
-    #[must_use]
-    pub fn all_successful(&self) -> Vec<&IDKitResponseItem> {
-        self.responses.iter().filter(|r| r.is_success()).collect()
-    }
-
-    /// Returns true if all responses are successful
-    #[must_use]
-    pub fn is_all_successful(&self) -> bool {
-        !self.responses.is_empty() && self.responses.iter().all(IDKitResponseItem::is_success)
-    }
-
-    /// Returns true if at least one response is successful
-    #[must_use]
-    pub fn has_any_successful(&self) -> bool {
-        self.responses.iter().any(IDKitResponseItem::is_success)
-    }
-
-    /// Returns the count of successful responses
-    #[must_use]
-    pub fn success_count(&self) -> usize {
-        self.responses.iter().filter(|r| r.is_success()).count()
-    }
-
-    /// Returns the count of failed responses
-    #[must_use]
-    pub fn failure_count(&self) -> usize {
-        self.responses.iter().filter(|r| r.is_error()).count()
     }
 }
 
@@ -1283,7 +1250,7 @@ mod tests {
     // ─────────────────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_idkit_result_new() {
+    fn test_idkit_result_new_without_session_id() {
         let responses = vec![IDKitResponseItem::v4_success(
             CredentialType::Orb,
             "0xproof".to_string(),
@@ -1293,13 +1260,13 @@ mod tests {
             "0x1".to_string(),
         )];
 
-        let result = IDKitResult::new(responses);
+        let result = IDKitResult::new(None, responses);
         assert!(result.session_id.is_none());
         assert_eq!(result.responses.len(), 1);
     }
 
     #[test]
-    fn test_idkit_result_with_session_id() {
+    fn test_idkit_result_new_with_session_id() {
         let responses = vec![IDKitResponseItem::v4_success(
             CredentialType::Orb,
             "0xproof".to_string(),
@@ -1309,59 +1276,8 @@ mod tests {
             "0x1".to_string(),
         )];
 
-        let result = IDKitResult::with_session_id("session-123", responses);
+        let result = IDKitResult::new(Some("session-123".to_string()), responses);
         assert_eq!(result.session_id.as_ref().unwrap(), "session-123");
-    }
-
-    #[test]
-    fn test_idkit_result_helpers() {
-        let responses = vec![
-            IDKitResponseItem::v4_success(
-                CredentialType::Orb,
-                "0xproof1".to_string(),
-                "0xnullifier1".to_string(),
-                "0xroot1".to_string(),
-                1_700_000_000,
-                "0x1".to_string(),
-            ),
-            IDKitResponseItem::failure(CredentialType::Face, "credential_unavailable"),
-            IDKitResponseItem::v4_success(
-                CredentialType::Document,
-                "0xproof2".to_string(),
-                "0xnullifier2".to_string(),
-                "0xroot2".to_string(),
-                1_700_000_001,
-                "0x4".to_string(),
-            ),
-        ];
-
-        let result = IDKitResult::new(responses);
-
-        assert_eq!(result.success_count(), 2);
-        assert_eq!(result.failure_count(), 1);
-        assert!(result.has_any_successful());
-        assert!(!result.is_all_successful());
-
-        let first = result.first_successful().unwrap();
-        assert_eq!(first.credential_type, CredentialType::Orb);
-
-        let all_successful = result.all_successful();
-        assert_eq!(all_successful.len(), 2);
-    }
-
-    #[test]
-    fn test_idkit_result_all_successful() {
-        let responses = vec![IDKitResponseItem::v4_success(
-            CredentialType::Orb,
-            "0xproof".to_string(),
-            "0xnullifier".to_string(),
-            "0xroot".to_string(),
-            1_700_000_000,
-            "0x1".to_string(),
-        )];
-
-        let result = IDKitResult::new(responses);
-        assert!(result.is_all_successful());
     }
 
     #[test]
@@ -1375,7 +1291,7 @@ mod tests {
             "0x1".to_string(),
         )];
 
-        let result = IDKitResult::with_session_id("session-abc", responses);
+        let result = IDKitResult::new(Some("session-abc".to_string()), responses);
         let json = serde_json::to_string(&result).unwrap();
 
         assert!(json.contains(r#""session_id":"session-abc""#));
@@ -1383,6 +1299,32 @@ mod tests {
 
         let deserialized: IDKitResult = serde_json::from_str(&json).unwrap();
         assert_eq!(result, deserialized);
+    }
+
+    #[test]
+    fn test_credential_type_from_issuer_schema_id() {
+        assert_eq!(
+            CredentialType::from_issuer_schema_id(1),
+            Some(CredentialType::Orb)
+        );
+        assert_eq!(
+            CredentialType::from_issuer_schema_id(2),
+            Some(CredentialType::Face)
+        );
+        assert_eq!(
+            CredentialType::from_issuer_schema_id(3),
+            Some(CredentialType::SecureDocument)
+        );
+        assert_eq!(
+            CredentialType::from_issuer_schema_id(4),
+            Some(CredentialType::Document)
+        );
+        assert_eq!(
+            CredentialType::from_issuer_schema_id(5),
+            Some(CredentialType::Device)
+        );
+        assert_eq!(CredentialType::from_issuer_schema_id(0), None);
+        assert_eq!(CredentialType::from_issuer_schema_id(99), None);
     }
 
     // BridgeUrl validation tests

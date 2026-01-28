@@ -3,7 +3,6 @@
 use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
-    issuer_schema::issuer_schema_id_to_credential,
     preset::Preset,
     protocol_types::ProofRequest,
     types::{
@@ -127,9 +126,10 @@ impl V4BridgeResponse {
             .responses
             .into_iter()
             .map(|item| {
-                // Try to parse issuer_schema_id as a FieldElement to map to CredentialType
-                let credential_type =
-                    parse_credential_type(&item.issuer_schema_id).unwrap_or(CredentialType::Orb); // Default to Orb if parsing fails
+                // Parse issuer_schema_id as hex u64 to map to CredentialType
+                let credential_type = Self::parse_issuer_schema_id(&item.issuer_schema_id)
+                    .and_then(CredentialType::from_issuer_schema_id)
+                    .unwrap_or(CredentialType::Orb); // Default to Orb if parsing fails
 
                 if let Some(error) = item.error {
                     IDKitResponseItem::failure(credential_type, error)
@@ -158,31 +158,15 @@ impl V4BridgeResponse {
             })
             .collect();
 
-        if let Some(session_id) = self.session_id {
-            IDKitResult::with_session_id(session_id, responses)
-        } else {
-            IDKitResult::new(responses)
-        }
+        IDKitResult::new(self.session_id, responses)
     }
-}
 
-/// Parse credential type from `issuer_schema_id` string
-fn parse_credential_type(issuer_schema_id: &str) -> Option<CredentialType> {
-    // Try to parse as hex field element
-    let clean_id = issuer_schema_id
-        .strip_prefix("0x")
-        .unwrap_or(issuer_schema_id);
-    let value = u64::from_str_radix(clean_id, 16).ok()?;
-    let field_element = FieldElement::from(value);
-
-    let cred_str = issuer_schema_id_to_credential(&field_element)?;
-    match cred_str {
-        "orb" => Some(CredentialType::Orb),
-        "face" => Some(CredentialType::Face),
-        "secure_document" => Some(CredentialType::SecureDocument),
-        "document" => Some(CredentialType::Document),
-        "device" => Some(CredentialType::Device),
-        _ => None,
+    /// Parse `issuer_schema_id` string as hex u64
+    fn parse_issuer_schema_id(issuer_schema_id: &str) -> Option<u64> {
+        let clean_id = issuer_schema_id
+            .strip_prefix("0x")
+            .unwrap_or(issuer_schema_id);
+        u64::from_str_radix(clean_id, 16).ok()
     }
 }
 
@@ -476,7 +460,7 @@ impl Session {
                             proof.merkle_root,
                             proof.nullifier_hash,
                         );
-                        let result = IDKitResult::new(vec![response_item]);
+                        let result = IDKitResult::new(None, vec![response_item]);
                         Ok(Status::Confirmed(result))
                     }
                 }
@@ -930,8 +914,11 @@ mod tests {
         let result = response.into_idkit_result();
 
         assert_eq!(result.responses.len(), 3);
-        assert_eq!(result.success_count(), 2);
-        assert_eq!(result.failure_count(), 1);
+        assert_eq!(
+            result.responses.iter().filter(|r| r.is_success()).count(),
+            2
+        );
+        assert_eq!(result.responses.iter().filter(|r| r.is_error()).count(), 1);
 
         assert_eq!(result.responses[0].credential_type, CredentialType::Orb);
         assert!(result.responses[0].is_success());
@@ -986,16 +973,19 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_credential_type() {
-        assert_eq!(parse_credential_type("0x1"), Some(CredentialType::Orb));
-        assert_eq!(parse_credential_type("0x2"), Some(CredentialType::Face));
-        assert_eq!(
-            parse_credential_type("0x3"),
-            Some(CredentialType::SecureDocument)
-        );
-        assert_eq!(parse_credential_type("0x4"), Some(CredentialType::Document));
-        assert_eq!(parse_credential_type("0x5"), Some(CredentialType::Device));
-        assert_eq!(parse_credential_type("1"), Some(CredentialType::Orb));
-        assert_eq!(parse_credential_type("0x99"), None);
+    fn test_credential_type_from_issuer_schema_id() {
+        // Test via V4BridgeResponse::parse_issuer_schema_id + CredentialType::from_issuer_schema_id
+        fn parse(s: &str) -> Option<CredentialType> {
+            V4BridgeResponse::parse_issuer_schema_id(s)
+                .and_then(CredentialType::from_issuer_schema_id)
+        }
+
+        assert_eq!(parse("0x1"), Some(CredentialType::Orb));
+        assert_eq!(parse("0x2"), Some(CredentialType::Face));
+        assert_eq!(parse("0x3"), Some(CredentialType::SecureDocument));
+        assert_eq!(parse("0x4"), Some(CredentialType::Document));
+        assert_eq!(parse("0x5"), Some(CredentialType::Device));
+        assert_eq!(parse("1"), Some(CredentialType::Orb));
+        assert_eq!(parse("0x99"), None);
     }
 }

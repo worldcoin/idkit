@@ -44,17 +44,8 @@ export type {
   LegacyProofData,
 } from "./types/result";
 
-// Type guards and helper functions
-export {
-  isV4Proof,
-  isLegacyProof,
-  firstSuccessful,
-  allSuccessful,
-  isAllSuccessful,
-  hasAnySuccessful,
-  successCount,
-  failureCount,
-} from "./types/result";
+// Type guards
+export { isV4Proof, isLegacyProof } from "./types/result";
 export {
   AppErrorCodes,
   VerificationState,

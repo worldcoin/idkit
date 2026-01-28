@@ -10,7 +10,7 @@ import type {
   CredentialRequestType,
   RpContext,
 } from "./types/config";
-import type { ISuccessResult, IDKitResult } from "./types/result";
+import type { IDKitResult } from "./types/result";
 import { AppErrorCodes } from "./types/bridge";
 import { WasmModule, initIDKit } from "./lib/wasm";
 
@@ -31,8 +31,6 @@ export interface Status {
     | "awaiting_confirmation"
     | "confirmed"
     | "failed";
-  /** @deprecated Use `result` instead for World ID 4.0 unified responses */
-  proof?: ISuccessResult;
   /** Unified result with all credential responses (World ID 4.0) */
   result?: IDKitResult;
   error?: AppErrorCodes;
@@ -56,14 +54,9 @@ export interface Session {
   pollOnce(): Promise<Status>;
   /**
    * Poll continuously until completion or timeout
-   * @deprecated Use `pollForResult()` instead for World ID 4.0 unified responses
-   */
-  pollForUpdates(options?: WaitOptions): Promise<ISuccessResult>;
-  /**
-   * Poll continuously until completion or timeout (World ID 4.0)
    * Returns the unified IDKitResult with all credential responses
    */
-  pollForResult(options?: WaitOptions): Promise<IDKitResult>;
+  pollForUpdates(options?: WaitOptions): Promise<IDKitResult>;
 }
 
 /**
@@ -92,68 +85,7 @@ class SessionImpl implements Session {
     return (await this.wasmSession.pollForStatus()) as Status;
   }
 
-  async pollForUpdates(options?: WaitOptions): Promise<ISuccessResult> {
-    const pollInterval = options?.pollInterval ?? 1000;
-    const timeout = options?.timeout ?? 300000; // 5 minutes default
-    const startTime = Date.now();
-
-    while (true) {
-      // Check for cancellation
-      if (options?.signal?.aborted) {
-        throw new Error("Verification cancelled");
-      }
-
-      // Check timeout
-      if (Date.now() - startTime > timeout) {
-        throw new Error(`Timeout waiting for proof after ${timeout}ms`);
-      }
-
-      // Poll status
-      const status = await this.pollOnce();
-
-      if (status.type === "confirmed") {
-        // Handle both legacy proof and new result formats
-        if (status.proof) {
-          return status.proof;
-        }
-        // Convert IDKitResult to legacy ISuccessResult format
-        if (status.result && status.result.responses.length > 0) {
-          const firstSuccess = status.result.responses.find(
-            (r) => r.proof_data,
-          );
-          if (firstSuccess?.proof_data) {
-            const pd = firstSuccess.proof_data;
-            if (pd.type === "legacy") {
-              return {
-                proof: pd.proof,
-                merkle_root: pd.merkle_root,
-                nullifier_hash: pd.nullifier_hash,
-                verification_level: firstSuccess.credential_type,
-              };
-            } else {
-              // V4 proof - convert to legacy format
-              return {
-                proof: pd.proof,
-                merkle_root: pd.merkle_root,
-                nullifier_hash: pd.nullifier,
-                verification_level: firstSuccess.credential_type,
-              };
-            }
-          }
-        }
-      }
-
-      if (status.type === "failed") {
-        const errorCode = status.error ?? AppErrorCodes.GenericError;
-        throw new Error(`Verification failed: ${errorCode}`);
-      }
-
-      // Wait before next poll
-      await new Promise((resolve) => setTimeout(resolve, pollInterval));
-    }
-  }
-
-  async pollForResult(options?: WaitOptions): Promise<IDKitResult> {
+  async pollForUpdates(options?: WaitOptions): Promise<IDKitResult> {
     const pollInterval = options?.pollInterval ?? 1000;
     const timeout = options?.timeout ?? 300000; // 5 minutes default
     const startTime = Date.now();
