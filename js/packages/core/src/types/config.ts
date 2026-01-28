@@ -54,9 +54,9 @@ export type RpContext = {
 };
 
 /**
- * Configuration for verify()
+ * Configuration for IDKit.request()
  */
-export type VerifyConfig = {
+export type IDKitRequestConfig = {
   /** Unique identifier for the app verifying the action. This should be the app ID obtained from the Developer Portal. */
   app_id: `app_${string}`;
   /** Identifier for the action the user is performing. Should be left blank for [Sign in with Worldcoin](https://docs.world.org/id/sign-in). */

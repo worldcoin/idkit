@@ -133,11 +133,11 @@ func allOfConvenience() throws {
     #expect(!json.isEmpty)
 }
 
-// MARK: - Session Creation Tests
-// Note: These tests verify API shape, actual sessions need valid credentials
+// MARK: - IDKitRequest Creation Tests
+// Note: These tests verify API shape, actual requests need valid credentials
 
-@Test("verify() builder API shape")
-func verifyBuilderAPIShape() {
+@Test("request() builder API shape")
+func requestBuilderAPIShape() {
     // Create a test RpContext (in production this would come from your backend)
     // Note: RpId must be "rp_" followed by exactly 16 hex characters
     let rpContext = try! RpContext(
@@ -148,7 +148,7 @@ func verifyBuilderAPIShape() {
         signature: "test-signature"
     )
 
-    let config = VerifyConfig(
+    let config = IDKitRequestConfig(
         appId: "app_test_invalid",
         action: "test",
         rpContext: rpContext,
@@ -157,7 +157,7 @@ func verifyBuilderAPIShape() {
     )
 
     // This will throw without valid credentials - verify API exists
-    let builder = verify(config: config)
+    let builder = IDKit.request(config: config)
     _ = try? builder.constraints(constraints: anyOf(CredentialRequest.create(.orb)))
 
     // If we reach here without crashing, the API exists
@@ -175,8 +175,8 @@ func orbLegacyPresetHelper() {
     }
 }
 
-@Test("verify().preset() API shape")
-func verifyPresetAPIShape() {
+@Test("request().preset() API shape")
+func requestPresetAPIShape() {
     let rpContext = try! RpContext(
         rpId: "rp_1234567890abcdef",
         nonce: "test-nonce",
@@ -185,7 +185,7 @@ func verifyPresetAPIShape() {
         signature: "test-signature"
     )
 
-    let config = VerifyConfig(
+    let config = IDKitRequestConfig(
         appId: "app_test_invalid",
         action: "test",
         rpContext: rpContext,
@@ -194,7 +194,7 @@ func verifyPresetAPIShape() {
     )
 
     // This will throw without valid credentials - verify API exists
-    let builder = verify(config: config)
+    let builder = IDKit.request(config: config)
     _ = try? builder.preset(preset: orbLegacy())
 
     // If we reach here without crashing, the API exists

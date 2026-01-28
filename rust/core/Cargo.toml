@@ -34,6 +34,7 @@ wasm-bindgen-futures = { workspace = true, optional = true }
 js-sys = { workspace = true, optional = true }
 web-sys = { workspace = true, optional = true }
 serde-wasm-bindgen = { version = "0.6", optional = true }
+console_error_panic_hook = { workspace = true, optional = true }
 
 # Platform-specific HTTP client
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -54,7 +55,7 @@ rp-signature = ["k256"]      # RP signature generation (ECDSA secp256k1)
 # Language bindings
 ffi = ["uniffi", "native-crypto", "bridge", "dep:tokio"]  # Enable UniFFI scaffolding for Swift/Kotlin bindings
 uniffi-bindings = ["ffi"]  # Deprecated alias for ffi feature
-wasm-bindings = ["wasm-crypto", "bridge-wasm", "rp-signature", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys", "dep:serde-wasm-bindgen"]  # Enable WASM bindings
+wasm-bindings = ["wasm-crypto", "bridge-wasm", "rp-signature", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys", "dep:serde-wasm-bindgen", "dep:console_error_panic_hook"]  # Enable WASM bindings
 
 # Protocol features
 bridge = ["uuid/v4", "reqwest", "dep:tokio", "dep:urlencoding"]   # Bridge client and session management for verifications

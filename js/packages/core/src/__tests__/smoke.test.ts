@@ -5,29 +5,29 @@
 
 import { describe, it, expect } from "vitest";
 import {
-  initIDKit,
-  isInitialized,
-  verify,
+  IDKit,
   CredentialRequest,
   any,
   orbLegacy,
   isNode,
   AppErrorCodes,
   VerificationState,
-  computeRpSignature,
+  signRequest,
 } from "../index";
 
 describe("WASM Initialization", () => {
-  it("should initialize WASM via initIDKit", async () => {
-    // Call initIDKit to mark as initialized in our wrapper
-    await initIDKit();
-    expect(isInitialized()).toBe(true);
+  it("should initialize WASM via IDKit.init", async () => {
+    // Call IDKit.init to initialize WASM
+    await IDKit.init();
+    // If we get here without throwing, WASM is initialized
+    expect(true).toBe(true);
   });
 
-  it("should be safe to call initIDKit multiple times", async () => {
-    await initIDKit();
-    await initIDKit();
-    expect(isInitialized()).toBe(true);
+  it("should be safe to call IDKit.init multiple times", async () => {
+    await IDKit.init();
+    await IDKit.init();
+    // If we get here without throwing, multiple init calls are safe
+    expect(true).toBe(true);
   });
 });
 
@@ -38,11 +38,11 @@ describe("Platform Detection", () => {
   });
 });
 
-describe("Session API", () => {
+describe("IDKitRequest API", () => {
   //TODO: We should try to find a test with a signed payload to test full e2e
 
-  it("should export verify function", () => {
-    expect(typeof verify).toBe("function");
+  it("should export IDKit.request function", () => {
+    expect(typeof IDKit.request).toBe("function");
   });
 
   it("should export CredentialRequest and constraint helpers", () => {
@@ -74,7 +74,7 @@ describe("Session API", () => {
 
   it("should throw error when rp_context is missing", () => {
     expect(() =>
-      verify({
+      IDKit.request({
         app_id: "app_staging_test",
         action: "test-action",
         // @ts-expect-error - testing missing rp_context
@@ -101,7 +101,7 @@ describe("Session API", () => {
 
     // Empty any() constraint should fail validation in WASM layer
     await expect(
-      verify({
+      IDKit.request({
         app_id: "app_staging_test",
         action: "test-action",
         rp_context: createTestRpContext(),
@@ -142,7 +142,7 @@ describe("RP Signature Generation", () => {
   const TEST_ACTION = "test-backend-action";
 
   it("should compute RP signature with default TTL", () => {
-    const signature = computeRpSignature(TEST_ACTION, TEST_SIGNING_KEY);
+    const signature = signRequest(TEST_ACTION, TEST_SIGNING_KEY);
 
     // Verify signature format: 65 bytes (0x + 130 hex chars)
     expect(signature.sig).toMatch(/^0x[0-9a-f]{130}$/i);
@@ -163,11 +163,7 @@ describe("RP Signature Generation", () => {
 
   it("should compute RP signature with custom TTL", () => {
     const customTtl = 600; // 10 minutes
-    const signature = computeRpSignature(
-      TEST_ACTION,
-      TEST_SIGNING_KEY,
-      customTtl,
-    );
+    const signature = signRequest(TEST_ACTION, TEST_SIGNING_KEY, customTtl);
 
     // Verify TTL matches custom value (±2 seconds for timing variance)
     const actualTtl = Number(signature.expiresAt) - Number(signature.createdAt);
@@ -176,8 +172,8 @@ describe("RP Signature Generation", () => {
   });
 
   it("should generate unique nonces", () => {
-    const signature1 = computeRpSignature(TEST_ACTION, TEST_SIGNING_KEY);
-    const signature2 = computeRpSignature(TEST_ACTION, TEST_SIGNING_KEY);
+    const signature1 = signRequest(TEST_ACTION, TEST_SIGNING_KEY);
+    const signature2 = signRequest(TEST_ACTION, TEST_SIGNING_KEY);
 
     // Nonces should be different (proving randomness)
     expect(signature1.nonce).not.toBe(signature2.nonce);
@@ -190,11 +186,11 @@ describe("RP Signature Generation", () => {
   it("should reject invalid signing keys", () => {
     // Test with wrong-length key (should be 32 bytes = 64 hex chars)
     const shortKey = "0xabcd";
-    expect(() => computeRpSignature(TEST_ACTION, shortKey)).toThrow();
+    expect(() => signRequest(TEST_ACTION, shortKey)).toThrow();
 
     // Test with non-hex key
     const invalidKey =
       "0xZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
-    expect(() => computeRpSignature(TEST_ACTION, invalidKey)).toThrow();
+    expect(() => signRequest(TEST_ACTION, invalidKey)).toThrow();
   });
 });

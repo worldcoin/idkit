@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.flow
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import uniffi.idkit_core.CredentialRequest
-import uniffi.idkit_core.SessionWrapper
+import uniffi.idkit_core.IDKitRequestWrapper
 import uniffi.idkit_core.Signal
 import uniffi.idkit_core.StatusWrapper
 import uniffi.idkit_core.CredentialType
@@ -40,11 +40,11 @@ val Signal.string: String?
     get() = this.asString()
 
 /**
- * Flow-based status helper for SessionWrapper.
+ * Flow-based status helper for IDKitRequestWrapper.
  *
  * @param pollInterval How long to wait between polls.
  */
-fun SessionWrapper.statusFlow(pollInterval: Duration = 3.seconds): Flow<StatusWrapper> = flow {
+fun IDKitRequestWrapper.statusFlow(pollInterval: Duration = 3.seconds): Flow<StatusWrapper> = flow {
     var last: StatusWrapper? = null
 
     while (true) {

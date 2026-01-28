@@ -4,6 +4,23 @@ import Foundation
 public enum IDKit {
     /// Version of the IDKit SDK
     public static let version = "4.0.1"
+
+    /// Creates a new IDKit request builder
+    ///
+    /// This is the main entry point for creating World ID verification requests.
+    /// Use the builder pattern with constraints to specify which credentials to accept.
+    ///
+    /// - Parameter config: Request configuration
+    /// - Returns: An IDKitRequestBuilder instance
+    ///
+    /// Example:
+    /// ```swift
+    /// let request = try IDKit.request(config: config)
+    ///     .constraints(anyOf(CredentialRequest.create(.orb), CredentialRequest.create(.face)))
+    /// ```
+    public static func request(config: IDKitRequestConfig) -> IDKitRequestBuilder {
+        IDKitRequestBuilder(config: config)
+    }
 }
 
 // MARK: - CredentialRequest convenience extension
@@ -133,7 +150,7 @@ public func allOf(nodes: [ConstraintNode]) -> ConstraintNode {
 ///
 /// Example:
 /// ```swift
-/// let session = try verify(config: config).preset(preset: orbLegacy(signal: "user-123"))
+/// let request = try IDKit.request(config: config).preset(preset: orbLegacy(signal: "user-123"))
 /// ```
 public func orbLegacy(signal: String? = nil) -> Preset {
     .orbLegacy(OrbLegacyPreset(signal: signal))

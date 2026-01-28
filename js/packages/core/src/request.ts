@@ -1,10 +1,10 @@
 /**
- * IDKit Session
+ * IDKit Request
  * Pure functional API for World ID verification - no dependencies
  */
 
 import type {
-  VerifyConfig,
+  IDKitRequestConfig,
   ConstraintNode,
   CredentialType,
   CredentialRequestType,
@@ -12,7 +12,7 @@ import type {
 } from "./types/config";
 import type { ISuccessResult } from "./types/result";
 import { AppErrorCodes } from "./types/bridge";
-import { WasmModule, initIDKit } from "./lib/wasm";
+import { WasmModule, initIDKit, initIDKitServer } from "./lib/wasm";
 
 /** Options for pollForUpdates() */
 export interface WaitOptions {
@@ -39,12 +39,12 @@ export interface Status {
 export type { RpContext };
 
 /**
- * A World ID verification session
+ * A World ID verification request
  *
  * Provides a clean, promise-based API for World ID verification flows.
- * Each session represents a single verification attempt.
+ * Each request represents a single verification attempt.
  */
-export interface Session {
+export interface IDKitRequest {
   /** QR code URL for World App - display this as a QR code for users to scan */
   readonly connectorURI: string;
   /** Unique request ID for this verification */
@@ -56,17 +56,17 @@ export interface Session {
 }
 
 /**
- * Internal session implementation
+ * Internal request implementation
  */
-class SessionImpl implements Session {
-  private wasmSession: WasmModule.Session;
+class IDKitRequestImpl implements IDKitRequest {
+  private wasmRequest: WasmModule.IDKitRequest;
   private _connectorURI: string;
   private _requestId: string;
 
-  constructor(wasmSession: WasmModule.Session) {
-    this.wasmSession = wasmSession;
-    this._connectorURI = wasmSession.connectUrl();
-    this._requestId = wasmSession.requestId();
+  constructor(wasmRequest: WasmModule.IDKitRequest) {
+    this.wasmRequest = wasmRequest;
+    this._connectorURI = wasmRequest.connectUrl();
+    this._requestId = wasmRequest.requestId();
   }
 
   get connectorURI(): string {
@@ -78,7 +78,7 @@ class SessionImpl implements Session {
   }
 
   async pollOnce(): Promise<Status> {
-    return (await this.wasmSession.pollForStatus()) as Status;
+    return (await this.wasmRequest.pollForStatus()) as Status;
   }
 
   async pollForUpdates(options?: WaitOptions): Promise<ISuccessResult> {
@@ -210,32 +210,32 @@ export function orbLegacy(opts: { signal?: string } = {}): OrbLegacyPreset {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VerifyBuilder
+// IDKitRequestBuilder
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Builder for creating verification sessions
+ * Builder for creating IDKit requests
  */
-class VerifyBuilder {
-  private config: VerifyConfig;
+class IDKitRequestBuilder {
+  private config: IDKitRequestConfig;
 
-  constructor(config: VerifyConfig) {
+  constructor(config: IDKitRequestConfig) {
     this.config = config;
   }
 
   /**
-   * Creates a verification session with the given constraints
+   * Creates an IDKit request with the given constraints
    *
    * @param constraints - Constraint tree (CredentialRequest or any/all combinators)
-   * @returns A new Session instance
+   * @returns A new IDKitRequest instance
    *
    * @example
    * ```typescript
-   * const session = await verify({ app_id, action, rp_context })
+   * const request = await IDKit.request({ app_id, action, rp_context })
    *   .constraints(any(CredentialRequest('orb'), CredentialRequest('face')))
    * ```
    */
-  async constraints(constraints: ConstraintNode): Promise<Session> {
+  async constraints(constraints: ConstraintNode): Promise<IDKitRequest> {
     // Ensure WASM is initialized
     await initIDKit();
 
@@ -248,8 +248,8 @@ class VerifyBuilder {
       this.config.rp_context.signature,
     );
 
-    // Create WASM VerifyBuilder and call constraints
-    const wasmBuilder = WasmModule.verify(
+    // Create WASM IDKitRequestBuilder and call constraints
+    const wasmBuilder = WasmModule.request(
       this.config.app_id,
       String(this.config.action),
       rpContext,
@@ -257,30 +257,30 @@ class VerifyBuilder {
       this.config.bridge_url ?? null,
     );
 
-    const wasmSession = (await wasmBuilder.constraints(
+    const wasmRequest = (await wasmBuilder.constraints(
       constraints,
-    )) as unknown as WasmModule.Session;
+    )) as unknown as WasmModule.IDKitRequest;
 
-    return new SessionImpl(wasmSession);
+    return new IDKitRequestImpl(wasmRequest);
   }
 
   /**
-   * Creates a verification session from a preset
+   * Creates an IDKit request from a preset
    *
-   * Presets provide a simplified way to create sessions with predefined
+   * Presets provide a simplified way to create requests with predefined
    * credential configurations. The preset is converted to both World ID 4.0
    * constraints and World ID 3.0 legacy fields for backward compatibility.
    *
    * @param preset - A preset object from orbLegacy()
-   * @returns A new Session instance
+   * @returns A new IDKitRequest instance
    *
    * @example
    * ```typescript
-   * const session = await verify({ app_id, action, rp_context })
+   * const request = await IDKit.request({ app_id, action, rp_context })
    *   .preset(orbLegacy({ signal: 'user-123' }))
    * ```
    */
-  async preset(preset: Preset): Promise<Session> {
+  async preset(preset: Preset): Promise<IDKitRequest> {
     // Ensure WASM is initialized
     await initIDKit();
 
@@ -293,8 +293,8 @@ class VerifyBuilder {
       this.config.rp_context.signature,
     );
 
-    // Create WASM VerifyBuilder and call preset
-    const wasmBuilder = WasmModule.verify(
+    // Create WASM IDKitRequestBuilder and call preset
+    const wasmBuilder = WasmModule.request(
       this.config.app_id,
       String(this.config.action),
       rpContext,
@@ -302,36 +302,36 @@ class VerifyBuilder {
       this.config.bridge_url ?? null,
     );
 
-    const wasmSession = (await wasmBuilder.preset(
+    const wasmRequest = (await wasmBuilder.preset(
       preset,
-    )) as unknown as WasmModule.Session;
+    )) as unknown as WasmModule.IDKitRequest;
 
-    return new SessionImpl(wasmSession);
+    return new IDKitRequestImpl(wasmRequest);
   }
 }
 
 /**
- * Creates a verification builder
+ * Creates an IDKit request builder
  *
- * This is the main entry point for creating World ID verification sessions.
+ * This is the main entry point for creating World ID verification requests.
  * Use the builder pattern with constraints to specify which credentials to accept.
  *
- * @param config - Verification configuration
- * @returns A VerifyBuilder instance
+ * @param config - Request configuration
+ * @returns An IDKitRequestBuilder instance
  *
  * @example
  * ```typescript
- * import { verify, CredentialRequest, any, initIDKit } from '@worldcoin/idkit-core'
+ * import { IDKit, CredentialRequest, any } from '@worldcoin/idkit-core'
  *
  * // Initialize WASM (only needed once)
- * await initIDKit()
+ * await IDKit.init()
  *
  * // Create request items
  * const orb = CredentialRequest('orb', { signal: 'user-123' })
  * const face = CredentialRequest('face')
  *
- * // Create a verification session with constraints
- * const session = await verify({
+ * // Create a verification request with constraints
+ * const request = await IDKit.request({
  *   app_id: 'app_staging_xxxxx',
  *   action: 'my-action',
  *   rp_context: {
@@ -344,14 +344,14 @@ class VerifyBuilder {
  * }).constraints(any(orb, face))
  *
  * // Display QR code
- * console.log('Scan this:', session.connectorURI)
+ * console.log('Scan this:', request.connectorURI)
  *
  * // Wait for proof
- * const proof = await session.pollForUpdates()
+ * const proof = await request.pollForUpdates()
  * console.log('Success:', proof)
  * ```
  */
-export function verify(config: VerifyConfig): VerifyBuilder {
+function createRequest(config: IDKitRequestConfig): IDKitRequestBuilder {
   // Validate required fields
   if (!config.app_id) {
     throw new Error("app_id is required");
@@ -363,5 +363,44 @@ export function verify(config: VerifyConfig): VerifyBuilder {
     throw new Error("rp_context is required");
   }
 
-  return new VerifyBuilder(config);
+  return new IDKitRequestBuilder(config);
 }
+
+/**
+ * IDKit namespace providing the main API entry points
+ *
+ * @example
+ * ```typescript
+ * import { IDKit, CredentialRequest, any } from '@worldcoin/idkit-core'
+ *
+ * // Initialize (only needed once)
+ * await IDKit.init()
+ *
+ * // Create a request
+ * const request = await IDKit.request({
+ *   app_id: 'app_staging_xxxxx',
+ *   action: 'my-action',
+ *   rp_context: { ... },
+ * }).constraints(any(CredentialRequest('orb'), CredentialRequest('face')))
+ *
+ * // Display QR and wait for proof
+ * console.log(request.connectorURI)
+ * const proof = await request.pollForUpdates()
+ * ```
+ */
+export const IDKit = {
+  /** Initialize WASM for browser environments */
+  init: initIDKit,
+  /** Initialize WASM for Node.js/server environments */
+  initServer: initIDKitServer,
+  /** Create a new verification request */
+  request: createRequest,
+  /** Create a CredentialRequest for a credential type */
+  CredentialRequest,
+  /** Create an OR constraint - at least one child must be satisfied */
+  any,
+  /** Create an AND constraint - all children must be satisfied */
+  all,
+  /** Create an OrbLegacy preset for World ID 3.0 legacy support */
+  orbLegacy,
+};

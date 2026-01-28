@@ -1,4 +1,4 @@
-//! Session management for World ID verification with the [Wallet Bridge](https://github.com/worldcoin/wallet-bridge).
+//! `IDKitRequest` management for World ID verification with the [Wallet Bridge](https://github.com/worldcoin/wallet-bridge).
 
 use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
@@ -104,10 +104,10 @@ pub enum Status {
     Failed(AppError),
 }
 
-/// A World ID verification session
+/// A World ID verification request
 ///
 /// Manages the verification flow with World App via the bridge.
-pub struct Session {
+pub struct IDKitRequest {
     bridge_url: BridgeUrl,
     #[cfg(feature = "native-crypto")]
     key: CryptoKey,
@@ -116,8 +116,8 @@ pub struct Session {
     client: reqwest::Client,
 }
 
-impl Session {
-    /// Creates a new session with constraint-based configuration
+impl IDKitRequest {
+    /// Creates a new request with constraint-based configuration
     ///
     /// # Arguments
     ///
@@ -130,7 +130,7 @@ impl Session {
     ///
     /// # Errors
     ///
-    /// Returns an error if the session cannot be created or the request fails
+    /// Returns an error if the request cannot be created or the bridge call fails
     #[allow(clippy::too_many_arguments)]
     pub async fn create(
         app_id: AppId,
@@ -164,8 +164,8 @@ impl Session {
         let action = FieldElement::from_arbitrary_raw_bytes(action_str.as_bytes());
         let signature = Signature::from_str(&rp_context.signature)
             .map_err(|_| Error::InvalidConfiguration("Invalid signature".to_string()))?;
-        // TODO: Once we add a utility function for rp signature and nonce generation, update this
-        let nonce = FieldElement::from_arbitrary_raw_bytes(rp_context.nonce.as_bytes());
+        let nonce = FieldElement::from_str(&rp_context.nonce)
+            .map_err(|_| Error::InvalidConfiguration("Invalid nonce format".to_string()))?;
         let proof_request = ProofRequest::new(
             rp_context.created_at,
             rp_context.expires_at,
@@ -247,9 +247,9 @@ impl Session {
         })
     }
 
-    /// Creates a new session from a preset
+    /// Creates a new request from a preset
     ///
-    /// Presets provide a simplified way to create sessions with predefined
+    /// Presets provide a simplified way to create requests with predefined
     /// credential configurations. The preset is converted to both World ID 4.0
     /// requests and World ID 3.0 legacy fields for backward compatibility.
     ///
@@ -264,7 +264,7 @@ impl Session {
     ///
     /// # Errors
     ///
-    /// Returns an error if the session cannot be created or the request fails
+    /// Returns an error if the request cannot be created or the bridge call fails
     pub async fn create_from_preset(
         app_id: AppId,
         action: impl Into<String>,
@@ -355,7 +355,7 @@ impl Session {
         }
     }
 
-    /// Returns the request ID for this session
+    /// Returns the request ID for this request
     #[must_use]
     pub const fn request_id(&self) -> Uuid {
         self.request_id
@@ -366,10 +366,10 @@ impl Session {
 // UniFFI bindings
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Configuration for `verify()`
+/// Configuration for `request()`
 #[cfg(feature = "ffi")]
 #[derive(Clone, uniffi::Record)]
-pub struct VerifyConfig {
+pub struct IDKitRequestConfig {
     /// Application ID from the Developer Portal
     pub app_id: String,
     /// Action identifier
@@ -382,33 +382,33 @@ pub struct VerifyConfig {
     pub bridge_url: Option<String>,
 }
 
-/// Builder for creating verification sessions
+/// Builder for creating `IDKit` requests
 #[cfg(feature = "ffi")]
 #[derive(uniffi::Object)]
-pub struct VerifyBuilder {
-    config: VerifyConfig,
+pub struct IDKitRequestBuilder {
+    config: IDKitRequestConfig,
 }
 
 #[cfg(feature = "ffi")]
 #[uniffi::export]
-impl VerifyBuilder {
-    /// Creates a new `VerifyBuilder` with the given configuration
+impl IDKitRequestBuilder {
+    /// Creates a new `IDKitRequestBuilder` with the given configuration
     #[must_use]
     #[uniffi::constructor]
-    pub fn new(config: VerifyConfig) -> Arc<Self> {
+    pub fn new(config: IDKitRequestConfig) -> Arc<Self> {
         Arc::new(Self { config })
     }
 
-    /// Creates a verification session with the given constraints
+    /// Creates an `IDKit` request with the given constraints
     ///
     /// # Errors
     ///
-    /// Returns an error if the session cannot be created
+    /// Returns an error if the request cannot be created
     #[allow(clippy::needless_pass_by_value)]
     pub fn constraints(
         &self,
         constraints: Arc<ConstraintNode>,
-    ) -> std::result::Result<Arc<SessionWrapper>, crate::error::IdkitError> {
+    ) -> std::result::Result<Arc<IDKitRequestWrapper>, crate::error::IdkitError> {
         let runtime =
             tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
                 details: format!("Failed to create runtime: {e}"),
@@ -424,7 +424,7 @@ impl VerifyBuilder {
         let rp_context = (*self.config.rp_context).clone();
 
         let inner = runtime
-            .block_on(Session::create(
+            .block_on(IDKitRequest::create(
                 app_id,
                 &self.config.action,
                 (*constraints).clone(),
@@ -436,23 +436,23 @@ impl VerifyBuilder {
             ))
             .map_err(crate::error::IdkitError::from)?;
 
-        Ok(Arc::new(SessionWrapper { runtime, inner }))
+        Ok(Arc::new(IDKitRequestWrapper { runtime, inner }))
     }
 
-    /// Creates a verification session from a preset
+    /// Creates an `IDKit` request from a preset
     ///
-    /// Presets provide a simplified way to create sessions with predefined
+    /// Presets provide a simplified way to create requests with predefined
     /// credential configurations. The preset is converted to both World ID 4.0
     /// constraints and World ID 3.0 legacy fields for backward compatibility.
     ///
     /// # Errors
     ///
-    /// Returns an error if the session cannot be created
+    /// Returns an error if the request cannot be created
     #[allow(clippy::needless_pass_by_value)]
     pub fn preset(
         &self,
         preset: Preset,
-    ) -> std::result::Result<Arc<SessionWrapper>, crate::error::IdkitError> {
+    ) -> std::result::Result<Arc<IDKitRequestWrapper>, crate::error::IdkitError> {
         let runtime =
             tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
                 details: format!("Failed to create runtime: {e}"),
@@ -471,7 +471,7 @@ impl VerifyBuilder {
         let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
 
         let inner = runtime
-            .block_on(Session::create(
+            .block_on(IDKitRequest::create(
                 app_id,
                 &self.config.action,
                 constraints,
@@ -483,24 +483,24 @@ impl VerifyBuilder {
             ))
             .map_err(crate::error::IdkitError::from)?;
 
-        Ok(Arc::new(SessionWrapper { runtime, inner }))
+        Ok(Arc::new(IDKitRequestWrapper { runtime, inner }))
     }
 }
 
-/// Entry point for creating verification sessions
+/// Entry point for creating `IDKit` requests
 #[cfg(feature = "ffi")]
 #[must_use]
 #[uniffi::export]
-pub fn verify(config: VerifyConfig) -> Arc<VerifyBuilder> {
-    VerifyBuilder::new(config)
+pub fn request(config: IDKitRequestConfig) -> Arc<IDKitRequestBuilder> {
+    IDKitRequestBuilder::new(config)
 }
 
-// UniFFI wrapper for Session with tokio runtime
+// UniFFI wrapper for IDKitRequest with tokio runtime
 #[cfg(feature = "ffi")]
 #[derive(uniffi::Object)]
-pub struct SessionWrapper {
+pub struct IDKitRequestWrapper {
     runtime: tokio::runtime::Runtime,
-    inner: Session,
+    inner: IDKitRequest,
 }
 
 #[cfg(feature = "ffi")]
@@ -533,20 +533,20 @@ impl From<Status> for StatusWrapper {
 #[cfg(feature = "ffi")]
 #[uniffi::export]
 #[allow(clippy::needless_pass_by_value)]
-impl SessionWrapper {
+impl IDKitRequestWrapper {
     /// Returns the connect URL for World App
     #[must_use]
     pub fn connect_url(&self) -> String {
         self.inner.connect_url()
     }
 
-    /// Returns the request ID for this session
+    /// Returns the request ID for this request
     #[must_use]
     pub fn request_id(&self) -> String {
         self.inner.request_id().to_string()
     }
 
-    /// Polls the session for updates until completion
+    /// Polls the request for updates until completion
     pub fn poll_status(
         &self,
         poll_interval_ms: Option<u64>,
@@ -622,7 +622,7 @@ mod tests {
         // Build proof request - action is converted to field element from raw bytes
         let action = FieldElement::from_arbitrary_raw_bytes(b"test-action");
         let signature = Signature::from_str(&sig_65_bytes).unwrap();
-        let nonce = FieldElement::from_arbitrary_raw_bytes(rp_context.nonce.as_bytes());
+        let nonce = FieldElement::from_str(&rp_context.nonce).unwrap();
         let proof_request = ProofRequest::new(
             rp_context.created_at,
             rp_context.expires_at,
