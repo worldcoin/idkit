@@ -23,7 +23,6 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       npm_tag: ${{ steps.config.outputs.npm_tag }}
-      environment: ${{ steps.config.outputs.environment }}
       ref: ${{ steps.config.outputs.ref }}
       should_publish: ${{ steps.config.outputs.should_publish }}
 
@@ -39,12 +38,10 @@ jobs:
         run: |
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "npm_tag=dev" >> $GITHUB_OUTPUT
-            echo "environment=development" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
             echo "ref=${INPUT_COMMIT_SHA:-$GITHUB_SHA}" >> $GITHUB_OUTPUT
           elif [ "$IS_RELEASE_PR" = "true" ]; then
             echo "npm_tag=latest" >> $GITHUB_OUTPUT
-            echo "environment=production" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
             echo "ref=$GITHUB_SHA" >> $GITHUB_OUTPUT
           else
@@ -101,9 +98,9 @@ jobs:
   publish:
     needs: prepare
     if: needs.prepare.outputs.should_publish == 'true'
-    runs-on:
-      group: arc-public-large-amd64-runner
-    environment: ${{ needs.prepare.outputs.environment }}
+    # Use github hosted runners for OIDC/Provenance support
+    runs-on: ubuntu-latest
+    environment: production
     permissions:
       contents: read
       id-token: write
@@ -117,7 +114,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          registry-url: https://registry.npmjs.org
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -154,10 +151,10 @@ jobs:
         run: pnpm -r build
 
       - name: Publish @worldcoin/idkit-core
-        working-directory: js
+        working-directory: js/packages/core
         env:
           PKG_VERSION: ${{ needs.prepare.outputs.version }}
           NPM_TAG: ${{ needs.prepare.outputs.npm_tag }}
         run: |
           echo "Publishing @worldcoin/idkit-core@$PKG_VERSION with tag '$NPM_TAG'"
-          pnpm --filter @worldcoin/idkit-core publish --access public --no-git-checks --provenance --tag "$NPM_TAG"
+          npm publish --access public --provenance --tag "$NPM_TAG"
