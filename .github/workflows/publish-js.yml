@@ -117,6 +117,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -129,6 +130,9 @@ jobs:
           echo "Current npm version: $(npm --version)"
           npm install -g npm@latest
           echo "Updated npm version: $(npm --version)"
+          # Clear any auth token to force OIDC authentication
+          npm config delete //registry.npmjs.org/:_authToken || true
+          echo "Configured for OIDC publishing (no token)"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -159,4 +163,8 @@ jobs:
           NPM_TAG: ${{ needs.prepare.outputs.npm_tag }}
         run: |
           echo "Publishing @worldcoin/idkit-core@$PKG_VERSION with tag '$NPM_TAG'"
+          echo "npm version: $(npm --version)"
+          echo "Node version: $(node --version)"
+          echo "OIDC token URL available: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}"
+          cat ~/.npmrc || echo "No .npmrc found"
           npm publish --access public --provenance --tag "$NPM_TAG"
