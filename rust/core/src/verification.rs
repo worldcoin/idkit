@@ -2,7 +2,7 @@
 
 use crate::{
     crypto::hash_to_field,
-    types::{AppId, CredentialType, Proof},
+    types::{AppId, BridgeResponseV1, CredentialType},
     Error, Result,
 };
 use serde::{Deserialize, Serialize};
@@ -48,7 +48,7 @@ struct ErrorResponse {
 ///
 /// # Arguments
 ///
-/// * `proof` - The proof to verify
+/// * `proof` - The legacy bridge response (v1) to verify
 /// * `app_id` - Your application ID
 /// * `action` - The action identifier
 /// * `signal` - Optional signal data (if empty, no signal validation is performed)
@@ -56,7 +56,12 @@ struct ErrorResponse {
 /// # Errors
 ///
 /// Returns an error if verification fails or there's a network/API error
-pub async fn verify_proof(proof: Proof, app_id: &AppId, action: &str, signal: &[u8]) -> Result<()> {
+pub async fn verify_proof(
+    proof: BridgeResponseV1,
+    app_id: &AppId,
+    action: &str,
+    signal: &[u8],
+) -> Result<()> {
     verify_proof_with_endpoint(
         proof,
         app_id,
@@ -75,7 +80,7 @@ pub async fn verify_proof(proof: Proof, app_id: &AppId, action: &str, signal: &[
 ///
 /// # Arguments
 ///
-/// * `proof` - The proof to verify
+/// * `proof` - The legacy bridge response (v1) to verify
 /// * `app_id` - Your application ID
 /// * `action` - The action identifier
 /// * `signal` - Optional signal data (if empty, no signal validation is performed)
@@ -85,7 +90,7 @@ pub async fn verify_proof(proof: Proof, app_id: &AppId, action: &str, signal: &[
 ///
 /// Returns an error if verification fails or there's a network/API error
 pub async fn verify_proof_with_endpoint(
-    proof: Proof,
+    proof: BridgeResponseV1,
     app_id: &AppId,
     action: &str,
     signal: &[u8],

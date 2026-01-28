@@ -351,10 +351,10 @@ impl CredentialRequest {
     }
 }
 
-/// The proof of verification returned by the World ID protocol
+/// Legacy bridge response (protocol v1 / World ID v3)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
-pub struct Proof {
+pub struct BridgeResponseV1 {
     /// The Zero-knowledge proof of the verification (hex string, ABI encoded)
     pub proof: String,
 
@@ -369,19 +369,19 @@ pub struct Proof {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Unified Proof Response Types (World ID 4.0)
+// Unified Response Types (World ID 4.0)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Proof data for verification - distinguishes between V4 and Legacy proof formats
-///
-/// This enum allows the SDK to handle both World ID 4.0 proofs (which contain all
-/// fields needed for Verifier.sol) and legacy World ID 3.0 proofs transparently.
+/// A single credential response item - unified type for both bridge and SDK
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum ProofData {
-    /// World ID v4 proof - contains ALL fields for Verifier.sol
+#[serde(tag = "protocol_version")]
+pub enum ResponseItem {
+    /// Protocol version 4.0 (World ID v4)
+    #[serde(rename = "4.0")]
     V4 {
+        /// Credential identifier (maps to `CredentialType`)
+        identifier: CredentialType,
         /// Compressed Groth16 proof (hex string)
         proof: String,
         /// RP-scoped nullifier (hex string)
@@ -390,11 +390,14 @@ pub enum ProofData {
         merkle_root: String,
         /// Unix timestamp when proof was generated
         proof_timestamp: u64,
-        /// Credential issuer ID (hex string)
+        /// Credential issuer schema ID (hex string)
         issuer_schema_id: String,
     },
-    /// Legacy v3 proof (backward compatibility)
-    Legacy {
+    /// Protocol version 3.0 (World ID v3 - legacy format)
+    #[serde(rename = "3.0")]
+    V3 {
+        /// Credential identifier (same as `verification_level`)
+        identifier: CredentialType,
         /// ABI-encoded proof (hex string)
         proof: String,
         /// Merkle root (hex string)
@@ -404,127 +407,50 @@ pub enum ProofData {
     },
 }
 
-impl ProofData {
-    /// Returns true if this is a V4 proof
+impl ResponseItem {
+    /// Returns true if this is a V4 response
     #[must_use]
     pub const fn is_v4(&self) -> bool {
         matches!(self, Self::V4 { .. })
     }
 
-    /// Returns true if this is a Legacy proof
+    /// Returns true if this is a V3 (legacy) response
     #[must_use]
-    pub const fn is_legacy(&self) -> bool {
-        matches!(self, Self::Legacy { .. })
+    pub const fn is_v3(&self) -> bool {
+        matches!(self, Self::V3 { .. })
     }
 
-    /// Gets the nullifier value regardless of proof type
+    /// Gets the credential identifier regardless of protocol version
+    #[must_use]
+    pub const fn identifier(&self) -> CredentialType {
+        match self {
+            Self::V4 { identifier, .. } | Self::V3 { identifier, .. } => *identifier,
+        }
+    }
+
+    /// Gets the nullifier value regardless of protocol version
     #[must_use]
     pub fn nullifier(&self) -> &str {
         match self {
             Self::V4 { nullifier, .. } => nullifier,
-            Self::Legacy { nullifier_hash, .. } => nullifier_hash,
+            Self::V3 { nullifier_hash, .. } => nullifier_hash,
         }
     }
 
-    /// Gets the merkle root regardless of proof type
+    /// Gets the merkle root regardless of protocol version
     #[must_use]
     pub fn merkle_root(&self) -> &str {
         match self {
-            Self::V4 { merkle_root, .. } | Self::Legacy { merkle_root, .. } => merkle_root,
+            Self::V4 { merkle_root, .. } | Self::V3 { merkle_root, .. } => merkle_root,
         }
     }
 
-    /// Gets the proof string regardless of proof type
+    /// Gets the proof string regardless of protocol version
     #[must_use]
     pub fn proof(&self) -> &str {
         match self {
-            Self::V4 { proof, .. } | Self::Legacy { proof, .. } => proof,
+            Self::V4 { proof, .. } | Self::V3 { proof, .. } => proof,
         }
-    }
-}
-
-/// A single credential response item in the `IDKitResponse` array
-///
-/// Each item represents the result of a requested credential verification.
-/// It either contains proof data on success or an error message on failure.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
-pub struct IDKitResponseItem {
-    /// The type of credential this response is for
-    pub credential_type: CredentialType,
-
-    /// Proof data if verification succeeded
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub proof_data: Option<ProofData>,
-
-    /// Error message if verification failed for this credential
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
-}
-
-impl IDKitResponseItem {
-    /// Creates a successful response item with V4 proof data
-    #[must_use]
-    pub fn v4_success(
-        credential_type: CredentialType,
-        proof: String,
-        nullifier: String,
-        merkle_root: String,
-        proof_timestamp: u64,
-        issuer_schema_id: String,
-    ) -> Self {
-        Self {
-            credential_type,
-            proof_data: Some(ProofData::V4 {
-                proof,
-                nullifier,
-                merkle_root,
-                proof_timestamp,
-                issuer_schema_id,
-            }),
-            error: None,
-        }
-    }
-
-    /// Creates a successful response item with Legacy proof data
-    #[must_use]
-    pub fn legacy_success(
-        credential_type: CredentialType,
-        proof: String,
-        merkle_root: String,
-        nullifier_hash: String,
-    ) -> Self {
-        Self {
-            credential_type,
-            proof_data: Some(ProofData::Legacy {
-                proof,
-                merkle_root,
-                nullifier_hash,
-            }),
-            error: None,
-        }
-    }
-
-    /// Creates a failed response item
-    #[must_use]
-    pub fn failure(credential_type: CredentialType, error: impl Into<String>) -> Self {
-        Self {
-            credential_type,
-            proof_data: None,
-            error: Some(error.into()),
-        }
-    }
-
-    /// Returns true if this response indicates an error
-    #[must_use]
-    pub const fn is_error(&self) -> bool {
-        self.error.is_some()
-    }
-
-    /// Returns true if this response indicates success
-    #[must_use]
-    pub const fn is_success(&self) -> bool {
-        self.proof_data.is_some()
     }
 }
 
@@ -535,21 +461,18 @@ impl IDKitResponseItem {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct IDKitResult {
-    /// Session ID (response-level, for session proofs)
+    /// Session ID (for session proofs)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
 
-    /// Array of credential responses
-    pub responses: Vec<IDKitResponseItem>,
+    /// Array of credential responses (always successful - errors at `BridgeResponse` level)
+    pub responses: Vec<ResponseItem>,
 }
-
-/// Type alias for the response array
-pub type IDKitResponse = Vec<IDKitResponseItem>;
 
 impl IDKitResult {
     /// Creates a new `IDKitResult` with an optional session ID and responses
     #[must_use]
-    pub fn new(session_id: Option<String>, responses: Vec<IDKitResponseItem>) -> Self {
+    pub fn new(session_id: Option<String>, responses: Vec<ResponseItem>) -> Self {
         Self {
             session_id,
             responses,
@@ -581,29 +504,6 @@ pub fn idkit_result_to_json(
 pub fn idkit_result_from_json(
     json: &str,
 ) -> std::result::Result<IDKitResult, crate::error::IdkitError> {
-    serde_json::from_str(json).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
-}
-
-// UniFFI helper functions for Proof
-#[cfg(feature = "ffi")]
-/// Serializes a proof to JSON
-///
-/// # Errors
-///
-/// Returns an error if JSON serialization fails
-#[uniffi::export]
-pub fn proof_to_json(proof: &Proof) -> std::result::Result<String, crate::error::IdkitError> {
-    serde_json::to_string(proof).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
-}
-
-#[cfg(feature = "ffi")]
-/// Deserializes a proof from JSON
-///
-/// # Errors
-///
-/// Returns an error if JSON deserialization fails
-#[uniffi::export]
-pub fn proof_from_json(json: &str) -> std::result::Result<Proof, crate::error::IdkitError> {
     serde_json::from_str(json).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
 }
 
@@ -1114,12 +1014,13 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // ProofData tests
+    // ResponseItem tests
     // ─────────────────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_proof_data_v4() {
-        let proof_data = ProofData::V4 {
+    fn test_response_item_v4() {
+        let item = ResponseItem::V4 {
+            identifier: CredentialType::Orb,
             proof: "0xproof".to_string(),
             nullifier: "0xnullifier".to_string(),
             merkle_root: "0xroot".to_string(),
@@ -1127,31 +1028,35 @@ mod tests {
             issuer_schema_id: "0x1".to_string(),
         };
 
-        assert!(proof_data.is_v4());
-        assert!(!proof_data.is_legacy());
-        assert_eq!(proof_data.nullifier(), "0xnullifier");
-        assert_eq!(proof_data.merkle_root(), "0xroot");
-        assert_eq!(proof_data.proof(), "0xproof");
+        assert!(item.is_v4());
+        assert!(!item.is_v3());
+        assert_eq!(item.identifier(), CredentialType::Orb);
+        assert_eq!(item.nullifier(), "0xnullifier");
+        assert_eq!(item.merkle_root(), "0xroot");
+        assert_eq!(item.proof(), "0xproof");
     }
 
     #[test]
-    fn test_proof_data_legacy() {
-        let proof_data = ProofData::Legacy {
+    fn test_response_item_v3() {
+        let item = ResponseItem::V3 {
+            identifier: CredentialType::Face,
             proof: "0xlegacy_proof".to_string(),
             merkle_root: "0xlegacy_root".to_string(),
             nullifier_hash: "0xlegacy_nullifier".to_string(),
         };
 
-        assert!(!proof_data.is_v4());
-        assert!(proof_data.is_legacy());
-        assert_eq!(proof_data.nullifier(), "0xlegacy_nullifier");
-        assert_eq!(proof_data.merkle_root(), "0xlegacy_root");
-        assert_eq!(proof_data.proof(), "0xlegacy_proof");
+        assert!(!item.is_v4());
+        assert!(item.is_v3());
+        assert_eq!(item.identifier(), CredentialType::Face);
+        assert_eq!(item.nullifier(), "0xlegacy_nullifier");
+        assert_eq!(item.merkle_root(), "0xlegacy_root");
+        assert_eq!(item.proof(), "0xlegacy_proof");
     }
 
     #[test]
-    fn test_proof_data_serialization() {
-        let v4 = ProofData::V4 {
+    fn test_response_item_serialization() {
+        let v4 = ResponseItem::V4 {
+            identifier: CredentialType::Orb,
             proof: "0xproof".to_string(),
             nullifier: "0xnullifier".to_string(),
             merkle_root: "0xroot".to_string(),
@@ -1160,92 +1065,26 @@ mod tests {
         };
 
         let json = serde_json::to_string(&v4).unwrap();
-        assert!(json.contains(r#""type":"v4""#));
+        assert!(json.contains(r#""protocol_version":"4.0""#));
         assert!(json.contains("proof_timestamp"));
         assert!(json.contains("issuer_schema_id"));
 
-        let deserialized: ProofData = serde_json::from_str(&json).unwrap();
+        let deserialized: ResponseItem = serde_json::from_str(&json).unwrap();
         assert_eq!(v4, deserialized);
 
-        let legacy = ProofData::Legacy {
+        let v3 = ResponseItem::V3 {
+            identifier: CredentialType::Face,
             proof: "0xproof".to_string(),
             merkle_root: "0xroot".to_string(),
             nullifier_hash: "0xnullifier".to_string(),
         };
 
-        let json = serde_json::to_string(&legacy).unwrap();
-        assert!(json.contains(r#""type":"legacy""#));
+        let json = serde_json::to_string(&v3).unwrap();
+        assert!(json.contains(r#""protocol_version":"3.0""#));
         assert!(json.contains("nullifier_hash"));
 
-        let deserialized: ProofData = serde_json::from_str(&json).unwrap();
-        assert_eq!(legacy, deserialized);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // IDKitResponseItem tests
-    // ─────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_idkit_response_item_v4_success() {
-        let item = IDKitResponseItem::v4_success(
-            CredentialType::Orb,
-            "0xproof".to_string(),
-            "0xnullifier".to_string(),
-            "0xroot".to_string(),
-            1_700_000_000,
-            "0x1".to_string(),
-        );
-
-        assert!(item.is_success());
-        assert!(!item.is_error());
-        assert_eq!(item.credential_type, CredentialType::Orb);
-        assert!(item.proof_data.as_ref().unwrap().is_v4());
-    }
-
-    #[test]
-    fn test_idkit_response_item_legacy_success() {
-        let item = IDKitResponseItem::legacy_success(
-            CredentialType::Face,
-            "0xproof".to_string(),
-            "0xroot".to_string(),
-            "0xnullifier".to_string(),
-        );
-
-        assert!(item.is_success());
-        assert!(!item.is_error());
-        assert_eq!(item.credential_type, CredentialType::Face);
-        assert!(item.proof_data.as_ref().unwrap().is_legacy());
-    }
-
-    #[test]
-    fn test_idkit_response_item_failure() {
-        let item = IDKitResponseItem::failure(CredentialType::Device, "credential_unavailable");
-
-        assert!(!item.is_success());
-        assert!(item.is_error());
-        assert_eq!(item.credential_type, CredentialType::Device);
-        assert_eq!(item.error.as_ref().unwrap(), "credential_unavailable");
-        assert!(item.proof_data.is_none());
-    }
-
-    #[test]
-    fn test_idkit_response_item_serialization() {
-        let success = IDKitResponseItem::v4_success(
-            CredentialType::Orb,
-            "0xproof".to_string(),
-            "0xnullifier".to_string(),
-            "0xroot".to_string(),
-            1_700_000_000,
-            "0x1".to_string(),
-        );
-
-        let json = serde_json::to_string(&success).unwrap();
-        assert!(json.contains(r#""credential_type":"orb""#));
-        assert!(json.contains("proof_data"));
-        assert!(!json.contains("error")); // Should be skipped when None
-
-        let deserialized: IDKitResponseItem = serde_json::from_str(&json).unwrap();
-        assert_eq!(success, deserialized);
+        let deserialized: ResponseItem = serde_json::from_str(&json).unwrap();
+        assert_eq!(v3, deserialized);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1254,14 +1093,14 @@ mod tests {
 
     #[test]
     fn test_idkit_result_new_without_session_id() {
-        let responses = vec![IDKitResponseItem::v4_success(
-            CredentialType::Orb,
-            "0xproof".to_string(),
-            "0xnullifier".to_string(),
-            "0xroot".to_string(),
-            1_700_000_000,
-            "0x1".to_string(),
-        )];
+        let responses = vec![ResponseItem::V4 {
+            identifier: CredentialType::Orb,
+            proof: "0xproof".to_string(),
+            nullifier: "0xnullifier".to_string(),
+            merkle_root: "0xroot".to_string(),
+            proof_timestamp: 1_700_000_000,
+            issuer_schema_id: "0x1".to_string(),
+        }];
 
         let result = IDKitResult::new(None, responses);
         assert!(result.session_id.is_none());
@@ -1270,14 +1109,14 @@ mod tests {
 
     #[test]
     fn test_idkit_result_new_with_session_id() {
-        let responses = vec![IDKitResponseItem::v4_success(
-            CredentialType::Orb,
-            "0xproof".to_string(),
-            "0xnullifier".to_string(),
-            "0xroot".to_string(),
-            1_700_000_000,
-            "0x1".to_string(),
-        )];
+        let responses = vec![ResponseItem::V4 {
+            identifier: CredentialType::Orb,
+            proof: "0xproof".to_string(),
+            nullifier: "0xnullifier".to_string(),
+            merkle_root: "0xroot".to_string(),
+            proof_timestamp: 1_700_000_000,
+            issuer_schema_id: "0x1".to_string(),
+        }];
 
         let result = IDKitResult::new(Some("session-123".to_string()), responses);
         assert_eq!(result.session_id.as_ref().unwrap(), "session-123");
@@ -1285,14 +1124,14 @@ mod tests {
 
     #[test]
     fn test_idkit_result_serialization() {
-        let responses = vec![IDKitResponseItem::v4_success(
-            CredentialType::Orb,
-            "0xproof".to_string(),
-            "0xnullifier".to_string(),
-            "0xroot".to_string(),
-            1_700_000_000,
-            "0x1".to_string(),
-        )];
+        let responses = vec![ResponseItem::V4 {
+            identifier: CredentialType::Orb,
+            proof: "0xproof".to_string(),
+            nullifier: "0xnullifier".to_string(),
+            merkle_root: "0xroot".to_string(),
+            proof_timestamp: 1_700_000_000,
+            issuer_schema_id: "0x1".to_string(),
+        }];
 
         let result = IDKitResult::new(Some("session-abc".to_string()), responses);
         let json = serde_json::to_string(&result).unwrap();

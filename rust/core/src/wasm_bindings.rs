@@ -109,12 +109,13 @@ impl CredentialRequestWasm {
     }
 }
 
+/// WASM wrapper for `BridgeResponseV1` (legacy proof format)
 #[wasm_bindgen]
-pub struct IDKitProof(crate::Proof);
+pub struct IDKitProof(crate::BridgeResponseV1);
 
 #[wasm_bindgen]
 impl IDKitProof {
-    /// Creates a new proof
+    /// Creates a new legacy proof (protocol v1 / World ID v3)
     ///
     /// # Errors
     ///
@@ -127,7 +128,7 @@ impl IDKitProof {
         verification_level: JsValue,
     ) -> Result<Self, JsValue> {
         let cred: CredentialType = serde_wasm_bindgen::from_value(verification_level)?;
-        Ok(Self(crate::Proof {
+        Ok(Self(crate::BridgeResponseV1 {
             proof,
             merkle_root,
             nullifier_hash,
@@ -695,12 +696,14 @@ export type ConstraintNode =
     | { all: ConstraintNode[] };
 "#;
 
-// Export IDKitResult/ProofData types for unified response
+// Export ResponseItem/IDKitResult types for unified response
 #[wasm_bindgen(typescript_custom_section)]
 const TS_IDKIT_RESULT: &str = r#"
-/** V4 proof data - contains all fields for Verifier.sol */
-export interface V4ProofData {
-    type: "v4";
+/** V4 response item (protocol version 4.0 / World ID v4) */
+export interface ResponseItemV4 {
+    protocol_version: "4.0";
+    /** Credential identifier */
+    identifier: CredentialType;
     /** Compressed Groth16 proof (hex) */
     proof: string;
     /** RP-scoped nullifier (hex) */
@@ -709,13 +712,15 @@ export interface V4ProofData {
     merkle_root: string;
     /** Unix timestamp when proof was generated */
     proof_timestamp: number;
-    /** Credential issuer ID (hex) */
+    /** Credential issuer schema ID (hex) */
     issuer_schema_id: string;
 }
 
-/** Legacy v3 proof data (backward compatibility) */
-export interface LegacyProofData {
-    type: "legacy";
+/** V3 response item (protocol version 3.0 / World ID v3 - legacy format) */
+export interface ResponseItemV3 {
+    protocol_version: "3.0";
+    /** Credential identifier */
+    identifier: CredentialType;
     /** ABI-encoded proof (hex) */
     proof: string;
     /** Merkle root (hex) */
@@ -724,25 +729,15 @@ export interface LegacyProofData {
     nullifier_hash: string;
 }
 
-/** Discriminated union for V4 vs Legacy proofs */
-export type ProofData = V4ProofData | LegacyProofData;
-
-/** A single credential response item */
-export interface IDKitResponseItem {
-    /** The type of credential this response is for */
-    credential_type: CredentialType;
-    /** Proof data if verification succeeded */
-    proof_data?: ProofData;
-    /** Error message if verification failed */
-    error?: string;
-}
+/** A single credential response item - unified type for both bridge and SDK */
+export type ResponseItem = ResponseItemV4 | ResponseItemV3;
 
 /** The unified response structure */
 export interface IDKitResult {
     /** Session ID (for session proofs) */
     session_id?: string;
-    /** Array of credential responses */
-    responses: IDKitResponseItem[];
+    /** Array of credential responses (always successful - errors at BridgeResponse level) */
+    responses: ResponseItem[];
 }
 
 /** Status returned from pollForStatus() */
@@ -752,14 +747,14 @@ export type Status =
     | { type: "confirmed"; result: IDKitResult }
     | { type: "failed"; error: string };
 
-/** Type guard: check if proof is V4 */
-export function isV4Proof(data: ProofData): data is V4ProofData {
-    return data.type === "v4";
+/** Type guard: check if response is V4 */
+export function isV4Response(item: ResponseItem): item is ResponseItemV4 {
+    return item.protocol_version === "4.0";
 }
 
-/** Type guard: check if proof is Legacy */
-export function isLegacyProof(data: ProofData): data is LegacyProofData {
-    return data.type === "legacy";
+/** Type guard: check if response is V3 (legacy) */
+export function isV3Response(item: ResponseItem): item is ResponseItemV3 {
+    return item.protocol_version === "3.0";
 }
 "#;
 
