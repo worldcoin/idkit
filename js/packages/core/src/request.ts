@@ -3,14 +3,13 @@
  * Pure functional API for World ID verification - no dependencies
  */
 
+import type { IDKitRequestConfig, RpContext } from "./types/config";
 import type {
-  IDKitRequestConfig,
+  IDKitResult,
   ConstraintNode,
   CredentialType,
   CredentialRequestType,
-  RpContext,
-} from "./types/config";
-import type { IDKitResult } from "./types/result";
+} from "./types/result";
 import { AppErrorCodes } from "./types/bridge";
 import { WasmModule, initIDKit, initIDKitServer } from "./lib/wasm";
 
@@ -31,7 +30,6 @@ export interface Status {
     | "awaiting_confirmation"
     | "confirmed"
     | "failed";
-  /** Unified result with all credential responses (World ID 4.0) */
   result?: IDKitResult;
   error?: AppErrorCodes;
 }
@@ -52,10 +50,7 @@ export interface IDKitRequest {
   readonly requestId: string;
   /** Poll once for current status (for manual polling) */
   pollOnce(): Promise<Status>;
-  /**
-   * Poll continuously until completion or timeout
-   * Returns the unified IDKitResult with all credential responses
-   */
+  /** Poll continuously until completion or timeout */
   pollForUpdates(options?: WaitOptions): Promise<IDKitResult>;
 }
 

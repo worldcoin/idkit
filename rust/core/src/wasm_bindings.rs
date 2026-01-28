@@ -746,16 +746,6 @@ export type Status =
     | { type: "awaiting_confirmation" }
     | { type: "confirmed"; result: IDKitResult }
     | { type: "failed"; error: string };
-
-/** Type guard: check if response is V4 */
-export function isV4Response(item: ResponseItem): item is ResponseItemV4 {
-    return item.protocol_version === "4.0";
-}
-
-/** Type guard: check if response is V3 (legacy) */
-export function isV3Response(item: ResponseItem): item is ResponseItemV3 {
-    return item.protocol_version === "3.0";
-}
 "#;
 
 // Export preset types

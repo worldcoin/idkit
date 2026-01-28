@@ -79,3 +79,18 @@ export function isInitialized(): boolean {
  * Re-exports WASM module for direct access
  */
 export { WasmModule };
+
+/**
+ * Re-export types from WASM-generated .d.ts
+ * Source of truth: rust/core/src/wasm_bindings.rs (typescript_custom_section)
+ */
+export type {
+  ResponseItem,
+  ResponseItemV4,
+  ResponseItemV3,
+  IDKitResult,
+  Status,
+  CredentialType,
+  ConstraintNode,
+  CredentialRequestType,
+} from "../../wasm/idkit_wasm.js";

@@ -16,36 +16,28 @@ export {
   orbLegacy,
   // Types
   type IDKitRequest,
-  type Status,
   type WaitOptions,
   type RpContext,
   type Preset,
   type OrbLegacyPreset,
 } from "./request";
 
-// Types
+// Config types
+export type { IDKitRequestConfig, AbiEncodedValue } from "./types/config";
+
+// Result types (re-exported from WASM - source of truth in rust/core/src/wasm_bindings.rs)
 export type {
-  IDKitRequestConfig,
+  IDKitResult,
+  ResponseItem,
+  ResponseItemV4,
+  ResponseItemV3,
+  Status,
+  CredentialType,
   ConstraintNode,
   CredentialRequestType,
-  AbiEncodedValue,
-  CredentialType,
-} from "./types/config";
-export type {
-  // Legacy types (backward compatibility)
-  ISuccessResult,
-  IErrorState,
-  // Unified response types (World ID 4.0)
-  IDKitResult,
-  IDKitResponse,
-  IDKitResponseItem,
-  ProofData,
-  V4ProofData,
-  LegacyProofData,
 } from "./types/result";
 
-// Type guards
-export { isV4Proof, isLegacyProof } from "./types/result";
+// Bridge error codes
 export {
   AppErrorCodes,
   VerificationState,
