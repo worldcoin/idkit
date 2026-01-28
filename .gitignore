@@ -15,6 +15,7 @@
 # Kotlin build outputs are not committed to this repo (regenerate with scripts/package-kotlin.sh)
 /kotlin/lib/src/main/jniLibs/
 /kotlin/lib/src/main/java/uniffi/
+/kotlin/bindings/bin/
 /kotlin/bindings/src/main/jniLibs/
 /kotlin/bindings/src/main/kotlin/uniffi/
 /kotlin/bindings/src/main/resources/libidkit.*
