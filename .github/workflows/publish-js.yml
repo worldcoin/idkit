@@ -103,7 +103,8 @@ jobs:
     if: needs.prepare.outputs.should_publish == 'true'
     runs-on:
       group: arc-public-large-amd64-runner
-    environment: ${{ needs.prepare.outputs.environment }}
+    # TODO hardcode to production for now
+    environment: production
     permissions:
       contents: read
       id-token: write
