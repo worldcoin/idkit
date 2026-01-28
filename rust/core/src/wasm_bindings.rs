@@ -12,8 +12,21 @@ use crate::{ConstraintNode, CredentialRequest, CredentialType, RpContext, Signal
 use serde::Serialize;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Once;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
+
+static PANIC_HOOK: Once = Once::new();
+
+/// Initialize the WASM module.
+/// This sets up panic hooks for better error messages in the browser console.
+/// Safe to call multiple times - initialization only happens once.
+#[wasm_bindgen(start)]
+pub fn init_wasm() {
+    PANIC_HOOK.call_once(|| {
+        console_error_panic_hook::set_once();
+    });
+}
 
 /// WASM wrapper for `CredentialRequest`
 #[wasm_bindgen(js_name = CredentialRequestWasm)]
@@ -258,7 +271,7 @@ pub fn hash_signal_bytes(bytes: &[u8]) -> String {
 
 /// Creates an `OrbLegacy` preset for World ID 3.0 legacy support
 ///
-/// Returns a preset object that can be passed to `verify().preset()`.
+/// Returns a preset object that can be passed to `request().preset()`.
 ///
 /// # Arguments
 /// * `signal` - Optional signal string
@@ -330,7 +343,10 @@ impl RpSignatureWasm {
     }
 }
 
-/// Computes an RP signature for a proof request
+/// Signs an RP request for World ID proof verification
+///
+/// **Backend-only**: This function should only be used in server-side environments.
+/// Never expose your signing key to client-side code.
 ///
 /// This function generates a cryptographic signature that RPs use to authenticate
 /// proof requests. It:
@@ -345,7 +361,8 @@ impl RpSignatureWasm {
 /// * `ttl_seconds` - Optional time-to-live in seconds (defaults to 300 = 5 minutes)
 ///
 /// # Returns
-/// An `RpSignature` object
+/// An `RpSignature` object containing the signature, nonce, and timestamps
+/// to be passed as `rp_context` in the proof request
 ///
 /// # Errors
 /// Returns an error if:
@@ -355,14 +372,14 @@ impl RpSignatureWasm {
 ///
 /// # Example
 /// ```javascript
-/// import { computeRpSignature } from '@worldcoin/idkit-core'
+/// import { signRequest } from '@worldcoin/idkit-core'
 ///
-/// const signingKey = '0x1234...' // 32-byte private key
-/// const signature = computeRpSignature('my-action', signingKey) // default 5 min TTL
-/// const customTtl = computeRpSignature('my-action', signingKey, 600) // 10 min TTL
+/// const signingKey = process.env.RP_SIGNING_KEY // Load from secure env var
+/// const signature = signRequest('my-action', signingKey) // default 5 min TTL
+/// const customTtl = signRequest('my-action', signingKey, 600) // 10 min TTL
 /// console.log(signature.sig, signature.nonce, signature.createdAt, signature.expiresAt)
 /// ```
-#[wasm_bindgen(js_name = computeRpSignature)]
+#[wasm_bindgen(js_name = signRequest)]
 pub fn compute_rp_signature_wasm(
     action: &str,
     signing_key_hex: &str,
@@ -410,9 +427,9 @@ pub fn base64_decode(data: &str) -> Result<Vec<u8>, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("Base64 decode failed: {e}")))
 }
 
-/// Builder for creating verification sessions (WASM)
-#[wasm_bindgen(js_name = VerifyBuilderWasm)]
-pub struct VerifyBuilderWasm {
+/// Builder for creating `IDKit` requests (WASM)
+#[wasm_bindgen(js_name = IDKitRequestBuilderWasm)]
+pub struct IDKitRequestBuilderWasm {
     app_id: String,
     action: String,
     rp_context: RpContext,
@@ -420,9 +437,9 @@ pub struct VerifyBuilderWasm {
     bridge_url: Option<String>,
 }
 
-#[wasm_bindgen(js_class = VerifyBuilderWasm)]
-impl VerifyBuilderWasm {
-    /// Creates a new `VerifyBuilder`
+#[wasm_bindgen(js_class = IDKitRequestBuilderWasm)]
+impl IDKitRequestBuilderWasm {
+    /// Creates a new `IDKitRequestBuilder`
     ///
     /// # Arguments
     /// * `app_id` - Application ID from the Developer Portal
@@ -448,14 +465,14 @@ impl VerifyBuilderWasm {
         }
     }
 
-    /// Creates a verification session with the given constraints
+    /// Creates an `IDKit` request with the given constraints
     ///
     /// # Arguments
     /// * `constraints_json` - Constraint tree as JSON (`CredentialRequest` or `{any: []}` or `{all: []}`)
     ///
     /// # Errors
     ///
-    /// Returns an error if the session cannot be created
+    /// Returns an error if the request cannot be created
     pub fn constraints(self, constraints_json: JsValue) -> js_sys::Promise {
         let app_id = self.app_id;
         let action = self.action;
@@ -475,7 +492,7 @@ impl VerifyBuilderWasm {
                 .transpose()
                 .map_err(|e| JsValue::from_str(&format!("Invalid bridge_url: {e}")))?;
 
-            let session = crate::Session::create(
+            let request = crate::IDKitRequest::create(
                 app_id,
                 action,
                 constraints,
@@ -486,17 +503,17 @@ impl VerifyBuilderWasm {
                 bridge_url_parsed,
             )
             .await
-            .map_err(|e| JsValue::from_str(&format!("Failed to create session: {e}")))?;
+            .map_err(|e| JsValue::from_str(&format!("Failed to create request: {e}")))?;
 
-            Ok(JsValue::from(Session {
-                inner: Rc::new(RefCell::new(Some(session))),
+            Ok(JsValue::from(IDKitRequest {
+                inner: Rc::new(RefCell::new(Some(request))),
             }))
         })
     }
 
-    /// Creates a verification session from a preset
+    /// Creates an `IDKit` request from a preset
     ///
-    /// Presets provide a simplified way to create sessions with predefined
+    /// Presets provide a simplified way to create requests with predefined
     /// credential configurations. The preset is converted to both World ID 4.0
     /// constraints and World ID 3.0 legacy fields for backward compatibility.
     ///
@@ -505,7 +522,7 @@ impl VerifyBuilderWasm {
     ///
     /// # Errors
     ///
-    /// Returns an error if the session cannot be created
+    /// Returns an error if the request cannot be created
     pub fn preset(self, preset_json: JsValue) -> js_sys::Promise {
         let app_id = self.app_id;
         let action = self.action;
@@ -525,7 +542,7 @@ impl VerifyBuilderWasm {
                 .transpose()
                 .map_err(|e| JsValue::from_str(&format!("Invalid bridge_url: {e}")))?;
 
-            let session = crate::Session::create_from_preset(
+            let request = crate::IDKitRequest::create_from_preset(
                 app_id_parsed,
                 action,
                 preset,
@@ -534,16 +551,16 @@ impl VerifyBuilderWasm {
                 bridge_url_parsed,
             )
             .await
-            .map_err(|e| JsValue::from_str(&format!("Failed to create session: {e}")))?;
+            .map_err(|e| JsValue::from_str(&format!("Failed to create request: {e}")))?;
 
-            Ok(JsValue::from(Session {
-                inner: Rc::new(RefCell::new(Some(session))),
+            Ok(JsValue::from(IDKitRequest {
+                inner: Rc::new(RefCell::new(Some(request))),
             }))
         })
     }
 }
 
-/// Entry point for creating verification sessions (WASM)
+/// Entry point for creating `IDKit` requests (WASM)
 ///
 /// # Arguments
 /// * `app_id` - Application ID from the Developer Portal
@@ -552,55 +569,55 @@ impl VerifyBuilderWasm {
 /// * `action_description` - Optional action description shown to users
 /// * `bridge_url` - Optional bridge URL (defaults to production)
 #[must_use]
-#[wasm_bindgen(js_name = verify)]
-pub fn verify(
+#[wasm_bindgen(js_name = request)]
+pub fn request(
     app_id: String,
     action: String,
     rp_context: RpContextWasm,
     action_description: Option<String>,
     bridge_url: Option<String>,
-) -> VerifyBuilderWasm {
-    VerifyBuilderWasm::new(app_id, action, rp_context, action_description, bridge_url)
+) -> IDKitRequestBuilderWasm {
+    IDKitRequestBuilderWasm::new(app_id, action, rp_context, action_description, bridge_url)
 }
 
-/// World ID verification session
+/// World ID verification request
 ///
 /// Manages the verification flow with World App via the bridge.
 #[wasm_bindgen]
-pub struct Session {
+pub struct IDKitRequest {
     #[wasm_bindgen(skip)]
-    inner: Rc<RefCell<Option<crate::Session>>>,
+    inner: Rc<RefCell<Option<crate::IDKitRequest>>>,
 }
 
 #[wasm_bindgen]
-impl Session {
+impl IDKitRequest {
     /// Returns the connect URL for World App
     ///
     /// This URL should be displayed as a QR code for users to scan with World App.
     ///
     /// # Errors
     ///
-    /// Returns an error if the session has been closed
+    /// Returns an error if the request has been closed
     #[wasm_bindgen(js_name = connectUrl)]
     pub fn connect_url(&self) -> Result<String, JsValue> {
         self.inner
             .borrow()
             .as_ref()
-            .ok_or_else(|| JsValue::from_str("Session closed"))
-            .map(crate::Session::connect_url)
+            .ok_or_else(|| JsValue::from_str("Request closed"))
+            .map(crate::IDKitRequest::connect_url)
     }
 
-    /// Returns the request ID for this session
+    /// Returns the request ID for this request
     ///
     /// # Errors
     ///
-    /// Returns an error if the session has been closed
+    /// Returns an error if the request has been closed
     #[wasm_bindgen(js_name = requestId)]
     pub fn request_id(&self) -> Result<String, JsValue> {
         self.inner
             .borrow()
             .as_ref()
-            .ok_or_else(|| JsValue::from_str("Session closed"))
+            .ok_or_else(|| JsValue::from_str("Request closed"))
             .map(|s| s.request_id().to_string())
     }
 
@@ -620,19 +637,19 @@ impl Session {
         let inner = self.inner.clone();
 
         future_to_promise(async move {
-            // Take session temporarily for async operation
-            let session = inner
+            // Take request temporarily for async operation
+            let request = inner
                 .borrow_mut()
                 .take()
-                .ok_or_else(|| JsValue::from_str("Session closed"))?;
+                .ok_or_else(|| JsValue::from_str("Request closed"))?;
 
-            let status = session
+            let status = request
                 .poll_for_status()
                 .await
                 .map_err(|e| JsValue::from_str(&format!("Poll failed: {e}")))?;
 
-            // Put session back
-            *inner.borrow_mut() = Some(session);
+            // Put request back
+            *inner.borrow_mut() = Some(request);
 
             // Convert Rust Status enum to plain JS object
             // Use serialize_maps_as_objects(true) to return plain objects instead of Maps
@@ -770,5 +787,5 @@ export interface RpSignature {
     toJSON(): { sig: string; nonce: string; createdAt: number; expiresAt: number };
 }
 
-export function computeRpSignature(action: string, signingKeyHex: string, ttlSeconds?: number): RpSignature;
+export function signRequest(action: string, signingKeyHex: string, ttlSeconds?: number): RpSignature;
 "#;

@@ -263,7 +263,6 @@ impl CredentialRequest {
             issuer_schema_id,
             signal,
             self.genesis_issued_at_min,
-            None, // session_id
         ))
     }
 }
@@ -805,10 +804,14 @@ impl RpContext {
             crate::Error::InvalidConfiguration("Invalid RP ID: must start with 'rp_'".to_string())
         })?;
 
+        #[cfg(not(target_arch = "wasm32"))]
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
+
+        #[cfg(target_arch = "wasm32")]
+        let now = (js_sys::Date::now() / 1000.0) as u64;
         if created_at > now + CLOCK_SKEW_ALLOWANCE_SECS {
             return Err(crate::Error::InvalidConfiguration(
                 "created_at cannot be in the future".to_string(),
