@@ -460,6 +460,7 @@ impl ResponseItem {
 /// an optional session ID (for session proofs) and an array of credential responses.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+#[cfg_attr(feature = "ffi", uniffi(name = "IDKitResult"))]
 pub struct IDKitResult {
     /// Session ID (for session proofs)
     #[serde(skip_serializing_if = "Option::is_none")]

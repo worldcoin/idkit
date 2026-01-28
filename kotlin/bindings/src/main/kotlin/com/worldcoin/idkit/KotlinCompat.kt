@@ -10,9 +10,7 @@ import uniffi.idkit_core.IDKitRequestWrapper
 import uniffi.idkit_core.Signal
 import uniffi.idkit_core.StatusWrapper
 import uniffi.idkit_core.CredentialType
-import uniffi.idkit_core.IdkitResult
-import uniffi.idkit_core.IdkitResponseItem
-import uniffi.idkit_core.ProofData
+import uniffi.idkit_core.IDKitResult
 
 /**
  * Create a CredentialRequest from a credential type and optional signal string.
@@ -41,65 +39,6 @@ val Signal.data: ByteArray
 
 val Signal.string: String?
     get() = this.asString()
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ProofData Extensions
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Returns true if this is a V4 proof.
- */
-val ProofData.isV4: Boolean
-    get() = this is ProofData.V4
-
-/**
- * Returns true if this is a Legacy proof.
- */
-val ProofData.isLegacy: Boolean
-    get() = this is ProofData.Legacy
-
-/**
- * Gets the nullifier value regardless of proof type.
- */
-val ProofData.nullifier: String
-    get() = when (this) {
-        is ProofData.V4 -> this.nullifier
-        is ProofData.Legacy -> this.nullifierHash
-    }
-
-/**
- * Gets the merkle root regardless of proof type.
- */
-val ProofData.merkleRoot: String
-    get() = when (this) {
-        is ProofData.V4 -> this.merkleRoot
-        is ProofData.Legacy -> this.merkleRoot
-    }
-
-/**
- * Gets the proof string regardless of proof type.
- */
-val ProofData.proof: String
-    get() = when (this) {
-        is ProofData.V4 -> this.proof
-        is ProofData.Legacy -> this.proof
-    }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// IDKitResponseItem Extensions
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Returns true if this response indicates success.
- */
-val IdkitResponseItem.isSuccess: Boolean
-    get() = this.proofData != null
-
-/**
- * Returns true if this response indicates an error.
- */
-val IdkitResponseItem.isError: Boolean
-    get() = this.error != null
 
 // ─────────────────────────────────────────────────────────────────────────────
 // StatusWrapper Extensions
@@ -137,5 +76,5 @@ fun IDKitRequestWrapper.statusFlow(pollInterval: Duration = 3.seconds): Flow<Sta
 /**
  * Convenience accessor for the IDKitResult when status is Confirmed.
  */
-val StatusWrapper.Confirmed.idkitResult: IdkitResult
+val StatusWrapper.Confirmed.idkitResult: IDKitResult
     get() = this.result
