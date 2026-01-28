@@ -845,7 +845,12 @@ mod tests {
         assert_eq!(response.session_id.as_ref().unwrap(), "session-123");
         assert_eq!(response.responses.len(), 1);
 
-        let item = response.responses.into_iter().next().unwrap().into_response_item();
+        let item = response
+            .responses
+            .into_iter()
+            .next()
+            .unwrap()
+            .into_response_item();
         assert!(item.is_v4());
         assert_eq!(item.identifier(), CredentialType::Orb);
 
@@ -886,7 +891,12 @@ mod tests {
         assert!(response.session_id.is_none());
         assert_eq!(response.responses.len(), 1);
 
-        let item = response.responses.into_iter().next().unwrap().into_response_item();
+        let item = response
+            .responses
+            .into_iter()
+            .next()
+            .unwrap()
+            .into_response_item();
         assert!(item.is_v3());
         assert_eq!(item.identifier(), CredentialType::Face);
     }
@@ -924,7 +934,7 @@ mod tests {
             .collect();
 
         assert_eq!(items.len(), 2);
-        assert!(items.iter().all(|r| r.is_v4()));
+        assert!(items.iter().all(super::super::types::ResponseItem::is_v4));
 
         assert_eq!(items[0].identifier(), CredentialType::Orb);
         assert_eq!(items[1].identifier(), CredentialType::Document);
