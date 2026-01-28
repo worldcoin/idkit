@@ -5,11 +5,15 @@ import uniffi.idkit_core.CredentialRequest
 import uniffi.idkit_core.RpContext
 import uniffi.idkit_core.Signal
 import uniffi.idkit_core.CredentialType
-import uniffi.idkit_core.IDKitRequestBuilder
-import uniffi.idkit_core.IDKitRequestConfig
+import uniffi.idkit_core.IdKitRequestBuilder
+import uniffi.idkit_core.IdKitRequestConfig
 import uniffi.idkit_core.request
 import uniffi.idkit_core.Preset
 import uniffi.idkit_core.OrbLegacyPreset
+
+// Type aliases for public API consistency - UniFFI 0.30 generates IdKit* names
+typealias IDKitRequestBuilder = IdKitRequestBuilder
+typealias IDKitRequestConfig = IdKitRequestConfig
 
 /**
  * Lightweight Kotlin conveniences mirroring the Swift helpers and adding

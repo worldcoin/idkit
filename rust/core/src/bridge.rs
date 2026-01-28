@@ -485,7 +485,6 @@ impl IDKitRequest {
 /// Configuration for `request()`
 #[cfg(feature = "ffi")]
 #[derive(Clone, uniffi::Record)]
-#[uniffi(name = "IDKitRequestConfig")]
 pub struct IDKitRequestConfig {
     /// Application ID from the Developer Portal
     pub app_id: String,
@@ -502,7 +501,6 @@ pub struct IDKitRequestConfig {
 /// Builder for creating `IDKit` requests
 #[cfg(feature = "ffi")]
 #[derive(uniffi::Object)]
-#[uniffi(name = "IDKitRequestBuilder")]
 pub struct IDKitRequestBuilder {
     config: IDKitRequestConfig,
 }
@@ -616,7 +614,6 @@ pub fn request(config: IDKitRequestConfig) -> Arc<IDKitRequestBuilder> {
 // UniFFI wrapper for IDKitRequest with tokio runtime
 #[cfg(feature = "ffi")]
 #[derive(uniffi::Object)]
-#[uniffi(name = "IDKitRequestWrapper")]
 pub struct IDKitRequestWrapper {
     runtime: tokio::runtime::Runtime,
     inner: IDKitRequest,

@@ -61,8 +61,9 @@ lipo -info $IOS_BUILD/target/universal-ios-sim/release/libidkitFFI.a
 lipo -info $IOS_BUILD/target/universal-macos/release/libidkitFFI.a
 
 echo "🧬 Generating UniFFI Swift bindings"
+# Use macOS target for binding generation (iOS targets only produce .a, not .dylib)
 cargo run -p uniffi-bindgen generate \
-    --library target/aarch64-apple-ios-sim/release/libidkit.dylib \
+    --library target/aarch64-apple-darwin/release/libidkit.dylib \
     --language swift \
     --no-format \
     --out-dir "$IOS_BUILD/bindings"
