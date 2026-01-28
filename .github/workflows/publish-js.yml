@@ -157,8 +157,4 @@ jobs:
           NPM_TAG: ${{ needs.prepare.outputs.npm_tag }}
         run: |
           echo "Publishing @worldcoin/idkit-core@$PKG_VERSION with tag '$NPM_TAG'"
-          echo "npm version: $(npm --version)"
-          echo "Node version: $(node --version)"
-          echo "OIDC token URL available: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}"
-          cat ~/.npmrc || echo "No .npmrc found"
           npm publish --access public --provenance --tag "$NPM_TAG"
