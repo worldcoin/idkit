@@ -23,7 +23,6 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       npm_tag: ${{ steps.config.outputs.npm_tag }}
-      environment: ${{ steps.config.outputs.environment }}
       ref: ${{ steps.config.outputs.ref }}
       should_publish: ${{ steps.config.outputs.should_publish }}
 
@@ -39,12 +38,10 @@ jobs:
         run: |
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "npm_tag=dev" >> $GITHUB_OUTPUT
-            echo "environment=development" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
             echo "ref=${INPUT_COMMIT_SHA:-$GITHUB_SHA}" >> $GITHUB_OUTPUT
           elif [ "$IS_RELEASE_PR" = "true" ]; then
             echo "npm_tag=latest" >> $GITHUB_OUTPUT
-            echo "environment=production" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
             echo "ref=$GITHUB_SHA" >> $GITHUB_OUTPUT
           else
@@ -101,9 +98,8 @@ jobs:
   publish:
     needs: prepare
     if: needs.prepare.outputs.should_publish == 'true'
-    runs-on:
-      group: arc-public-large-amd64-runner
-    # TODO hardcode to production for now
+    # Use github hosted runners for OIDC/Provenance support
+    runs-on: ubuntu-latest
     environment: production
     permissions:
       contents: read
@@ -131,9 +127,6 @@ jobs:
           echo "Current npm version: $(npm --version)"
           npm install -g npm@latest
           echo "Updated npm version: $(npm --version)"
-          # Clear any auth token to force OIDC authentication
-          npm config delete //registry.npmjs.org/:_authToken || true
-          echo "Configured for OIDC publishing (no token)"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
