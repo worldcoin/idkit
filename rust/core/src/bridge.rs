@@ -452,12 +452,11 @@ impl IDKitRequest {
                     BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
                     BridgeResponse::ResponseV2(response) => {
                         // Determine protocol version from first response item
-                        let protocol_version = response.responses.first().map_or("4.0", |item| {
-                            match item {
+                        let protocol_version =
+                            response.responses.first().map_or("4.0", |item| match item {
                                 BridgeResponseItem::V4 { .. } => "4.0",
                                 BridgeResponseItem::V3 { .. } => "3.0",
-                            }
-                        });
+                            });
 
                         let responses = response
                             .responses
