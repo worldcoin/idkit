@@ -3,14 +3,13 @@
  * Pure functional API for World ID verification - no dependencies
  */
 
+import type { IDKitRequestConfig, RpContext } from "./types/config";
 import type {
-  IDKitRequestConfig,
+  IDKitResult,
   ConstraintNode,
   CredentialType,
   CredentialRequestType,
-  RpContext,
-} from "./types/config";
-import type { ISuccessResult } from "./types/result";
+} from "./types/result";
 import { AppErrorCodes } from "./types/bridge";
 import { WasmModule, initIDKit, initIDKitServer } from "./lib/wasm";
 
@@ -31,7 +30,7 @@ export interface Status {
     | "awaiting_confirmation"
     | "confirmed"
     | "failed";
-  proof?: ISuccessResult;
+  result?: IDKitResult;
   error?: AppErrorCodes;
 }
 
@@ -52,7 +51,7 @@ export interface IDKitRequest {
   /** Poll once for current status (for manual polling) */
   pollOnce(): Promise<Status>;
   /** Poll continuously until completion or timeout */
-  pollForUpdates(options?: WaitOptions): Promise<ISuccessResult>;
+  pollForUpdates(options?: WaitOptions): Promise<IDKitResult>;
 }
 
 /**
@@ -81,7 +80,7 @@ class IDKitRequestImpl implements IDKitRequest {
     return (await this.wasmRequest.pollForStatus()) as Status;
   }
 
-  async pollForUpdates(options?: WaitOptions): Promise<ISuccessResult> {
+  async pollForUpdates(options?: WaitOptions): Promise<IDKitResult> {
     const pollInterval = options?.pollInterval ?? 1000;
     const timeout = options?.timeout ?? 300000; // 5 minutes default
     const startTime = Date.now();
@@ -100,8 +99,8 @@ class IDKitRequestImpl implements IDKitRequest {
       // Poll status
       const status = await this.pollOnce();
 
-      if (status.type === "confirmed" && status.proof) {
-        return status.proof;
+      if (status.type === "confirmed" && status.result) {
+        return status.result;
       }
 
       if (status.type === "failed") {

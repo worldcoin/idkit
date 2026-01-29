@@ -1,3 +1,10 @@
+/**
+ * Configuration types for IDKit
+ *
+ * Note: CredentialType, CredentialRequestType, and ConstraintNode are now
+ * re-exported from WASM (source of truth: rust/core/src/wasm_bindings.rs)
+ */
+
 declare const brand: unique symbol;
 type Brand<T, TBrand extends string> = T & { [brand]: TBrand };
 
@@ -5,33 +12,6 @@ export type AbiEncodedValue = Brand<
   { types: string[]; values: unknown[] },
   "AbiEncodedValue"
 >;
-
-export type CredentialType =
-  | "orb"
-  | "face"
-  | "secure_document"
-  | "document"
-  | "device";
-
-/**
- * A single credential request item
- */
-export interface CredentialRequestType {
-  /** The type of credential being requested */
-  type: CredentialType;
-  /** Optional signal string for cryptographic binding */
-  signal?: string;
-  /** Optional minimum genesis timestamp constraint */
-  genesis_issued_at_min?: number;
-}
-
-/**
- * Constraint node - can be a CredentialRequest or a combinator (any/all)
- */
-export type ConstraintNode =
-  | CredentialRequestType
-  | { any: ConstraintNode[] }
-  | { all: ConstraintNode[] };
 
 /**
  * Relying Party context for protocol-level proof requests

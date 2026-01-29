@@ -210,26 +210,6 @@ func requestPresetAPIShape() {
 //     #expect(IDKit.version.hasPrefix("3."))
 // }
 
-// MARK: - Proof Tests
-
-@Test("Proof serialization roundtrip")
-func proofSerialization() throws {
-    let proof = Proof(
-        proof: "0x123",
-        merkleRoot: "0x456",
-        nullifierHash: "0x789",
-        verificationLevel: .orb
-    )
-
-    let json = try proofToJson(proof: proof)
-    let parsed = try proofFromJson(json: json)
-
-    #expect(parsed.proof == "0x123")
-    #expect(parsed.merkleRoot == "0x456")
-    #expect(parsed.nullifierHash == "0x789")
-    #expect(parsed.verificationLevel == .orb)
-}
-
 // MARK: - Swift Extensions Tests
 
 @Suite("Swift Extension Convenience APIs")

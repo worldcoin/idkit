@@ -1,15 +1,17 @@
-import type { AppErrorCodes } from "./bridge";
-import type { CredentialType } from "./config";
+/**
+ * Result types - re-exported from WASM bindings
+ *
+ * Source of truth: rust/core/src/wasm_bindings.rs (typescript_custom_section)
+ */
 
-export interface ISuccessResult {
-  proof: string;
-  merkle_root: string;
-  nullifier_hash: string;
-  /** The credential type used to generate the proof */
-  verification_level: CredentialType;
-}
-
-export interface IErrorState {
-  code: AppErrorCodes;
-  message?: string;
-}
+// Re-export types from WASM
+export type {
+  ResponseItem,
+  ResponseItemV4,
+  ResponseItemV3,
+  IDKitResult,
+  Status,
+  CredentialType,
+  ConstraintNode,
+  CredentialRequestType,
+} from "../lib/wasm";

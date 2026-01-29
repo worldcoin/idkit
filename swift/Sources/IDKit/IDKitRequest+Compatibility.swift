@@ -1,11 +1,17 @@
 import Foundation
 
+// MARK: - Type Aliases for UniFFI Generated Types
+// UniFFI 0.30 generates IdKit* names (not IDKit*), so we alias for public API consistency.
+
 /// Type alias for public API - maps to generated IdKitRequestBuilder
 public typealias IDKitRequestBuilder = IdKitRequestBuilder
 /// Type alias for public API - maps to generated IdKitRequestConfig
 public typealias IDKitRequestConfig = IdKitRequestConfig
 /// Type alias for public API - maps to generated IdKitRequestWrapper
 public typealias IDKitRequestWrapper = IdKitRequestWrapper
+/// Type alias for public API - maps to generated IdKitResult
+public typealias IDKitResult = IdKitResult
+
 /// Type alias for backwards compatibility
 public typealias IDKitRequest = IdKitRequestWrapper
 /// Type alias for backwards compatibility - the generated type is StatusWrapper
@@ -28,6 +34,8 @@ public enum IDKitRequestError: Error, LocalizedError {
         }
     }
 }
+
+// MARK: - IDKitRequestWrapper Extensions
 
 public extension IDKitRequestWrapper {
     /// Matches the IDKit v2 `status()` helper
@@ -86,5 +94,17 @@ public extension IDKitRequestWrapper {
             fatalError("Invalid request ID generated: \(raw)")
         }
         return uuid
+    }
+}
+
+// MARK: - StatusWrapper Convenience
+
+public extension StatusWrapper {
+    /// Returns the IDKitResult if this is a confirmed status, nil otherwise.
+    var idkitResult: IDKitResult? {
+        if case .confirmed(let result) = self {
+            return result
+        }
+        return nil
     }
 }

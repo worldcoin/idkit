@@ -34,8 +34,6 @@ let package = Package(
             ],
             path: "Sources/IDKit",
             exclude: [
-                "Generated/idkitFFI.h",
-                "Generated/idkitFFI.modulemap",
                 "Generated/idkit_coreFFI.h",
                 "Generated/idkit_coreFFI.modulemap"
             ]

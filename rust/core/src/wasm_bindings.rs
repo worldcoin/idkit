@@ -109,12 +109,13 @@ impl CredentialRequestWasm {
     }
 }
 
+/// WASM wrapper for `BridgeResponseV1` (legacy proof format)
 #[wasm_bindgen]
-pub struct IDKitProof(crate::Proof);
+pub struct IDKitProof(crate::BridgeResponseV1);
 
 #[wasm_bindgen]
 impl IDKitProof {
-    /// Creates a new proof
+    /// Creates a new legacy proof (protocol v1 / World ID v3)
     ///
     /// # Errors
     ///
@@ -127,7 +128,7 @@ impl IDKitProof {
         verification_level: JsValue,
     ) -> Result<Self, JsValue> {
         let cred: CredentialType = serde_wasm_bindgen::from_value(verification_level)?;
-        Ok(Self(crate::Proof {
+        Ok(Self(crate::BridgeResponseV1 {
             proof,
             merkle_root,
             nullifier_hash,
@@ -662,8 +663,9 @@ impl IDKitRequest {
                 crate::Status::AwaitingConfirmation => {
                     serde_json::json!({"type": "awaiting_confirmation"}).serialize(&serializer)
                 }
-                crate::Status::Confirmed(proof) => {
-                    serde_json::json!({"type": "confirmed", "proof": proof}).serialize(&serializer)
+                crate::Status::Confirmed(result) => {
+                    serde_json::json!({"type": "confirmed", "result": result})
+                        .serialize(&serializer)
                 }
                 crate::Status::Failed(error) => {
                     serde_json::json!({"type": "failed", "error": format!("{error:?}")})
@@ -692,6 +694,72 @@ export type ConstraintNode =
     | CredentialRequestType
     | { any: ConstraintNode[] }
     | { all: ConstraintNode[] };
+"#;
+
+// Export ResponseItem/IDKitResult types for unified response
+#[wasm_bindgen(typescript_custom_section)]
+const TS_IDKIT_RESULT: &str = r#"
+/** V4 response item (protocol version 4.0 / World ID v4) */
+export interface ResponseItemV4 {
+    /** Credential identifier */
+    identifier: CredentialType;
+    /** Compressed Groth16 proof (hex) */
+    proof: string;
+    /** RP-scoped nullifier (hex) */
+    nullifier: string;
+    /** Authenticator merkle root (hex) */
+    merkle_root: string;
+    /** Unix timestamp when proof was generated */
+    proof_timestamp: number;
+    /** Credential issuer schema ID (hex) */
+    issuer_schema_id: string;
+}
+
+/** V3 response item (protocol version 3.0 / World ID v3 - legacy format) */
+export interface ResponseItemV3 {
+    /** Credential identifier */
+    identifier: CredentialType;
+    /** ABI-encoded proof (hex) */
+    proof: string;
+    /** Merkle root (hex) */
+    merkle_root: string;
+    /** Nullifier hash (hex) */
+    nullifier_hash: string;
+}
+
+/**
+ * A single credential response item - unified type for both bridge and SDK.
+ * Type narrowing: use 'proof_timestamp' in item for V4, 'nullifier_hash' in item for V3.
+ */
+export type ResponseItem = ResponseItemV4 | ResponseItemV3;
+
+/** V3 result (legacy format - no session support) */
+export interface IDKitResultV3 {
+    /** Protocol version 3.0 */
+    protocol_version: "3.0";
+    /** Array of V3 credential responses */
+    responses: ResponseItemV3[];
+}
+
+/** V4 result (current format - supports sessions) */
+export interface IDKitResultV4 {
+    /** Protocol version 4.0 */
+    protocol_version: "4.0";
+    /** Session ID (for session proofs) */
+    session_id?: string;
+    /** Array of V4 credential responses */
+    responses: ResponseItemV4[];
+}
+
+/** The unified response structure - discriminated union by protocol_version */
+export type IDKitResult = IDKitResultV3 | IDKitResultV4;
+
+/** Status returned from pollForStatus() */
+export type Status =
+    | { type: "waiting_for_connection" }
+    | { type: "awaiting_confirmation" }
+    | { type: "confirmed"; result: IDKitResult }
+    | { type: "failed"; error: string };
 "#;
 
 // Export preset types
