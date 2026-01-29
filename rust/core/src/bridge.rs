@@ -451,19 +451,29 @@ impl IDKitRequest {
                 match bridge_response {
                     BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
                     BridgeResponse::ResponseV2(response) => {
+                        // Determine protocol version from first response item
+                        let protocol_version = response.responses.first().map_or("4.0", |item| {
+                            match item {
+                                BridgeResponseItem::V4 { .. } => "4.0",
+                                BridgeResponseItem::V3 { .. } => "3.0",
+                            }
+                        });
+
                         let responses = response
                             .responses
                             .into_iter()
                             .map(BridgeResponseItem::into_response_item)
                             .collect();
                         Ok(Status::Confirmed(IDKitResult::new(
+                            protocol_version,
                             response.session_id,
                             responses,
                         )))
                     }
                     BridgeResponse::ResponseV1(response) => {
+                        // V1 responses are always protocol 3.0
                         let item = response.into_response_item();
-                        Ok(Status::Confirmed(IDKitResult::new(None, vec![item])))
+                        Ok(Status::Confirmed(IDKitResult::new("3.0", None, vec![item])))
                     }
                 }
             }
@@ -848,7 +858,7 @@ mod tests {
             .next()
             .unwrap()
             .into_response_item();
-        assert!(item.is_v4());
+        assert!(matches!(item, ResponseItem::V4 { .. }));
         assert_eq!(item.identifier(), CredentialType::Orb);
 
         if let ResponseItem::V4 {
@@ -894,7 +904,7 @@ mod tests {
             .next()
             .unwrap()
             .into_response_item();
-        assert!(item.is_v3());
+        assert!(matches!(item, ResponseItem::V3 { .. }));
         assert_eq!(item.identifier(), CredentialType::Face);
     }
 
@@ -931,7 +941,9 @@ mod tests {
             .collect();
 
         assert_eq!(items.len(), 2);
-        assert!(items.iter().all(super::super::types::ResponseItem::is_v4));
+        assert!(items
+            .iter()
+            .all(|item| matches!(item, ResponseItem::V4 { .. })));
 
         assert_eq!(items[0].identifier(), CredentialType::Orb);
         assert_eq!(items[1].identifier(), CredentialType::Document);

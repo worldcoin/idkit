@@ -701,7 +701,6 @@ export type ConstraintNode =
 const TS_IDKIT_RESULT: &str = r#"
 /** V4 response item (protocol version 4.0 / World ID v4) */
 export interface ResponseItemV4 {
-    protocol_version: "4.0";
     /** Credential identifier */
     identifier: CredentialType;
     /** Compressed Groth16 proof (hex) */
@@ -718,7 +717,6 @@ export interface ResponseItemV4 {
 
 /** V3 response item (protocol version 3.0 / World ID v3 - legacy format) */
 export interface ResponseItemV3 {
-    protocol_version: "3.0";
     /** Credential identifier */
     identifier: CredentialType;
     /** ABI-encoded proof (hex) */
@@ -729,16 +727,32 @@ export interface ResponseItemV3 {
     nullifier_hash: string;
 }
 
-/** A single credential response item - unified type for both bridge and SDK */
+/**
+ * A single credential response item - unified type for both bridge and SDK.
+ * Type narrowing: use 'proof_timestamp' in item for V4, 'nullifier_hash' in item for V3.
+ */
 export type ResponseItem = ResponseItemV4 | ResponseItemV3;
 
-/** The unified response structure */
-export interface IDKitResult {
+/** V3 result (legacy format - no session support) */
+export interface IDKitResultV3 {
+    /** Protocol version 3.0 */
+    protocol_version: "3.0";
+    /** Array of V3 credential responses */
+    responses: ResponseItemV3[];
+}
+
+/** V4 result (current format - supports sessions) */
+export interface IDKitResultV4 {
+    /** Protocol version 4.0 */
+    protocol_version: "4.0";
     /** Session ID (for session proofs) */
     session_id?: string;
-    /** Array of credential responses (always successful - errors at BridgeResponse level) */
-    responses: ResponseItem[];
+    /** Array of V4 credential responses */
+    responses: ResponseItemV4[];
 }
+
+/** The unified response structure - discriminated union by protocol_version */
+export type IDKitResult = IDKitResultV3 | IDKitResultV4;
 
 /** Status returned from pollForStatus() */
 export type Status =
