@@ -7,7 +7,7 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::future_not_send)]
 
-use crate::preset::{OrbLegacyPreset, Preset};
+use crate::preset::{DocumentLegacyPreset, OrbLegacyPreset, Preset, SecureDocumentLegacyPreset};
 use crate::{ConstraintNode, CredentialRequest, CredentialType, RpContext, Signal};
 use serde::Serialize;
 use std::cell::RefCell;
@@ -283,6 +283,38 @@ pub fn hash_signal_bytes(bytes: &[u8]) -> String {
 #[wasm_bindgen(js_name = orbLegacy)]
 pub fn orb_legacy(signal: Option<String>) -> Result<JsValue, JsValue> {
     let preset = Preset::OrbLegacy(OrbLegacyPreset::new(signal));
+    serde_wasm_bindgen::to_value(&preset).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Creates a `SecureDocumentLegacy` preset for World ID 3.0 legacy support
+///
+/// Returns a preset object that can be passed to `request().preset()`.
+///
+/// # Arguments
+/// * `signal` - Optional signal string
+///
+/// # Errors
+///
+/// Returns an error if serialization fails
+#[wasm_bindgen(js_name = secureDocumentLegacy)]
+pub fn secure_document_legacy(signal: Option<String>) -> Result<JsValue, JsValue> {
+    let preset = Preset::SecureDocumentLegacy(SecureDocumentLegacyPreset::new(signal));
+    serde_wasm_bindgen::to_value(&preset).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Creates a `DocumentLegacy` preset for World ID 3.0 legacy support
+///
+/// Returns a preset object that can be passed to `request().preset()`.
+///
+/// # Arguments
+/// * `signal` - Optional signal string
+///
+/// # Errors
+///
+/// Returns an error if serialization fails
+#[wasm_bindgen(js_name = documentLegacy)]
+pub fn document_legacy(signal: Option<String>) -> Result<JsValue, JsValue> {
+    let preset = Preset::DocumentLegacy(DocumentLegacyPreset::new(signal));
     serde_wasm_bindgen::to_value(&preset).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
@@ -770,9 +802,21 @@ export interface OrbLegacyPreset {
     data: { signal?: string };
 }
 
-export type Preset = OrbLegacyPreset;
+export interface SecureDocumentLegacyPreset {
+    type: "SecureDocumentLegacy";
+    data: { signal?: string };
+}
+
+export interface DocumentLegacyPreset {
+    type: "DocumentLegacy";
+    data: { signal?: string };
+}
+
+export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLegacyPreset;
 
 export function orbLegacy(signal?: string): Preset;
+export function secureDocumentLegacy(signal?: string): Preset;
+export function documentLegacy(signal?: string): Preset;
 "#;
 
 // Export RP signature types

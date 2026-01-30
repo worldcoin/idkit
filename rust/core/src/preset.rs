@@ -27,6 +27,46 @@ impl OrbLegacyPreset {
     }
 }
 
+/// Configuration for `SecureDocumentLegacy` preset
+///
+/// Requests secure document-verified credentials only, with optional signal.
+/// The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct SecureDocumentLegacyPreset {
+    /// Optional signal to include in the proof.
+    /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
+    pub signal: Option<String>,
+}
+
+impl SecureDocumentLegacyPreset {
+    /// Creates a new `SecureDocumentLegacyPreset` with optional signal
+    #[must_use]
+    pub fn new(signal: Option<String>) -> Self {
+        Self { signal }
+    }
+}
+
+/// Configuration for `DocumentLegacy` preset
+///
+/// Requests document-verified credentials only, with optional signal.
+/// The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct DocumentLegacyPreset {
+    /// Optional signal to include in the proof.
+    /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
+    pub signal: Option<String>,
+}
+
+impl DocumentLegacyPreset {
+    /// Creates a new `DocumentLegacyPreset` with optional signal
+    #[must_use]
+    pub fn new(signal: Option<String>) -> Self {
+        Self { signal }
+    }
+}
+
 /// Credential presets for World ID verification
 ///
 /// Each preset defines a pre-configured set of credential requests
@@ -38,6 +78,10 @@ impl OrbLegacyPreset {
 pub enum Preset {
     /// Orb-only verification (highest assurance level)
     OrbLegacy(OrbLegacyPreset),
+    /// Secure document verification
+    SecureDocumentLegacy(SecureDocumentLegacyPreset),
+    /// Document verification
+    DocumentLegacy(DocumentLegacyPreset),
 }
 
 impl Preset {
@@ -58,6 +102,30 @@ impl Preset {
                 let orb = CredentialRequest::new(CredentialType::Orb, signal);
                 let constraints = ConstraintNode::Item(orb); // OrbLegacy doesn't need constraints
                 let legacy_verification_level = VerificationLevel::Orb;
+                let legacy_signal = config.signal.clone();
+
+                (constraints, legacy_verification_level, legacy_signal)
+            }
+            Self::SecureDocumentLegacy(config) => {
+                let signal = config
+                    .signal
+                    .as_ref()
+                    .map(|s| Signal::from_string(s.clone()));
+                let secure_doc = CredentialRequest::new(CredentialType::SecureDocument, signal);
+                let constraints = ConstraintNode::Item(secure_doc);
+                let legacy_verification_level = VerificationLevel::SecureDocument;
+                let legacy_signal = config.signal.clone();
+
+                (constraints, legacy_verification_level, legacy_signal)
+            }
+            Self::DocumentLegacy(config) => {
+                let signal = config
+                    .signal
+                    .as_ref()
+                    .map(|s| Signal::from_string(s.clone()));
+                let doc = CredentialRequest::new(CredentialType::Document, signal);
+                let constraints = ConstraintNode::Item(doc);
+                let legacy_verification_level = VerificationLevel::Document;
                 let legacy_signal = config.signal.clone();
 
                 (constraints, legacy_verification_level, legacy_signal)
