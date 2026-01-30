@@ -254,6 +254,7 @@ class IDKitRequestBuilder {
       rpContext,
       this.config.action_description ?? null,
       this.config.bridge_url ?? null,
+      this.config.allow_legacy_proofs,
     );
 
     const wasmRequest = (await wasmBuilder.constraints(
@@ -299,6 +300,7 @@ class IDKitRequestBuilder {
       rpContext,
       this.config.action_description ?? null,
       this.config.bridge_url ?? null,
+      this.config.allow_legacy_proofs,
     );
 
     const wasmRequest = (await wasmBuilder.preset(
@@ -360,6 +362,12 @@ function createRequest(config: IDKitRequestConfig): IDKitRequestBuilder {
   }
   if (!config.rp_context) {
     throw new Error("rp_context is required");
+  }
+  if (typeof config.allow_legacy_proofs !== "boolean") {
+    throw new Error(
+      "allow_legacy_proofs is required. Set to true to accept v3 proofs during migration, " +
+        "or false to only accept v4 proofs.",
+    );
   }
 
   return new IDKitRequestBuilder(config);

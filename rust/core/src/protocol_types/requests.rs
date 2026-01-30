@@ -87,6 +87,11 @@ pub struct ProofRequest {
     /// Constraint expression (all/any) optional
     #[serde(skip_serializing_if = "Option::is_none")]
     pub constraints: Option<ConstraintExpr<'static>>,
+    /// Whether to accept legacy (v3) proofs as fallback.
+    /// - `true`: Accept both v3 and v4 proofs. Use during migration.
+    /// - `false`: Only accept v4 proofs. Use after migration cutoff or for new apps.
+    #[serde(default)]
+    pub allow_legacy_proofs: bool,
 }
 
 impl ProofRequest {
@@ -103,6 +108,7 @@ impl ProofRequest {
         nonce: FieldElement,
         requests: Vec<CredentialRequest>,
         constraints: Option<ConstraintExpr<'static>>,
+        allow_legacy_proofs: bool,
     ) -> Self {
         let oprf_key_id = rp_id.to_string(); // Current protocol uses RpId as OprfKeyId
 
@@ -120,6 +126,7 @@ impl ProofRequest {
             nonce,
             requests,
             constraints,
+            allow_legacy_proofs,
         }
     }
 }
@@ -448,10 +455,12 @@ mod tests {
             nonce,
             vec![],
             None,
+            false, // allow_legacy_proofs
         );
 
         assert_eq!(request.share_epoch, DEFAULT_SHARE_EPOCH);
         assert!(request.session_id.is_none());
         assert!(request.action.is_some());
+        assert!(!request.allow_legacy_proofs);
     }
 }
