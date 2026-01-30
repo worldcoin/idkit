@@ -1,273 +1,114 @@
-# IDKit Swift 
+# IDKit Swift
 
-Swift bindings for IDKit - World ID verification SDK built with Rust and UniFFI.
-
-## Architecture
-
-This Swift SDK is a wrapper over the Rust core:
-
-```
-┌─────────────────────────────────────┐
-│   Rust Core (idkit-core)            │
-│   - All business logic              │
-│   - Request management              │
-│   - Constraints                     │
-│   - Verification                    │
-└─────────────────────────────────────┘
-            │ UniFFI
-            ▼
-┌─────────────────────────────────────┐
-│   Generated Swift                   │
-│   - IDKitRequest, Signal            │
-│   - CredentialType, Constraints     │
-│   - Status, Proof                   │
-└─────────────────────────────────────┘
-```
+World ID verification SDK for Swift/iOS. Powered by Rust via UniFFI.
 
 ## Installation
 
-### Swift Package Manager
-
 ```swift
 dependencies: [
-    .package(url: "https://github.com/worldcoin/idkit", from: "4.0.1")
+    .package(url: "https://github.com/worldcoin/idkit-swift", from: "4.0.1")
 ]
 ```
 
-## Quick Start
+## Backend: Generate RP Signature
 
-### Basic Verification
+The RP signature authenticates your verification requests. Generate it on your backend server (e.g., using the JS SDK):
+
+```typescript
+// Backend (Node.js)
+import { IDKit, signRequest } from '@worldcoin/idkit-core';
+
+await IDKit.initServer();
+
+// Never expose RP_SIGNING_KEY to clients
+const sig = signRequest('my-action', process.env.RP_SIGNING_KEY);
+
+// Return to client
+res.json({
+  sig: sig.sig,
+  nonce: sig.nonce,
+  created_at: Number(sig.createdAt),
+  expires_at: Number(sig.expiresAt),
+});
+```
+
+## Client: Create Verification Request
+
+### Using Presets
+
+For common verification scenarios with World ID 3.0 backward compatibility:
 
 ```swift
 import IDKit
 
-// Create RpContext (in production this comes from your backend)
+// Fetch signature from your backend
+let rpSig = try await fetchRpSignature()
+
 let rpContext = try RpContext(
-    rpId: "rp_1234567890abcdef",
-    nonce: "0x...",  // From signRequest on backend
-    createdAt: UInt64(Date().timeIntervalSince1970),
-    expiresAt: UInt64(Date().timeIntervalSince1970) + 3600,
-    signature: "0x..."  // From signRequest on backend
+    rpId: "rp_xxxxx",
+    nonce: rpSig.nonce,
+    createdAt: UInt64(rpSig.createdAt),
+    expiresAt: UInt64(rpSig.expiresAt),
+    signature: rpSig.sig
 )
 
 let config = IDKitRequestConfig(
-    appId: "app_staging_123abc",
-    action: "vote",
+    appId: "app_xxxxx",
+    action: "my-action",
     rpContext: rpContext,
     actionDescription: nil,
     bridgeUrl: nil
 )
 
-// Create request using builder pattern
 let request = try IDKit.request(config: config)
-    .constraints(constraints: anyOf(CredentialRequest.create(.orb)))
+    .preset(preset: orbLegacy(signal: "user-123"))
 
-// Display QR code
-print("Scan: \(request.connectUrl())")
-
-for try await status in request.status() {
-    switch status {
-    case .waitingForConnection:
-        print("⏳ Waiting for user...")
-    case .awaitingConfirmation:
-        print("📱 Awaiting confirmation...")
-    case .confirmed(let proof):
-        print("✅ Verified! Nullifier: \(proof.nullifierHash)")
-        break
-    case .failed(let error):
-        fatalError("Verification failed: \(error)")
-    }
-}
+// Display QR code for World App
+let qrUrl = request.connectUrl()
 ```
 
-### Status Polling
+**Available presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`
+
+### Using Constraints
+
+For custom credential requirements using `anyOf` (OR) and `allOf` (AND) combinators:
 
 ```swift
-for try await status in request.status() {
-    switch status {
-    case .waitingForConnection:
-        print("⏳ Waiting for user...")
-    case .awaitingConfirmation:
-        print("📱 User is confirming...")
-    case .confirmed(let proof):
-        print("✅ Verified! \(proof)")
-        return
-    case .failed(let error):
-        fatalError("Verification failed: \(error)")
-    }
-}
-```
+import IDKit
 
-### Multiple Requests with Constraints
+// Fetch signature from your backend
+let rpSig = try await fetchRpSignature()
 
-```swift
-// Create request with multiple credential options
+let rpContext = try RpContext(
+    rpId: "rp_xxxxx",
+    nonce: rpSig.nonce,
+    createdAt: UInt64(rpSig.createdAt),
+    expiresAt: UInt64(rpSig.expiresAt),
+    signature: rpSig.sig
+)
+
+let config = IDKitRequestConfig(
+    appId: "app_xxxxx",
+    action: "my-action",
+    rpContext: rpContext,
+    actionDescription: nil,
+    bridgeUrl: nil
+)
+
+let orb = CredentialRequest.create(.orb)
+let face = CredentialRequest.create(.face)
+let document = CredentialRequest.create(.document)
+let secureDocument = CredentialRequest.create(.secureDocument)
+
+// Accept orb OR face credential
 let request = try IDKit.request(config: config)
-    .constraints(constraints: anyOf(
-        CredentialRequest.create(.orb, signal: "user_signal"),
-        CredentialRequest.create(.face, signal: "user_signal")
-    ))
+    .constraints(constraints: anyOf(orb, face))
 
-// User must have at least one (priority: Orb > Face)
-print("Scan: \(request.connectUrl())")
+// Or require orb AND (document OR secure_document)
+// .constraints(constraints: allOf(orb, anyOf(document, secureDocument)))
+
+// Display QR code for World App
+let qrUrl = request.connectUrl()
 ```
 
-### Face Authentication
-
-```swift
-// Create request with face authentication requirement
-let request = try IDKit.request(config: config)
-    .constraints(constraints: anyOf(
-        CredentialRequest.create(.orb, signal: "sensitive_action")
-    ))
-    // Note: Face auth is configured in the CredentialRequest
-```
-
-### ABI-Encoded Signals
-
-```swift
-let abiSignal = Signal.fromAbiEncoded(bytes: [0x00, 0x01, ...])
-let request = Request(credentialType: .orb, signal: abiSignal)
-```
-
-## API Reference
-
-### Core Types (Generated from Rust)
-
-All core types are generated by UniFFI from the Rust implementation. This ensures 100% consistency.
-
-#### `IDKit`
-
-**Static Methods:**
-- `request(config:) -> IDKitRequestBuilder` - Create request builder
-
-#### `IDKitRequestBuilder`
-
-**Methods:**
-- `constraints(constraints:) -> IDKitRequest` - Build request with constraints
-- `preset(preset:) -> IDKitRequest` - Build request with preset (e.g., orbLegacy)
-
-#### `IDKitRequest`
-
-**Instance Methods:**
-- `pollStatus() -> Status` - Poll for status (blocking)
-- `status() -> AsyncThrowingStream<Status, Error>` - Async status stream
-- `connectUrl() -> String` - Get connection URL
-- `requestId() -> String` - Get request ID
-
-#### `CredentialRequest`
-
-**Static Methods:**
-- `create(_:signal:) -> CredentialRequest` - Create credential request
-
-#### `Signal`
-
-- `Signal.fromString(s:) -> Signal` - From UTF-8 string
-- `Signal.fromAbiEncoded(bytes:) -> Signal` - From ABI bytes
-- `asBytes() -> Data` - Get bytes as Data
-- `asString() -> String?` - Get string (if UTF-8)
-
-#### `Constraints`
-
-- `Constraints.any(credentials:)` - At least one must match
-- `Constraints.all(credentials:)` - All must match
-- `Constraints.new(root:)` - From constraint node
-
-#### `ConstraintNode`
-
-- `ConstraintNode.credential(credentialType:)` - Leaf node
-- `ConstraintNode.any(nodes:)` - OR node
-- `ConstraintNode.all(nodes:)` - AND node
-
-#### `Status`
-
-```swift
-enum Status {
-    case waitingForConnection
-    case awaitingConfirmation
-    case confirmed(Proof)
-    case failed(String)
-}
-```
-
-#### `Proof`
-
-```swift
-struct Proof {
-    let proof: String
-    let merkleRoot: String
-    let nullifierHash: String
-    let verificationLevel: CredentialType
-}
-```
-
-#### `CredentialType`
-
-```swift
-enum CredentialType {
-    case orb        // Iris biometric
-    case face       // Face biometric
-    case device     // Device-based
-    case secureDocument  // NFC with auth
-    case document   // NFC without auth
-}
-```
-
-#### `VerificationLevel`
-
-```swift
-enum VerificationLevel {
-    case orb
-    case device
-    case secureDocument
-    case document
-}
-```
-
-### Errors
-
-All errors are surfaced as `IdkitError` values generated by the Rust core.
-
-## Building from Source
-
-The generated Swift bindings (`swift/Sources/IDKit/Generated/`) are excluded from git and must be regenerated locally.
-
-### Building for all platforms (iOS + macOS)
-
-```bash
-# Build Rust library, generate bindings, and create XCFramework
-./scripts/package-swift.sh
-
-# Then build the Swift package
-cd swift
-swift build
-```
-
-### For local development with idkit-swift
-
-```bash
-# Set up idkit-swift to use local XCFramework
-./scripts/setup-local-swift.sh ../idkit-swift
-
-# When done, restore idkit-swift to normal
-./scripts/restore-idkit-swift.sh ../idkit-swift
-```
-
-### Manual build steps
-
-```bash
-# 1. Install Rust targets
-rustup target add aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-ios
-rustup target add aarch64-apple-darwin x86_64-apple-darwin
-
-# 2. Build for all platforms
-cargo build --release --package idkit-core --target aarch64-apple-ios --features uniffi-bindings
-cargo build --release --package idkit-core --target aarch64-apple-darwin --features uniffi-bindings
-# ... (see scripts/package-swift.sh for complete build steps)
-
-# 3. Generate bindings
-uniffi-bindgen generate \
-    --library target/aarch64-apple-ios-sim/release/libidkit.dylib \
-    --language swift \
-    --out-dir swift/Sources/IDKit/Generated
-```
+**Credential types:** `.orb`, `.face`, `.device`, `.document`, `.secureDocument`
