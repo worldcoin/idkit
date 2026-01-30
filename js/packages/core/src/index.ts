@@ -46,6 +46,7 @@ export {
 
 // Utilities
 export { isReactNative, isWeb, isNode } from "./lib/platform";
+export { hashSignal } from "../wasm/idkit_wasm.js";
 
 // RP Request Signing (server-side only)
 export { signRequest } from "./lib/rp-signature";

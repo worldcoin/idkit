@@ -41,6 +41,44 @@ app.post("/api/rp-signature", (req, res) => {
   }
 });
 
+app.post("/api/verify-proof", async (req, res) => {
+  const { rp_id, portalRequest } = req.body;
+
+  if (!rp_id || !portalRequest) {
+    res
+      .status(400)
+      .json({ error: "Missing required fields: rp_id, portalRequest" });
+    return;
+  }
+
+  try {
+    const portalResponse = await fetch(
+      `https://developer.world.org/api/v4/verify/${rp_id}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(portalRequest),
+      },
+    );
+
+    const result = await portalResponse.json();
+
+    if (!portalResponse.ok) {
+      res
+        .status(portalResponse.status)
+        .json({ error: "Verification failed", details: result });
+      return;
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error("Verification error:", error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
 const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`RP signature server running on http://localhost:${PORT}`);

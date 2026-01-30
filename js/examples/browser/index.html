@@ -138,11 +138,11 @@
 
     <script type="module">
       // Import IDKit core (pure TypeScript, no dependencies)
-      import { IDKit, orbLegacy } from "@worldcoin/idkit-core";
+      import { IDKit, orbLegacy, hashSignal } from "@worldcoin/idkit-core";
 
       // Demo app configuration
-      const APP_ID = "app_ce4cb73cb75fc3b73b71ffb4de178410"; // Replace with your actual app ID
-      const ACTION = "test-action";
+      const APP_ID = "app_315057b8441a523e7a9b2416f1262a65"; // Replace with your actual app ID
+      const ACTION = "test-action2";
 
       // UI elements
       const qrDiv = document.getElementById("qr");
@@ -164,6 +164,71 @@
 
       // Initialize WASM on page load
       await IDKit.init();
+
+      /**
+       * Build dev portal verify request from IDKit proof result.
+       * Matches response items with their original credential request signals.
+       *
+       * @param proof - IDKit result from pollForUpdates()
+       * @param action - Action identifier
+       * @param credentialRequests - Original credential requests (with signals)
+       * @param nonce - Nonce from rp_context (for v4)
+       */
+      function buildPortalVerifyRequest(
+        proof,
+        action,
+        credentialRequests,
+        nonce,
+      ) {
+        const isV4 = proof.protocol_version === "4.0";
+
+        // Create map of identifier -> signal from original credential requests
+        const signalMap = new Map();
+        for (const req of credentialRequests) {
+          if (req.signal) {
+            signalMap.set(req.type, hashSignal(req.signal));
+          }
+        }
+
+        // Default signal hashes
+        const defaultV3SignalHash =
+          "0x00c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4";
+        const defaultV4SignalHash = "0x0";
+
+        if (isV4) {
+          const responses = proof.responses.map((r) => ({
+            identifier: r.identifier,
+            signal_hash: signalMap.get(r.identifier) ?? defaultV4SignalHash,
+            issuer_schema_id: r.issuer_schema_id,
+            nullifier: r.nullifier,
+            nonce: nonce,
+            merkle_root: r.merkle_root,
+            proof_timestamp: String(r.proof_timestamp),
+            // TODO: dev portal expects compressed_proof as [string; 4] array
+            compressed_proof: r.proof,
+          }));
+
+          return {
+            protocol_version: "v4",
+            action,
+            responses,
+          };
+        } else {
+          const responses = proof.responses.map((r) => ({
+            identifier: r.identifier,
+            signal_hash: signalMap.get(r.identifier) ?? defaultV3SignalHash,
+            merkle_root: r.merkle_root,
+            nullifier_hash: r.nullifier_hash,
+            proof: r.proof,
+          }));
+
+          return {
+            protocol_version: "v3",
+            action,
+            responses,
+          };
+        }
+      }
 
       // Fetch RP signature from the backend
       async function fetchRpSignature(action) {
@@ -203,6 +268,9 @@
 
           statusText.textContent = "Creating verification request...";
 
+          // Store credential requests for later use
+          const credentialRequests = [{ type: credentialType, signal }];
+
           // Create a new request using the builder pattern
           const request = await IDKit.request({
             app_id: APP_ID,
@@ -211,7 +279,10 @@
           }).preset(orbLegacy({ signal }));
 
           // Get the connector URL from the request
-          const url = request.connectorURI;
+          const url = request.connectorURI.replace(
+            "https://world.org/verify",
+            "https://stage.world.org/verify",
+          );
           console.log("Connect URL:", url);
 
           qrDiv.hidden = false;
@@ -227,10 +298,34 @@
             timeout: 120000, // 2 minute timeout
           });
 
+          // Build portal request and verify proof
+          statusText.textContent = "Verifying proof...";
+          const portalRequest = buildPortalVerifyRequest(
+            proof,
+            ACTION,
+            credentialRequests,
+            rpContext.nonce,
+          );
+
+          const verifyResponse = await fetch("/api/verify-proof", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              rp_id: APP_ID,
+              portalRequest,
+            }),
+          });
+
+          const verifyResult = await verifyResponse.json();
+
           statusDiv.hidden = true;
           qrDiv.hidden = true;
           resultDiv.hidden = false;
-          resultData.textContent = JSON.stringify(proof, null, 2);
+          resultData.textContent = JSON.stringify(
+            { proof, verification: verifyResult },
+            null,
+            2,
+          );
         } catch (error) {
           console.error("Verification error:", error);
           hideAll();
