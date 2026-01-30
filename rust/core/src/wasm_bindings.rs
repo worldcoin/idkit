@@ -588,7 +588,14 @@ pub fn request(
     bridge_url: Option<String>,
     allow_legacy_proofs: bool,
 ) -> IDKitRequestBuilderWasm {
-    IDKitRequestBuilderWasm::new(app_id, action, rp_context, action_description, bridge_url, allow_legacy_proofs)
+    IDKitRequestBuilderWasm::new(
+        app_id,
+        action,
+        rp_context,
+        action_description,
+        bridge_url,
+        allow_legacy_proofs,
+    )
 }
 
 /// World ID verification request
