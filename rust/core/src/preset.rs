@@ -111,8 +111,14 @@ impl Preset {
                     .signal
                     .as_ref()
                     .map(|s| Signal::from_string(s.clone()));
+                // Legacy VerificationLevel::Document will return the maximum credential type
+                // so this becomes any(orb, secure_document)
+                let orb = CredentialRequest::new(CredentialType::Orb, signal.clone());
                 let secure_doc = CredentialRequest::new(CredentialType::SecureDocument, signal);
-                let constraints = ConstraintNode::Item(secure_doc);
+                let constraints = ConstraintNode::any(vec![
+                    ConstraintNode::Item(orb),
+                    ConstraintNode::Item(secure_doc),
+                ]);
                 let legacy_verification_level = VerificationLevel::SecureDocument;
                 let legacy_signal = config.signal.clone();
 
@@ -123,8 +129,17 @@ impl Preset {
                     .signal
                     .as_ref()
                     .map(|s| Signal::from_string(s.clone()));
+                // Legacy VerificationLevel::Document will return the maximum credential type
+                // so this becomes any(orb, secure_document, document)
+                let orb = CredentialRequest::new(CredentialType::Orb, signal.clone());
+                let secure_doc =
+                    CredentialRequest::new(CredentialType::SecureDocument, signal.clone());
                 let doc = CredentialRequest::new(CredentialType::Document, signal);
-                let constraints = ConstraintNode::Item(doc);
+                let constraints = ConstraintNode::any(vec![
+                    ConstraintNode::Item(orb),
+                    ConstraintNode::Item(secure_doc),
+                    ConstraintNode::Item(doc),
+                ]);
                 let legacy_verification_level = VerificationLevel::Document;
                 let legacy_signal = config.signal.clone();
 
