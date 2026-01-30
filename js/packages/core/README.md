@@ -13,12 +13,12 @@ npm install @worldcoin/idkit-core
 The RP signature authenticates your verification requests. Generate it server-side:
 
 ```typescript
-import { IDKit, signRequest } from '@worldcoin/idkit-core';
+import { IDKit, signRequest } from "@worldcoin/idkit-core";
 
 await IDKit.initServer();
 
 // Never expose RP_SIGNING_KEY to clients
-const sig = signRequest('my-action', process.env.RP_SIGNING_KEY);
+const sig = signRequest("my-action", process.env.RP_SIGNING_KEY);
 
 // Return to client
 res.json({
@@ -36,24 +36,24 @@ res.json({
 For common verification scenarios with World ID 3.0 backward compatibility:
 
 ```typescript
-import { IDKit, orbLegacy } from '@worldcoin/idkit-core';
+import { IDKit, orbLegacy } from "@worldcoin/idkit-core";
 
 await IDKit.init();
 
 // Fetch signature from your backend
-const rpSig = await fetch('/api/rp-signature').then(r => r.json());
+const rpSig = await fetch("/api/rp-signature").then((r) => r.json());
 
 const request = await IDKit.request({
-  app_id: 'app_xxxxx',
-  action: 'my-action',
+  app_id: "app_xxxxx",
+  action: "my-action",
   rp_context: {
-    rp_id: 'rp_xxxxx',
+    rp_id: "rp_xxxxx",
     nonce: rpSig.nonce,
     created_at: rpSig.created_at,
     expires_at: rpSig.expires_at,
     signature: rpSig.sig,
   },
-}).preset(orbLegacy({ signal: 'user-123' }));
+}).preset(orbLegacy({ signal: "user-123" }));
 
 // Display QR code for World App
 const qrUrl = request.connectorURI;
@@ -66,24 +66,24 @@ const qrUrl = request.connectorURI;
 For custom credential requirements using `any` (OR) and `all` (AND) combinators:
 
 ```typescript
-import { IDKit, CredentialRequest, any, all } from '@worldcoin/idkit-core';
+import { IDKit, CredentialRequest, any, all } from "@worldcoin/idkit-core";
 
 await IDKit.init();
 
 // Fetch signature from your backend
-const rpSig = await fetch('/api/rp-signature').then(r => r.json());
+const rpSig = await fetch("/api/rp-signature").then((r) => r.json());
 
-const orb = CredentialRequest('orb');
-const face = CredentialRequest('face');
-const document = CredentialRequest('document');
-const secureDocument = CredentialRequest('secure_document');
+const orb = CredentialRequest("orb");
+const face = CredentialRequest("face");
+const document = CredentialRequest("document");
+const secureDocument = CredentialRequest("secure_document");
 
 // Accept orb OR face credential
 const request = await IDKit.request({
-  app_id: 'app_xxxxx',
-  action: 'my-action',
+  app_id: "app_xxxxx",
+  action: "my-action",
   rp_context: {
-    rp_id: 'rp_xxxxx',
+    rp_id: "rp_xxxxx",
     nonce: rpSig.nonce,
     created_at: rpSig.created_at,
     expires_at: rpSig.expires_at,
