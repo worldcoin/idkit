@@ -1,186 +1,101 @@
 # @worldcoin/idkit-core
 
-Core bridge logic for IDKit (World ID SDK) powered by Rust/WASM.
+World ID verification SDK for JavaScript/TypeScript. Zero dependencies, WASM-powered.
 
 ## Installation
 
 ```bash
 npm install @worldcoin/idkit-core
-# or
-pnpm add @worldcoin/idkit-core
 ```
 
-## Quick Start
+## Backend: Generate RP Signature
+
+The RP signature authenticates your verification requests. Generate it server-side:
 
 ```typescript
-import { useWorldBridgeStore } from "@worldcoin/idkit-core";
+import { IDKit, signRequest } from '@worldcoin/idkit-core';
 
-// 1. Get store instance
-const store = useWorldBridgeStore();
+await IDKit.initServer();
 
-// 2. Create client with explicit requests
-const client = await store.createClient({
-  app_id: "app_staging_xxxxx",
-  action: "my-action",
-  requests: [{ credential_type: "orb", signal: "user-id-123" }],
-});
+// Never expose RP_SIGNING_KEY to clients
+const sig = signRequest('my-action', process.env.RP_SIGNING_KEY);
 
-// 3. Display QR code for World App
-console.log("Scan this:", client.connectorURI);
-
-// 4. Poll for proof (handles polling automatically)
-try {
-  const proof = await client.pollForUpdates();
-  console.log("Success:", proof);
-} catch (error) {
-  console.error("Verification failed:", error);
-}
-```
-
-## Multiple Credential Types
-
-You can request verification with multiple credential types. The user can satisfy the request with any of them:
-
-```typescript
-const client = await store.createClient({
-  app_id: "app_staging_xxxxx",
-  action: "my-action",
-  requests: [
-    { credential_type: "orb", signal: "user-id-123" },
-    { credential_type: "device", signal: "user-id-123" },
-  ],
+// Return to client
+res.json({
+  sig: sig.sig,
+  nonce: sig.nonce,
+  created_at: Number(sig.createdAt),
+  expires_at: Number(sig.expiresAt),
 });
 ```
 
-## Credential Types
+## Client: Create Verification Request
 
-- `orb` - Verified via Orb biometric scan (highest trust)
-- `face` - Verified via Face ID
-- `device` - Verified via device binding
-- `document` - Verified via document scan
-- `secure_document` - Verified via secure document scan
+### Using Presets
 
-## API Reference
-
-### Creating a Client
+For common verification scenarios with World ID 3.0 backward compatibility:
 
 ```typescript
-const client = await store.createClient(config);
+import { IDKit, orbLegacy } from '@worldcoin/idkit-core';
+
+await IDKit.init();
+
+// Fetch signature from your backend
+const rpSig = await fetch('/api/rp-signature').then(r => r.json());
+
+const request = await IDKit.request({
+  app_id: 'app_xxxxx',
+  action: 'my-action',
+  rp_context: {
+    rp_id: 'rp_xxxxx',
+    nonce: rpSig.nonce,
+    created_at: rpSig.created_at,
+    expires_at: rpSig.expires_at,
+    signature: rpSig.sig,
+  },
+}).preset(orbLegacy({ signal: 'user-123' }));
+
+// Display QR code for World App
+const qrUrl = request.connectorURI;
 ```
 
-**Config:**
+**Available presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`
+
+### Using Constraints
+
+For custom credential requirements using `any` (OR) and `all` (AND) combinators:
 
 ```typescript
-interface IDKitConfig {
-  app_id: `app_${string}`; // Your World ID app ID
-  action: string; // Action identifier
-  requests: RequestConfig[]; // Required: credential type requests
-  bridge_url?: string; // Custom bridge URL (optional)
-  partner?: boolean; // Partner mode (optional)
-}
+import { IDKit, CredentialRequest, any, all } from '@worldcoin/idkit-core';
 
-interface RequestConfig {
-  credential_type: CredentialType;
-  signal?: string | AbiEncodedValue; // Optional signal for this request
-}
+await IDKit.init();
 
-type CredentialType =
-  | "orb"
-  | "face"
-  | "device"
-  | "document"
-  | "secure_document";
+// Fetch signature from your backend
+const rpSig = await fetch('/api/rp-signature').then(r => r.json());
+
+const orb = CredentialRequest('orb');
+const face = CredentialRequest('face');
+const document = CredentialRequest('document');
+const secureDocument = CredentialRequest('secure_document');
+
+// Accept orb OR face credential
+const request = await IDKit.request({
+  app_id: 'app_xxxxx',
+  action: 'my-action',
+  rp_context: {
+    rp_id: 'rp_xxxxx',
+    nonce: rpSig.nonce,
+    created_at: rpSig.created_at,
+    expires_at: rpSig.expires_at,
+    signature: rpSig.sig,
+  },
+}).constraints(any(orb, face));
+
+// Or require orb AND (document OR secure_document)
+// .constraints(all(orb, any(document, secureDocument)))
+
+// Display QR code for World App
+const qrUrl = request.connectorURI;
 ```
 
-**Client Properties:**
-
-- `connectorURI: string` - QR code URL for World App
-- `requestId: string` - Unique request ID
-
-**Client Methods:**
-
-- `pollForUpdates(options?: WaitOptions): Promise<ISuccessResult>` - Poll for proof (auto-polls)
-- `pollOnce(): Promise<Status>` - Poll once for status (manual polling)
-
-**WaitOptions:**
-
-```typescript
-interface WaitOptions {
-  pollInterval?: number; // ms between polls (default: 1000)
-  timeout?: number; // total timeout ms (default: 300000 = 5min)
-  signal?: AbortSignal; // for cancellation
-}
-```
-
-### Store
-
-```typescript
-const store = useWorldBridgeStore();
-```
-
-**Methods:**
-
-- `createClient(config: IDKitConfig): Promise<WorldBridgeClient>` - Create new client
-- `reset(): void` - Clear state and start over
-
-**State (for reactive frameworks):**
-
-- `verificationState: VerificationState` - Current verification state
-- `connectorURI: string | null` - QR code URL for World App
-- `result: ISuccessResult | null` - Proof data when verified
-- `errorCode: AppErrorCodes | null` - Error code if failed
-
-### Result Types
-
-```typescript
-interface ISuccessResult {
-  proof: string;
-  merkle_root: string;
-  nullifier_hash: string;
-  verification_level: CredentialType; // The credential type used
-}
-```
-
-## React Integration
-
-```tsx
-import { useWorldBridgeStore, IDKitWidget } from "@worldcoin/idkit-core";
-
-function MyComponent() {
-  const handleSuccess = (result) => {
-    console.log("Verified:", result);
-  };
-
-  return (
-    <IDKitWidget
-      app_id="app_staging_xxxxx"
-      action="my-action"
-      requests={[{ credential_type: "orb", signal: "user-123" }]}
-      onSuccess={handleSuccess}
-    >
-      {({ open }) => <button onClick={open}>Verify with World ID</button>}
-    </IDKitWidget>
-  );
-}
-```
-
-## Examples
-
-See [examples/browser](../../examples/browser) for a complete working example.
-
-## Building from Source
-
-```bash
-# Build WASM module
-npm run build:wasm
-
-# Build TypeScript
-npm run build:ts
-
-# Or both
-npm run build
-```
-
-## License
-
-MIT
+**Credential types:** `orb`, `face`, `device`, `document`, `secure_document`
