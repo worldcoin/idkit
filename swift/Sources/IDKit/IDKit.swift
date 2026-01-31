@@ -142,7 +142,7 @@ public func allOf(nodes: [ConstraintNode]) -> ConstraintNode {
 
 /// Creates an OrbLegacy preset for World ID 3.0 legacy support
 ///
-/// This preset creates a session compatible with both World ID 4.0 and 3.0 protocols.
+/// This preset creates an IDKit request compatible with both World ID 4.0 and 3.0 protocols.
 /// Use this when you need backward compatibility with older World App versions.
 ///
 /// - Parameter signal: Optional signal string for cryptographic binding
@@ -154,6 +154,38 @@ public func allOf(nodes: [ConstraintNode]) -> ConstraintNode {
 /// ```
 public func orbLegacy(signal: String? = nil) -> Preset {
     .orbLegacy(OrbLegacyPreset(signal: signal))
+}
+
+/// Creates a SecureDocumentLegacy preset for World ID 3.0 legacy support
+///
+/// This preset creates an IDKit request compatible with both World ID 4.0 and 3.0 protocols.
+/// Use this when you need backward compatibility with older World App versions.
+///
+/// - Parameter signal: Optional signal string for cryptographic binding
+/// - Returns: A SecureDocumentLegacy preset
+///
+/// Example:
+/// ```swift
+/// let request = try IDKit.request(config: config).preset(preset: secureDocumentLegacy(signal: "user-123"))
+/// ```
+public func secureDocumentLegacy(signal: String? = nil) -> Preset {
+    .secureDocumentLegacy(SecureDocumentLegacyPreset(signal: signal))
+}
+
+/// Creates a DocumentLegacy preset for World ID 3.0 legacy support
+///
+/// This preset creates an IDKit request compatible with both World ID 4.0 and 3.0 protocols.
+/// Use this when you need backward compatibility with older World App versions.
+///
+/// - Parameter signal: Optional signal string for cryptographic binding
+/// - Returns: A DocumentLegacy preset
+///
+/// Example:
+/// ```swift
+/// let request = try IDKit.request(config: config).preset(preset: documentLegacy(signal: "user-123"))
+/// ```
+public func documentLegacy(signal: String? = nil) -> Preset {
+    .documentLegacy(DocumentLegacyPreset(signal: signal))
 }
 
 // MARK: - Signal convenience extensions

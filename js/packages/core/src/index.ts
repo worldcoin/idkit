@@ -14,12 +14,16 @@ export {
   all,
   // Preset helpers
   orbLegacy,
+  secureDocumentLegacy,
+  documentLegacy,
   // Types
   type IDKitRequest,
   type WaitOptions,
   type RpContext,
   type Preset,
   type OrbLegacyPreset,
+  type SecureDocumentLegacyPreset,
+  type DocumentLegacyPreset,
 } from "./request";
 
 // Config types
