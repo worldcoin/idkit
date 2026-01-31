@@ -436,6 +436,7 @@ pub struct IDKitRequestBuilderWasm {
     rp_context: RpContext,
     action_description: Option<String>,
     bridge_url: Option<String>,
+    allow_legacy_proofs: bool,
 }
 
 #[wasm_bindgen(js_class = IDKitRequestBuilderWasm)]
@@ -448,6 +449,7 @@ impl IDKitRequestBuilderWasm {
     /// * `rp_context` - RP context for building protocol-level `ProofRequest`
     /// * `action_description` - Optional action description shown to users
     /// * `bridge_url` - Optional bridge URL (defaults to production)
+    /// * `allow_legacy_proofs` - Whether to accept legacy (v3) proofs as fallback
     #[must_use]
     #[wasm_bindgen(constructor)]
     pub fn new(
@@ -456,6 +458,7 @@ impl IDKitRequestBuilderWasm {
         rp_context: RpContextWasm,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        allow_legacy_proofs: bool,
     ) -> Self {
         Self {
             app_id,
@@ -463,6 +466,7 @@ impl IDKitRequestBuilderWasm {
             rp_context: rp_context.into_inner(),
             action_description,
             bridge_url,
+            allow_legacy_proofs,
         }
     }
 
@@ -480,6 +484,7 @@ impl IDKitRequestBuilderWasm {
         let rp_context = self.rp_context;
         let action_description = self.action_description;
         let bridge_url = self.bridge_url;
+        let allow_legacy_proofs = self.allow_legacy_proofs;
 
         future_to_promise(async move {
             let app_id = crate::AppId::new(&app_id)
@@ -502,6 +507,7 @@ impl IDKitRequestBuilderWasm {
                 None, // legacy_verification_level - not needed for explicit constraints
                 None, // legacy_signal - not needed for explicit constraints
                 bridge_url_parsed,
+                allow_legacy_proofs,
             )
             .await
             .map_err(|e| JsValue::from_str(&format!("Failed to create request: {e}")))?;
@@ -530,6 +536,7 @@ impl IDKitRequestBuilderWasm {
         let rp_context = self.rp_context;
         let action_description = self.action_description;
         let bridge_url = self.bridge_url;
+        let allow_legacy_proofs = self.allow_legacy_proofs;
 
         future_to_promise(async move {
             let preset: Preset = serde_wasm_bindgen::from_value(preset_json)
@@ -550,6 +557,7 @@ impl IDKitRequestBuilderWasm {
                 rp_context,
                 action_description,
                 bridge_url_parsed,
+                allow_legacy_proofs,
             )
             .await
             .map_err(|e| JsValue::from_str(&format!("Failed to create request: {e}")))?;
@@ -569,6 +577,7 @@ impl IDKitRequestBuilderWasm {
 /// * `rp_context` - RP context for building protocol-level `ProofRequest`
 /// * `action_description` - Optional action description shown to users
 /// * `bridge_url` - Optional bridge URL (defaults to production)
+/// * `allow_legacy_proofs` - Whether to accept legacy (v3) proofs as fallback
 #[must_use]
 #[wasm_bindgen(js_name = request)]
 pub fn request(
@@ -577,8 +586,16 @@ pub fn request(
     rp_context: RpContextWasm,
     action_description: Option<String>,
     bridge_url: Option<String>,
+    allow_legacy_proofs: bool,
 ) -> IDKitRequestBuilderWasm {
-    IDKitRequestBuilderWasm::new(app_id, action, rp_context, action_description, bridge_url)
+    IDKitRequestBuilderWasm::new(
+        app_id,
+        action,
+        rp_context,
+        action_description,
+        bridge_url,
+        allow_legacy_proofs,
+    )
 }
 
 /// World ID verification request

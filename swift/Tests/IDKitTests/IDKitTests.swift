@@ -153,7 +153,8 @@ func requestBuilderAPIShape() {
         action: "test",
         rpContext: rpContext,
         actionDescription: nil,
-        bridgeUrl: nil
+        bridgeUrl: nil,
+        allowLegacyProofs: false
     )
 
     // This will throw without valid credentials - verify API exists
@@ -190,7 +191,8 @@ func requestPresetAPIShape() {
         action: "test",
         rpContext: rpContext,
         actionDescription: nil,
-        bridgeUrl: nil
+        bridgeUrl: nil,
+        allowLegacyProofs: false
     )
 
     // This will throw without valid credentials - verify API exists
