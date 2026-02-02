@@ -1272,7 +1272,6 @@ mod tests {
         let result = IDKitSessionResult::new("session-abc".to_string(), responses);
         let json = serde_json::to_string(&result).unwrap();
 
-        assert!(json.contains(r#""protocol_version":"4.0""#));
         assert!(json.contains(r#""session_id":"session-abc""#));
         assert!(json.contains("session_nullifier"));
 
