@@ -51,6 +51,11 @@ struct BridgeRequestPayload {
     // -----------------------------------------------
     /// The protocol-level proof request
     proof_request: ProofRequest,
+
+    /// Whether to accept legacy (v3) proofs as fallback.
+    /// - `true`: Accept both v3 and v4 proofs. Use during migration.
+    /// - `false`: Only accept v4 proofs. Use after migration cutoff or for new apps.
+    allow_legacy_proofs: bool,
 }
 
 /// Encrypted payload sent to/from the bridge
@@ -228,6 +233,7 @@ impl IDKitRequest {
     /// * `rp_context` - RP context for building protocol-level `ProofRequest`
     /// * `action_description` - Optional action description shown to users
     /// * `bridge_url` - Optional bridge URL (defaults to production)
+    /// * `allow_legacy_proofs` - Whether to accept legacy (v3) proofs as fallback
     ///
     /// # Errors
     ///
@@ -242,6 +248,7 @@ impl IDKitRequest {
         legacy_verification_level: Option<VerificationLevel>,
         legacy_signal: Option<String>,
         bridge_url: Option<BridgeUrl>,
+        allow_legacy_proofs: bool,
     ) -> Result<Self> {
         // Validate constraints
         constraints.validate()?;
@@ -277,6 +284,7 @@ impl IDKitRequest {
             nonce,
             request_items,
             constraint_expr,
+            allow_legacy_proofs,
         );
 
         // For backwards compatibility we encode the hash of the signal
@@ -296,6 +304,7 @@ impl IDKitRequest {
             // respond with an error.
             verification_level: legacy_verification_level.unwrap_or(VerificationLevel::Deprecated),
             signal: legacy_signal_hash,
+            allow_legacy_proofs,
         };
 
         let payload_json = serde_json::to_vec(&payload)?;
@@ -363,6 +372,7 @@ impl IDKitRequest {
     /// * `rp_context` - RP context for building protocol-level `ProofRequest`
     /// * `action_description` - Optional action description shown to users
     /// * `bridge_url` - Optional bridge URL (defaults to production)
+    /// * `allow_legacy_proofs` - Whether to accept legacy (v3) proofs as fallback
     ///
     /// # Errors
     ///
@@ -374,6 +384,7 @@ impl IDKitRequest {
         rp_context: RpContext,
         action_description: Option<String>,
         bridge_url: Option<BridgeUrl>,
+        allow_legacy_proofs: bool,
     ) -> Result<Self> {
         let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
 
@@ -386,6 +397,7 @@ impl IDKitRequest {
             Some(legacy_verification_level),
             legacy_signal,
             bridge_url,
+            allow_legacy_proofs,
         )
         .await
     }
@@ -505,6 +517,10 @@ pub struct IDKitRequestConfig {
     pub action_description: Option<String>,
     /// Optional bridge URL (defaults to production)
     pub bridge_url: Option<String>,
+    /// Whether to accept legacy (v3) proofs as fallback.
+    /// - `true`: Accept both v3 and v4 proofs. Use during migration.
+    /// - `false`: Only accept v4 proofs. Use after migration cutoff or for new apps.
+    pub allow_legacy_proofs: bool,
 }
 
 /// Builder for creating `IDKit` requests
@@ -558,6 +574,7 @@ impl IDKitRequestBuilder {
                 None, // legacy_verification_level - not needed for explicit constraints
                 None, // legacy_signal - not needed for explicit constraints
                 bridge_url,
+                self.config.allow_legacy_proofs,
             ))
             .map_err(crate::error::IdkitError::from)?;
 
@@ -605,6 +622,7 @@ impl IDKitRequestBuilder {
                 Some(legacy_verification_level),
                 legacy_signal,
                 bridge_url,
+                self.config.allow_legacy_proofs,
             ))
             .map_err(crate::error::IdkitError::from)?;
 
@@ -748,6 +766,7 @@ mod tests {
         let action = FieldElement::from_arbitrary_raw_bytes(b"test-action");
         let signature = Signature::from_str(&sig_65_bytes).unwrap();
         let nonce = FieldElement::from_str(&rp_context.nonce).unwrap();
+        let allow_legacy_proofs = false;
         let proof_request = ProofRequest::new(
             rp_context.created_at,
             rp_context.expires_at,
@@ -758,6 +777,7 @@ mod tests {
             nonce,
             request_items,
             constraint_expr,
+            allow_legacy_proofs,
         );
 
         let payload = BridgeRequestPayload {
@@ -767,6 +787,7 @@ mod tests {
             signal: String::new(),
             verification_level: VerificationLevel::Deprecated,
             proof_request,
+            allow_legacy_proofs: false,
         };
 
         let json = serde_json::to_string(&payload).unwrap();
@@ -775,6 +796,7 @@ mod tests {
         assert!(json.contains("verification_level"));
         assert!(json.contains("proof_request"));
         assert!(json.contains("rp_1234567890abcdef"));
+        assert!(json.contains("allow_legacy_proofs"));
     }
 
     #[test]

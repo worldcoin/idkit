@@ -105,6 +105,7 @@ describe("IDKitRequest API", () => {
         app_id: "app_staging_test",
         action: "test-action",
         rp_context: createTestRpContext(),
+        allow_legacy_proofs: false,
       }).constraints({ any: [] }),
     ).rejects.toThrow();
   });
