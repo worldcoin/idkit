@@ -173,40 +173,24 @@ export function all(...nodes: ConstraintNode[]): { all: ConstraintNode[] } {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Preset helpers
+// Preset helpers - re-export types from WASM, provide JS convenience functions
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * OrbLegacy preset configuration
- */
-export interface OrbLegacyPreset {
-  type: "OrbLegacy";
-  data: { signal?: string };
-}
+// Re-export preset types from WASM (source of truth in rust/core/src/wasm_bindings.rs)
+export type {
+  Preset,
+  OrbLegacyPreset,
+  SecureDocumentLegacyPreset,
+  DocumentLegacyPreset,
+} from "./lib/wasm";
 
-/**
- * SecureDocumentLegacy preset configuration
- */
-export interface SecureDocumentLegacyPreset {
-  type: "SecureDocumentLegacy";
-  data: { signal?: string };
-}
-
-/**
- * DocumentLegacy preset configuration
- */
-export interface DocumentLegacyPreset {
-  type: "DocumentLegacy";
-  data: { signal?: string };
-}
-
-/**
- * Preset types for IDKit requests
- */
-export type Preset =
-  | OrbLegacyPreset
-  | SecureDocumentLegacyPreset
-  | DocumentLegacyPreset;
+// Import WASM preset type for function return types
+import type {
+  Preset,
+  OrbLegacyPreset,
+  SecureDocumentLegacyPreset,
+  DocumentLegacyPreset,
+} from "./lib/wasm";
 
 /**
  * Creates an OrbLegacy preset for World ID 3.0 legacy support
@@ -224,7 +208,7 @@ export type Preset =
  * ```
  */
 export function orbLegacy(opts: { signal?: string } = {}): OrbLegacyPreset {
-  return { type: "OrbLegacy", data: { signal: opts.signal } };
+  return { type: "OrbLegacy", signal: opts.signal };
 }
 
 /**
@@ -245,7 +229,7 @@ export function orbLegacy(opts: { signal?: string } = {}): OrbLegacyPreset {
 export function secureDocumentLegacy(
   opts: { signal?: string } = {},
 ): SecureDocumentLegacyPreset {
-  return { type: "SecureDocumentLegacy", data: { signal: opts.signal } };
+  return { type: "SecureDocumentLegacy", signal: opts.signal };
 }
 
 /**
@@ -266,7 +250,7 @@ export function secureDocumentLegacy(
 export function documentLegacy(
   opts: { signal?: string } = {},
 ): DocumentLegacyPreset {
-  return { type: "DocumentLegacy", data: { signal: opts.signal } };
+  return { type: "DocumentLegacy", signal: opts.signal };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

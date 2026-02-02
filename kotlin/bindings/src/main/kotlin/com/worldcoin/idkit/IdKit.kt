@@ -9,9 +9,6 @@ import uniffi.idkit_core.IdKitRequestBuilder
 import uniffi.idkit_core.IdKitRequestConfig
 import uniffi.idkit_core.request
 import uniffi.idkit_core.Preset
-import uniffi.idkit_core.OrbLegacyPreset
-import uniffi.idkit_core.SecureDocumentLegacyPreset
-import uniffi.idkit_core.DocumentLegacyPreset
 
 // Type aliases for public API consistency - UniFFI 0.30 generates IdKit* names
 typealias IDKitRequestBuilder = IdKitRequestBuilder
@@ -190,7 +187,7 @@ object IdKit {
      * ```
      */
     fun orbLegacy(signal: String? = null): Preset =
-        Preset.OrbLegacy(OrbLegacyPreset(signal = signal))
+        Preset.OrbLegacy(signal = signal)
 
     /**
      * Create a SecureDocumentLegacy preset for World ID 3.0 legacy support.
@@ -207,7 +204,7 @@ object IdKit {
      * ```
      */
     fun secureDocumentLegacy(signal: String? = null): Preset =
-        Preset.SecureDocumentLegacy(SecureDocumentLegacyPreset(signal = signal))
+        Preset.SecureDocumentLegacy(signal = signal)
 
     /**
      * Create a DocumentLegacy preset for World ID 3.0 legacy support.
@@ -224,7 +221,7 @@ object IdKit {
      * ```
      */
     fun documentLegacy(signal: String? = null): Preset =
-        Preset.DocumentLegacy(DocumentLegacyPreset(signal = signal))
+        Preset.DocumentLegacy(signal = signal)
 }
 
 // Top-level convenience functions for more idiomatic Kotlin usage

@@ -36,7 +36,7 @@ pub use constraints::ConstraintNode;
 pub use crypto::CryptoKey;
 pub use error::{Error, Result};
 pub use issuer_schema::{credential_to_issuer_schema_id, issuer_schema_id_to_credential};
-pub use preset::{OrbLegacyPreset, Preset};
+pub use preset::Preset;
 pub use types::{
     AppId, BridgeResponseV1, BridgeUrl, CredentialRequest, CredentialType, IDKitResult,
     ResponseItem, RpContext, Signal, VerificationLevel,

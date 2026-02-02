@@ -170,8 +170,8 @@ func orbLegacyPresetHelper() {
 
     // Verify the preset was created
     switch preset {
-    case .orbLegacy(let data):
-        #expect(data.signal == "test-signal")
+    case .orbLegacy(let signal):
+        #expect(signal == "test-signal")
     default:
         Issue.record("Expected orbLegacy preset")
     }
