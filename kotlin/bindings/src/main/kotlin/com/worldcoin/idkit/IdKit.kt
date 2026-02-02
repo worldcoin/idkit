@@ -9,7 +9,6 @@ import uniffi.idkit_core.IdKitRequestBuilder
 import uniffi.idkit_core.IdKitRequestConfig
 import uniffi.idkit_core.request
 import uniffi.idkit_core.Preset
-import uniffi.idkit_core.OrbLegacyPreset
 
 // Type aliases for public API consistency - UniFFI 0.30 generates IdKit* names
 typealias IDKitRequestBuilder = IdKitRequestBuilder
@@ -188,7 +187,41 @@ object IdKit {
      * ```
      */
     fun orbLegacy(signal: String? = null): Preset =
-        Preset.OrbLegacy(OrbLegacyPreset(signal = signal))
+        Preset.OrbLegacy(signal = signal)
+
+    /**
+     * Create a SecureDocumentLegacy preset for World ID 3.0 legacy support.
+     *
+     * This preset creates a request compatible with both World ID 4.0 and 3.0 protocols.
+     * Use this when you need backward compatibility with older World App versions.
+     *
+     * @param signal Optional signal string
+     * @return A SecureDocumentLegacy preset
+     *
+     * Example:
+     * ```kotlin
+     * val request = IdKit.request(config).preset(secureDocumentLegacy(signal = "user-123"))
+     * ```
+     */
+    fun secureDocumentLegacy(signal: String? = null): Preset =
+        Preset.SecureDocumentLegacy(signal = signal)
+
+    /**
+     * Create a DocumentLegacy preset for World ID 3.0 legacy support.
+     *
+     * This preset creates a request compatible with both World ID 4.0 and 3.0 protocols.
+     * Use this when you need backward compatibility with older World App versions.
+     *
+     * @param signal Optional signal string
+     * @return A DocumentLegacy preset
+     *
+     * Example:
+     * ```kotlin
+     * val request = IdKit.request(config).preset(documentLegacy(signal = "user-123"))
+     * ```
+     */
+    fun documentLegacy(signal: String? = null): Preset =
+        Preset.DocumentLegacy(signal = signal)
 }
 
 // Top-level convenience functions for more idiomatic Kotlin usage
@@ -237,6 +270,28 @@ fun allOf(vararg items: CredentialRequest): ConstraintNode =
  */
 fun orbLegacy(signal: String? = null): Preset =
     IdKit.orbLegacy(signal)
+
+/**
+ * Create a SecureDocumentLegacy preset for World ID 3.0 legacy support.
+ *
+ * Example:
+ * ```kotlin
+ * val request = IdKit.request(config).preset(secureDocumentLegacy(signal = "user-123"))
+ * ```
+ */
+fun secureDocumentLegacy(signal: String? = null): Preset =
+    IdKit.secureDocumentLegacy(signal)
+
+/**
+ * Create a DocumentLegacy preset for World ID 3.0 legacy support.
+ *
+ * Example:
+ * ```kotlin
+ * val request = IdKit.request(config).preset(documentLegacy(signal = "user-123"))
+ * ```
+ */
+fun documentLegacy(signal: String? = null): Preset =
+    IdKit.documentLegacy(signal)
 
 // Usage example - Explicit constraints:
 //

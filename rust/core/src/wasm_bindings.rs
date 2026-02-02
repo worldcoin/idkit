@@ -7,7 +7,7 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::future_not_send)]
 
-use crate::preset::{OrbLegacyPreset, Preset};
+use crate::preset::Preset;
 use crate::{ConstraintNode, CredentialRequest, CredentialType, RpContext, Signal};
 use serde::Serialize;
 use std::cell::RefCell;
@@ -268,22 +268,6 @@ pub fn hash_signal_bytes(bytes: &[u8]) -> String {
     use crate::crypto::hash_to_field;
     let hash = hash_to_field(bytes);
     format!("{hash:#066x}")
-}
-
-/// Creates an `OrbLegacy` preset for World ID 3.0 legacy support
-///
-/// Returns a preset object that can be passed to `request().preset()`.
-///
-/// # Arguments
-/// * `signal` - Optional signal string
-///
-/// # Errors
-///
-/// Returns an error if serialization fails
-#[wasm_bindgen(js_name = orbLegacy)]
-pub fn orb_legacy(signal: Option<String>) -> Result<JsValue, JsValue> {
-    let preset = Preset::OrbLegacy(OrbLegacyPreset::new(signal));
-    serde_wasm_bindgen::to_value(&preset).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
 // RP Signature wrapper for WASM
@@ -784,12 +768,24 @@ export type Status =
 const TS_PRESET: &str = r#"
 export interface OrbLegacyPreset {
     type: "OrbLegacy";
-    data: { signal?: string };
+    signal?: string;
 }
 
-export type Preset = OrbLegacyPreset;
+export interface SecureDocumentLegacyPreset {
+    type: "SecureDocumentLegacy";
+    signal?: string;
+}
+
+export interface DocumentLegacyPreset {
+    type: "DocumentLegacy";
+    signal?: string;
+}
+
+export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLegacyPreset;
 
 export function orbLegacy(signal?: string): Preset;
+export function secureDocumentLegacy(signal?: string): Preset;
+export function documentLegacy(signal?: string): Preset;
 "#;
 
 // Export RP signature types

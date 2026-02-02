@@ -1,28 +1,110 @@
-# IDKit Kotlin Bindings (UniFFI)
+# IDKit Kotlin
 
-This module generates a Kotlin API backed by the Rust core and packages the native library plus generated sources.
+World ID verification SDK for Kotlin/Android. Powered by Rust via UniFFI.
 
-## Quick start
+## Installation
 
-```bash
-# From repo root
-./scripts/build-kotlin.sh      # generate bindings + host lib (+ Android ABIs if Docker available)
-# or
-./scripts/package-kotlin.sh    # same as above and zips to kotlin/dist/idkit-kotlin-<version>.zip
+```gradle
+dependencies {
+    implementation("com.worldcoin:idkit:4.0.1")
+}
 ```
 
-After running, open `kotlin/` as a Gradle project. The `bindings` module exposes the generated API. Re-run the script on any host/ABI you target so the appropriate native libs are staged (`libidkit.{so|dylib|dll}` is placed in `bindings/src/main/resources` for JVM).
+## Backend: Generate RP Signature
 
-### Android ABIs
+The RP signature authenticates your verification requests. Generate it on your backend server (e.g., using the JS SDK):
 
-When Docker is available, the scripts cross-build `libidkit.so` for `arm64-v8a`, `armeabi-v7a`, `x86_64`, and `x86` (using `cross`) and copy them to `kotlin/bindings/src/main/jniLibs/<abi>/libidkit.so`. 
-Set `SKIP_ANDROID=1` to skip Android builds (useful on local Macs without Docker); CI runs without that flag to populate the ABI libs for releases.
+```typescript
+// Backend (Node.js)
+import { IDKit, signRequest } from '@worldcoin/idkit-core';
 
-### Convenience helpers
+await IDKit.initServer();
 
-`com.worldcoin.idkit.KotlinCompat.kt` mirrors Swift helpers (convenience `Request` ctors, `statusFlow`, `Signal.data/string`).
+// Never expose RP_SIGNING_KEY to clients
+const sig = signRequest('my-action', process.env.RP_SIGNING_KEY);
 
-`com.worldcoin.idkit.IdKit` adds small factories for parity with Swift ergonomics:
-- `IdKit.request(...)` / `requestAbi(...)` – build requests with optional faceAuth
-- `IdKit.anyOf(...)` / `allOf(...)` – quick constraints
-- `IdKit.session(...)` – create sessions with optional description/constraints/bridge URL
+// Return to client
+res.json({
+  sig: sig.sig,
+  nonce: sig.nonce,
+  created_at: Number(sig.createdAt),
+  expires_at: Number(sig.expiresAt),
+});
+```
+
+## Client: Create Verification Request
+
+### Using Presets
+
+For common verification scenarios with World ID 3.0 backward compatibility:
+
+```kotlin
+import com.worldcoin.idkit.*
+
+// Fetch signature from your backend
+val rpSig = fetchRpSignature()
+
+val rpContext = IdKit.rpContext(
+    rpId = "rp_xxxxx",
+    nonce = rpSig.nonce,
+    createdAt = rpSig.createdAt.toULong(),
+    expiresAt = rpSig.expiresAt.toULong(),
+    signature = rpSig.sig,
+)
+
+val config = IdKit.requestConfig(
+    appId = "app_xxxxx",
+    action = "my-action",
+    rpContext = rpContext,
+)
+
+val request = IdKit.request(config)
+    .preset(orbLegacy(signal = "user-123"))
+
+// Display QR code for World App
+val qrUrl = request.connectUrl()
+```
+
+**Available presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`
+
+### Using Constraints
+
+For custom credential requirements using `anyOf` (OR) and `allOf` (AND) combinators:
+
+```kotlin
+import com.worldcoin.idkit.*
+
+// Fetch signature from your backend
+val rpSig = fetchRpSignature()
+
+val rpContext = IdKit.rpContext(
+    rpId = "rp_xxxxx",
+    nonce = rpSig.nonce,
+    createdAt = rpSig.createdAt.toULong(),
+    expiresAt = rpSig.expiresAt.toULong(),
+    signature = rpSig.sig,
+)
+
+val config = IdKit.requestConfig(
+    appId = "app_xxxxx",
+    action = "my-action",
+    rpContext = rpContext,
+)
+
+val orb = CredentialRequest(CredentialType.ORB)
+val face = CredentialRequest(CredentialType.FACE)
+val document = CredentialRequest(CredentialType.DOCUMENT)
+val secureDocument = CredentialRequest(CredentialType.SECURE_DOCUMENT)
+
+// Accept orb OR face credential
+val request = IdKit.request(config)
+    .constraints(anyOf(orb, face))
+
+// Or require orb AND (document OR secure_document)
+// .constraints(allOf(orb, anyOf(document, secureDocument)))
+
+// Display QR code for World App
+val qrUrl = request.connectUrl()
+```
+
+**Credential types:** `ORB`, `FACE`, `DEVICE`, `DOCUMENT`, `SECURE_DOCUMENT`
