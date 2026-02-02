@@ -23,7 +23,7 @@ export {
 } from "./request";
 
 // Config types
-export type { IDKitRequestConfig, AbiEncodedValue } from "./types/config";
+export type { IDKitRequestConfig, IDKitSessionConfig, AbiEncodedValue } from "./types/config";
 
 // Result types (re-exported from WASM - source of truth in rust/core/src/wasm_bindings.rs)
 export type {

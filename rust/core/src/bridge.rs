@@ -3,7 +3,6 @@
 use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
-    preset::Preset,
     protocol_types::ProofRequest,
     types::{
         AppId, BridgeResponseV1, BridgeUrl, CredentialType, IDKitResult, ResponseItem, RpContext,
@@ -11,6 +10,8 @@ use crate::{
     },
     ConstraintNode, Signal,
 };
+#[cfg(feature = "ffi")]
+use crate::preset::Preset;
 use alloy_primitives::Signature;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -23,6 +24,20 @@ use std::str::FromStr;
 #[cfg(feature = "ffi")]
 use std::sync::Arc;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Request Kind (internal)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Internal enum representing the type of proof request
+pub(crate) enum RequestKind {
+    /// Action-based uniqueness proof
+    Uniqueness { action: String },
+    /// Create a new session (returns session_id in response)
+    CreateSession,
+    /// Prove ownership of an existing session
+    ProveSession { session_id: String },
+}
+
 /// Bridge request payload sent to initialize a session
 #[derive(Debug, Serialize)]
 struct BridgeRequestPayload {
@@ -32,8 +47,9 @@ struct BridgeRequestPayload {
     /// Application ID from the Developer Portal
     app_id: String,
 
-    /// Action ID from the Developer Portal
-    action: String,
+    /// Action ID from the Developer Portal (optional for session-only flows)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    action: Option<String>,
 
     /// Optional action description
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -97,7 +113,12 @@ enum BridgeResponseItem {
     V4 {
         issuer_schema_id: String,
         proof: String,
-        nullifier: String,
+        /// Action nullifier (present for action proofs)
+        #[serde(default)]
+        nullifier: Option<String>,
+        /// Session nullifier (present for session proofs)
+        #[serde(default)]
+        session_nullifier: Option<String>,
         merkle_root: String,
         proof_timestamp: u64,
     },
@@ -117,16 +138,19 @@ impl BridgeResponseItem {
                 issuer_schema_id,
                 proof,
                 nullifier,
+                session_nullifier,
                 merkle_root,
                 proof_timestamp,
             } => {
                 let identifier = parse_issuer_schema_id(&issuer_schema_id)
                     .and_then(CredentialType::from_issuer_schema_id)
                     .unwrap_or(CredentialType::Orb);
+                // Pass through both options - one will be Some, one will be None
                 ResponseItem::V4 {
                     identifier,
                     proof,
                     nullifier,
+                    session_nullifier,
                     merkle_root,
                     proof_timestamp,
                     issuer_schema_id,
@@ -223,15 +247,17 @@ pub struct IDKitRequest {
 }
 
 impl IDKitRequest {
-    /// Creates a new request with constraint-based configuration
+    /// Creates a new IDKit request
     ///
     /// # Arguments
     ///
     /// * `app_id` - Application ID from the Developer Portal
-    /// * `action` - Action identifier
+    /// * `kind` - The type of request (action-based, create session, or prove session)
     /// * `constraints` - Constraint tree containing credential requests
     /// * `rp_context` - RP context for building protocol-level `ProofRequest`
     /// * `action_description` - Optional action description shown to users
+    /// * `legacy_verification_level` - Verification level for legacy (v3) support
+    /// * `legacy_signal` - Signal for legacy (v3) support
     /// * `bridge_url` - Optional bridge URL (defaults to production)
     /// * `allow_legacy_proofs` - Whether to accept legacy (v3) proofs as fallback
     ///
@@ -239,14 +265,14 @@ impl IDKitRequest {
     ///
     /// Returns an error if the request cannot be created or the bridge call fails
     #[allow(clippy::too_many_arguments)]
-    pub async fn create(
+    pub(crate) async fn create(
         app_id: AppId,
-        action: impl Into<String>,
+        kind: RequestKind,
         constraints: ConstraintNode,
         rp_context: RpContext,
         action_description: Option<String>,
-        legacy_verification_level: Option<VerificationLevel>,
-        legacy_signal: Option<String>,
+        legacy_verification_level: VerificationLevel,
+        legacy_signal: String,
         bridge_url: Option<BridgeUrl>,
         allow_legacy_proofs: bool,
     ) -> Result<Self> {
@@ -254,7 +280,6 @@ impl IDKitRequest {
         constraints.validate()?;
 
         let bridge_url = bridge_url.unwrap_or_default();
-        let action_str = action.into();
 
         // Generate encryption key and IV
         #[cfg(feature = "native-crypto")]
@@ -266,20 +291,34 @@ impl IDKitRequest {
         #[cfg(not(feature = "native-crypto"))]
         let (key_bytes, nonce_bytes) = crate::crypto::generate_key()?;
 
+        // Extract action and session_id from kind
+        let (action_fe, session_id_fe, action_str) = match &kind {
+            RequestKind::Uniqueness { action } => {
+                let fe = FieldElement::from_arbitrary_raw_bytes(action.as_bytes());
+                (Some(fe), None, Some(action.clone()))
+            }
+            RequestKind::CreateSession => (None, None, None),
+            RequestKind::ProveSession { session_id } => {
+                let fe = FieldElement::from_str(session_id).map_err(|_| {
+                    Error::InvalidConfiguration("Invalid session_id format".to_string())
+                })?;
+                (None, Some(fe), None)
+            }
+        };
+
         // Build ProofRequest protocol type
-        // TODO: Import it from world-id-protocol crate once it's WASM compatible
         let (request_items, constraint_expr) = constraints.to_protocol_top_level()?;
-        let action = FieldElement::from_arbitrary_raw_bytes(action_str.as_bytes());
         let signature = Signature::from_str(&rp_context.signature)
             .map_err(|_| Error::InvalidConfiguration("Invalid signature".to_string()))?;
         let nonce = FieldElement::from_str(&rp_context.nonce)
             .map_err(|_| Error::InvalidConfiguration("Invalid nonce format".to_string()))?;
+
         let proof_request = ProofRequest::new(
             rp_context.created_at,
             rp_context.expires_at,
             rp_context.rp_id,
-            Some(action),
-            None, // session_id
+            action_fe,
+            session_id_fe,
             signature,
             nonce,
             request_items,
@@ -288,10 +327,7 @@ impl IDKitRequest {
         );
 
         // For backwards compatibility we encode the hash of the signal
-        // and default to empty string if it's not provided
-        // Source: https://github.com/worldcoin/idkit-js/blob/main/packages/core/src/bridge.ts#L82C7-L82C45
-        let legacy_signal_hash =
-            crate::crypto::encode_signal(&Signal::from_string(legacy_signal.unwrap_or_default()));
+        let legacy_signal_hash = crate::crypto::encode_signal(&Signal::from_string(legacy_signal));
 
         // Prepare the payload
         let payload = BridgeRequestPayload {
@@ -299,10 +335,7 @@ impl IDKitRequest {
             action: action_str,
             action_description,
             proof_request,
-            // By default we only want to interact with World ID 4.0
-            // we use an invalid verification level to ensure users on older World App versions
-            // respond with an error.
-            verification_level: legacy_verification_level.unwrap_or(VerificationLevel::Deprecated),
+            verification_level: legacy_verification_level,
             signal: legacy_signal_hash,
             allow_legacy_proofs,
         };
@@ -356,50 +389,6 @@ impl IDKitRequest {
             request_id: create_response.request_id,
             client,
         })
-    }
-
-    /// Creates a new request from a preset
-    ///
-    /// Presets provide a simplified way to create requests with predefined
-    /// credential configurations. The preset is converted to both World ID 4.0
-    /// requests and World ID 3.0 legacy fields for backward compatibility.
-    ///
-    /// # Arguments
-    ///
-    /// * `app_id` - Application ID from the Developer Portal
-    /// * `action` - Action identifier
-    /// * `preset` - Credential preset (e.g., `OrbLegacy`)
-    /// * `rp_context` - RP context for building protocol-level `ProofRequest`
-    /// * `action_description` - Optional action description shown to users
-    /// * `bridge_url` - Optional bridge URL (defaults to production)
-    /// * `allow_legacy_proofs` - Whether to accept legacy (v3) proofs as fallback
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the request cannot be created or the bridge call fails
-    pub async fn create_from_preset(
-        app_id: AppId,
-        action: impl Into<String>,
-        preset: Preset,
-        rp_context: RpContext,
-        action_description: Option<String>,
-        bridge_url: Option<BridgeUrl>,
-        allow_legacy_proofs: bool,
-    ) -> Result<Self> {
-        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
-
-        Self::create(
-            app_id,
-            action,
-            constraints,
-            rp_context,
-            action_description,
-            Some(legacy_verification_level),
-            legacy_signal,
-            bridge_url,
-            allow_legacy_proofs,
-        )
-        .await
     }
 
     /// Returns the connect URL for World App
@@ -567,12 +556,12 @@ impl IDKitRequestBuilder {
         let inner = runtime
             .block_on(IDKitRequest::create(
                 app_id,
-                &self.config.action,
+                RequestKind::Uniqueness { action: self.config.action.clone() },
                 (*constraints).clone(),
                 rp_context,
                 self.config.action_description.clone(),
-                None, // legacy_verification_level - not needed for explicit constraints
-                None, // legacy_signal - not needed for explicit constraints
+                VerificationLevel::Deprecated,
+                String::new(),
                 bridge_url,
                 self.config.allow_legacy_proofs,
             ))
@@ -615,12 +604,12 @@ impl IDKitRequestBuilder {
         let inner = runtime
             .block_on(IDKitRequest::create(
                 app_id,
-                &self.config.action,
+                RequestKind::Uniqueness { action: self.config.action.clone() },
                 constraints,
                 rp_context,
                 self.config.action_description.clone(),
-                Some(legacy_verification_level),
-                legacy_signal,
+                legacy_verification_level,
+                legacy_signal.unwrap_or_default(),
                 bridge_url,
                 self.config.allow_legacy_proofs,
             ))
@@ -636,6 +625,119 @@ impl IDKitRequestBuilder {
 #[uniffi::export]
 pub fn request(config: IDKitRequestConfig) -> Arc<IDKitRequestBuilder> {
     IDKitRequestBuilder::new(config)
+}
+
+/// Configuration for session requests (no action field)
+#[cfg(feature = "ffi")]
+#[derive(Clone, uniffi::Record)]
+pub struct IDKitSessionConfig {
+    /// Application ID from the Developer Portal
+    pub app_id: String,
+    /// RP context for building protocol-level `ProofRequest`
+    pub rp_context: Arc<RpContext>,
+    /// Optional action description shown to users
+    pub action_description: Option<String>,
+    /// Optional bridge URL (defaults to production)
+    pub bridge_url: Option<String>,
+    /// Whether to accept legacy (v3) proofs as fallback.
+    /// - `true`: Accept both v3 and v4 proofs. Use during migration.
+    /// - `false`: Only accept v4 proofs. Use after migration cutoff or for new apps.
+    pub allow_legacy_proofs: bool,
+}
+
+/// Builder for creating new session requests
+#[cfg(feature = "ffi")]
+#[derive(uniffi::Object)]
+pub struct IDKitSessionBuilder {
+    config: IDKitSessionConfig,
+    session_id: Option<String>,
+}
+
+#[cfg(feature = "ffi")]
+#[uniffi::export]
+impl IDKitSessionBuilder {
+    /// Creates a new session builder for creating a new session
+    #[must_use]
+    #[uniffi::constructor(name = "new_create")]
+    pub fn new_create(config: IDKitSessionConfig) -> Arc<Self> {
+        Arc::new(Self {
+            config,
+            session_id: None,
+        })
+    }
+
+    /// Creates a new session builder for proving an existing session
+    #[must_use]
+    #[uniffi::constructor(name = "new_prove")]
+    pub fn new_prove(session_id: String, config: IDKitSessionConfig) -> Arc<Self> {
+        Arc::new(Self {
+            config,
+            session_id: Some(session_id),
+        })
+    }
+
+    /// Creates an `IDKit` session request with the given constraints
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request cannot be created
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn constraints(
+        &self,
+        constraints: Arc<ConstraintNode>,
+    ) -> std::result::Result<Arc<IDKitRequestWrapper>, crate::error::IdkitError> {
+        let runtime =
+            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
+                details: format!("Failed to create runtime: {e}"),
+            })?;
+
+        let app_id = AppId::new(&self.config.app_id)?;
+        let bridge_url = self
+            .config
+            .bridge_url
+            .as_ref()
+            .map(|url| BridgeUrl::new(url, &app_id))
+            .transpose()?;
+        let rp_context = (*self.config.rp_context).clone();
+
+        // Determine request kind based on session_id presence
+        let kind = match &self.session_id {
+            Some(session_id) => RequestKind::ProveSession { session_id: session_id.clone() },
+            None => RequestKind::CreateSession,
+        };
+
+        let inner = runtime
+            .block_on(IDKitRequest::create(
+                app_id,
+                kind,
+                (*constraints).clone(),
+                rp_context,
+                self.config.action_description.clone(),
+                VerificationLevel::Deprecated,
+                String::new(),
+                bridge_url,
+                self.config.allow_legacy_proofs,
+            ))
+            .map_err(crate::error::IdkitError::from)?;
+
+        Ok(Arc::new(IDKitRequestWrapper { runtime, inner }))
+    }
+}
+
+/// Entry point for creating a new session (no existing session_id)
+#[cfg(feature = "ffi")]
+#[must_use]
+#[uniffi::export]
+pub fn create_session(config: IDKitSessionConfig) -> Arc<IDKitSessionBuilder> {
+    IDKitSessionBuilder::new_create(config)
+}
+
+/// Entry point for proving an existing session
+#[cfg(feature = "ffi")]
+#[must_use]
+#[uniffi::export]
+pub fn prove_session(session_id: String, config: IDKitSessionConfig) -> Arc<IDKitSessionBuilder> {
+    IDKitSessionBuilder::new_prove(session_id, config)
 }
 
 // UniFFI wrapper for IDKitRequest with tokio runtime
@@ -782,7 +884,7 @@ mod tests {
 
         let payload = BridgeRequestPayload {
             app_id: "app_test".to_string(),
-            action: "test-action".to_string(),
+            action: Some("test-action".to_string()),
             action_description: Some("Test description".to_string()),
             signal: String::new(),
             verification_level: VerificationLevel::Deprecated,
@@ -885,6 +987,7 @@ mod tests {
         if let ResponseItem::V4 {
             proof,
             nullifier,
+            session_nullifier,
             merkle_root,
             proof_timestamp,
             issuer_schema_id,
@@ -892,7 +995,8 @@ mod tests {
         } = item
         {
             assert_eq!(proof, "0xproof123");
-            assert_eq!(nullifier, "0xnullifier123");
+            assert_eq!(nullifier, Some("0xnullifier123".to_string()));
+            assert!(session_nullifier.is_none());
             assert_eq!(merkle_root, "0xroot123");
             assert_eq!(proof_timestamp, 1_700_000_000);
             assert_eq!(issuer_schema_id, "0x1");
@@ -927,6 +1031,53 @@ mod tests {
             .into_response_item();
         assert!(matches!(item, ResponseItem::V3 { .. }));
         assert_eq!(item.identifier(), CredentialType::Face);
+    }
+
+    #[test]
+    fn test_bridge_response_v2_with_session_nullifier() {
+        let json = r#"{
+            "id": "test-id",
+            "session_id": "session-456",
+            "responses": [
+                {
+                    "protocol_version": "4.0",
+                    "issuer_schema_id": "0x1",
+                    "proof": "0xproof_session",
+                    "session_nullifier": "0xsession_null_123",
+                    "merkle_root": "0xroot_session",
+                    "proof_timestamp": 1700000000
+                }
+            ]
+        }"#;
+
+        let response: BridgeResponseV2 = serde_json::from_str(json).unwrap();
+        assert_eq!(response.session_id.as_ref().unwrap(), "session-456");
+        assert_eq!(response.responses.len(), 1);
+
+        let item = response
+            .responses
+            .into_iter()
+            .next()
+            .unwrap()
+            .into_response_item();
+        assert!(matches!(item, ResponseItem::V4 { .. }));
+        assert_eq!(item.identifier(), CredentialType::Orb);
+
+        if let ResponseItem::V4 {
+            proof,
+            nullifier,
+            session_nullifier,
+            merkle_root,
+            ..
+        } = item
+        {
+            assert_eq!(proof, "0xproof_session");
+            assert!(nullifier.is_none());
+            assert_eq!(session_nullifier, Some("0xsession_null_123".to_string()));
+            assert_eq!(merkle_root, "0xroot_session");
+        } else {
+            panic!("Expected V4 response item");
+        }
     }
 
     #[test]

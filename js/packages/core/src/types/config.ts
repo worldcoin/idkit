@@ -57,3 +57,29 @@ export type IDKitRequestConfig = {
    */
   allow_legacy_proofs: boolean;
 };
+
+/**
+ * Configuration for IDKit.createSession() and IDKit.proveSession()
+ *
+ * Session requests don't have an action field - they're used for session-based
+ * authentication where the user proves they're the same person across visits.
+ */
+export type IDKitSessionConfig = {
+  /** Unique identifier for the app verifying the session. This should be the app ID obtained from the Developer Portal. */
+  app_id: `app_${string}`;
+  /** RP context for protocol-level proof requests (required) */
+  rp_context: RpContext;
+  /** The description of the action (shown to users in World App). Optional. */
+  action_description?: string;
+  /** URL to a third-party bridge to use when connecting to the World App. Optional. */
+  bridge_url?: string;
+
+  /**
+   * Whether to accept legacy (v3) World ID proofs as fallback.
+   *
+   * - `true`: Accept both v3 and v4 proofs. Use during migration.
+   *   You must track both v3 and v4 nullifiers to prevent double-claims.
+   * - `false`: Only accept v4 proofs. Use after migration cutoff or for new apps.
+   */
+  allow_legacy_proofs: boolean;
+};

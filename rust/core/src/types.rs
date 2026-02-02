@@ -386,8 +386,12 @@ pub enum ResponseItem {
         identifier: CredentialType,
         /// Compressed Groth16 proof (hex string)
         proof: String,
-        /// RP-scoped nullifier (hex string)
-        nullifier: String,
+        /// RP-scoped nullifier (hex string) - present for action proofs
+        #[serde(skip_serializing_if = "Option::is_none")]
+        nullifier: Option<String>,
+        /// Session nullifier (hex string) - present for session proofs
+        #[serde(skip_serializing_if = "Option::is_none")]
+        session_nullifier: Option<String>,
         /// Authenticator merkle root (hex string)
         merkle_root: String,
         /// Unix timestamp when proof was generated
@@ -417,12 +421,26 @@ impl ResponseItem {
         }
     }
 
-    /// Gets the nullifier value regardless of protocol version
+    /// Gets the action nullifier value regardless of protocol version
+    ///
+    /// For V4 responses, returns the action nullifier (None for session proofs).
+    /// For V3 responses, returns the nullifier_hash.
     #[must_use]
-    pub fn nullifier(&self) -> &str {
+    pub fn nullifier(&self) -> Option<&str> {
         match self {
-            Self::V4 { nullifier, .. } => nullifier,
-            Self::V3 { nullifier_hash, .. } => nullifier_hash,
+            Self::V4 { nullifier, .. } => nullifier.as_deref(),
+            Self::V3 { nullifier_hash, .. } => Some(nullifier_hash),
+        }
+    }
+
+    /// Gets the session nullifier (V4 session proofs only)
+    #[must_use]
+    pub fn session_nullifier(&self) -> Option<&str> {
+        match self {
+            Self::V4 {
+                session_nullifier, ..
+            } => session_nullifier.as_deref(),
+            Self::V3 { .. } => None,
         }
     }
 
@@ -1020,7 +1038,8 @@ mod tests {
         let item = ResponseItem::V4 {
             identifier: CredentialType::Orb,
             proof: "0xproof".to_string(),
-            nullifier: "0xnullifier".to_string(),
+            nullifier: Some("0xnullifier".to_string()),
+            session_nullifier: None,
             merkle_root: "0xroot".to_string(),
             proof_timestamp: 1_700_000_000,
             issuer_schema_id: "0x1".to_string(),
@@ -1028,7 +1047,28 @@ mod tests {
 
         assert!(matches!(item, ResponseItem::V4 { .. }));
         assert_eq!(item.identifier(), CredentialType::Orb);
-        assert_eq!(item.nullifier(), "0xnullifier");
+        assert_eq!(item.nullifier(), Some("0xnullifier"));
+        assert_eq!(item.session_nullifier(), None);
+        assert_eq!(item.merkle_root(), "0xroot");
+        assert_eq!(item.proof(), "0xproof");
+    }
+
+    #[test]
+    fn test_response_item_v4_session() {
+        let item = ResponseItem::V4 {
+            identifier: CredentialType::Orb,
+            proof: "0xproof".to_string(),
+            nullifier: None,
+            session_nullifier: Some("0xsession_nullifier".to_string()),
+            merkle_root: "0xroot".to_string(),
+            proof_timestamp: 1_700_000_000,
+            issuer_schema_id: "0x1".to_string(),
+        };
+
+        assert!(matches!(item, ResponseItem::V4 { .. }));
+        assert_eq!(item.identifier(), CredentialType::Orb);
+        assert_eq!(item.nullifier(), None);
+        assert_eq!(item.session_nullifier(), Some("0xsession_nullifier"));
         assert_eq!(item.merkle_root(), "0xroot");
         assert_eq!(item.proof(), "0xproof");
     }
@@ -1044,7 +1084,8 @@ mod tests {
 
         assert!(matches!(item, ResponseItem::V3 { .. }));
         assert_eq!(item.identifier(), CredentialType::Face);
-        assert_eq!(item.nullifier(), "0xlegacy_nullifier");
+        assert_eq!(item.nullifier(), Some("0xlegacy_nullifier"));
+        assert_eq!(item.session_nullifier(), None);
         assert_eq!(item.merkle_root(), "0xlegacy_root");
         assert_eq!(item.proof(), "0xlegacy_proof");
     }
@@ -1054,7 +1095,8 @@ mod tests {
         let v4 = ResponseItem::V4 {
             identifier: CredentialType::Orb,
             proof: "0xproof".to_string(),
-            nullifier: "0xnullifier".to_string(),
+            nullifier: Some("0xnullifier".to_string()),
+            session_nullifier: None,
             merkle_root: "0xroot".to_string(),
             proof_timestamp: 1_700_000_000,
             issuer_schema_id: "0x1".to_string(),
@@ -1065,6 +1107,8 @@ mod tests {
         assert!(!json.contains("protocol_version"));
         assert!(json.contains("proof_timestamp"));
         assert!(json.contains("issuer_schema_id"));
+        assert!(json.contains("nullifier"));
+        assert!(!json.contains("session_nullifier")); // Should be skipped when None
 
         let deserialized: ResponseItem = serde_json::from_str(&json).unwrap();
         assert_eq!(v4, deserialized);
@@ -1094,7 +1138,8 @@ mod tests {
         let responses = vec![ResponseItem::V4 {
             identifier: CredentialType::Orb,
             proof: "0xproof".to_string(),
-            nullifier: "0xnullifier".to_string(),
+            nullifier: Some("0xnullifier".to_string()),
+            session_nullifier: None,
             merkle_root: "0xroot".to_string(),
             proof_timestamp: 1_700_000_000,
             issuer_schema_id: "0x1".to_string(),
@@ -1111,7 +1156,8 @@ mod tests {
         let responses = vec![ResponseItem::V4 {
             identifier: CredentialType::Orb,
             proof: "0xproof".to_string(),
-            nullifier: "0xnullifier".to_string(),
+            nullifier: None,
+            session_nullifier: Some("0xsession_nullifier".to_string()),
             merkle_root: "0xroot".to_string(),
             proof_timestamp: 1_700_000_000,
             issuer_schema_id: "0x1".to_string(),
@@ -1142,7 +1188,8 @@ mod tests {
         let responses = vec![ResponseItem::V4 {
             identifier: CredentialType::Orb,
             proof: "0xproof".to_string(),
-            nullifier: "0xnullifier".to_string(),
+            nullifier: Some("0xnullifier".to_string()),
+            session_nullifier: None,
             merkle_root: "0xroot".to_string(),
             proof_timestamp: 1_700_000_000,
             issuer_schema_id: "0x1".to_string(),

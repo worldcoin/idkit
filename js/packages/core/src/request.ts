@@ -3,7 +3,7 @@
  * Pure functional API for World ID verification - no dependencies
  */
 
-import type { IDKitRequestConfig, RpContext } from "./types/config";
+import type { IDKitRequestConfig, IDKitSessionConfig, RpContext } from "./types/config";
 import type {
   IDKitResult,
   ConstraintNode,
@@ -373,6 +373,162 @@ function createRequest(config: IDKitRequestConfig): IDKitRequestBuilder {
   return new IDKitRequestBuilder(config);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Session Request Builder
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Builder for creating session requests
+ */
+class IDKitSessionBuilder {
+  private config: IDKitSessionConfig;
+  private sessionId?: string;
+
+  constructor(config: IDKitSessionConfig, sessionId?: string) {
+    this.config = config;
+    this.sessionId = sessionId;
+  }
+
+  /**
+   * Creates a session request with the given constraints
+   *
+   * @param constraints - Constraint tree (CredentialRequest or any/all combinators)
+   * @returns A new IDKitRequest instance
+   */
+  async constraints(constraints: ConstraintNode): Promise<IDKitRequest> {
+    // Ensure WASM is initialized
+    await initIDKit();
+
+    // Create WASM RpContext
+    const rpContext = new WasmModule.RpContextWasm(
+      this.config.rp_context.rp_id,
+      this.config.rp_context.nonce,
+      BigInt(this.config.rp_context.created_at),
+      BigInt(this.config.rp_context.expires_at),
+      this.config.rp_context.signature,
+    );
+
+    // Create the appropriate WASM session builder
+    const wasmBuilder = this.sessionId
+      ? WasmModule.proveSession(
+          this.sessionId,
+          this.config.app_id,
+          rpContext,
+          this.config.action_description ?? null,
+          this.config.bridge_url ?? null,
+          this.config.allow_legacy_proofs,
+        )
+      : WasmModule.createSession(
+          this.config.app_id,
+          rpContext,
+          this.config.action_description ?? null,
+          this.config.bridge_url ?? null,
+          this.config.allow_legacy_proofs,
+        );
+
+    const wasmRequest = (await wasmBuilder.constraints(
+      constraints,
+    )) as unknown as WasmModule.IDKitRequest;
+
+    return new IDKitRequestImpl(wasmRequest);
+  }
+}
+
+/**
+ * Creates a new session request (no action, no existing session_id)
+ *
+ * Use this when creating a new session for a user who doesn't have one yet.
+ * The response will include a `session_id` that should be saved for future
+ * session proofs with `proveSession()`.
+ *
+ * @param config - Session configuration (no action field)
+ * @returns An IDKitSessionBuilder instance
+ *
+ * @example
+ * ```typescript
+ * import { IDKit, CredentialRequest, any } from '@worldcoin/idkit-core'
+ *
+ * // Create a new session (user doesn't have session_id yet)
+ * const request = await IDKit.createSession({
+ *   app_id: 'app_staging_xxxxx',
+ *   rp_context: { ... },
+ *   allow_legacy_proofs: false,
+ * }).constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
+ *
+ * // Display QR, wait for proof
+ * const result = await request.pollForUpdates();
+ * // result.session_id -> save this for future sessions
+ * // result.responses[0].session_nullifier -> for session tracking
+ * ```
+ */
+function createSession(config: IDKitSessionConfig): IDKitSessionBuilder {
+  // Validate required fields
+  if (!config.app_id) {
+    throw new Error("app_id is required");
+  }
+  if (!config.rp_context) {
+    throw new Error("rp_context is required");
+  }
+  if (typeof config.allow_legacy_proofs !== "boolean") {
+    throw new Error(
+      "allow_legacy_proofs is required. Set to true to accept v3 proofs during migration, " +
+        "or false to only accept v4 proofs.",
+    );
+  }
+
+  return new IDKitSessionBuilder(config);
+}
+
+/**
+ * Proves an existing session (no action, has session_id)
+ *
+ * Use this when a returning user needs to prove they own an existing session.
+ * The `sessionId` should be a value previously returned from `createSession()`.
+ *
+ * @param sessionId - The session ID from a previous session creation
+ * @param config - Session configuration (no action field)
+ * @returns An IDKitSessionBuilder instance
+ *
+ * @example
+ * ```typescript
+ * import { IDKit, CredentialRequest, any } from '@worldcoin/idkit-core'
+ *
+ * // Prove an existing session (user returns)
+ * const request = await IDKit.proveSession(savedSessionId, {
+ *   app_id: 'app_staging_xxxxx',
+ *   rp_context: { ... },
+ *   allow_legacy_proofs: false,
+ * }).constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
+ *
+ * const result = await request.pollForUpdates();
+ * // result.session_id -> same session
+ * // result.responses[0].session_nullifier -> should match for same user
+ * ```
+ */
+function proveSession(
+  sessionId: string,
+  config: IDKitSessionConfig,
+): IDKitSessionBuilder {
+  // Validate required fields
+  if (!sessionId) {
+    throw new Error("session_id is required");
+  }
+  if (!config.app_id) {
+    throw new Error("app_id is required");
+  }
+  if (!config.rp_context) {
+    throw new Error("rp_context is required");
+  }
+  if (typeof config.allow_legacy_proofs !== "boolean") {
+    throw new Error(
+      "allow_legacy_proofs is required. Set to true to accept v3 proofs during migration, " +
+        "or false to only accept v4 proofs.",
+    );
+  }
+
+  return new IDKitSessionBuilder(config, sessionId);
+}
+
 /**
  * IDKit namespace providing the main API entry points
  *
@@ -402,6 +558,10 @@ export const IDKit = {
   initServer: initIDKitServer,
   /** Create a new verification request */
   request: createRequest,
+  /** Create a new session (no action, no existing session_id) */
+  createSession,
+  /** Prove an existing session (no action, has session_id) */
+  proveSession,
   /** Create a CredentialRequest for a credential type */
   CredentialRequest,
   /** Create an OR constraint - at least one child must be satisfied */

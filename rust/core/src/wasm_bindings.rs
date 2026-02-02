@@ -500,12 +500,12 @@ impl IDKitRequestBuilderWasm {
 
             let request = crate::IDKitRequest::create(
                 app_id,
-                action,
+                crate::bridge::RequestKind::Uniqueness { action },
                 constraints,
                 rp_context,
                 action_description,
-                None, // legacy_verification_level - not needed for explicit constraints
-                None, // legacy_signal - not needed for explicit constraints
+                crate::VerificationLevel::Deprecated,
+                String::new(),
                 bridge_url_parsed,
                 allow_legacy_proofs,
             )
@@ -550,12 +550,17 @@ impl IDKitRequestBuilderWasm {
                 .transpose()
                 .map_err(|e| JsValue::from_str(&format!("Invalid bridge_url: {e}")))?;
 
-            let request = crate::IDKitRequest::create_from_preset(
+            // Convert preset to constraints + legacy params
+            let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+
+            let request = crate::IDKitRequest::create(
                 app_id_parsed,
-                action,
-                preset,
+                crate::bridge::RequestKind::Uniqueness { action },
+                constraints,
                 rp_context,
                 action_description,
+                legacy_verification_level,
+                legacy_signal.unwrap_or_default(),
                 bridge_url_parsed,
                 allow_legacy_proofs,
             )
@@ -591,6 +596,177 @@ pub fn request(
     IDKitRequestBuilderWasm::new(
         app_id,
         action,
+        rp_context,
+        action_description,
+        bridge_url,
+        allow_legacy_proofs,
+    )
+}
+
+/// Builder for creating session requests (WASM)
+#[wasm_bindgen(js_name = IDKitSessionBuilderWasm)]
+pub struct IDKitSessionBuilderWasm {
+    app_id: String,
+    session_id: Option<String>,
+    rp_context: RpContext,
+    action_description: Option<String>,
+    bridge_url: Option<String>,
+    allow_legacy_proofs: bool,
+}
+
+#[wasm_bindgen(js_class = IDKitSessionBuilderWasm)]
+impl IDKitSessionBuilderWasm {
+    /// Creates a new session builder for creating a new session (no existing session_id)
+    #[must_use]
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        app_id: String,
+        rp_context: RpContextWasm,
+        action_description: Option<String>,
+        bridge_url: Option<String>,
+        allow_legacy_proofs: bool,
+    ) -> Self {
+        Self {
+            app_id,
+            session_id: None,
+            rp_context: rp_context.into_inner(),
+            action_description,
+            bridge_url,
+            allow_legacy_proofs,
+        }
+    }
+
+    /// Creates a new session builder for proving an existing session
+    #[must_use]
+    #[wasm_bindgen(js_name = withSessionId)]
+    pub fn with_session_id(
+        session_id: String,
+        app_id: String,
+        rp_context: RpContextWasm,
+        action_description: Option<String>,
+        bridge_url: Option<String>,
+        allow_legacy_proofs: bool,
+    ) -> Self {
+        Self {
+            app_id,
+            session_id: Some(session_id),
+            rp_context: rp_context.into_inner(),
+            action_description,
+            bridge_url,
+            allow_legacy_proofs,
+        }
+    }
+
+    /// Creates a session request with the given constraints
+    ///
+    /// # Arguments
+    /// * `constraints_json` - Constraint tree as JSON
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request cannot be created
+    pub fn constraints(self, constraints_json: JsValue) -> js_sys::Promise {
+        let app_id = self.app_id;
+        let session_id = self.session_id;
+        let rp_context = self.rp_context;
+        let action_description = self.action_description;
+        let bridge_url = self.bridge_url;
+        let allow_legacy_proofs = self.allow_legacy_proofs;
+
+        future_to_promise(async move {
+            let app_id = crate::AppId::new(&app_id)
+                .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
+
+            let constraints: ConstraintNode = serde_wasm_bindgen::from_value(constraints_json)
+                .map_err(|e| JsValue::from_str(&format!("Invalid constraints payload: {e}")))?;
+
+            let bridge_url_parsed = bridge_url
+                .map(|url| crate::BridgeUrl::new(url, &app_id))
+                .transpose()
+                .map_err(|e| JsValue::from_str(&format!("Invalid bridge_url: {e}")))?;
+
+            // Determine request kind based on session_id presence
+            let kind = match session_id {
+                Some(sid) => crate::bridge::RequestKind::ProveSession { session_id: sid },
+                None => crate::bridge::RequestKind::CreateSession,
+            };
+
+            let request = crate::IDKitRequest::create(
+                app_id,
+                kind,
+                constraints,
+                rp_context,
+                action_description,
+                crate::VerificationLevel::Deprecated,
+                String::new(),
+                bridge_url_parsed,
+                allow_legacy_proofs,
+            )
+            .await
+            .map_err(|e| JsValue::from_str(&format!("Failed to create session request: {e}")))?;
+
+            Ok(JsValue::from(IDKitRequest {
+                inner: Rc::new(RefCell::new(Some(request))),
+            }))
+        })
+    }
+}
+
+/// Entry point for creating a new session (no existing session_id) (WASM)
+///
+/// Use this when creating a new session for a user who doesn't have one yet.
+/// The response will include a `session_id` that should be saved for future
+/// session proofs.
+///
+/// # Arguments
+/// * `app_id` - Application ID from the Developer Portal
+/// * `rp_context` - RP context for building protocol-level `ProofRequest`
+/// * `action_description` - Optional action description shown to users
+/// * `bridge_url` - Optional bridge URL (defaults to production)
+/// * `allow_legacy_proofs` - Whether to accept legacy (v3) proofs as fallback
+#[must_use]
+#[wasm_bindgen(js_name = createSession)]
+pub fn create_session(
+    app_id: String,
+    rp_context: RpContextWasm,
+    action_description: Option<String>,
+    bridge_url: Option<String>,
+    allow_legacy_proofs: bool,
+) -> IDKitSessionBuilderWasm {
+    IDKitSessionBuilderWasm::new(
+        app_id,
+        rp_context,
+        action_description,
+        bridge_url,
+        allow_legacy_proofs,
+    )
+}
+
+/// Entry point for proving an existing session (WASM)
+///
+/// Use this when a returning user needs to prove they own an existing session.
+/// The `session_id` should be a value previously returned from `createSession()`.
+///
+/// # Arguments
+/// * `session_id` - The session ID from a previous session creation
+/// * `app_id` - Application ID from the Developer Portal
+/// * `rp_context` - RP context for building protocol-level `ProofRequest`
+/// * `action_description` - Optional action description shown to users
+/// * `bridge_url` - Optional bridge URL (defaults to production)
+/// * `allow_legacy_proofs` - Whether to accept legacy (v3) proofs as fallback
+#[must_use]
+#[wasm_bindgen(js_name = proveSession)]
+pub fn prove_session(
+    session_id: String,
+    app_id: String,
+    rp_context: RpContextWasm,
+    action_description: Option<String>,
+    bridge_url: Option<String>,
+    allow_legacy_proofs: bool,
+) -> IDKitSessionBuilderWasm {
+    IDKitSessionBuilderWasm::with_session_id(
+        session_id,
+        app_id,
         rp_context,
         action_description,
         bridge_url,
@@ -722,8 +898,10 @@ export interface ResponseItemV4 {
     identifier: CredentialType;
     /** Compressed Groth16 proof (hex) */
     proof: string;
-    /** RP-scoped nullifier (hex) */
-    nullifier: string;
+    /** RP-scoped nullifier (hex) - present for action proofs */
+    nullifier?: string;
+    /** Session nullifier (hex) - present for session proofs */
+    session_nullifier?: string;
     /** Authenticator merkle root (hex) */
     merkle_root: string;
     /** Unix timestamp when proof was generated */
@@ -771,6 +949,34 @@ export interface IDKitResultV4 {
 /** The unified response structure - discriminated union by protocol_version */
 export type IDKitResult = IDKitResultV3 | IDKitResultV4;
 
+/** Configuration for session requests (no action field) */
+export interface IDKitSessionConfig {
+    /** Application ID from the Developer Portal */
+    app_id: `app_${string}`;
+    /** RP context for protocol-level proof requests */
+    rp_context: RpContext;
+    /** Optional action description shown to users */
+    action_description?: string;
+    /** Optional bridge URL (defaults to production) */
+    bridge_url?: string;
+    /** Whether to accept legacy (v3) proofs as fallback */
+    allow_legacy_proofs: boolean;
+}
+
+/** RpContext for proof requests */
+export interface RpContext {
+    /** The registered RP ID (e.g., "rp_123456789abcdef0") */
+    rp_id: string;
+    /** Unique nonce for this proof request */
+    nonce: string;
+    /** Unix timestamp (seconds since epoch) when created */
+    created_at: number;
+    /** Unix timestamp (seconds since epoch) when expires */
+    expires_at: number;
+    /** The RP's ECDSA signature of the nonce and created_at timestamp */
+    signature: string;
+}
+
 /** Status returned from pollForStatus() */
 export type Status =
     | { type: "waiting_for_connection" }
@@ -804,4 +1010,34 @@ export interface RpSignature {
 }
 
 export function signRequest(action: string, signingKeyHex: string, ttlSeconds?: number): RpSignature;
+"#;
+
+// Export session function types
+#[wasm_bindgen(typescript_custom_section)]
+const TS_SESSION: &str = r#"
+/**
+ * Creates a new session builder for creating a new session (no existing session_id).
+ * Use this when creating a new session for a user who doesn't have one yet.
+ * The response will include a session_id that should be saved for future session proofs.
+ */
+export function createSession(
+    app_id: string,
+    rp_context: RpContextWasm,
+    action_description?: string,
+    bridge_url?: string,
+    allow_legacy_proofs: boolean
+): IDKitSessionBuilderWasm;
+
+/**
+ * Creates a session builder for proving an existing session.
+ * Use this when a returning user needs to prove they own an existing session.
+ */
+export function proveSession(
+    session_id: string,
+    app_id: string,
+    rp_context: RpContextWasm,
+    action_description?: string,
+    bridge_url?: string,
+    allow_legacy_proofs: boolean
+): IDKitSessionBuilderWasm;
 "#;
