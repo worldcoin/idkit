@@ -929,7 +929,7 @@ export interface IDKitResultV3 {
     responses: ResponseItemV3[];
 }
 
-/** V4 result for action-based proofs */
+/** V4 result for uniqueness proofs */
 export interface IDKitResultV4 {
     /** Protocol version 4.0 */
     protocol_version: "4.0";
@@ -937,7 +937,7 @@ export interface IDKitResultV4 {
     responses: ResponseItemV4[];
 }
 
-/** The result structure for action-based proofs */
+/** The result structure for uniqueness proofs */
 export type IDKitResult = IDKitResultV3 | IDKitResultV4;
 
 /** Session response item (session proofs only) */
@@ -990,7 +990,7 @@ export interface RpContext {
     signature: string;
 }
 
-/** Status returned from pollForStatus() for action-based proofs */
+/** Status returned from pollForStatus() for idkit requests */
 export type Status =
     | { type: "waiting_for_connection" }
     | { type: "awaiting_confirmation" }

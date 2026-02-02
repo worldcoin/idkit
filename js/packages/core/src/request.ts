@@ -3,7 +3,11 @@
  * Pure functional API for World ID verification - no dependencies
  */
 
-import type { IDKitRequestConfig, IDKitSessionConfig, RpContext } from "./types/config";
+import type {
+  IDKitRequestConfig,
+  IDKitSessionConfig,
+  RpContext,
+} from "./types/config";
 import type {
   IDKitResult,
   ConstraintNode,

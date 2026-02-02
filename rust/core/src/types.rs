@@ -372,7 +372,7 @@ pub struct BridgeResponseV1 {
 // Unified Response Types (World ID 4.0)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// A single credential response item for action-based proofs
+/// A single credential response item for uniqueness proofs
 ///
 /// V4 is detected by presence of `proof_timestamp`/`issuer_schema_id`.
 /// V3 is detected by presence of `nullifier_hash`.
@@ -464,9 +464,7 @@ impl ResponseItem {
     }
 }
 
-/// The response structure for action-based verification flows
-///
-/// This is the top-level result returned from an action-based verification flow.
+/// This is the top-level result returned from an uniqueness proof request flow.
 /// It contains the protocol version and an array of credential responses.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
@@ -489,10 +487,7 @@ impl IDKitResult {
     }
 }
 
-/// The response structure for session-based verification flows (World ID v4 only)
-///
-/// This is the top-level result returned from a session verification flow.
-/// Sessions always use protocol version 4.0.
+/// This is the top-level result returned from a session proof request flow. (World ID v4 only)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct IDKitSessionResult {
@@ -1075,7 +1070,7 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // ResponseItem tests (action-based proofs)
+    // ResponseItem tests (uniqueness proof requests)
     // ─────────────────────────────────────────────────────────────────────────
 
     #[test]
@@ -1188,7 +1183,7 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // IDKitResult tests (action-based results)
+    // IDKitResult tests (uniqueness proof request results)
     // ─────────────────────────────────────────────────────────────────────────
 
     #[test]
@@ -1259,7 +1254,6 @@ mod tests {
         }];
 
         let result = IDKitSessionResult::new("session-123".to_string(), responses);
-        assert_eq!(result.protocol_version, "4.0");
         assert_eq!(result.session_id, "session-123");
         assert_eq!(result.responses.len(), 1);
     }

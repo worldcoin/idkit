@@ -30,7 +30,7 @@ use std::sync::Arc;
 
 /// Internal enum representing the type of proof request
 pub(crate) enum RequestKind {
-    /// Action-based uniqueness proof
+    /// Uniqueness proof
     Uniqueness { action: String },
     /// Create a new session (returns `session_id` in response)
     CreateSession,
@@ -107,7 +107,7 @@ struct BridgePollResponse {
 
 /// Internal: Bridge response item - tagged by `protocol_version`
 ///
-/// Used for action-based proofs. Session proofs use `BridgeSessionResponseItem`.
+/// Used for uniqueness proofs. Session proofs use `BridgeSessionResponseItem`.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "protocol_version")]
 enum BridgeResponseItem {
@@ -129,7 +129,7 @@ enum BridgeResponseItem {
 }
 
 impl BridgeResponseItem {
-    /// Converts to a `ResponseItem` for action-based proofs
+    /// Converts to a `ResponseItem` for uniqueness proofs
     fn into_response_item(self) -> ResponseItem {
         match self {
             Self::V4 {
@@ -209,7 +209,7 @@ enum BridgeResponse {
     /// but `SessionResponse` requires `session_id` and `session_nullifier`
     SessionResponse(BridgeSessionResponse),
 
-    /// V2 response with multi-credential support (World ID 4.0 action proofs)
+    /// V2 response with multi-credential support (World ID 4.0 uniqueness proofs)
     ResponseV2(BridgeResponseV2),
 
     /// V1 legacy success response with proof (World ID 3.0)
@@ -225,10 +225,10 @@ pub enum Status {
     /// World App has retrieved the request, waiting for user confirmation
     AwaitingConfirmation,
 
-    /// User has confirmed and provided proof(s) for an action-based request
+    /// User has confirmed and provided proof(s) for a uniqueness proof request
     Confirmed(IDKitResult),
 
-    /// User has confirmed and provided proof(s) for a session request
+    /// User has confirmed and provided proof(s) for a session proof request
     SessionConfirmed(IDKitSessionResult),
 
     /// Request has failed
@@ -290,7 +290,7 @@ impl IDKitRequest {
     /// # Arguments
     ///
     /// * `app_id` - Application ID from the Developer Portal
-    /// * `kind` - The type of request (action-based, create session, or prove session)
+    /// * `kind` - The type of request (uniqueness proof, create session, or prove session)
     /// * `constraints` - Constraint tree containing credential requests
     /// * `rp_context` - RP context for building protocol-level `ProofRequest`
     /// * `action_description` - Optional action description shown to users
@@ -811,9 +811,9 @@ pub enum StatusWrapper {
     WaitingForConnection,
     /// World App has retrieved the request, waiting for user confirmation
     AwaitingConfirmation,
-    /// User has confirmed and provided proof(s) for an action-based request
+    /// User has confirmed and provided proof(s) for a uniqueness proof request
     Confirmed { result: IDKitResult },
-    /// User has confirmed and provided proof(s) for a session request
+    /// User has confirmed and provided proof(s) for a session proof request
     SessionConfirmed { result: IDKitSessionResult },
     /// Request has failed
     Failed { error: String },
