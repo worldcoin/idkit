@@ -7,8 +7,8 @@ use crate::{
     error::{AppError, Error, Result},
     protocol_types::ProofRequest,
     types::{
-        AppId, BridgeResponseV1, BridgeUrl, CredentialType, IDKitResult, IDKitSessionResult,
-        ResponseItem, RpContext, SessionResponseItem, VerificationLevel,
+        AppId, BridgeResponseV1, BridgeUrl, CredentialType, IDKitResult, ResponseItem, RpContext,
+        VerificationLevel,
     },
     ConstraintNode, Signal,
 };
@@ -225,11 +225,9 @@ pub enum Status {
     /// World App has retrieved the request, waiting for user confirmation
     AwaitingConfirmation,
 
-    /// User has confirmed and provided proof(s) for a uniqueness proof request
+    /// User has confirmed and provided proof(s)
+    /// For session proofs, `IDKitResult.session_id` will be `Some(id)`
     Confirmed(IDKitResult),
-
-    /// User has confirmed and provided proof(s) for a session proof request
-    SessionConfirmed(IDKitSessionResult),
 
     /// Request has failed
     Failed(AppError),
@@ -257,11 +255,11 @@ struct BridgeSessionResponseItem {
 }
 
 impl BridgeSessionResponseItem {
-    fn into_session_response_item(self) -> SessionResponseItem {
+    fn into_response_item(self) -> ResponseItem {
         let identifier = parse_issuer_schema_id(&self.issuer_schema_id)
             .and_then(CredentialType::from_issuer_schema_id)
             .unwrap_or(CredentialType::Orb);
-        SessionResponseItem {
+        ResponseItem::Session {
             identifier,
             proof: self.proof,
             session_nullifier: self.session_nullifier,
@@ -494,9 +492,9 @@ impl IDKitRequest {
                         let responses = response
                             .responses
                             .into_iter()
-                            .map(BridgeSessionResponseItem::into_session_response_item)
+                            .map(BridgeSessionResponseItem::into_response_item)
                             .collect();
-                        Ok(Status::SessionConfirmed(IDKitSessionResult::new(
+                        Ok(Status::Confirmed(IDKitResult::new_session(
                             response.session_id,
                             responses,
                         )))
@@ -811,10 +809,9 @@ pub enum StatusWrapper {
     WaitingForConnection,
     /// World App has retrieved the request, waiting for user confirmation
     AwaitingConfirmation,
-    /// User has confirmed and provided proof(s) for a uniqueness proof request
+    /// User has confirmed and provided proof(s)
+    /// For session proofs, `IDKitResult.session_id` will be `Some(id)`
     Confirmed { result: IDKitResult },
-    /// User has confirmed and provided proof(s) for a session proof request
-    SessionConfirmed { result: IDKitSessionResult },
     /// Request has failed
     Failed { error: String },
 }
@@ -826,7 +823,6 @@ impl From<Status> for StatusWrapper {
             Status::WaitingForConnection => Self::WaitingForConnection,
             Status::AwaitingConfirmation => Self::AwaitingConfirmation,
             Status::Confirmed(result) => Self::Confirmed { result },
-            Status::SessionConfirmed(result) => Self::SessionConfirmed { result },
             Status::Failed(app_error) => Self::Failed {
                 error: app_error.to_string(),
             },
@@ -877,9 +873,6 @@ impl IDKitRequestWrapper {
                     }
                     Status::Confirmed(result) => {
                         return StatusWrapper::Confirmed { result };
-                    }
-                    Status::SessionConfirmed(result) => {
-                        return StatusWrapper::SessionConfirmed { result };
                     }
                     Status::Failed(app_error) => {
                         return StatusWrapper::Failed {
@@ -1116,12 +1109,12 @@ mod tests {
             .into_iter()
             .next()
             .unwrap()
-            .into_session_response_item();
-        assert_eq!(item.identifier, CredentialType::Orb);
-        assert_eq!(item.proof, "0xproof_session");
-        assert_eq!(item.session_nullifier, "0xsession_null_123");
-        assert_eq!(item.merkle_root, "0xroot_session");
-        assert_eq!(item.proof_timestamp, 1_700_000_000);
+            .into_response_item();
+        assert!(matches!(item, ResponseItem::Session { .. }));
+        assert_eq!(item.identifier(), CredentialType::Orb);
+        assert_eq!(item.proof(), "0xproof_session");
+        assert_eq!(item.nullifier(), "0xsession_null_123");
+        assert_eq!(item.merkle_root(), "0xroot_session");
     }
 
     #[test]

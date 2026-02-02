@@ -107,4 +107,20 @@ public extension StatusWrapper {
         }
         return nil
     }
+
+    /// Returns true if the result is a session proof (has a session_id).
+    var isSessionResult: Bool {
+        if case .confirmed(let result) = self {
+            return result.sessionId != nil
+        }
+        return false
+    }
+
+    /// Returns the session ID if this is a session result, nil otherwise.
+    var sessionId: String? {
+        if case .confirmed(let result) = self {
+            return result.sessionId
+        }
+        return nil
+    }
 }

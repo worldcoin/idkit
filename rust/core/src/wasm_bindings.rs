@@ -849,10 +849,6 @@ impl IDKitRequest {
                     serde_json::json!({"type": "confirmed", "result": result})
                         .serialize(&serializer)
                 }
-                crate::Status::SessionConfirmed(result) => {
-                    serde_json::json!({"type": "session_confirmed", "result": result})
-                        .serialize(&serializer)
-                }
                 crate::Status::Failed(error) => {
                     serde_json::json!({"type": "failed", "error": format!("{error:?}")})
                         .serialize(&serializer)
@@ -885,16 +881,14 @@ export type ConstraintNode =
 // Export ResponseItem/IDKitResult types for unified response
 #[wasm_bindgen(typescript_custom_section)]
 const TS_IDKIT_RESULT: &str = r#"
-/** V4 response item (protocol version 4.0 / World ID v4) */
+/** V4 response item World ID v4 uniqueness proofs*/
 export interface ResponseItemV4 {
     /** Credential identifier */
     identifier: CredentialType;
     /** Compressed Groth16 proof (hex) */
     proof: string;
-    /** RP-scoped nullifier (hex) - present for action proofs */
-    nullifier?: string;
-    /** Session nullifier (hex) - present for session proofs */
-    session_nullifier?: string;
+    /** RP-scoped nullifier (hex) */
+    nullifier: string;
     /** Authenticator merkle root (hex) */
     merkle_root: string;
     /** Unix timestamp when proof was generated */
@@ -903,7 +897,7 @@ export interface ResponseItemV4 {
     issuer_schema_id: string;
 }
 
-/** V3 response item (protocol version 3.0 / World ID v3 - legacy format) */
+/** V3 response item World ID v3 - legacy format */
 export interface ResponseItemV3 {
     /** Credential identifier */
     identifier: CredentialType;
@@ -915,11 +909,21 @@ export interface ResponseItemV3 {
     nullifier_hash: string;
 }
 
-/**
- * A single credential response item - unified type for both bridge and SDK.
- * Type narrowing: use 'proof_timestamp' in item for V4, 'nullifier_hash' in item for V3.
- */
-export type ResponseItem = ResponseItemV4 | ResponseItemV3;
+/** Session response item World ID v4 session proof */
+export interface ResponseItemSession {
+    /** Credential identifier */
+    identifier: CredentialType;
+    /** Compressed Groth16 proof (hex) */
+    proof: string;
+    /** Session nullifier (hex) */
+    session_nullifier: string;
+    /** Authenticator merkle root (hex) */
+    merkle_root: string;
+    /** Unix timestamp when proof was generated */
+    proof_timestamp: number;
+    /** Credential issuer schema ID (hex) */
+    issuer_schema_id: string;
+}
 
 /** V3 result (legacy format - no session support) */
 export interface IDKitResultV3 {
@@ -937,32 +941,23 @@ export interface IDKitResultV4 {
     responses: ResponseItemV4[];
 }
 
-/** The result structure for uniqueness proofs */
-export type IDKitResult = IDKitResultV3 | IDKitResultV4;
-
-/** Session response item (session proofs only) */
-export interface SessionResponseItem {
-    /** Credential identifier */
-    identifier: CredentialType;
-    /** Compressed Groth16 proof (hex) */
-    proof: string;
-    /** Session nullifier (hex) */
-    session_nullifier: string;
-    /** Authenticator merkle root (hex) */
-    merkle_root: string;
-    /** Unix timestamp when proof was generated */
-    proof_timestamp: number;
-    /** Credential issuer schema ID (hex) */
-    issuer_schema_id: string;
-}
-
-/** Result structure for session proofs (always v4) */
-export interface IDKitSessionResult {
+/** V4 result for session proofs */
+export interface IDKitResultSession {
+    /** Protocol version 4.0 */
+    protocol_version: "4.0";
     /** Session ID returned by the World App */
     session_id: string;
     /** Array of session credential responses */
-    responses: SessionResponseItem[];
+    responses: ResponseItemSession[];
 }
+
+/**
+ * The unified result structure for all proof types.
+ * Check `session_id` to determine if this is a session proof:
+ * - session_id !== undefined → session proof
+ * - session_id === undefined → uniqueness proof
+ */
+export type IDKitResult = IDKitResultV3 | IDKitResultV4 | IDKitResultSession;
 
 /** Configuration for session requests (no action field, v4 only) */
 export interface IDKitSessionConfig {
@@ -990,12 +985,11 @@ export interface RpContext {
     signature: string;
 }
 
-/** Status returned from pollForStatus() for idkit requests */
+/** Status returned from pollForStatus() */
 export type Status =
     | { type: "waiting_for_connection" }
     | { type: "awaiting_confirmation" }
     | { type: "confirmed"; result: IDKitResult }
-    | { type: "session_confirmed"; result: IDKitSessionResult }
     | { type: "failed"; error: string };
 "#;
 
