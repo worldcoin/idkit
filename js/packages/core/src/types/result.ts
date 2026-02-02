@@ -7,13 +7,12 @@
 // Re-export types from WASM
 export type {
   // Uniqueness proof response types
-  ResponseItem,
+  IDKitResult,
   ResponseItemV4,
   ResponseItemV3,
-  IDKitResult,
   // Session proof response types
-  SessionResponseItem,
-  IDKitSessionResult,
+  ResponseItemSession,
+  IDKitResultSession,
   // Status (includes both action and session confirmed)
   Status,
   // Shared types

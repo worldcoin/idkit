@@ -424,7 +424,6 @@ pub enum ResponseItem {
     },
 }
 
-
 impl ResponseItem {
     /// Gets the credential identifier regardless of protocol version
     #[must_use]
@@ -479,7 +478,7 @@ impl ResponseItem {
 
 /// This is the top-level result returned from a proof request flow.
 /// It contains the protocol version and an array of credential responses.
-/// For session proofs, it also contains the session_id.
+/// For session proofs, it also contains the `session_id`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct IDKitResult {
@@ -548,7 +547,6 @@ pub fn idkit_result_from_json(
 ) -> std::result::Result<IDKitResult, crate::error::IdkitError> {
     serde_json::from_str(json).map_err(|e| crate::error::IdkitError::from(crate::Error::from(e)))
 }
-
 
 /// Application ID for World ID
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -86,14 +86,14 @@ export { WasmModule };
  */
 export type {
   // Uniqueness proof response types
-  ResponseItem,
   ResponseItemV4,
   ResponseItemV3,
   IDKitResult,
+  IDKitResultV3,
+  IDKitResultV4,
   // Session proof response types
-  SessionResponseItem,
-  IDKitSessionResult,
-  // Status (includes both action and session confirmed)
+  IDKitResultSession,
+  ResponseItemSession,
   Status,
   // Shared types
   CredentialType,

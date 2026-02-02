@@ -33,12 +33,11 @@ export type {
 export type {
   // Uniqueness proof response types
   IDKitResult,
-  ResponseItem,
   ResponseItemV4,
   ResponseItemV3,
   // Session proof response types
-  SessionResponseItem,
-  IDKitSessionResult,
+  ResponseItemSession,
+  IDKitResultSession,
   // Status (includes both action and session confirmed)
   Status,
   // Shared types
