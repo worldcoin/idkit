@@ -604,6 +604,8 @@ pub fn request(
 }
 
 /// Builder for creating session requests (WASM)
+///
+/// Sessions are always World ID v4 - there is no legacy (v3) session support.
 #[wasm_bindgen(js_name = IDKitSessionBuilderWasm)]
 pub struct IDKitSessionBuilderWasm {
     app_id: String,
@@ -611,7 +613,6 @@ pub struct IDKitSessionBuilderWasm {
     rp_context: RpContext,
     action_description: Option<String>,
     bridge_url: Option<String>,
-    allow_legacy_proofs: bool,
 }
 
 #[wasm_bindgen(js_class = IDKitSessionBuilderWasm)]
@@ -624,7 +625,6 @@ impl IDKitSessionBuilderWasm {
         rp_context: RpContextWasm,
         action_description: Option<String>,
         bridge_url: Option<String>,
-        allow_legacy_proofs: bool,
     ) -> Self {
         Self {
             app_id,
@@ -632,7 +632,6 @@ impl IDKitSessionBuilderWasm {
             rp_context: rp_context.into_inner(),
             action_description,
             bridge_url,
-            allow_legacy_proofs,
         }
     }
 
@@ -645,7 +644,6 @@ impl IDKitSessionBuilderWasm {
         rp_context: RpContextWasm,
         action_description: Option<String>,
         bridge_url: Option<String>,
-        allow_legacy_proofs: bool,
     ) -> Self {
         Self {
             app_id,
@@ -653,7 +651,6 @@ impl IDKitSessionBuilderWasm {
             rp_context: rp_context.into_inner(),
             action_description,
             bridge_url,
-            allow_legacy_proofs,
         }
     }
 
@@ -671,7 +668,6 @@ impl IDKitSessionBuilderWasm {
         let rp_context = self.rp_context;
         let action_description = self.action_description;
         let bridge_url = self.bridge_url;
-        let allow_legacy_proofs = self.allow_legacy_proofs;
 
         future_to_promise(async move {
             let app_id = crate::AppId::new(&app_id)
@@ -690,6 +686,7 @@ impl IDKitSessionBuilderWasm {
                 crate::bridge::RequestKind::ProveSession { session_id: sid }
             });
 
+            // Sessions are always v4 - no legacy proof support
             let request = crate::IDKitRequest::create(
                 app_id,
                 kind,
@@ -699,7 +696,7 @@ impl IDKitSessionBuilderWasm {
                 crate::VerificationLevel::Deprecated,
                 String::new(),
                 bridge_url_parsed,
-                allow_legacy_proofs,
+                false, // Sessions don't support legacy proofs
             )
             .await
             .map_err(|e| JsValue::from_str(&format!("Failed to create session request: {e}")))?;
@@ -717,12 +714,13 @@ impl IDKitSessionBuilderWasm {
 /// The response will include a `session_id` that should be saved for future
 /// session proofs.
 ///
+/// Sessions are always World ID v4 - there is no legacy (v3) session support.
+///
 /// # Arguments
 /// * `app_id` - Application ID from the Developer Portal
 /// * `rp_context` - RP context for building protocol-level `ProofRequest`
 /// * `action_description` - Optional action description shown to users
 /// * `bridge_url` - Optional bridge URL (defaults to production)
-/// * `allow_legacy_proofs` - Whether to accept legacy (v3) proofs as fallback
 #[must_use]
 #[wasm_bindgen(js_name = createSession)]
 pub fn create_session(
@@ -730,15 +728,8 @@ pub fn create_session(
     rp_context: RpContextWasm,
     action_description: Option<String>,
     bridge_url: Option<String>,
-    allow_legacy_proofs: bool,
 ) -> IDKitSessionBuilderWasm {
-    IDKitSessionBuilderWasm::new(
-        app_id,
-        rp_context,
-        action_description,
-        bridge_url,
-        allow_legacy_proofs,
-    )
+    IDKitSessionBuilderWasm::new(app_id, rp_context, action_description, bridge_url)
 }
 
 /// Entry point for proving an existing session (WASM)
@@ -746,13 +737,14 @@ pub fn create_session(
 /// Use this when a returning user needs to prove they own an existing session.
 /// The `session_id` should be a value previously returned from `createSession()`.
 ///
+/// Sessions are always World ID v4 - there is no legacy (v3) session support.
+///
 /// # Arguments
 /// * `session_id` - The session ID from a previous session creation
 /// * `app_id` - Application ID from the Developer Portal
 /// * `rp_context` - RP context for building protocol-level `ProofRequest`
 /// * `action_description` - Optional action description shown to users
 /// * `bridge_url` - Optional bridge URL (defaults to production)
-/// * `allow_legacy_proofs` - Whether to accept legacy (v3) proofs as fallback
 #[must_use]
 #[wasm_bindgen(js_name = proveSession)]
 pub fn prove_session(
@@ -761,7 +753,6 @@ pub fn prove_session(
     rp_context: RpContextWasm,
     action_description: Option<String>,
     bridge_url: Option<String>,
-    allow_legacy_proofs: bool,
 ) -> IDKitSessionBuilderWasm {
     IDKitSessionBuilderWasm::with_session_id(
         session_id,
@@ -769,7 +760,6 @@ pub fn prove_session(
         rp_context,
         action_description,
         bridge_url,
-        allow_legacy_proofs,
     )
 }
 
@@ -859,6 +849,10 @@ impl IDKitRequest {
                     serde_json::json!({"type": "confirmed", "result": result})
                         .serialize(&serializer)
                 }
+                crate::Status::SessionConfirmed(result) => {
+                    serde_json::json!({"type": "session_confirmed", "result": result})
+                        .serialize(&serializer)
+                }
                 crate::Status::Failed(error) => {
                     serde_json::json!({"type": "failed", "error": format!("{error:?}")})
                         .serialize(&serializer)
@@ -935,20 +929,42 @@ export interface IDKitResultV3 {
     responses: ResponseItemV3[];
 }
 
-/** V4 result (current format - supports sessions) */
+/** V4 result for action-based proofs */
 export interface IDKitResultV4 {
     /** Protocol version 4.0 */
     protocol_version: "4.0";
-    /** Session ID (for session proofs) */
-    session_id?: string;
     /** Array of V4 credential responses */
     responses: ResponseItemV4[];
 }
 
-/** The unified response structure - discriminated union by protocol_version */
+/** The result structure for action-based proofs */
 export type IDKitResult = IDKitResultV3 | IDKitResultV4;
 
-/** Configuration for session requests (no action field) */
+/** Session response item (session proofs only) */
+export interface SessionResponseItem {
+    /** Credential identifier */
+    identifier: CredentialType;
+    /** Compressed Groth16 proof (hex) */
+    proof: string;
+    /** Session nullifier (hex) */
+    session_nullifier: string;
+    /** Authenticator merkle root (hex) */
+    merkle_root: string;
+    /** Unix timestamp when proof was generated */
+    proof_timestamp: number;
+    /** Credential issuer schema ID (hex) */
+    issuer_schema_id: string;
+}
+
+/** Result structure for session proofs (always v4) */
+export interface IDKitSessionResult {
+    /** Session ID returned by the World App */
+    session_id: string;
+    /** Array of session credential responses */
+    responses: SessionResponseItem[];
+}
+
+/** Configuration for session requests (no action field, v4 only) */
 export interface IDKitSessionConfig {
     /** Application ID from the Developer Portal */
     app_id: `app_${string}`;
@@ -958,8 +974,6 @@ export interface IDKitSessionConfig {
     action_description?: string;
     /** Optional bridge URL (defaults to production) */
     bridge_url?: string;
-    /** Whether to accept legacy (v3) proofs as fallback */
-    allow_legacy_proofs: boolean;
 }
 
 /** RpContext for proof requests */
@@ -976,11 +990,12 @@ export interface RpContext {
     signature: string;
 }
 
-/** Status returned from pollForStatus() */
+/** Status returned from pollForStatus() for action-based proofs */
 export type Status =
     | { type: "waiting_for_connection" }
     | { type: "awaiting_confirmation" }
     | { type: "confirmed"; result: IDKitResult }
+    | { type: "session_confirmed"; result: IDKitSessionResult }
     | { type: "failed"; error: string };
 "#;
 
@@ -1018,25 +1033,25 @@ const TS_SESSION: &str = r#"
  * Creates a new session builder for creating a new session (no existing session_id).
  * Use this when creating a new session for a user who doesn't have one yet.
  * The response will include a session_id that should be saved for future session proofs.
+ * Sessions are always World ID v4 - there is no legacy (v3) session support.
  */
 export function createSession(
     app_id: string,
     rp_context: RpContextWasm,
     action_description?: string,
-    bridge_url?: string,
-    allow_legacy_proofs: boolean
+    bridge_url?: string
 ): IDKitSessionBuilderWasm;
 
 /**
  * Creates a session builder for proving an existing session.
  * Use this when a returning user needs to prove they own an existing session.
+ * Sessions are always World ID v4 - there is no legacy (v3) session support.
  */
 export function proveSession(
     session_id: string,
     app_id: string,
     rp_context: RpContextWasm,
     action_description?: string,
-    bridge_url?: string,
-    allow_legacy_proofs: boolean
+    bridge_url?: string
 ): IDKitSessionBuilderWasm;
 "#;

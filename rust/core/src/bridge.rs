@@ -7,8 +7,8 @@ use crate::{
     error::{AppError, Error, Result},
     protocol_types::ProofRequest,
     types::{
-        AppId, BridgeResponseV1, BridgeUrl, CredentialType, IDKitResult, ResponseItem, RpContext,
-        VerificationLevel,
+        AppId, BridgeResponseV1, BridgeUrl, CredentialType, IDKitResult, IDKitSessionResult,
+        ResponseItem, RpContext, SessionResponseItem, VerificationLevel,
     },
     ConstraintNode, Signal,
 };
@@ -106,6 +106,8 @@ struct BridgePollResponse {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Internal: Bridge response item - tagged by `protocol_version`
+///
+/// Used for action-based proofs. Session proofs use `BridgeSessionResponseItem`.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "protocol_version")]
 enum BridgeResponseItem {
@@ -113,12 +115,7 @@ enum BridgeResponseItem {
     V4 {
         issuer_schema_id: String,
         proof: String,
-        /// Action nullifier (present for action proofs)
-        #[serde(default)]
-        nullifier: Option<String>,
-        /// Session nullifier (present for session proofs)
-        #[serde(default)]
-        session_nullifier: Option<String>,
+        nullifier: String,
         merkle_root: String,
         proof_timestamp: u64,
     },
@@ -132,25 +129,23 @@ enum BridgeResponseItem {
 }
 
 impl BridgeResponseItem {
+    /// Converts to a `ResponseItem` for action-based proofs
     fn into_response_item(self) -> ResponseItem {
         match self {
             Self::V4 {
                 issuer_schema_id,
                 proof,
                 nullifier,
-                session_nullifier,
                 merkle_root,
                 proof_timestamp,
             } => {
                 let identifier = parse_issuer_schema_id(&issuer_schema_id)
                     .and_then(CredentialType::from_issuer_schema_id)
                     .unwrap_or(CredentialType::Orb);
-                // Pass through both options - one will be Some, one will be None
                 ResponseItem::V4 {
                     identifier,
                     proof,
                     nullifier,
-                    session_nullifier,
                     merkle_root,
                     proof_timestamp,
                     issuer_schema_id,
@@ -182,13 +177,11 @@ impl BridgeResponseV1 {
     }
 }
 
-/// V2 bridge response with multi-credential support
+/// V2 bridge response with multi-credential support (action proofs only)
 #[derive(Debug, Deserialize)]
 struct BridgeResponseV2 {
     #[allow(dead_code)]
     id: Option<String>,
-    #[serde(default)]
-    session_id: Option<String>,
     responses: Vec<BridgeResponseItem>,
 }
 
@@ -211,7 +204,12 @@ enum BridgeResponse {
     /// Error response
     Error { error_code: AppError },
 
-    /// V2 response with multi-credential support (World ID 4.0)
+    /// Session response (World ID 4.0 session proofs)
+    /// Must come before `ResponseV2` since both have similar structure,
+    /// but `SessionResponse` requires `session_id` and `session_nullifier`
+    SessionResponse(BridgeSessionResponse),
+
+    /// V2 response with multi-credential support (World ID 4.0 action proofs)
     ResponseV2(BridgeResponseV2),
 
     /// V1 legacy success response with proof (World ID 3.0)
@@ -227,11 +225,51 @@ pub enum Status {
     /// World App has retrieved the request, waiting for user confirmation
     AwaitingConfirmation,
 
-    /// User has confirmed and provided proof(s)
+    /// User has confirmed and provided proof(s) for an action-based request
     Confirmed(IDKitResult),
+
+    /// User has confirmed and provided proof(s) for a session request
+    SessionConfirmed(IDKitSessionResult),
 
     /// Request has failed
     Failed(AppError),
+}
+
+/// Session response from bridge (World ID 4.0 session proofs)
+#[derive(Debug, Deserialize)]
+struct BridgeSessionResponse {
+    #[allow(dead_code)]
+    id: Option<String>,
+    /// Session ID (required for session responses)
+    session_id: String,
+    /// Session response items with `session_nullifier`
+    responses: Vec<BridgeSessionResponseItem>,
+}
+
+/// Session-specific response item from bridge
+#[derive(Debug, Deserialize)]
+struct BridgeSessionResponseItem {
+    issuer_schema_id: String,
+    proof: String,
+    session_nullifier: String,
+    merkle_root: String,
+    proof_timestamp: u64,
+}
+
+impl BridgeSessionResponseItem {
+    fn into_session_response_item(self) -> SessionResponseItem {
+        let identifier = parse_issuer_schema_id(&self.issuer_schema_id)
+            .and_then(CredentialType::from_issuer_schema_id)
+            .unwrap_or(CredentialType::Orb);
+        SessionResponseItem {
+            identifier,
+            proof: self.proof,
+            session_nullifier: self.session_nullifier,
+            merkle_root: self.merkle_root,
+            proof_timestamp: self.proof_timestamp,
+            issuer_schema_id: self.issuer_schema_id,
+        }
+    }
 }
 
 /// A World ID verification request
@@ -451,6 +489,18 @@ impl IDKitRequest {
 
                 match bridge_response {
                     BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
+                    BridgeResponse::SessionResponse(response) => {
+                        // Session responses are always protocol 4.0
+                        let responses = response
+                            .responses
+                            .into_iter()
+                            .map(BridgeSessionResponseItem::into_session_response_item)
+                            .collect();
+                        Ok(Status::SessionConfirmed(IDKitSessionResult::new(
+                            response.session_id,
+                            responses,
+                        )))
+                    }
                     BridgeResponse::ResponseV2(response) => {
                         // Determine protocol version from first response item
                         let protocol_version =
@@ -466,14 +516,13 @@ impl IDKitRequest {
                             .collect();
                         Ok(Status::Confirmed(IDKitResult::new(
                             protocol_version,
-                            response.session_id,
                             responses,
                         )))
                     }
                     BridgeResponse::ResponseV1(response) => {
                         // V1 responses are always protocol 3.0
                         let item = response.into_response_item();
-                        Ok(Status::Confirmed(IDKitResult::new("3.0", None, vec![item])))
+                        Ok(Status::Confirmed(IDKitResult::new("3.0", vec![item])))
                     }
                 }
             }
@@ -631,7 +680,9 @@ pub fn request(config: IDKitRequestConfig) -> Arc<IDKitRequestBuilder> {
     IDKitRequestBuilder::new(config)
 }
 
-/// Configuration for session requests (no action field)
+/// Configuration for session requests (no action field, v4 only)
+///
+/// Sessions are always World ID v4 - there is no legacy (v3) session support.
 #[cfg(feature = "ffi")]
 #[derive(Clone, uniffi::Record)]
 pub struct IDKitSessionConfig {
@@ -643,10 +694,6 @@ pub struct IDKitSessionConfig {
     pub action_description: Option<String>,
     /// Optional bridge URL (defaults to production)
     pub bridge_url: Option<String>,
-    /// Whether to accept legacy (v3) proofs as fallback.
-    /// - `true`: Accept both v3 and v4 proofs. Use during migration.
-    /// - `false`: Only accept v4 proofs. Use after migration cutoff or for new apps.
-    pub allow_legacy_proofs: bool,
 }
 
 /// Builder for creating new session requests
@@ -714,6 +761,7 @@ impl IDKitSessionBuilder {
                 }
             });
 
+        // Sessions are always v4 - no legacy proof support
         let inner = runtime
             .block_on(IDKitRequest::create(
                 app_id,
@@ -724,7 +772,7 @@ impl IDKitSessionBuilder {
                 VerificationLevel::Deprecated,
                 String::new(),
                 bridge_url,
-                self.config.allow_legacy_proofs,
+                false, // Sessions don't support legacy proofs
             ))
             .map_err(crate::error::IdkitError::from)?;
 
@@ -763,8 +811,10 @@ pub enum StatusWrapper {
     WaitingForConnection,
     /// World App has retrieved the request, waiting for user confirmation
     AwaitingConfirmation,
-    /// User has confirmed and provided proof(s)
+    /// User has confirmed and provided proof(s) for an action-based request
     Confirmed { result: IDKitResult },
+    /// User has confirmed and provided proof(s) for a session request
+    SessionConfirmed { result: IDKitSessionResult },
     /// Request has failed
     Failed { error: String },
 }
@@ -776,6 +826,7 @@ impl From<Status> for StatusWrapper {
             Status::WaitingForConnection => Self::WaitingForConnection,
             Status::AwaitingConfirmation => Self::AwaitingConfirmation,
             Status::Confirmed(result) => Self::Confirmed { result },
+            Status::SessionConfirmed(result) => Self::SessionConfirmed { result },
             Status::Failed(app_error) => Self::Failed {
                 error: app_error.to_string(),
             },
@@ -826,6 +877,9 @@ impl IDKitRequestWrapper {
                     }
                     Status::Confirmed(result) => {
                         return StatusWrapper::Confirmed { result };
+                    }
+                    Status::SessionConfirmed(result) => {
+                        return StatusWrapper::SessionConfirmed { result };
                     }
                     Status::Failed(app_error) => {
                         return StatusWrapper::Failed {
@@ -966,7 +1020,6 @@ mod tests {
     fn test_bridge_response_v2_with_v4_items() {
         let json = r#"{
             "id": "test-id",
-            "session_id": "session-123",
             "responses": [
                 {
                     "protocol_version": "4.0",
@@ -980,7 +1033,6 @@ mod tests {
         }"#;
 
         let response: BridgeResponseV2 = serde_json::from_str(json).unwrap();
-        assert_eq!(response.session_id.as_ref().unwrap(), "session-123");
         assert_eq!(response.responses.len(), 1);
 
         let item = response
@@ -995,7 +1047,6 @@ mod tests {
         if let ResponseItem::V4 {
             proof,
             nullifier,
-            session_nullifier,
             merkle_root,
             proof_timestamp,
             issuer_schema_id,
@@ -1003,8 +1054,7 @@ mod tests {
         } = item
         {
             assert_eq!(proof, "0xproof123");
-            assert_eq!(nullifier, Some("0xnullifier123".to_string()));
-            assert!(session_nullifier.is_none());
+            assert_eq!(nullifier, "0xnullifier123");
             assert_eq!(merkle_root, "0xroot123");
             assert_eq!(proof_timestamp, 1_700_000_000);
             assert_eq!(issuer_schema_id, "0x1");
@@ -1028,7 +1078,6 @@ mod tests {
         }"#;
 
         let response: BridgeResponseV2 = serde_json::from_str(json).unwrap();
-        assert!(response.session_id.is_none());
         assert_eq!(response.responses.len(), 1);
 
         let item = response
@@ -1042,7 +1091,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bridge_response_v2_with_session_nullifier() {
+    fn test_bridge_session_response() {
         let json = r#"{
             "id": "test-id",
             "session_id": "session-456",
@@ -1058,8 +1107,8 @@ mod tests {
             ]
         }"#;
 
-        let response: BridgeResponseV2 = serde_json::from_str(json).unwrap();
-        assert_eq!(response.session_id.as_ref().unwrap(), "session-456");
+        let response: BridgeSessionResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.session_id, "session-456");
         assert_eq!(response.responses.len(), 1);
 
         let item = response
@@ -1067,25 +1116,50 @@ mod tests {
             .into_iter()
             .next()
             .unwrap()
-            .into_response_item();
-        assert!(matches!(item, ResponseItem::V4 { .. }));
-        assert_eq!(item.identifier(), CredentialType::Orb);
+            .into_session_response_item();
+        assert_eq!(item.identifier, CredentialType::Orb);
+        assert_eq!(item.proof, "0xproof_session");
+        assert_eq!(item.session_nullifier, "0xsession_null_123");
+        assert_eq!(item.merkle_root, "0xroot_session");
+        assert_eq!(item.proof_timestamp, 1_700_000_000);
+    }
 
-        if let ResponseItem::V4 {
-            proof,
-            nullifier,
-            session_nullifier,
-            merkle_root,
-            ..
-        } = item
-        {
-            assert_eq!(proof, "0xproof_session");
-            assert!(nullifier.is_none());
-            assert_eq!(session_nullifier, Some("0xsession_null_123".to_string()));
-            assert_eq!(merkle_root, "0xroot_session");
-        } else {
-            panic!("Expected V4 response item");
-        }
+    #[test]
+    fn test_bridge_response_detects_session_vs_action() {
+        // Session response (has session_id and session_nullifier)
+        let session_json = r#"{
+            "session_id": "session-123",
+            "responses": [
+                {
+                    "protocol_version": "4.0",
+                    "issuer_schema_id": "0x1",
+                    "proof": "0xproof",
+                    "session_nullifier": "0xsession_null",
+                    "merkle_root": "0xroot",
+                    "proof_timestamp": 1700000000
+                }
+            ]
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(session_json).unwrap();
+        assert!(matches!(response, BridgeResponse::SessionResponse(_)));
+
+        // Action response (has nullifier, no session_id)
+        let action_json = r#"{
+            "responses": [
+                {
+                    "protocol_version": "4.0",
+                    "issuer_schema_id": "0x1",
+                    "proof": "0xproof",
+                    "nullifier": "0xnullifier",
+                    "merkle_root": "0xroot",
+                    "proof_timestamp": 1700000000
+                }
+            ]
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(action_json).unwrap();
+        assert!(matches!(response, BridgeResponse::ResponseV2(_)));
     }
 
     #[test]

@@ -409,6 +409,7 @@ class IDKitSessionBuilder {
     );
 
     // Create the appropriate WASM session builder
+    // Sessions are always v4 - no legacy proof support needed
     const wasmBuilder = this.sessionId
       ? WasmModule.proveSession(
           this.sessionId,
@@ -416,14 +417,12 @@ class IDKitSessionBuilder {
           rpContext,
           this.config.action_description ?? null,
           this.config.bridge_url ?? null,
-          this.config.allow_legacy_proofs,
         )
       : WasmModule.createSession(
           this.config.app_id,
           rpContext,
           this.config.action_description ?? null,
           this.config.bridge_url ?? null,
-          this.config.allow_legacy_proofs,
         );
 
     const wasmRequest = (await wasmBuilder.constraints(
@@ -469,12 +468,7 @@ function createSession(config: IDKitSessionConfig): IDKitSessionBuilder {
   if (!config.rp_context) {
     throw new Error("rp_context is required");
   }
-  if (typeof config.allow_legacy_proofs !== "boolean") {
-    throw new Error(
-      "allow_legacy_proofs is required. Set to true to accept v3 proofs during migration, " +
-        "or false to only accept v4 proofs.",
-    );
-  }
+  // Sessions are always v4 - no legacy proof validation needed
 
   return new IDKitSessionBuilder(config);
 }
@@ -519,12 +513,7 @@ function proveSession(
   if (!config.rp_context) {
     throw new Error("rp_context is required");
   }
-  if (typeof config.allow_legacy_proofs !== "boolean") {
-    throw new Error(
-      "allow_legacy_proofs is required. Set to true to accept v3 proofs during migration, " +
-        "or false to only accept v4 proofs.",
-    );
-  }
+  // Sessions are always v4 - no legacy proof validation needed
 
   return new IDKitSessionBuilder(config, sessionId);
 }
