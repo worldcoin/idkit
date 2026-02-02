@@ -424,7 +424,7 @@ impl ResponseItem {
     /// Gets the action nullifier value regardless of protocol version
     ///
     /// For V4 responses, returns the action nullifier (None for session proofs).
-    /// For V3 responses, returns the nullifier_hash.
+    /// For V3 responses, returns the `nullifier_hash`.
     #[must_use]
     pub fn nullifier(&self) -> Option<&str> {
         match self {

@@ -616,7 +616,7 @@ pub struct IDKitSessionBuilderWasm {
 
 #[wasm_bindgen(js_class = IDKitSessionBuilderWasm)]
 impl IDKitSessionBuilderWasm {
-    /// Creates a new session builder for creating a new session (no existing session_id)
+    /// Creates a new session builder for creating a new session (no existing `session_id`)
     #[must_use]
     #[wasm_bindgen(constructor)]
     pub fn new(
@@ -686,10 +686,9 @@ impl IDKitSessionBuilderWasm {
                 .map_err(|e| JsValue::from_str(&format!("Invalid bridge_url: {e}")))?;
 
             // Determine request kind based on session_id presence
-            let kind = match session_id {
-                Some(sid) => crate::bridge::RequestKind::ProveSession { session_id: sid },
-                None => crate::bridge::RequestKind::CreateSession,
-            };
+            let kind = session_id.map_or(crate::bridge::RequestKind::CreateSession, |sid| {
+                crate::bridge::RequestKind::ProveSession { session_id: sid }
+            });
 
             let request = crate::IDKitRequest::create(
                 app_id,
@@ -712,7 +711,7 @@ impl IDKitSessionBuilderWasm {
     }
 }
 
-/// Entry point for creating a new session (no existing session_id) (WASM)
+/// Entry point for creating a new session (no existing `session_id`) (WASM)
 ///
 /// Use this when creating a new session for a user who doesn't have one yet.
 /// The response will include a `session_id` that should be saved for future

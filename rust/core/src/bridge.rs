@@ -1,5 +1,7 @@
 //! `IDKitRequest` management for World ID verification with the [Wallet Bridge](https://github.com/worldcoin/wallet-bridge).
 
+#[cfg(feature = "ffi")]
+use crate::preset::Preset;
 use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
@@ -10,8 +12,6 @@ use crate::{
     },
     ConstraintNode, Signal,
 };
-#[cfg(feature = "ffi")]
-use crate::preset::Preset;
 use alloy_primitives::Signature;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -32,7 +32,7 @@ use std::sync::Arc;
 pub(crate) enum RequestKind {
     /// Action-based uniqueness proof
     Uniqueness { action: String },
-    /// Create a new session (returns session_id in response)
+    /// Create a new session (returns `session_id` in response)
     CreateSession,
     /// Prove ownership of an existing session
     ProveSession { session_id: String },
@@ -247,7 +247,7 @@ pub struct IDKitRequest {
 }
 
 impl IDKitRequest {
-    /// Creates a new IDKit request
+    /// Creates a new `IDKit` request
     ///
     /// # Arguments
     ///
@@ -556,7 +556,9 @@ impl IDKitRequestBuilder {
         let inner = runtime
             .block_on(IDKitRequest::create(
                 app_id,
-                RequestKind::Uniqueness { action: self.config.action.clone() },
+                RequestKind::Uniqueness {
+                    action: self.config.action.clone(),
+                },
                 (*constraints).clone(),
                 rp_context,
                 self.config.action_description.clone(),
@@ -604,7 +606,9 @@ impl IDKitRequestBuilder {
         let inner = runtime
             .block_on(IDKitRequest::create(
                 app_id,
-                RequestKind::Uniqueness { action: self.config.action.clone() },
+                RequestKind::Uniqueness {
+                    action: self.config.action.clone(),
+                },
                 constraints,
                 rp_context,
                 self.config.action_description.clone(),
@@ -701,10 +705,14 @@ impl IDKitSessionBuilder {
         let rp_context = (*self.config.rp_context).clone();
 
         // Determine request kind based on session_id presence
-        let kind = match &self.session_id {
-            Some(session_id) => RequestKind::ProveSession { session_id: session_id.clone() },
-            None => RequestKind::CreateSession,
-        };
+        let kind = self
+            .session_id
+            .as_ref()
+            .map_or(RequestKind::CreateSession, |sid| {
+                RequestKind::ProveSession {
+                    session_id: sid.clone(),
+                }
+            });
 
         let inner = runtime
             .block_on(IDKitRequest::create(
@@ -724,7 +732,7 @@ impl IDKitSessionBuilder {
     }
 }
 
-/// Entry point for creating a new session (no existing session_id)
+/// Entry point for creating a new session (no existing `session_id`)
 #[cfg(feature = "ffi")]
 #[must_use]
 #[uniffi::export]
