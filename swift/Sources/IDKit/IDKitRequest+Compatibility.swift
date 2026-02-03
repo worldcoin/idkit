@@ -3,10 +3,16 @@ import Foundation
 // MARK: - Type Aliases for UniFFI Generated Types
 // UniFFI 0.30 generates IdKit* names (not IDKit*), so we alias for public API consistency.
 
-/// Type alias for public API - maps to generated IdKitRequestBuilder
-public typealias IDKitRequestBuilder = IdKitRequestBuilder
+/// Type alias for public API - maps to generated IdKitBuilder (unified builder)
+public typealias IDKitBuilder = IdKitBuilder
+/// Type alias for backwards compatibility - maps to unified IdKitBuilder
+public typealias IDKitRequestBuilder = IdKitBuilder
+/// Type alias for backwards compatibility - maps to unified IdKitBuilder
+public typealias IDKitSessionBuilder = IdKitBuilder
 /// Type alias for public API - maps to generated IdKitRequestConfig
 public typealias IDKitRequestConfig = IdKitRequestConfig
+/// Type alias for public API - maps to generated IdKitSessionConfig
+public typealias IDKitSessionConfig = IdKitSessionConfig
 /// Type alias for public API - maps to generated IdKitRequestWrapper
 public typealias IDKitRequestWrapper = IdKitRequestWrapper
 /// Type alias for public API - maps to generated IdKitResult
