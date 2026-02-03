@@ -99,4 +99,9 @@ export type {
   CredentialType,
   ConstraintNode,
   CredentialRequestType,
+  // Preset types
+  Preset,
+  OrbLegacyPreset,
+  SecureDocumentLegacyPreset,
+  DocumentLegacyPreset,
 } from "../../wasm/idkit_wasm.js";

@@ -68,8 +68,7 @@ describe("IDKitRequest API", () => {
   it("should create orbLegacy preset correctly", () => {
     const preset = orbLegacy({ signal: "test-signal" });
     expect(preset).toHaveProperty("type", "OrbLegacy");
-    expect(preset).toHaveProperty("data");
-    expect(preset.data).toHaveProperty("signal", "test-signal");
+    expect(preset).toHaveProperty("signal", "test-signal");
   });
 
   it("should throw error when rp_context is missing", async () => {

@@ -177,26 +177,29 @@ export function all(...nodes: ConstraintNode[]): { all: ConstraintNode[] } {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Preset helpers
+// Preset helpers - re-export types from WASM, provide JS convenience functions
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * OrbLegacy preset configuration
- */
-export interface OrbLegacyPreset {
-  type: "OrbLegacy";
-  data: { signal?: string };
-}
+// Re-export preset types from WASM (source of truth in rust/core/src/wasm_bindings.rs)
+export type {
+  Preset,
+  OrbLegacyPreset,
+  SecureDocumentLegacyPreset,
+  DocumentLegacyPreset,
+} from "./lib/wasm";
 
-/**
- * Preset types for simplified session creation
- */
-export type Preset = OrbLegacyPreset;
+// Import WASM preset type for function return types
+import type {
+  Preset,
+  OrbLegacyPreset,
+  SecureDocumentLegacyPreset,
+  DocumentLegacyPreset,
+} from "./lib/wasm";
 
 /**
  * Creates an OrbLegacy preset for World ID 3.0 legacy support
  *
- * This preset creates a session compatible with both World ID 4.0 and 3.0 protocols.
+ * This preset creates an IDKit request compatible with both World ID 4.0 and 3.0 protocols.
  * Use this when you need backward compatibility with older World App versions.
  *
  * @param opts - Optional configuration with signal
@@ -204,12 +207,54 @@ export type Preset = OrbLegacyPreset;
  *
  * @example
  * ```typescript
- * const session = await verify({ app_id, action, rp_context })
+ * const request = await IDKit.request({ app_id, action, rp_context })
  *   .preset(orbLegacy({ signal: 'user-123' }))
  * ```
  */
 export function orbLegacy(opts: { signal?: string } = {}): OrbLegacyPreset {
-  return { type: "OrbLegacy", data: { signal: opts.signal } };
+  return { type: "OrbLegacy", signal: opts.signal };
+}
+
+/**
+ * Creates a SecureDocumentLegacy preset for World ID 3.0 legacy support
+ *
+ * This preset creates an IDKit request compatible with both World ID 4.0 and 3.0 protocols.
+ * Use this when you need backward compatibility with older World App versions.
+ *
+ * @param opts - Optional configuration with signal
+ * @returns A SecureDocumentLegacy preset
+ *
+ * @example
+ * ```typescript
+ * const request = await IDKit.request({ app_id, action, rp_context })
+ *   .preset(secureDocumentLegacy({ signal: 'user-123' }))
+ * ```
+ */
+export function secureDocumentLegacy(
+  opts: { signal?: string } = {},
+): SecureDocumentLegacyPreset {
+  return { type: "SecureDocumentLegacy", signal: opts.signal };
+}
+
+/**
+ * Creates a DocumentLegacy preset for World ID 3.0 legacy support
+ *
+ * This preset creates an IDKit request compatible with both World ID 4.0 and 3.0 protocols.
+ * Use this when you need backward compatibility with older World App versions.
+ *
+ * @param opts - Optional configuration with signal
+ * @returns A DocumentLegacy preset
+ *
+ * @example
+ * ```typescript
+ * const request = await IDKit.request({ app_id, action, rp_context })
+ *   .preset(documentLegacy({ signal: 'user-123' }))
+ * ```
+ */
+export function documentLegacy(
+  opts: { signal?: string } = {},
+): DocumentLegacyPreset {
+  return { type: "DocumentLegacy", signal: opts.signal };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -533,4 +578,8 @@ export const IDKit = {
   all,
   /** Create an OrbLegacy preset for World ID 3.0 legacy support */
   orbLegacy,
+  /** Create a SecureDocumentLegacy preset for World ID 3.0 legacy support */
+  secureDocumentLegacy,
+  /** Create a DocumentLegacy preset for World ID 3.0 legacy support */
+  documentLegacy,
 };
