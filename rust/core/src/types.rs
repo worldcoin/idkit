@@ -209,6 +209,10 @@ pub struct CredentialRequest {
     /// Only credentials issued at or after this timestamp will be accepted
     #[serde(skip_serializing_if = "Option::is_none")]
     pub genesis_issued_at_min: Option<u64>,
+
+    /// Optional minimum expiration timestamp constraint for the proof
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at_min: Option<u64>,
 }
 
 impl CredentialRequest {
@@ -219,6 +223,7 @@ impl CredentialRequest {
             credential_type,
             signal,
             genesis_issued_at_min: None,
+            expires_at_min: None,
         }
     }
 
@@ -233,6 +238,22 @@ impl CredentialRequest {
             credential_type,
             signal,
             genesis_issued_at_min: Some(genesis_min),
+            expires_at_min: None,
+        }
+    }
+
+    /// Creates a new request item with an expiration timestamp constraint
+    #[must_use]
+    pub fn with_expires_at_min(
+        credential_type: CredentialType,
+        signal: Option<Signal>,
+        expires_at_min: u64,
+    ) -> Self {
+        Self {
+            credential_type,
+            signal,
+            genesis_issued_at_min: None,
+            expires_at_min: Some(expires_at_min),
         }
     }
 
@@ -263,6 +284,7 @@ impl CredentialRequest {
             issuer_schema_id,
             signal,
             self.genesis_issued_at_min,
+            self.expires_at_min,
         ))
     }
 }
@@ -310,6 +332,22 @@ impl CredentialRequest {
         ))
     }
 
+    /// Creates a new credential request item with an expiration timestamp constraint
+    #[must_use]
+    #[uniffi::constructor(name = "with_expires_at_min")]
+    pub fn ffi_with_expires_at_min(
+        credential_type: CredentialType,
+        signal: Option<Arc<Signal>>,
+        expires_at_min: u64,
+    ) -> Arc<Self> {
+        let signal_opt = signal.map(|s| (*s).clone());
+        Arc::new(Self::with_expires_at_min(
+            credential_type,
+            signal_opt,
+            expires_at_min,
+        ))
+    }
+
     /// Gets the signal as raw bytes from a request item
     #[must_use]
     pub fn get_signal_bytes(&self) -> Option<Vec<u8>> {
@@ -326,6 +364,12 @@ impl CredentialRequest {
     #[must_use]
     pub fn genesis_issued_at_min(&self) -> Option<u64> {
         self.genesis_issued_at_min
+    }
+
+    /// Gets the expiration timestamp constraint
+    #[must_use]
+    pub fn expires_at_min(&self) -> Option<u64> {
+        self.expires_at_min
     }
 
     /// Serializes a request item to JSON
@@ -374,7 +418,7 @@ pub struct BridgeResponseV1 {
 
 /// A single credential response item for uniqueness proofs
 ///
-/// V4 is detected by presence of `proof_timestamp`/`issuer_schema_id`.
+/// V4 is detected by presence of `issuer_schema_id`.
 /// V3 is detected by presence of `nullifier_hash`.
 /// Session is detected by presence of `session_nullifier`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -383,23 +427,23 @@ pub struct BridgeResponseV1 {
 pub enum ResponseItem {
     /// Protocol version 4.0 (World ID v4)
     V4 {
-        /// Credential identifier (maps to `CredentialType`)
-        identifier: CredentialType,
+        /// Credential identifier (e.g., "orb", "face", "document")
+        identifier: String,
         /// Compressed Groth16 proof (hex string)
         proof: String,
         /// RP-scoped nullifier (hex string)
         nullifier: String,
         /// Authenticator merkle root (hex string)
         merkle_root: String,
-        /// Unix timestamp when proof was generated
-        proof_timestamp: u64,
         /// Credential issuer schema ID (hex string)
         issuer_schema_id: String,
+        /// Minimum expiration timestamp for the proof
+        expires_at_min: u64,
     },
     /// Protocol version 3.0 (World ID v3 - legacy format)
     V3 {
-        /// Credential identifier (same as `verification_level`)
-        identifier: CredentialType,
+        /// Credential identifier (e.g., "orb", "face")
+        identifier: String,
         /// ABI-encoded proof (hex string)
         proof: String,
         /// Merkle root (hex string)
@@ -409,29 +453,29 @@ pub enum ResponseItem {
     },
     /// Session proof (World ID v4 sessions)
     Session {
-        /// Credential identifier (maps to `CredentialType`)
-        identifier: CredentialType,
+        /// Credential identifier (e.g., "orb", "face", "document")
+        identifier: String,
         /// Compressed Groth16 proof (hex string)
         proof: String,
         /// Session nullifier (hex string)
         session_nullifier: String,
         /// Authenticator merkle root (hex string)
         merkle_root: String,
-        /// Unix timestamp when proof was generated
-        proof_timestamp: u64,
         /// Credential issuer schema ID (hex string)
         issuer_schema_id: String,
+        /// Minimum expiration timestamp for the proof
+        expires_at_min: u64,
     },
 }
 
 impl ResponseItem {
     /// Gets the credential identifier regardless of protocol version
     #[must_use]
-    pub const fn identifier(&self) -> CredentialType {
+    pub fn identifier(&self) -> &str {
         match self {
             Self::V4 { identifier, .. }
             | Self::V3 { identifier, .. }
-            | Self::Session { identifier, .. } => *identifier,
+            | Self::Session { identifier, .. } => identifier,
         }
     }
 
@@ -473,6 +517,20 @@ impl ResponseItem {
     #[must_use]
     pub const fn is_session(&self) -> bool {
         matches!(self, Self::Session { .. })
+    }
+
+    /// Gets the `expires_at_min` timestamp if available
+    ///
+    /// For V4 and Session responses, returns the `expires_at_min` value.
+    /// For V3 responses (legacy), returns `None` as this field wasn't available.
+    #[must_use]
+    pub const fn expires_at_min(&self) -> Option<u64> {
+        match self {
+            Self::V4 { expires_at_min, .. } | Self::Session { expires_at_min, .. } => {
+                Some(*expires_at_min)
+            }
+            Self::V3 { .. } => None,
+        }
     }
 }
 
@@ -1061,59 +1119,61 @@ mod tests {
     #[test]
     fn test_response_item_v4() {
         let item = ResponseItem::V4 {
-            identifier: CredentialType::Orb,
+            identifier: "orb".to_string(),
             proof: "0xproof".to_string(),
             nullifier: "0xnullifier".to_string(),
             merkle_root: "0xroot".to_string(),
-            proof_timestamp: 1_700_000_000,
             issuer_schema_id: "0x1".to_string(),
+            expires_at_min: 1_700_003_600,
         };
 
         assert!(matches!(item, ResponseItem::V4 { .. }));
-        assert_eq!(item.identifier(), CredentialType::Orb);
+        assert_eq!(item.identifier(), "orb");
         assert_eq!(item.nullifier(), "0xnullifier");
         assert_eq!(item.merkle_root(), "0xroot");
         assert_eq!(item.proof(), "0xproof");
+        assert_eq!(item.expires_at_min(), Some(1_700_003_600));
     }
 
     #[test]
     fn test_response_item_v3() {
         let item = ResponseItem::V3 {
-            identifier: CredentialType::Face,
+            identifier: "face".to_string(),
             proof: "0xlegacy_proof".to_string(),
             merkle_root: "0xlegacy_root".to_string(),
             nullifier_hash: "0xlegacy_nullifier".to_string(),
         };
 
         assert!(matches!(item, ResponseItem::V3 { .. }));
-        assert_eq!(item.identifier(), CredentialType::Face);
+        assert_eq!(item.identifier(), "face");
         assert_eq!(item.nullifier(), "0xlegacy_nullifier");
         assert_eq!(item.merkle_root(), "0xlegacy_root");
         assert_eq!(item.proof(), "0xlegacy_proof");
+        assert_eq!(item.expires_at_min(), None); // V3 doesn't have expires_at_min
     }
 
     #[test]
     fn test_response_item_serialization() {
         let v4 = ResponseItem::V4 {
-            identifier: CredentialType::Orb,
+            identifier: "orb".to_string(),
             proof: "0xproof".to_string(),
             nullifier: "0xnullifier".to_string(),
             merkle_root: "0xroot".to_string(),
-            proof_timestamp: 1_700_000_000,
             issuer_schema_id: "0x1".to_string(),
+            expires_at_min: 1_700_003_600,
         };
 
         let json = serde_json::to_string(&v4).unwrap();
-        assert!(json.contains("proof_timestamp"));
         assert!(json.contains("issuer_schema_id"));
         assert!(json.contains("nullifier"));
+        assert!(json.contains("expires_at_min"));
         assert!(!json.contains("session_nullifier"));
 
         let deserialized: ResponseItem = serde_json::from_str(&json).unwrap();
         assert_eq!(v4, deserialized);
 
         let v3 = ResponseItem::V3 {
-            identifier: CredentialType::Face,
+            identifier: "face".to_string(),
             proof: "0xproof".to_string(),
             merkle_root: "0xroot".to_string(),
             nullifier_hash: "0xnullifier".to_string(),
@@ -1133,36 +1193,37 @@ mod tests {
     #[test]
     fn test_response_item_session() {
         let item = ResponseItem::Session {
-            identifier: CredentialType::Orb,
+            identifier: "orb".to_string(),
             proof: "0xproof".to_string(),
             session_nullifier: "0xsession_nullifier".to_string(),
             merkle_root: "0xroot".to_string(),
-            proof_timestamp: 1_700_000_000,
             issuer_schema_id: "0x1".to_string(),
+            expires_at_min: 1_700_003_600,
         };
 
         assert!(matches!(item, ResponseItem::Session { .. }));
-        assert_eq!(item.identifier(), CredentialType::Orb);
+        assert_eq!(item.identifier(), "orb");
         assert_eq!(item.nullifier(), "0xsession_nullifier");
         assert_eq!(item.merkle_root(), "0xroot");
         assert_eq!(item.proof(), "0xproof");
         assert!(item.is_session());
+        assert_eq!(item.expires_at_min(), Some(1_700_003_600));
     }
 
     #[test]
     fn test_response_item_session_serialization() {
         let item = ResponseItem::Session {
-            identifier: CredentialType::Orb,
+            identifier: "orb".to_string(),
             proof: "0xproof".to_string(),
             session_nullifier: "0xsession_nullifier".to_string(),
             merkle_root: "0xroot".to_string(),
-            proof_timestamp: 1_700_000_000,
             issuer_schema_id: "0x1".to_string(),
+            expires_at_min: 1_700_003_600,
         };
 
         let json = serde_json::to_string(&item).unwrap();
         assert!(json.contains("session_nullifier"));
-        assert!(json.contains("proof_timestamp"));
+        assert!(json.contains("expires_at_min"));
         assert!(!json.contains("nullifier_hash")); // Not a v3 field
 
         let deserialized: ResponseItem = serde_json::from_str(&json).unwrap();
@@ -1176,12 +1237,12 @@ mod tests {
     #[test]
     fn test_idkit_result_v4() {
         let responses = vec![ResponseItem::V4 {
-            identifier: CredentialType::Orb,
+            identifier: "orb".to_string(),
             proof: "0xproof".to_string(),
             nullifier: "0xnullifier".to_string(),
             merkle_root: "0xroot".to_string(),
-            proof_timestamp: 1_700_000_000,
             issuer_schema_id: "0x1".to_string(),
+            expires_at_min: 1_700_003_600,
         }];
 
         let result = IDKitResult::new("4.0", responses);
@@ -1192,7 +1253,7 @@ mod tests {
     #[test]
     fn test_idkit_result_v3() {
         let responses = vec![ResponseItem::V3 {
-            identifier: CredentialType::Face,
+            identifier: "face".to_string(),
             proof: "0xproof".to_string(),
             merkle_root: "0xroot".to_string(),
             nullifier_hash: "0xnullifier".to_string(),
@@ -1206,12 +1267,12 @@ mod tests {
     #[test]
     fn test_idkit_result_serialization() {
         let responses = vec![ResponseItem::V4 {
-            identifier: CredentialType::Orb,
+            identifier: "orb".to_string(),
             proof: "0xproof".to_string(),
             nullifier: "0xnullifier".to_string(),
             merkle_root: "0xroot".to_string(),
-            proof_timestamp: 1_700_000_000,
             issuer_schema_id: "0x1".to_string(),
+            expires_at_min: 1_700_003_600,
         }];
 
         let result = IDKitResult::new("4.0", responses);
@@ -1232,12 +1293,12 @@ mod tests {
     #[test]
     fn test_idkit_result_session() {
         let responses = vec![ResponseItem::Session {
-            identifier: CredentialType::Orb,
+            identifier: "orb".to_string(),
             proof: "0xproof".to_string(),
             session_nullifier: "0xsession_nullifier".to_string(),
             merkle_root: "0xroot".to_string(),
-            proof_timestamp: 1_700_000_000,
             issuer_schema_id: "0x1".to_string(),
+            expires_at_min: 1_700_003_600,
         }];
 
         let result = IDKitResult::new_session("session-123".to_string(), responses);
@@ -1250,12 +1311,12 @@ mod tests {
     #[test]
     fn test_idkit_result_session_serialization() {
         let responses = vec![ResponseItem::Session {
-            identifier: CredentialType::Orb,
+            identifier: "orb".to_string(),
             proof: "0xproof".to_string(),
             session_nullifier: "0xsession_nullifier".to_string(),
             merkle_root: "0xroot".to_string(),
-            proof_timestamp: 1_700_000_000,
             issuer_schema_id: "0x1".to_string(),
+            expires_at_min: 1_700_003_600,
         }];
 
         let result = IDKitResult::new_session("session-abc".to_string(), responses);

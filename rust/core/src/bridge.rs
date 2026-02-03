@@ -113,11 +113,12 @@ struct BridgePollResponse {
 enum BridgeResponseItem {
     #[serde(rename = "4.0")]
     V4 {
+        identifier: String,
         issuer_schema_id: String,
         proof: String,
         nullifier: String,
         merkle_root: String,
-        proof_timestamp: u64,
+        expires_at_min: u64,
     },
     #[serde(rename = "3.0")]
     V3 {
@@ -133,31 +134,27 @@ impl BridgeResponseItem {
     fn into_response_item(self) -> ResponseItem {
         match self {
             Self::V4 {
+                identifier,
                 issuer_schema_id,
                 proof,
                 nullifier,
                 merkle_root,
-                proof_timestamp,
-            } => {
-                let identifier = parse_issuer_schema_id(&issuer_schema_id)
-                    .and_then(CredentialType::from_issuer_schema_id)
-                    .unwrap_or(CredentialType::Orb);
-                ResponseItem::V4 {
-                    identifier,
-                    proof,
-                    nullifier,
-                    merkle_root,
-                    proof_timestamp,
-                    issuer_schema_id,
-                }
-            }
+                expires_at_min,
+            } => ResponseItem::V4 {
+                identifier,
+                proof,
+                nullifier,
+                merkle_root,
+                issuer_schema_id,
+                expires_at_min,
+            },
             Self::V3 {
                 proof,
                 merkle_root,
                 nullifier_hash,
                 verification_level,
             } => ResponseItem::V3 {
-                identifier: verification_level,
+                identifier: verification_level.as_str().to_string(),
                 proof,
                 merkle_root,
                 nullifier_hash,
@@ -169,7 +166,7 @@ impl BridgeResponseItem {
 impl BridgeResponseV1 {
     fn into_response_item(self) -> ResponseItem {
         ResponseItem::V3 {
-            identifier: self.verification_level,
+            identifier: self.verification_level.as_str().to_string(),
             proof: self.proof,
             merkle_root: self.merkle_root,
             nullifier_hash: self.nullifier_hash,
@@ -186,6 +183,7 @@ struct BridgeResponseV2 {
 }
 
 /// Parse `issuer_schema_id` string as hex u64
+#[cfg(test)]
 fn parse_issuer_schema_id(issuer_schema_id: &str) -> Option<u64> {
     let clean_id = issuer_schema_id
         .strip_prefix("0x")
@@ -247,25 +245,23 @@ struct BridgeSessionResponse {
 /// Session-specific response item from bridge
 #[derive(Debug, Deserialize)]
 struct BridgeSessionResponseItem {
+    identifier: String,
     issuer_schema_id: String,
     proof: String,
     session_nullifier: String,
     merkle_root: String,
-    proof_timestamp: u64,
+    expires_at_min: u64,
 }
 
 impl BridgeSessionResponseItem {
     fn into_response_item(self) -> ResponseItem {
-        let identifier = parse_issuer_schema_id(&self.issuer_schema_id)
-            .and_then(CredentialType::from_issuer_schema_id)
-            .unwrap_or(CredentialType::Orb);
         ResponseItem::Session {
-            identifier,
+            identifier: self.identifier,
             proof: self.proof,
             session_nullifier: self.session_nullifier,
             merkle_root: self.merkle_root,
-            proof_timestamp: self.proof_timestamp,
             issuer_schema_id: self.issuer_schema_id,
+            expires_at_min: self.expires_at_min,
         }
     }
 }
@@ -1069,11 +1065,12 @@ mod tests {
             "responses": [
                 {
                     "protocol_version": "4.0",
+                    "identifier": "orb",
                     "issuer_schema_id": "0x1",
                     "proof": "0xproof123",
                     "nullifier": "0xnullifier123",
                     "merkle_root": "0xroot123",
-                    "proof_timestamp": 1700000000
+                    "expires_at_min": 1700003600
                 }
             ]
         }"#;
@@ -1088,22 +1085,22 @@ mod tests {
             .unwrap()
             .into_response_item();
         assert!(matches!(item, ResponseItem::V4 { .. }));
-        assert_eq!(item.identifier(), CredentialType::Orb);
+        assert_eq!(item.identifier(), "orb");
 
         if let ResponseItem::V4 {
             proof,
             nullifier,
             merkle_root,
-            proof_timestamp,
             issuer_schema_id,
+            expires_at_min,
             ..
         } = item
         {
             assert_eq!(proof, "0xproof123");
             assert_eq!(nullifier, "0xnullifier123");
             assert_eq!(merkle_root, "0xroot123");
-            assert_eq!(proof_timestamp, 1_700_000_000);
             assert_eq!(issuer_schema_id, "0x1");
+            assert_eq!(expires_at_min, 1_700_003_600);
         } else {
             panic!("Expected V4 response item");
         }
@@ -1133,7 +1130,7 @@ mod tests {
             .unwrap()
             .into_response_item();
         assert!(matches!(item, ResponseItem::V3 { .. }));
-        assert_eq!(item.identifier(), CredentialType::Face);
+        assert_eq!(item.identifier(), "face");
     }
 
     #[test]
@@ -1143,12 +1140,12 @@ mod tests {
             "session_id": "session-456",
             "responses": [
                 {
-                    "protocol_version": "4.0",
+                    "identifier": "orb",
                     "issuer_schema_id": "0x1",
                     "proof": "0xproof_session",
                     "session_nullifier": "0xsession_null_123",
                     "merkle_root": "0xroot_session",
-                    "proof_timestamp": 1700000000
+                    "expires_at_min": 1700003600
                 }
             ]
         }"#;
@@ -1164,10 +1161,11 @@ mod tests {
             .unwrap()
             .into_response_item();
         assert!(matches!(item, ResponseItem::Session { .. }));
-        assert_eq!(item.identifier(), CredentialType::Orb);
+        assert_eq!(item.identifier(), "orb");
         assert_eq!(item.proof(), "0xproof_session");
         assert_eq!(item.nullifier(), "0xsession_null_123");
         assert_eq!(item.merkle_root(), "0xroot_session");
+        assert_eq!(item.expires_at_min(), Some(1_700_003_600));
     }
 
     #[test]
@@ -1177,12 +1175,12 @@ mod tests {
             "session_id": "session-123",
             "responses": [
                 {
-                    "protocol_version": "4.0",
+                    "identifier": "orb",
                     "issuer_schema_id": "0x1",
                     "proof": "0xproof",
                     "session_nullifier": "0xsession_null",
                     "merkle_root": "0xroot",
-                    "proof_timestamp": 1700000000
+                    "expires_at_min": 1700003600
                 }
             ]
         }"#;
@@ -1195,11 +1193,12 @@ mod tests {
             "responses": [
                 {
                     "protocol_version": "4.0",
+                    "identifier": "orb",
                     "issuer_schema_id": "0x1",
                     "proof": "0xproof",
                     "nullifier": "0xnullifier",
                     "merkle_root": "0xroot",
-                    "proof_timestamp": 1700000000
+                    "expires_at_min": 1700003600
                 }
             ]
         }"#;
@@ -1214,19 +1213,21 @@ mod tests {
             "responses": [
                 {
                     "protocol_version": "4.0",
+                    "identifier": "orb",
                     "issuer_schema_id": "0x1",
                     "proof": "0xproof1",
                     "nullifier": "0xnull1",
                     "merkle_root": "0xroot1",
-                    "proof_timestamp": 1700000000
+                    "expires_at_min": 1700003600
                 },
                 {
                     "protocol_version": "4.0",
+                    "identifier": "document",
                     "issuer_schema_id": "0x4",
                     "proof": "0xproof2",
                     "nullifier": "0xnull2",
                     "merkle_root": "0xroot2",
-                    "proof_timestamp": 1700000001
+                    "expires_at_min": 1700003601
                 }
             ]
         }"#;
@@ -1245,8 +1246,8 @@ mod tests {
             .iter()
             .all(|item| matches!(item, ResponseItem::V4 { .. })));
 
-        assert_eq!(items[0].identifier(), CredentialType::Orb);
-        assert_eq!(items[1].identifier(), CredentialType::Document);
+        assert_eq!(items[0].identifier(), "orb");
+        assert_eq!(items[1].identifier(), "document");
     }
 
     #[test]
@@ -1255,11 +1256,12 @@ mod tests {
             "responses": [
                 {
                     "protocol_version": "4.0",
+                    "identifier": "orb",
                     "issuer_schema_id": "0x1",
                     "proof": "0xproof",
                     "nullifier": "0xnull",
                     "merkle_root": "0xroot",
-                    "proof_timestamp": 1700000000
+                    "expires_at_min": 1700003600
                 }
             ]
         }"#;

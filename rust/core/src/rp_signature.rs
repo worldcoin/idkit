@@ -88,8 +88,10 @@ pub fn compute_rp_signature(
 
     let expiration_timestamp = timestamp + ttl.unwrap_or(DEFAULT_SIG_EXPIRATION);
 
-    // 4. Compute message to sign
-    let msg = compute_rp_signature_msg(*nonce, *action, timestamp, expiration_timestamp);
+    // 4. Compute message to sign (action is no longer part of the signature)
+    // TODO: Remove as argument if it's not required anymore (it got removed from protocol repo)
+    let _ = action; // action is kept for API compatibility but not used in signature
+    let msg = compute_rp_signature_msg(*nonce, timestamp, expiration_timestamp);
 
     // 5. Hash with keccak256
     let mut hasher = Keccak::v256();
@@ -206,13 +208,12 @@ mod tests {
     #[test]
     fn test_compute_rp_signature_msg_length() {
         let nonce = FieldElement::from(123_u64);
-        let action = FieldElement::from(456_u64);
         let timestamp = 1_700_000_000_u64;
         let expires_at = 1_700_000_300_u64;
 
-        let msg = compute_rp_signature_msg(*nonce, *action, timestamp, expires_at);
+        let msg = compute_rp_signature_msg(*nonce, timestamp, expires_at);
 
-        assert_eq!(msg.len(), 80); // 32 + 32 + 8 + 8
+        assert_eq!(msg.len(), 48); // 32 + 8 + 8 (action no longer included)
     }
 
     #[test]
@@ -305,7 +306,7 @@ mod tests {
 
         // 2. Reconstruct the message hash (same as in compute_rp_signature)
         let nonce = FieldElement::from_str(&result.nonce).unwrap();
-        let msg = compute_rp_signature_msg(*nonce, *action, result.created_at, result.expires_at);
+        let msg = compute_rp_signature_msg(*nonce, result.created_at, result.expires_at);
 
         let mut hasher = Keccak::v256();
         let mut hash = [0u8; 32];
