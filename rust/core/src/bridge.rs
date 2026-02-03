@@ -40,6 +40,7 @@ pub enum RequestKind {
 
 /// Bridge request payload sent to initialize a session
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 struct BridgeRequestPayload {
     // ---------------------------------------------------
     // -- Legacy fields for World ID 3.0 compatibility --
@@ -86,6 +87,7 @@ pub struct EncryptedPayload {
 
 /// Response from bridge when creating a request
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct BridgeCreateResponse {
     /// Unique request ID
     request_id: Uuid,
@@ -301,6 +303,7 @@ impl BridgeConnection {
     /// # Errors
     ///
     /// Returns an error if the request cannot be created or the bridge call fails
+    #[allow(dead_code)]
     pub(crate) async fn create(params: BridgeConnectionParams) -> Result<Self> {
         // Validate constraints
         params.constraints.validate()?;

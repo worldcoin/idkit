@@ -160,7 +160,7 @@ impl CredentialRequest {
 }
 
 /// Overall response from the Authenticator to the RP.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProofResponse {
     /// The response id references request id
@@ -175,7 +175,7 @@ pub struct ProofResponse {
 }
 
 /// Per-credential response item returned by the authenticator.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResponseItem {
     /// Credential identifier matching the request.
