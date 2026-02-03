@@ -563,20 +563,7 @@ version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d4744ed2eef2645831b441d8f5459689ade2ab27c854488fbab1fbe94fce1a7"
 dependencies = [
- "askama_derive 0.13.1",
- "itoa",
- "percent-encoding",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "askama"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f75363874b771be265f4ffe307ca705ef6f3baa19011c149da8674a87f1b75c4"
-dependencies = [
- "askama_derive 0.14.0",
+ "askama_derive",
  "itoa",
  "percent-encoding",
  "serde",
@@ -589,24 +576,7 @@ version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d661e0f57be36a5c14c48f78d09011e67e0cb618f269cca9f2fd8d15b68c46ac"
 dependencies = [
- "askama_parser 0.13.0",
- "basic-toml",
- "memchr",
- "proc-macro2",
- "quote",
- "rustc-hash",
- "serde",
- "serde_derive",
- "syn 2.0.108",
-]
-
-[[package]]
-name = "askama_derive"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "129397200fe83088e8a68407a8e2b1f826cf0086b21ccdb866a722c8bcd3a94f"
-dependencies = [
- "askama_parser 0.14.0",
+ "askama_parser",
  "basic-toml",
  "memchr",
  "proc-macro2",
@@ -622,18 +592,6 @@ name = "askama_parser"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf315ce6524c857bb129ff794935cf6d42c82a6cff60526fe2a63593de4d0d4f"
-dependencies = [
- "memchr",
- "serde",
- "serde_derive",
- "winnow",
-]
-
-[[package]]
-name = "askama_parser"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6ab5630b3d5eaf232620167977f95eb51f3432fc76852328774afbd242d4358"
 dependencies = [
  "memchr",
  "serde",
@@ -1102,6 +1060,7 @@ dependencies = [
  "digest 0.10.7",
  "elliptic-curve",
  "rfc6979",
+ "serdect",
  "signature",
  "spki",
 ]
@@ -1139,6 +1098,7 @@ dependencies = [
  "pkcs8",
  "rand_core 0.6.4",
  "sec1",
+ "serdect",
  "subtle",
  "zeroize",
 ]
@@ -1780,6 +1740,7 @@ dependencies = [
  "ecdsa",
  "elliptic-curve",
  "once_cell",
+ "serdect",
  "sha2",
  "signature",
 ]
@@ -2587,6 +2548,7 @@ dependencies = [
  "der",
  "generic-array",
  "pkcs8",
+ "serdect",
  "subtle",
  "zeroize",
 ]
@@ -2691,6 +2653,16 @@ dependencies = [
  "form_urlencoded",
  "itoa",
  "ryu",
+ "serde",
+]
+
+[[package]]
+name = "serdect"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a84f14a19e9a014bb9f4512488d9829a68e04ecabffb0f9904cd1ace94598177"
+dependencies = [
+ "base16ct",
  "serde",
 ]
 
@@ -2912,24 +2884,21 @@ dependencies = [
  "serde",
  "taceo-ark-babyjubjub",
  "taceo-ark-serde-compat",
- "taceo-poseidon2",
+ "taceo-poseidon2 0.2.1",
  "zeroize",
 ]
 
 [[package]]
-name = "taceo-groth16-sol"
-version = "0.2.0"
+name = "taceo-poseidon2"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "457caace5c4b9ef92fa9958d100d161a9e6b798bdb9f753e1f4551538cb4b56b"
+checksum = "ce5f09fc2f1c68aafd3f544313fe7e34d33b35aa666bc9e6b7a22e94b9833140"
 dependencies = [
- "alloy-primitives 1.5.2",
  "ark-bn254",
- "ark-ec",
  "ark-ff 0.5.0",
- "ark-groth16",
- "askama 0.14.0",
- "eyre",
- "ruint",
+ "ark-std 0.5.0",
+ "num-bigint",
+ "num-traits",
 ]
 
 [[package]]
@@ -3288,7 +3257,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c8ca600167641ebe7c8ba9254af40492dda3397c528cc3b2f511bd23e8541a5"
 dependencies = [
  "anyhow",
- "askama 0.13.1",
+ "askama",
  "camino",
  "cargo_metadata",
  "fs-err",
@@ -3759,7 +3728,7 @@ checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
 [[package]]
 name = "world-id-primitives"
 version = "0.3.0"
-source = "git+https://github.com/worldcoin/world-id-protocol.git?rev=5de583076e29cb9a1717a26a12a99cb30efe880d#5de583076e29cb9a1717a26a12a99cb30efe880d"
+source = "git+https://github.com/worldcoin/world-id-protocol.git?rev=1508bd645f085ac1d3a451b082670cc14f91d1c4#1508bd645f085ac1d3a451b082670cc14f91d1c4"
 dependencies = [
  "alloy-primitives 1.5.2",
  "ark-bn254",
@@ -3767,18 +3736,18 @@ dependencies = [
  "ark-groth16",
  "ark-serialize 0.5.0",
  "arrayvec",
- "eyre",
  "getrandom 0.2.16",
  "hex",
+ "k256",
  "rand 0.8.5",
  "ruint",
  "serde",
  "serde_json",
  "sha3",
  "taceo-ark-babyjubjub",
+ "taceo-ark-serde-compat",
  "taceo-eddsa-babyjubjub",
- "taceo-groth16-sol",
- "taceo-poseidon2",
+ "taceo-poseidon2 0.1.0",
  "thiserror 1.0.69",
  "url",
 ]

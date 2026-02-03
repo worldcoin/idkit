@@ -126,30 +126,23 @@ class IDKitRequestImpl implements IDKitRequest {
  * Creates a CredentialRequest for a credential type
  *
  * @param credential_type - The type of credential to request (e.g., 'orb', 'face')
- * @param options - Optional signal, genesis_issued_at_min, and expires_at_min
+ * @param options - Optional signal and genesis_issued_at_min
  * @returns A CredentialRequest object
  *
  * @example
  * ```typescript
  * const orb = CredentialRequest('orb', { signal: 'user-123' })
  * const face = CredentialRequest('face')
- * // Require credential to be valid for at least one year
- * const withExpiry = CredentialRequest('orb', { expires_at_min: Date.now() / 1000 + 60 * 60 * 60 * 24 * 365 })
  * ```
  */
 export function CredentialRequest(
   credential_type: CredentialType,
-  options?: {
-    signal?: string;
-    genesis_issued_at_min?: number;
-    expires_at_min?: number;
-  },
+  options?: { signal?: string; genesis_issued_at_min?: number },
 ): CredentialRequestType {
   return {
     type: credential_type,
     signal: options?.signal,
     genesis_issued_at_min: options?.genesis_issued_at_min,
-    expires_at_min: options?.expires_at_min,
   };
 }
 
