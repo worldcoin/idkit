@@ -465,9 +465,9 @@ impl IDKitRequest {
                     BridgeResponse::ResponseV2(response) => {
                         // Determine protocol version from first response item
                         let protocol_version =
-                            response.responses.first().map_or("4.0", |item| match item {
-                                BridgeResponseItem::V4 { .. } => "4.0",
-                                BridgeResponseItem::V3 { .. } => "3.0",
+                            response.responses.first().map_or("v4", |item| match item {
+                                BridgeResponseItem::V4 { .. } => "v4",
+                                BridgeResponseItem::V3 { .. } => "v3",
                             });
 
                         let responses = response
@@ -482,9 +482,9 @@ impl IDKitRequest {
                         )))
                     }
                     BridgeResponse::ResponseV1(response) => {
-                        // V1 responses are always protocol 3.0
+                        // V1 responses are always protocol v3
                         let item = response.into_response_item();
-                        Ok(Status::Confirmed(IDKitResult::new("3.0", None, vec![item])))
+                        Ok(Status::Confirmed(IDKitResult::new("v3", None, vec![item])))
                     }
                 }
             }

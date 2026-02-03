@@ -141,8 +141,11 @@
       import { IDKit, orbLegacy, hashSignal } from "@worldcoin/idkit-core";
 
       // Demo app configuration
-      const APP_ID = "app_315057b8441a523e7a9b2416f1262a65"; // Replace with your actual app ID
-      const ACTION = "test-action2";
+      // const APP_ID = "app_ce4cb73cb75fc3b73b71ffb4de178410"; // Replace with your actual app ID
+      // const ACTION = "test-action";
+      const APP_ID = "app_staging_a2304b5df8c4d7ece0aad477ffe8aac9"; // Replace with your actual app ID
+      const RP_ID = "rp_bdb934c4ac0a3f14";
+      const ACTION = "test-action";
 
       // UI elements
       const qrDiv = document.getElementById("qr");
@@ -180,9 +183,7 @@
         credentialRequests,
         nonce,
       ) {
-        const isV4 = proof.protocol_version === "4.0";
-
-        // Create map of identifier -> signal from original credential requests
+        // Create map of identifier -> hashed signal
         const signalMap = new Map();
         for (const req of credentialRequests) {
           if (req.signal) {
@@ -190,23 +191,20 @@
           }
         }
 
-        // Default signal hashes
-        const defaultV3SignalHash =
-          "0x00c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4";
-        const defaultV4SignalHash = "0x0";
-
-        if (isV4) {
-          const responses = proof.responses.map((r) => ({
-            identifier: r.identifier,
-            signal_hash: signalMap.get(r.identifier) ?? defaultV4SignalHash,
-            issuer_schema_id: r.issuer_schema_id,
-            nullifier: r.nullifier,
-            nonce: nonce,
-            merkle_root: r.merkle_root,
-            proof_timestamp: String(r.proof_timestamp),
-            // TODO: dev portal expects compressed_proof as [string; 4] array
-            compressed_proof: r.proof,
-          }));
+        if (proof.protocol_version === "v4") {
+          const responses = proof.responses.map((r) => {
+            const signalHash = signalMap.get(r.identifier);
+            return {
+              identifier: r.identifier,
+              issuer_schema_id: r.issuer_schema_id,
+              nullifier: r.nullifier,
+              nonce: nonce,
+              merkle_root: r.merkle_root,
+              proof_timestamp: String(r.proof_timestamp),
+              compressed_proof: r.proof,
+              ...(signalHash && { signal_hash: signalHash }),
+            };
+          });
 
           return {
             protocol_version: "v4",
@@ -214,13 +212,16 @@
             responses,
           };
         } else {
-          const responses = proof.responses.map((r) => ({
-            identifier: r.identifier,
-            signal_hash: signalMap.get(r.identifier) ?? defaultV3SignalHash,
-            merkle_root: r.merkle_root,
-            nullifier_hash: r.nullifier_hash,
-            proof: r.proof,
-          }));
+          const responses = proof.responses.map((r) => {
+            const signalHash = signalMap.get(r.identifier);
+            return {
+              identifier: r.identifier,
+              merkle_root: r.merkle_root,
+              nullifier_hash: r.nullifier_hash,
+              proof: r.proof,
+              ...(signalHash && { signal_hash: signalHash }),
+            };
+          });
 
           return {
             protocol_version: "v3",
@@ -258,7 +259,7 @@
           const rpSig = await fetchRpSignature(ACTION);
           console.log("RP signature response:", rpSig);
           const rpContext = {
-            rp_id: "rp_1234567890abcdef", // Valid 16 hex char RP ID
+            rp_id: RP_ID,
             nonce: rpSig.nonce,
             created_at: rpSig.created_at,
             expires_at: rpSig.expires_at,
@@ -279,9 +280,10 @@
           }).preset(orbLegacy({ signal }));
 
           // Get the connector URL from the request
+          // const url = await request.connectorURI;
           const url = request.connectorURI.replace(
             "https://world.org/verify",
-            "https://stage.world.org/verify",
+            "worldappstg://verify",
           );
           console.log("Connect URL:", url);
 
@@ -311,7 +313,7 @@
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              rp_id: APP_ID,
+              rp_id: RP_ID,
               portalRequest,
             }),
           });

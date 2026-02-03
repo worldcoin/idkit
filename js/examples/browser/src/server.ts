@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import { IDKit, signRequest } from "@worldcoin/idkit-core";
 
@@ -8,6 +9,8 @@ app.use(express.json());
 // This is a valid 32-byte hex private key for testing only
 const DEMO_SIGNING_KEY =
   "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+const DEV_PORTAL_BASE_URL =
+  process.env.DEV_PORTAL_BASE_URL || "https://staging-developer.worldcoin.org";
 
 // Initialize WASM for server environment
 await IDKit.initServer();
@@ -53,7 +56,7 @@ app.post("/api/verify-proof", async (req, res) => {
 
   try {
     const portalResponse = await fetch(
-      `https://developer.world.org/api/v4/verify/${rp_id}`,
+      `${DEV_PORTAL_BASE_URL}/api/v4/verify/${rp_id}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

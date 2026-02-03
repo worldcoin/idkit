@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@worldcoin/idkit-core": "workspace:*",
+    "dotenv": "^16.4.5",
     "express": "^5.1.0"
   },
   "devDependencies": {

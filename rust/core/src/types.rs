@@ -451,7 +451,7 @@ impl ResponseItem {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct IDKitResult {
-    /// Protocol version ("4.0" or "3.0") - applies to all responses
+    /// Protocol version ("v4" or "v3") - applies to all responses
     pub protocol_version: String,
 
     /// Session ID (for session proofs)
@@ -1100,8 +1100,8 @@ mod tests {
             issuer_schema_id: "0x1".to_string(),
         }];
 
-        let result = IDKitResult::new("4.0", None, responses);
-        assert_eq!(result.protocol_version, "4.0");
+        let result = IDKitResult::new("v4", None, responses);
+        assert_eq!(result.protocol_version, "v4");
         assert!(result.session_id.is_none());
         assert_eq!(result.responses.len(), 1);
     }
@@ -1117,8 +1117,8 @@ mod tests {
             issuer_schema_id: "0x1".to_string(),
         }];
 
-        let result = IDKitResult::new("4.0", Some("session-123".to_string()), responses);
-        assert_eq!(result.protocol_version, "4.0");
+        let result = IDKitResult::new("v4", Some("session-123".to_string()), responses);
+        assert_eq!(result.protocol_version, "v4");
         assert_eq!(result.session_id.as_ref().unwrap(), "session-123");
     }
 
@@ -1131,8 +1131,8 @@ mod tests {
             nullifier_hash: "0xnullifier".to_string(),
         }];
 
-        let result = IDKitResult::new("3.0", None, responses);
-        assert_eq!(result.protocol_version, "3.0");
+        let result = IDKitResult::new("v3", None, responses);
+        assert_eq!(result.protocol_version, "v3");
         assert!(result.session_id.is_none());
         assert_eq!(result.responses.len(), 1);
     }
@@ -1148,10 +1148,10 @@ mod tests {
             issuer_schema_id: "0x1".to_string(),
         }];
 
-        let result = IDKitResult::new("4.0", Some("session-abc".to_string()), responses);
+        let result = IDKitResult::new("v4", Some("session-abc".to_string()), responses);
         let json = serde_json::to_string(&result).unwrap();
 
-        assert!(json.contains(r#""protocol_version":"4.0""#));
+        assert!(json.contains(r#""protocol_version":"v4""#));
         assert!(json.contains(r#""session_id":"session-abc""#));
         assert!(json.contains("responses"));
 

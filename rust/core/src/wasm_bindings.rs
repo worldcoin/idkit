@@ -752,16 +752,16 @@ export type ResponseItem = ResponseItemV4 | ResponseItemV3;
 
 /** V3 result (legacy format - no session support) */
 export interface IDKitResultV3 {
-    /** Protocol version 3.0 */
-    protocol_version: "3.0";
+    /** Protocol version v3 */
+    protocol_version: "v3";
     /** Array of V3 credential responses */
     responses: ResponseItemV3[];
 }
 
 /** V4 result (current format - supports sessions) */
 export interface IDKitResultV4 {
-    /** Protocol version 4.0 */
-    protocol_version: "4.0";
+    /** Protocol version v4 */
+    protocol_version: "v4";
     /** Session ID (for session proofs) */
     session_id?: string;
     /** Array of V4 credential responses */
