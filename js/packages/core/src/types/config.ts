@@ -14,11 +14,10 @@ export type AbiEncodedValue = Brand<
 >;
 
 /**
- * Relying Party context for protocol-level proof requests
+ * Relying Party context for IDKit requests
  *
- * Required for creating a verification session. Contains RP-specific data
- * needed to construct a ProofRequest. In production, this should be generated
- * and signed by your backend.
+ * Contains RP-specific data needed to construct a ProofRequest.
+ * This should be generated and signed by your backend.
  */
 export type RpContext = {
   /** The registered RP ID (e.g., "rp_123456789abcdef0") */
