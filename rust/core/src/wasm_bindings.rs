@@ -842,23 +842,21 @@ export type ConstraintNode =
 // Export ResponseItem/IDKitResult types for unified response
 #[wasm_bindgen(typescript_custom_section)]
 const TS_IDKIT_RESULT: &str = r#"
-/** V4 response item World ID v4 uniqueness proofs*/
+/** V4 response item for World ID v4 uniqueness proofs */
 export interface ResponseItemV4 {
     /** Credential identifier (e.g., "orb", "face", "document") */
     identifier: string;
-    /** Compressed Groth16 proof (hex) */
-    proof: string;
+    /** Encoded World ID proof: first 4 elements are compressed Groth16 proof, 5th is Merkle root (hex strings). Compatible with WorldIDVerifier.sol */
+    proof: string[];
     /** RP-scoped nullifier (hex) */
     nullifier: string;
-    /** Authenticator merkle root (hex) */
-    merkle_root: string;
-    /** Credential issuer schema ID (hex) */
-    issuer_schema_id: string;
-    /** Minimum expiration timestamp for the proof */
+    /** Credential issuer schema ID (1=orb, 2=face, 3=secure_document, 4=document, 5=device) */
+    issuer_schema_id: number;
+    /** Minimum expiration timestamp (unix seconds) */
     expires_at_min: number;
 }
 
-/** V3 response item World ID v3 - legacy format */
+/** V3 response item for World ID v3 (legacy format) */
 export interface ResponseItemV3 {
     /** Credential identifier (e.g., "orb", "face") */
     identifier: string;
@@ -870,19 +868,17 @@ export interface ResponseItemV3 {
     nullifier_hash: string;
 }
 
-/** Session response item World ID v4 session proof */
+/** Session response item for World ID v4 session proofs */
 export interface ResponseItemSession {
     /** Credential identifier (e.g., "orb", "face", "document") */
     identifier: string;
-    /** Compressed Groth16 proof (hex) */
-    proof: string;
-    /** Session nullifier (hex) */
-    session_nullifier: string;
-    /** Authenticator merkle root (hex) */
-    merkle_root: string;
-    /** Credential issuer schema ID (hex) */
-    issuer_schema_id: string;
-    /** Minimum expiration timestamp for the proof */
+    /** Encoded World ID proof: first 4 elements are compressed Groth16 proof, 5th is Merkle root (hex strings). Compatible with WorldIDVerifier.sol */
+    proof: string[];
+    /** Session nullifier: 1st element is the session nullifier, 2nd is the generated action (hex strings) */
+    session_nullifier: string[];
+    /** Credential issuer schema ID (1=orb, 2=face, 3=secure_document, 4=document, 5=device) */
+    issuer_schema_id: number;
+    /** Minimum expiration timestamp (unix seconds) */
     expires_at_min: number;
 }
 
