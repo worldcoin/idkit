@@ -429,14 +429,38 @@ pub enum ResponseItem {
     V4 {
         /// Credential identifier (e.g., "orb", "face", "document")
         identifier: String,
-        /// Compressed Groth16 proof (hex string)
-        proof: String,
+        /// Credential issuer schema ID
+        issuer_schema_id: u64,
+        /// Encoded World ID Proof
+        ///
+        /// The first 4 elements are the compressed Groth16 proof,
+        /// and the 5th element is the Merkle root (all hex strings)
+        ///
+        /// This can be used directly with the `WorldIDVerifier.sol` contract to verify the proof.
+        proof: Vec<String>,
         /// RP-scoped nullifier (hex string)
         nullifier: String,
-        /// Authenticator merkle root (hex string)
-        merkle_root: String,
-        /// Credential issuer schema ID (hex string)
-        issuer_schema_id: String,
+        /// Minimum expiration timestamp for the proof
+        expires_at_min: u64,
+    },
+    /// Session proof (World ID v4 sessions)
+    Session {
+        /// Credential identifier (e.g., "orb", "face", "document")
+        identifier: String,
+        /// Credential issuer schema ID
+        issuer_schema_id: u64,
+        /// Encoded World ID Proof
+        ///
+        /// The first 4 elements are the compressed Groth16 proof,
+        /// and the 5th element is the Merkle root (all hex strings)
+        ///
+        /// This can be used directly with the `WorldIDVerifier.sol` contract to verify the proof.
+        proof: Vec<String>,
+        /// Session nullifier
+        ///
+        /// - 1st element is the nullifier for the session
+        /// - 2nd element is the generated action
+        session_nullifier: Vec<String>,
         /// Minimum expiration timestamp for the proof
         expires_at_min: u64,
     },
@@ -451,87 +475,6 @@ pub enum ResponseItem {
         /// Nullifier hash (hex string)
         nullifier_hash: String,
     },
-    /// Session proof (World ID v4 sessions)
-    Session {
-        /// Credential identifier (e.g., "orb", "face", "document")
-        identifier: String,
-        /// Compressed Groth16 proof (hex string)
-        proof: String,
-        /// Session nullifier (hex string)
-        session_nullifier: String,
-        /// Authenticator merkle root (hex string)
-        merkle_root: String,
-        /// Credential issuer schema ID (hex string)
-        issuer_schema_id: String,
-        /// Minimum expiration timestamp for the proof
-        expires_at_min: u64,
-    },
-}
-
-impl ResponseItem {
-    /// Gets the credential identifier regardless of protocol version
-    #[must_use]
-    pub fn identifier(&self) -> &str {
-        match self {
-            Self::V4 { identifier, .. }
-            | Self::V3 { identifier, .. }
-            | Self::Session { identifier, .. } => identifier,
-        }
-    }
-
-    /// Gets the nullifier value regardless of protocol version
-    ///
-    /// For V4 responses, returns the nullifier.
-    /// For V3 responses, returns the `nullifier_hash`.
-    /// For Session responses, returns the `session_nullifier`.
-    #[must_use]
-    pub fn nullifier(&self) -> &str {
-        match self {
-            Self::V4 { nullifier, .. } => nullifier,
-            Self::V3 { nullifier_hash, .. } => nullifier_hash,
-            Self::Session {
-                session_nullifier, ..
-            } => session_nullifier,
-        }
-    }
-
-    /// Gets the merkle root regardless of protocol version
-    #[must_use]
-    pub fn merkle_root(&self) -> &str {
-        match self {
-            Self::V4 { merkle_root, .. }
-            | Self::V3 { merkle_root, .. }
-            | Self::Session { merkle_root, .. } => merkle_root,
-        }
-    }
-
-    /// Gets the proof string regardless of protocol version
-    #[must_use]
-    pub fn proof(&self) -> &str {
-        match self {
-            Self::V4 { proof, .. } | Self::V3 { proof, .. } | Self::Session { proof, .. } => proof,
-        }
-    }
-
-    /// Returns true if this is a session response
-    #[must_use]
-    pub const fn is_session(&self) -> bool {
-        matches!(self, Self::Session { .. })
-    }
-
-    /// Gets the `expires_at_min` timestamp if available
-    ///
-    /// For V4 and Session responses, returns the `expires_at_min` value.
-    /// For V3 responses (legacy), returns `None` as this field wasn't available.
-    #[must_use]
-    pub const fn expires_at_min(&self) -> Option<u64> {
-        match self {
-            Self::V4 { expires_at_min, .. } | Self::Session { expires_at_min, .. } => {
-                Some(*expires_at_min)
-            }
-            Self::V3 { .. } => None,
-        }
-    }
 }
 
 /// This is the top-level result returned from a proof request flow.
