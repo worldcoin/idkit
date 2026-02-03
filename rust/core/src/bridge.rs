@@ -7,8 +7,7 @@ use crate::{
     error::{AppError, Error, Result},
     protocol_types::ProofRequest,
     types::{
-        AppId, BridgeResponseV1, BridgeUrl, IDKitResult, ResponseItem, RpContext,
-        VerificationLevel,
+        AppId, BridgeResponseV1, BridgeUrl, IDKitResult, ResponseItem, RpContext, VerificationLevel,
     },
     ConstraintNode, Signal,
 };
