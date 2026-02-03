@@ -393,8 +393,11 @@ pub enum ResponseItem {
         merkle_root: String,
         /// Unix timestamp when proof was generated
         proof_timestamp: u64,
-        /// Credential issuer schema ID (hex string)
-        issuer_schema_id: String,
+        /// Credential issuer schema ID
+        issuer_schema_id: u64,
+        /// Signal hash used in the proof (hex string, only for portal verification)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signal_hash: Option<String>,
     },
     /// Protocol version 3.0 (World ID v3 - legacy format)
     V3 {
@@ -406,6 +409,9 @@ pub enum ResponseItem {
         merkle_root: String,
         /// Nullifier hash (hex string)
         nullifier_hash: String,
+        /// Signal hash used in the proof (hex string, only for portal verification)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signal_hash: Option<String>,
     },
     /// Session proof (World ID v4 sessions)
     Session {
@@ -419,8 +425,8 @@ pub enum ResponseItem {
         merkle_root: String,
         /// Unix timestamp when proof was generated
         proof_timestamp: u64,
-        /// Credential issuer schema ID (hex string)
-        issuer_schema_id: String,
+        /// Credential issuer schema ID
+        issuer_schema_id: u64,
     },
 }
 
@@ -479,11 +485,20 @@ impl ResponseItem {
 /// This is the top-level result returned from a proof request flow.
 /// It contains the protocol version and an array of credential responses.
 /// For session proofs, it also contains the `session_id`.
+/// For uniqueness proofs, it also contains the `action`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct IDKitResult {
     /// Protocol version ("v4" or "v3") - applies to all responses
     pub protocol_version: String,
+
+    /// Action identifier (only present for uniqueness proofs, not sessions)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
+
+    /// Nonce from RP context (only present for uniqueness proofs with v4 responses)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nonce: Option<String>,
 
     /// Session ID (only present for session proofs)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -494,11 +509,24 @@ pub struct IDKitResult {
 }
 
 impl IDKitResult {
-    /// Creates a new `IDKitResult` with protocol version and responses (no session)
+    /// Creates a new `IDKitResult` for uniqueness proofs
+    ///
+    /// # Arguments
+    /// * `protocol_version` - Protocol version ("v4" or "v3")
+    /// * `action` - Action identifier (required for uniqueness proofs)
+    /// * `nonce` - Nonce from RP context (only for v4)
+    /// * `responses` - Array of credential responses
     #[must_use]
-    pub fn new(protocol_version: impl Into<String>, responses: Vec<ResponseItem>) -> Self {
+    pub fn new(
+        protocol_version: impl Into<String>,
+        action: Option<String>,
+        nonce: Option<String>,
+        responses: Vec<ResponseItem>,
+    ) -> Self {
         Self {
             protocol_version: protocol_version.into(),
+            action,
+            nonce,
             session_id: None,
             responses,
         }
@@ -509,6 +537,8 @@ impl IDKitResult {
     pub fn new_session(session_id: String, responses: Vec<ResponseItem>) -> Self {
         Self {
             protocol_version: "v4".to_string(),
+            action: None,
+            nonce: None,
             session_id: Some(session_id),
             responses,
         }
@@ -1066,7 +1096,8 @@ mod tests {
             nullifier: "0xnullifier".to_string(),
             merkle_root: "0xroot".to_string(),
             proof_timestamp: 1_700_000_000,
-            issuer_schema_id: "0x1".to_string(),
+            issuer_schema_id: 1,
+            signal_hash: None,
         };
 
         assert!(matches!(item, ResponseItem::V4 { .. }));
@@ -1083,6 +1114,7 @@ mod tests {
             proof: "0xlegacy_proof".to_string(),
             merkle_root: "0xlegacy_root".to_string(),
             nullifier_hash: "0xlegacy_nullifier".to_string(),
+            signal_hash: None,
         };
 
         assert!(matches!(item, ResponseItem::V3 { .. }));
@@ -1100,7 +1132,8 @@ mod tests {
             nullifier: "0xnullifier".to_string(),
             merkle_root: "0xroot".to_string(),
             proof_timestamp: 1_700_000_000,
-            issuer_schema_id: "0x1".to_string(),
+            issuer_schema_id: 1,
+            signal_hash: None,
         };
 
         let json = serde_json::to_string(&v4).unwrap();
@@ -1108,6 +1141,8 @@ mod tests {
         assert!(json.contains("issuer_schema_id"));
         assert!(json.contains("nullifier"));
         assert!(!json.contains("session_nullifier"));
+        // signal_hash should be skipped when None
+        assert!(!json.contains("signal_hash"));
 
         let deserialized: ResponseItem = serde_json::from_str(&json).unwrap();
         assert_eq!(v4, deserialized);
@@ -1117,6 +1152,7 @@ mod tests {
             proof: "0xproof".to_string(),
             merkle_root: "0xroot".to_string(),
             nullifier_hash: "0xnullifier".to_string(),
+            signal_hash: None,
         };
 
         let json = serde_json::to_string(&v3).unwrap();
@@ -1138,7 +1174,7 @@ mod tests {
             session_nullifier: "0xsession_nullifier".to_string(),
             merkle_root: "0xroot".to_string(),
             proof_timestamp: 1_700_000_000,
-            issuer_schema_id: "0x1".to_string(),
+            issuer_schema_id: 1,
         };
 
         assert!(matches!(item, ResponseItem::Session { .. }));
@@ -1157,7 +1193,7 @@ mod tests {
             session_nullifier: "0xsession_nullifier".to_string(),
             merkle_root: "0xroot".to_string(),
             proof_timestamp: 1_700_000_000,
-            issuer_schema_id: "0x1".to_string(),
+            issuer_schema_id: 1,
         };
 
         let json = serde_json::to_string(&item).unwrap();
@@ -1181,11 +1217,19 @@ mod tests {
             nullifier: "0xnullifier".to_string(),
             merkle_root: "0xroot".to_string(),
             proof_timestamp: 1_700_000_000,
-            issuer_schema_id: "0x1".to_string(),
+            issuer_schema_id: 1,
+            signal_hash: None,
         }];
 
-        let result = IDKitResult::new("v4", responses);
+        let result = IDKitResult::new(
+            "v4",
+            Some("test-action".to_string()),
+            Some("0xnonce".to_string()),
+            responses,
+        );
         assert_eq!(result.protocol_version, "v4");
+        assert_eq!(result.action, Some("test-action".to_string()));
+        assert_eq!(result.nonce, Some("0xnonce".to_string()));
         assert_eq!(result.responses.len(), 1);
     }
 
@@ -1196,10 +1240,18 @@ mod tests {
             proof: "0xproof".to_string(),
             merkle_root: "0xroot".to_string(),
             nullifier_hash: "0xnullifier".to_string(),
+            signal_hash: None,
         }];
 
-        let result = IDKitResult::new("v3", responses);
+        let result = IDKitResult::new(
+            "v3",
+            Some("test-action".to_string()),
+            None, // v3 has no nonce
+            responses,
+        );
         assert_eq!(result.protocol_version, "v3");
+        assert_eq!(result.action, Some("test-action".to_string()));
+        assert!(result.nonce.is_none());
         assert!(result.session_id.is_none());
         assert_eq!(result.responses.len(), 1);
     }
@@ -1212,15 +1264,56 @@ mod tests {
             nullifier: "0xnullifier".to_string(),
             merkle_root: "0xroot".to_string(),
             proof_timestamp: 1_700_000_000,
-            issuer_schema_id: "0x1".to_string(),
+            issuer_schema_id: 1,
+            signal_hash: None,
         }];
 
-        let result = IDKitResult::new("v4".to_string(), responses);
+        let result = IDKitResult::new(
+            "v4",
+            Some("test-action".to_string()),
+            Some("0xnonce".to_string()),
+            responses,
+        );
         let json = serde_json::to_string(&result).unwrap();
 
         assert!(json.contains(r#""protocol_version":"v4""#));
         assert!(json.contains("responses"));
-        assert!(!json.contains("session_id")); // Action results don't have session_id
+        assert!(!json.contains("session_id"));
+        assert!(json.contains(r#""action":"test-action""#));
+        assert!(json.contains(r#""nonce":"0xnonce""#));
+
+        let deserialized: IDKitResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(result, deserialized);
+    }
+
+    #[test]
+    fn test_idkit_result_with_action_and_signal_hash() {
+        let responses = vec![ResponseItem::V4 {
+            identifier: CredentialType::Orb,
+            proof: "0xproof".to_string(),
+            nullifier: "0xnullifier".to_string(),
+            merkle_root: "0xroot".to_string(),
+            proof_timestamp: 1_700_000_000,
+            issuer_schema_id: 1,
+            signal_hash: Some("0xsignal_hash".to_string()),
+        }];
+
+        let result = IDKitResult::new(
+            "v4",
+            Some("test-action".to_string()),
+            Some("0xnonce".to_string()),
+            responses,
+        );
+        assert_eq!(result.protocol_version, "v4");
+        assert_eq!(result.action, Some("test-action".to_string()));
+        assert_eq!(result.nonce, Some("0xnonce".to_string()));
+        assert!(result.session_id.is_none());
+        assert_eq!(result.responses.len(), 1);
+
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains(r#""action":"test-action""#));
+        assert!(json.contains(r#""nonce":"0xnonce""#));
+        assert!(json.contains(r#""signal_hash":"0xsignal_hash""#));
 
         let deserialized: IDKitResult = serde_json::from_str(&json).unwrap();
         assert_eq!(result, deserialized);
@@ -1238,7 +1331,7 @@ mod tests {
             session_nullifier: "0xsession_nullifier".to_string(),
             merkle_root: "0xroot".to_string(),
             proof_timestamp: 1_700_000_000,
-            issuer_schema_id: "0x1".to_string(),
+            issuer_schema_id: 1,
         }];
 
         let result = IDKitResult::new_session("session-123".to_string(), responses);
@@ -1256,7 +1349,7 @@ mod tests {
             session_nullifier: "0xsession_nullifier".to_string(),
             merkle_root: "0xroot".to_string(),
             proof_timestamp: 1_700_000_000,
-            issuer_schema_id: "0x1".to_string(),
+            issuer_schema_id: 1,
         }];
 
         let result = IDKitResult::new_session("session-abc".to_string(), responses);

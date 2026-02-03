@@ -442,6 +442,10 @@ impl IDKitConfigWasm {
         &self,
         constraints: ConstraintNode,
     ) -> Result<crate::bridge::BridgeConnectionParams, JsValue> {
+        // Build signal map from constraints
+        let items = constraints.collect_items();
+        let signal_map = crate::bridge::build_signal_map(&items);
+
         match self {
             Self::Request {
                 app_id,
@@ -471,6 +475,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: *allow_legacy_proofs,
+                    signal_map,
                 })
             }
             Self::CreateSession {
@@ -497,6 +502,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    signal_map,
                 })
             }
             Self::ProveSession {
@@ -526,6 +532,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    signal_map,
                 })
             }
         }
@@ -833,8 +840,10 @@ export interface ResponseItemV4 {
     merkle_root: string;
     /** Unix timestamp when proof was generated */
     proof_timestamp: number;
-    /** Credential issuer schema ID (hex) */
-    issuer_schema_id: string;
+    /** Credential issuer schema ID */
+    issuer_schema_id: number;
+    /** Signal hash used in the proof (hex, for portal verification) */
+    signal_hash?: string;
 }
 
 /** V3 response item World ID v3 - legacy format */
@@ -847,6 +856,8 @@ export interface ResponseItemV3 {
     merkle_root: string;
     /** Nullifier hash (hex) */
     nullifier_hash: string;
+    /** Signal hash used in the proof (hex, for portal verification) */
+    signal_hash?: string;
 }
 
 /** Session response item World ID v4 session proof */
@@ -861,14 +872,16 @@ export interface ResponseItemSession {
     merkle_root: string;
     /** Unix timestamp when proof was generated */
     proof_timestamp: number;
-    /** Credential issuer schema ID (hex) */
-    issuer_schema_id: string;
+    /** Credential issuer schema ID */
+    issuer_schema_id: number;
 }
 
 /** V3 result (legacy format - no session support) */
 export interface IDKitResultV3 {
     /** Protocol version v3 */
     protocol_version: "v3";
+    /** Action identifier (for uniqueness proofs) */
+    action?: string;
     /** Array of V3 credential responses */
     responses: ResponseItemV3[];
 }
@@ -877,6 +890,10 @@ export interface IDKitResultV3 {
 export interface IDKitResultV4 {
     /** Protocol version v4 */
     protocol_version: "v4";
+    /** Action identifier (for uniqueness proofs) */
+    action?: string;
+    /** Nonce from RP context (hex, for portal verification) */
+    nonce?: string;
     /** Array of V4 credential responses */
     responses: ResponseItemV4[];
 }

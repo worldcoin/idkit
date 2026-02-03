@@ -20,6 +20,7 @@ use world_id_primitives::FieldElement;
 #[cfg(feature = "native-crypto")]
 use crate::crypto::CryptoKey;
 
+use std::collections::HashMap;
 use std::str::FromStr;
 #[cfg(feature = "ffi")]
 use std::sync::Arc;
@@ -113,7 +114,7 @@ struct BridgePollResponse {
 enum BridgeResponseItem {
     #[serde(rename = "v4")]
     V4 {
-        issuer_schema_id: String,
+        issuer_schema_id: u64,
         proof: String,
         nullifier: String,
         merkle_root: String,
@@ -130,7 +131,10 @@ enum BridgeResponseItem {
 
 impl BridgeResponseItem {
     /// Converts to a `ResponseItem` for uniqueness proofs
-    fn into_response_item(self) -> ResponseItem {
+    ///
+    /// # Arguments
+    /// * `signal_hash` - The encoded signal hash for this credential type (if any)
+    fn into_response_item(self, signal_hash: Option<String>) -> ResponseItem {
         match self {
             Self::V4 {
                 issuer_schema_id,
@@ -139,8 +143,7 @@ impl BridgeResponseItem {
                 merkle_root,
                 proof_timestamp,
             } => {
-                let identifier = parse_issuer_schema_id(&issuer_schema_id)
-                    .and_then(CredentialType::from_issuer_schema_id)
+                let identifier = CredentialType::from_issuer_schema_id(issuer_schema_id)
                     .unwrap_or(CredentialType::Orb);
                 ResponseItem::V4 {
                     identifier,
@@ -149,6 +152,7 @@ impl BridgeResponseItem {
                     merkle_root,
                     proof_timestamp,
                     issuer_schema_id,
+                    signal_hash,
                 }
             }
             Self::V3 {
@@ -161,18 +165,33 @@ impl BridgeResponseItem {
                 proof,
                 merkle_root,
                 nullifier_hash,
+                signal_hash,
             },
+        }
+    }
+
+    /// Gets the credential identifier for this response
+    fn identifier(&self) -> CredentialType {
+        match self {
+            Self::V4 {
+                issuer_schema_id, ..
+            } => CredentialType::from_issuer_schema_id(*issuer_schema_id)
+                .unwrap_or(CredentialType::Orb),
+            Self::V3 {
+                verification_level, ..
+            } => *verification_level,
         }
     }
 }
 
 impl BridgeResponseV1 {
-    fn into_response_item(self) -> ResponseItem {
+    fn into_response_item(self, signal_hash: Option<String>) -> ResponseItem {
         ResponseItem::V3 {
             identifier: self.verification_level,
             proof: self.proof,
             merkle_root: self.merkle_root,
             nullifier_hash: self.nullifier_hash,
+            signal_hash,
         }
     }
 }
@@ -185,12 +204,18 @@ struct BridgeResponseV2 {
     responses: Vec<BridgeResponseItem>,
 }
 
-/// Parse `issuer_schema_id` string as hex u64
-fn parse_issuer_schema_id(issuer_schema_id: &str) -> Option<u64> {
-    let clean_id = issuer_schema_id
-        .strip_prefix("0x")
-        .unwrap_or(issuer_schema_id);
-    u64::from_str_radix(clean_id, 16).ok()
+/// Builds a map from credential type to encoded signal hash
+pub(crate) fn build_signal_map(
+    requests: &[&crate::CredentialRequest],
+) -> HashMap<CredentialType, String> {
+    requests
+        .iter()
+        .filter_map(|req| {
+            req.signal
+                .as_ref()
+                .map(|s| (req.credential_type, crate::crypto::encode_signal(s)))
+        })
+        .collect()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -247,7 +272,7 @@ struct BridgeSessionResponse {
 /// Session-specific response item from bridge
 #[derive(Debug, Deserialize)]
 struct BridgeSessionResponseItem {
-    issuer_schema_id: String,
+    issuer_schema_id: u64,
     proof: String,
     session_nullifier: String,
     merkle_root: String,
@@ -256,8 +281,7 @@ struct BridgeSessionResponseItem {
 
 impl BridgeSessionResponseItem {
     fn into_response_item(self) -> ResponseItem {
-        let identifier = parse_issuer_schema_id(&self.issuer_schema_id)
-            .and_then(CredentialType::from_issuer_schema_id)
+        let identifier = CredentialType::from_issuer_schema_id(self.issuer_schema_id)
             .unwrap_or(CredentialType::Orb);
         ResponseItem::Session {
             identifier,
@@ -281,6 +305,8 @@ pub struct BridgeConnectionParams {
     pub legacy_signal: String,
     pub bridge_url: Option<BridgeUrl>,
     pub allow_legacy_proofs: bool,
+    /// Pre-computed signal hash map (credential type -> encoded signal hash)
+    pub signal_map: HashMap<CredentialType, String>,
 }
 
 /// A World ID verification connection to the bridge
@@ -293,6 +319,12 @@ pub struct BridgeConnection {
     key_bytes: Vec<u8>,
     request_id: Uuid,
     client: reqwest::Client,
+    /// Pre-computed signal hash map (credential type -> encoded signal hash)
+    signal_map: HashMap<CredentialType, String>,
+    /// Action identifier (for uniqueness proofs only)
+    action: Option<String>,
+    /// Nonce from RP context
+    nonce: String,
 }
 
 impl BridgeConnection {
@@ -412,6 +444,12 @@ impl BridgeConnection {
 
         let create_response: BridgeCreateResponse = response.json().await?;
 
+        // Extract action from request kind
+        let action = match &params.kind {
+            RequestKind::Uniqueness { action } => Some(action.clone()),
+            RequestKind::CreateSession | RequestKind::ProveSession { .. } => None,
+        };
+
         Ok(Self {
             bridge_url,
             #[cfg(feature = "native-crypto")]
@@ -419,6 +457,9 @@ impl BridgeConnection {
             key_bytes: key_bytes.to_vec(),
             request_id: create_response.request_id,
             client,
+            signal_map: params.signal_map,
+            action,
+            nonce: params.rp_context.nonce.clone(),
         })
     }
 
@@ -484,6 +525,7 @@ impl BridgeConnection {
                     BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
                     BridgeResponse::SessionResponse(response) => {
                         // Session responses are always protocol 4.0
+                        // Sessions don't have action/signal_hash
                         let responses = response
                             .responses
                             .into_iter()
@@ -502,20 +544,38 @@ impl BridgeConnection {
                                 BridgeResponseItem::V3 { .. } => "v3",
                             });
 
-                        let responses = response
+                        let is_v4 = protocol_version == "v4";
+                        let responses: Vec<ResponseItem> = response
                             .responses
                             .into_iter()
-                            .map(BridgeResponseItem::into_response_item)
+                            .map(|item| {
+                                let identifier = item.identifier();
+                                let signal_hash = self.signal_map.get(&identifier).cloned();
+                                item.into_response_item(signal_hash)
+                            })
                             .collect();
-                        Ok(Status::Confirmed(IDKitResult::new(
+
+                        // V4 responses include action and nonce, V3 only action
+                        let nonce = if is_v4 {
+                            Some(self.nonce.clone())
+                        } else {
+                            None
+                        };
+                        let result = IDKitResult::new(
                             protocol_version,
+                            self.action.clone(),
+                            nonce,
                             responses,
-                        )))
+                        );
+                        Ok(Status::Confirmed(result))
                     }
                     BridgeResponse::ResponseV1(response) => {
-                        // V1 responses are always protocol v3
-                        let item = response.into_response_item();
-                        Ok(Status::Confirmed(IDKitResult::new("v3", vec![item])))
+                        // V1 responses are always protocol v3 (no nonce)
+                        let signal_hash =
+                            self.signal_map.get(&response.verification_level).cloned();
+                        let item = response.into_response_item(signal_hash);
+                        let result = IDKitResult::new("v3", self.action.clone(), None, vec![item]);
+                        Ok(Status::Confirmed(result))
                     }
                 }
             }
@@ -589,6 +649,10 @@ impl IDKitConfig {
         &self,
         constraints: ConstraintNode,
     ) -> std::result::Result<BridgeConnectionParams, crate::error::IdkitError> {
+        // Build signal map from constraints
+        let items = constraints.collect_items();
+        let signal_map = build_signal_map(&items);
+
         match self {
             Self::Request(config) => {
                 let app_id = AppId::new(&config.app_id)?;
@@ -610,6 +674,7 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: config.allow_legacy_proofs,
+                    signal_map,
                 })
             }
             Self::CreateSession(config) => {
@@ -630,6 +695,7 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    signal_map,
                 })
             }
             Self::ProveSession { session_id, config } => {
@@ -652,6 +718,7 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    signal_map,
                 })
             }
         }
@@ -665,6 +732,10 @@ impl IDKitConfig {
     ) -> std::result::Result<BridgeConnectionParams, crate::error::IdkitError> {
         let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
 
+        // Build signal map from constraints
+        let items = constraints.collect_items();
+        let signal_map = build_signal_map(&items);
+
         match self {
             Self::Request(config) => {
                 let app_id = AppId::new(&config.app_id)?;
@@ -686,6 +757,7 @@ impl IDKitConfig {
                     legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: config.allow_legacy_proofs,
+                    signal_map,
                 })
             }
             Self::CreateSession(config) => {
@@ -706,6 +778,7 @@ impl IDKitConfig {
                     legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    signal_map,
                 })
             }
             Self::ProveSession { session_id, config } => {
@@ -728,6 +801,7 @@ impl IDKitConfig {
                     legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    signal_map,
                 })
             }
         }
@@ -1069,7 +1143,7 @@ mod tests {
             "responses": [
                 {
                     "protocol_version": "v4",
-                    "issuer_schema_id": "0x1",
+                    "issuer_schema_id": 1,
                     "proof": "0xproof123",
                     "nullifier": "0xnullifier123",
                     "merkle_root": "0xroot123",
@@ -1086,7 +1160,7 @@ mod tests {
             .into_iter()
             .next()
             .unwrap()
-            .into_response_item();
+            .into_response_item(Some("0xsignal".to_string()));
         assert!(matches!(item, ResponseItem::V4 { .. }));
         assert_eq!(item.identifier(), CredentialType::Orb);
 
@@ -1096,6 +1170,7 @@ mod tests {
             merkle_root,
             proof_timestamp,
             issuer_schema_id,
+            signal_hash,
             ..
         } = item
         {
@@ -1103,7 +1178,8 @@ mod tests {
             assert_eq!(nullifier, "0xnullifier123");
             assert_eq!(merkle_root, "0xroot123");
             assert_eq!(proof_timestamp, 1_700_000_000);
-            assert_eq!(issuer_schema_id, "0x1");
+            assert_eq!(issuer_schema_id, 1);
+            assert_eq!(signal_hash, Some("0xsignal".to_string()));
         } else {
             panic!("Expected V4 response item");
         }
@@ -1131,7 +1207,7 @@ mod tests {
             .into_iter()
             .next()
             .unwrap()
-            .into_response_item();
+            .into_response_item(Some("0xsignal".to_string()));
         assert!(matches!(item, ResponseItem::V3 { .. }));
         assert_eq!(item.identifier(), CredentialType::Face);
     }
@@ -1144,7 +1220,7 @@ mod tests {
             "responses": [
                 {
                     "protocol_version": "v4",
-                    "issuer_schema_id": "0x1",
+                    "issuer_schema_id": 1,
                     "proof": "0xproof_session",
                     "session_nullifier": "0xsession_null_123",
                     "merkle_root": "0xroot_session",
@@ -1178,7 +1254,7 @@ mod tests {
             "responses": [
                 {
                     "protocol_version": "v4",
-                    "issuer_schema_id": "0x1",
+                    "issuer_schema_id": 1,
                     "proof": "0xproof",
                     "session_nullifier": "0xsession_null",
                     "merkle_root": "0xroot",
@@ -1195,7 +1271,7 @@ mod tests {
             "responses": [
                 {
                     "protocol_version": "v4",
-                    "issuer_schema_id": "0x1",
+                    "issuer_schema_id": 1,
                     "proof": "0xproof",
                     "nullifier": "0xnullifier",
                     "merkle_root": "0xroot",
@@ -1214,7 +1290,7 @@ mod tests {
             "responses": [
                 {
                     "protocol_version": "v4",
-                    "issuer_schema_id": "0x1",
+                    "issuer_schema_id": 1,
                     "proof": "0xproof1",
                     "nullifier": "0xnull1",
                     "merkle_root": "0xroot1",
@@ -1222,7 +1298,7 @@ mod tests {
                 },
                 {
                     "protocol_version": "v4",
-                    "issuer_schema_id": "0x4",
+                    "issuer_schema_id": 4,
                     "proof": "0xproof2",
                     "nullifier": "0xnull2",
                     "merkle_root": "0xroot2",
@@ -1237,7 +1313,7 @@ mod tests {
         let items: Vec<_> = response
             .responses
             .into_iter()
-            .map(BridgeResponseItem::into_response_item)
+            .map(|item| item.into_response_item(None))
             .collect();
 
         assert_eq!(items.len(), 2);
@@ -1255,7 +1331,7 @@ mod tests {
             "responses": [
                 {
                     "protocol_version": "v4",
-                    "issuer_schema_id": "0x1",
+                    "issuer_schema_id": 1,
                     "proof": "0xproof",
                     "nullifier": "0xnull",
                     "merkle_root": "0xroot",
@@ -1287,37 +1363,5 @@ mod tests {
 
         let response: BridgeResponse = serde_json::from_str(json).unwrap();
         assert!(matches!(response, BridgeResponse::Error { .. }));
-    }
-
-    #[test]
-    fn test_parse_issuer_schema_id() {
-        assert_eq!(
-            parse_issuer_schema_id("0x1").and_then(CredentialType::from_issuer_schema_id),
-            Some(CredentialType::Orb)
-        );
-        assert_eq!(
-            parse_issuer_schema_id("0x2").and_then(CredentialType::from_issuer_schema_id),
-            Some(CredentialType::Face)
-        );
-        assert_eq!(
-            parse_issuer_schema_id("0x3").and_then(CredentialType::from_issuer_schema_id),
-            Some(CredentialType::SecureDocument)
-        );
-        assert_eq!(
-            parse_issuer_schema_id("0x4").and_then(CredentialType::from_issuer_schema_id),
-            Some(CredentialType::Document)
-        );
-        assert_eq!(
-            parse_issuer_schema_id("0x5").and_then(CredentialType::from_issuer_schema_id),
-            Some(CredentialType::Device)
-        );
-        assert_eq!(
-            parse_issuer_schema_id("1").and_then(CredentialType::from_issuer_schema_id),
-            Some(CredentialType::Orb)
-        );
-        assert_eq!(
-            parse_issuer_schema_id("0x99").and_then(CredentialType::from_issuer_schema_id),
-            None
-        );
     }
 }
