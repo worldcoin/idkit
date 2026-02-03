@@ -6,11 +6,16 @@
 
 // Re-export types from WASM
 export type {
-  ResponseItem,
+  // Uniqueness proof response types
+  IDKitResult,
   ResponseItemV4,
   ResponseItemV3,
-  IDKitResult,
+  // Session proof response types
+  ResponseItemSession,
+  IDKitResultSession,
+  // Status (includes both action and session confirmed)
   Status,
+  // Shared types
   CredentialType,
   ConstraintNode,
   CredentialRequestType,

@@ -85,11 +85,17 @@ export { WasmModule };
  * Source of truth: rust/core/src/wasm_bindings.rs (typescript_custom_section)
  */
 export type {
-  ResponseItem,
+  // Uniqueness proof response types
   ResponseItemV4,
   ResponseItemV3,
   IDKitResult,
+  IDKitResultV3,
+  IDKitResultV4,
+  // Session proof response types
+  IDKitResultSession,
+  ResponseItemSession,
   Status,
+  // Shared types
   CredentialType,
   ConstraintNode,
   CredentialRequestType,

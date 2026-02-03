@@ -28,9 +28,9 @@ pub mod verification;
 pub mod wasm_bindings;
 
 #[cfg(any(feature = "bridge", feature = "bridge-wasm"))]
-pub use bridge::{IDKitRequest, Status};
+pub use bridge::{BridgeConnection, Status};
 #[cfg(all(any(feature = "bridge", feature = "bridge-wasm"), feature = "ffi"))]
-pub use bridge::{IDKitRequestBuilder, IDKitRequestConfig};
+pub use bridge::{IDKitBuilder, IDKitRequestConfig};
 pub use constraints::ConstraintNode;
 #[cfg(any(feature = "native-crypto", feature = "wasm-crypto"))]
 pub use crypto::CryptoKey;

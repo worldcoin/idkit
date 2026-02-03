@@ -3,10 +3,16 @@ import Foundation
 // MARK: - Type Aliases for UniFFI Generated Types
 // UniFFI 0.30 generates IdKit* names (not IDKit*), so we alias for public API consistency.
 
-/// Type alias for public API - maps to generated IdKitRequestBuilder
-public typealias IDKitRequestBuilder = IdKitRequestBuilder
+/// Type alias for public API - maps to generated IdKitBuilder (unified builder)
+public typealias IDKitBuilder = IdKitBuilder
+/// Type alias for backwards compatibility - maps to unified IdKitBuilder
+public typealias IDKitRequestBuilder = IdKitBuilder
+/// Type alias for backwards compatibility - maps to unified IdKitBuilder
+public typealias IDKitSessionBuilder = IdKitBuilder
 /// Type alias for public API - maps to generated IdKitRequestConfig
 public typealias IDKitRequestConfig = IdKitRequestConfig
+/// Type alias for public API - maps to generated IdKitSessionConfig
+public typealias IDKitSessionConfig = IdKitSessionConfig
 /// Type alias for public API - maps to generated IdKitRequestWrapper
 public typealias IDKitRequestWrapper = IdKitRequestWrapper
 /// Type alias for public API - maps to generated IdKitResult
@@ -104,6 +110,22 @@ public extension StatusWrapper {
     var idkitResult: IDKitResult? {
         if case .confirmed(let result) = self {
             return result
+        }
+        return nil
+    }
+
+    /// Returns true if the result is a session proof (has a session_id).
+    var isSessionResult: Bool {
+        if case .confirmed(let result) = self {
+            return result.sessionId != nil
+        }
+        return false
+    }
+
+    /// Returns the session ID if this is a session result, nil otherwise.
+    var sessionId: String? {
+        if case .confirmed(let result) = self {
+            return result.sessionId
         }
         return nil
     }

@@ -372,10 +372,11 @@ pub struct BridgeResponseV1 {
 // Unified Response Types (World ID 4.0)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// A single credential response item - unified type for both bridge and SDK
+/// A single credential response item for uniqueness proofs
 ///
 /// V4 is detected by presence of `proof_timestamp`/`issuer_schema_id`.
 /// V3 is detected by presence of `nullifier_hash`.
+/// Session is detected by presence of `session_nullifier`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(untagged)]
@@ -406,6 +407,21 @@ pub enum ResponseItem {
         /// Nullifier hash (hex string)
         nullifier_hash: String,
     },
+    /// Session proof (World ID v4 sessions)
+    Session {
+        /// Credential identifier (maps to `CredentialType`)
+        identifier: CredentialType,
+        /// Compressed Groth16 proof (hex string)
+        proof: String,
+        /// Session nullifier (hex string)
+        session_nullifier: String,
+        /// Authenticator merkle root (hex string)
+        merkle_root: String,
+        /// Unix timestamp when proof was generated
+        proof_timestamp: u64,
+        /// Credential issuer schema ID (hex string)
+        issuer_schema_id: String,
+    },
 }
 
 impl ResponseItem {
@@ -413,16 +429,25 @@ impl ResponseItem {
     #[must_use]
     pub const fn identifier(&self) -> CredentialType {
         match self {
-            Self::V4 { identifier, .. } | Self::V3 { identifier, .. } => *identifier,
+            Self::V4 { identifier, .. }
+            | Self::V3 { identifier, .. }
+            | Self::Session { identifier, .. } => *identifier,
         }
     }
 
     /// Gets the nullifier value regardless of protocol version
+    ///
+    /// For V4 responses, returns the nullifier.
+    /// For V3 responses, returns the `nullifier_hash`.
+    /// For Session responses, returns the `session_nullifier`.
     #[must_use]
     pub fn nullifier(&self) -> &str {
         match self {
             Self::V4 { nullifier, .. } => nullifier,
             Self::V3 { nullifier_hash, .. } => nullifier_hash,
+            Self::Session {
+                session_nullifier, ..
+            } => session_nullifier,
         }
     }
 
@@ -430,7 +455,9 @@ impl ResponseItem {
     #[must_use]
     pub fn merkle_root(&self) -> &str {
         match self {
-            Self::V4 { merkle_root, .. } | Self::V3 { merkle_root, .. } => merkle_root,
+            Self::V4 { merkle_root, .. }
+            | Self::V3 { merkle_root, .. }
+            | Self::Session { merkle_root, .. } => merkle_root,
         }
     }
 
@@ -438,23 +465,27 @@ impl ResponseItem {
     #[must_use]
     pub fn proof(&self) -> &str {
         match self {
-            Self::V4 { proof, .. } | Self::V3 { proof, .. } => proof,
+            Self::V4 { proof, .. } | Self::V3 { proof, .. } | Self::Session { proof, .. } => proof,
         }
+    }
+
+    /// Returns true if this is a session response
+    #[must_use]
+    pub const fn is_session(&self) -> bool {
+        matches!(self, Self::Session { .. })
     }
 }
 
-/// The unified response structure containing session metadata and credential responses
-///
-/// This is the top-level result returned from a verification flow. It contains
-/// the protocol version, an optional session ID (for session proofs), and an array
-/// of credential responses. All responses share the same protocol version.
+/// This is the top-level result returned from a proof request flow.
+/// It contains the protocol version and an array of credential responses.
+/// For session proofs, it also contains the `session_id`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct IDKitResult {
     /// Protocol version ("v4" or "v3") - applies to all responses
     pub protocol_version: String,
 
-    /// Session ID (for session proofs)
+    /// Session ID (only present for session proofs)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
 
@@ -463,18 +494,30 @@ pub struct IDKitResult {
 }
 
 impl IDKitResult {
-    /// Creates a new `IDKitResult` with protocol version, optional session ID, and responses
+    /// Creates a new `IDKitResult` with protocol version and responses (no session)
     #[must_use]
-    pub fn new(
-        protocol_version: impl Into<String>,
-        session_id: Option<String>,
-        responses: Vec<ResponseItem>,
-    ) -> Self {
+    pub fn new(protocol_version: impl Into<String>, responses: Vec<ResponseItem>) -> Self {
         Self {
             protocol_version: protocol_version.into(),
-            session_id,
+            session_id: None,
             responses,
         }
+    }
+
+    /// Creates a new `IDKitResult` for a session proof with session ID and responses
+    #[must_use]
+    pub fn new_session(session_id: String, responses: Vec<ResponseItem>) -> Self {
+        Self {
+            protocol_version: "4.0".to_string(),
+            session_id: Some(session_id),
+            responses,
+        }
+    }
+
+    /// Returns true if this is a session result
+    #[must_use]
+    pub const fn is_session(&self) -> bool {
+        self.session_id.is_some()
     }
 }
 
@@ -1012,7 +1055,7 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // ResponseItem tests
+    // ResponseItem tests (uniqueness proof requests)
     // ─────────────────────────────────────────────────────────────────────────
 
     #[test]
@@ -1061,10 +1104,10 @@ mod tests {
         };
 
         let json = serde_json::to_string(&v4).unwrap();
-        // protocol_version is no longer in ResponseItem JSON (moved to IDKitResult)
-        assert!(!json.contains("protocol_version"));
         assert!(json.contains("proof_timestamp"));
         assert!(json.contains("issuer_schema_id"));
+        assert!(json.contains("nullifier"));
+        assert!(!json.contains("session_nullifier"));
 
         let deserialized: ResponseItem = serde_json::from_str(&json).unwrap();
         assert_eq!(v4, deserialized);
@@ -1077,8 +1120,6 @@ mod tests {
         };
 
         let json = serde_json::to_string(&v3).unwrap();
-        // protocol_version is no longer in ResponseItem JSON (moved to IDKitResult)
-        assert!(!json.contains("protocol_version"));
         assert!(json.contains("nullifier_hash"));
 
         let deserialized: ResponseItem = serde_json::from_str(&json).unwrap();
@@ -1086,28 +1127,54 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // IDKitResult tests
+    // ResponseItem::Session tests (session proofs)
     // ─────────────────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_idkit_result_new_without_session_id() {
-        let responses = vec![ResponseItem::V4 {
+    fn test_response_item_session() {
+        let item = ResponseItem::Session {
             identifier: CredentialType::Orb,
             proof: "0xproof".to_string(),
-            nullifier: "0xnullifier".to_string(),
+            session_nullifier: "0xsession_nullifier".to_string(),
             merkle_root: "0xroot".to_string(),
             proof_timestamp: 1_700_000_000,
             issuer_schema_id: "0x1".to_string(),
-        }];
+        };
 
-        let result = IDKitResult::new("v4", None, responses);
-        assert_eq!(result.protocol_version, "v4");
-        assert!(result.session_id.is_none());
-        assert_eq!(result.responses.len(), 1);
+        assert!(matches!(item, ResponseItem::Session { .. }));
+        assert_eq!(item.identifier(), CredentialType::Orb);
+        assert_eq!(item.nullifier(), "0xsession_nullifier");
+        assert_eq!(item.merkle_root(), "0xroot");
+        assert_eq!(item.proof(), "0xproof");
+        assert!(item.is_session());
     }
 
     #[test]
-    fn test_idkit_result_new_with_session_id() {
+    fn test_response_item_session_serialization() {
+        let item = ResponseItem::Session {
+            identifier: CredentialType::Orb,
+            proof: "0xproof".to_string(),
+            session_nullifier: "0xsession_nullifier".to_string(),
+            merkle_root: "0xroot".to_string(),
+            proof_timestamp: 1_700_000_000,
+            issuer_schema_id: "0x1".to_string(),
+        };
+
+        let json = serde_json::to_string(&item).unwrap();
+        assert!(json.contains("session_nullifier"));
+        assert!(json.contains("proof_timestamp"));
+        assert!(!json.contains("nullifier_hash")); // Not a v3 field
+
+        let deserialized: ResponseItem = serde_json::from_str(&json).unwrap();
+        assert_eq!(item, deserialized);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // IDKitResult tests (uniqueness proof request results)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_idkit_result_v4() {
         let responses = vec![ResponseItem::V4 {
             identifier: CredentialType::Orb,
             proof: "0xproof".to_string(),
@@ -1117,9 +1184,9 @@ mod tests {
             issuer_schema_id: "0x1".to_string(),
         }];
 
-        let result = IDKitResult::new("v4", Some("session-123".to_string()), responses);
+        let result = IDKitResult::new("4.0", responses);
         assert_eq!(result.protocol_version, "v4");
-        assert_eq!(result.session_id.as_ref().unwrap(), "session-123");
+        assert_eq!(result.responses.len(), 1);
     }
 
     #[test]
@@ -1154,6 +1221,50 @@ mod tests {
         assert!(json.contains(r#""protocol_version":"v4""#));
         assert!(json.contains(r#""session_id":"session-abc""#));
         assert!(json.contains("responses"));
+        assert!(!json.contains("session_id")); // Action results don't have session_id
+
+        let deserialized: IDKitResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(result, deserialized);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // IDKitResult session tests (session-based results using IDKitResult)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_idkit_result_session() {
+        let responses = vec![ResponseItem::Session {
+            identifier: CredentialType::Orb,
+            proof: "0xproof".to_string(),
+            session_nullifier: "0xsession_nullifier".to_string(),
+            merkle_root: "0xroot".to_string(),
+            proof_timestamp: 1_700_000_000,
+            issuer_schema_id: "0x1".to_string(),
+        }];
+
+        let result = IDKitResult::new_session("session-123".to_string(), responses);
+        assert_eq!(result.session_id, Some("session-123".to_string()));
+        assert_eq!(result.protocol_version, "4.0");
+        assert_eq!(result.responses.len(), 1);
+        assert!(result.is_session());
+    }
+
+    #[test]
+    fn test_idkit_result_session_serialization() {
+        let responses = vec![ResponseItem::Session {
+            identifier: CredentialType::Orb,
+            proof: "0xproof".to_string(),
+            session_nullifier: "0xsession_nullifier".to_string(),
+            merkle_root: "0xroot".to_string(),
+            proof_timestamp: 1_700_000_000,
+            issuer_schema_id: "0x1".to_string(),
+        }];
+
+        let result = IDKitResult::new_session("session-abc".to_string(), responses);
+        let json = serde_json::to_string(&result).unwrap();
+
+        assert!(json.contains(r#""session_id":"session-abc""#));
+        assert!(json.contains("session_nullifier"));
 
         let deserialized: IDKitResult = serde_json::from_str(&json).unwrap();
         assert_eq!(result, deserialized);
