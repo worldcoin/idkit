@@ -412,28 +412,146 @@ pub fn base64_decode(data: &str) -> Result<Vec<u8>, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("Base64 decode failed: {e}")))
 }
 
-/// Builder for creating `IDKit` requests (WASM)
-#[wasm_bindgen(js_name = IDKitRequestBuilderWasm)]
-pub struct IDKitRequestBuilderWasm {
-    app_id: String,
-    action: String,
-    rp_context: RpContext,
-    action_description: Option<String>,
-    bridge_url: Option<String>,
-    allow_legacy_proofs: bool,
+/// Internal enum to store builder configuration (WASM)
+enum IDKitConfigWasm {
+    Request {
+        app_id: String,
+        action: String,
+        rp_context: RpContext,
+        action_description: Option<String>,
+        bridge_url: Option<String>,
+        allow_legacy_proofs: bool,
+    },
+    CreateSession {
+        app_id: String,
+        rp_context: RpContext,
+        action_description: Option<String>,
+        bridge_url: Option<String>,
+    },
+    ProveSession {
+        session_id: String,
+        app_id: String,
+        rp_context: RpContext,
+        action_description: Option<String>,
+        bridge_url: Option<String>,
+    },
 }
 
-#[wasm_bindgen(js_class = IDKitRequestBuilderWasm)]
-impl IDKitRequestBuilderWasm {
-    /// Creates a new `IDKitRequestBuilder`
-    ///
-    /// # Arguments
-    /// * `app_id` - Application ID from the Developer Portal
-    /// * `action` - Action identifier
-    /// * `rp_context` - RP context for building protocol-level `ProofRequest`
-    /// * `action_description` - Optional action description shown to users
-    /// * `bridge_url` - Optional bridge URL (defaults to production)
-    /// * `allow_legacy_proofs` - Whether to accept legacy (v3) proofs as fallback
+impl IDKitConfigWasm {
+    fn to_params(
+        &self,
+        constraints: ConstraintNode,
+    ) -> Result<crate::bridge::BridgeConnectionParams, JsValue> {
+        match self {
+            Self::Request {
+                app_id,
+                action,
+                rp_context,
+                action_description,
+                bridge_url,
+                allow_legacy_proofs,
+            } => {
+                let app_id = crate::AppId::new(app_id)
+                    .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
+                let bridge_url = bridge_url
+                    .as_ref()
+                    .map(|url| crate::BridgeUrl::new(url, &app_id))
+                    .transpose()
+                    .map_err(|e| JsValue::from_str(&format!("Invalid bridge_url: {e}")))?;
+
+                Ok(crate::bridge::BridgeConnectionParams {
+                    app_id,
+                    kind: crate::bridge::RequestKind::Uniqueness {
+                        action: action.clone(),
+                    },
+                    constraints,
+                    rp_context: rp_context.clone(),
+                    action_description: action_description.clone(),
+                    legacy_verification_level: crate::VerificationLevel::Deprecated,
+                    legacy_signal: String::new(),
+                    bridge_url,
+                    allow_legacy_proofs: *allow_legacy_proofs,
+                })
+            }
+            Self::CreateSession {
+                app_id,
+                rp_context,
+                action_description,
+                bridge_url,
+            } => {
+                let app_id = crate::AppId::new(app_id)
+                    .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
+                let bridge_url = bridge_url
+                    .as_ref()
+                    .map(|url| crate::BridgeUrl::new(url, &app_id))
+                    .transpose()
+                    .map_err(|e| JsValue::from_str(&format!("Invalid bridge_url: {e}")))?;
+
+                Ok(crate::bridge::BridgeConnectionParams {
+                    app_id,
+                    kind: crate::bridge::RequestKind::CreateSession,
+                    constraints,
+                    rp_context: rp_context.clone(),
+                    action_description: action_description.clone(),
+                    legacy_verification_level: crate::VerificationLevel::Deprecated,
+                    legacy_signal: String::new(),
+                    bridge_url,
+                    allow_legacy_proofs: false,
+                })
+            }
+            Self::ProveSession {
+                session_id,
+                app_id,
+                rp_context,
+                action_description,
+                bridge_url,
+            } => {
+                let app_id = crate::AppId::new(app_id)
+                    .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
+                let bridge_url = bridge_url
+                    .as_ref()
+                    .map(|url| crate::BridgeUrl::new(url, &app_id))
+                    .transpose()
+                    .map_err(|e| JsValue::from_str(&format!("Invalid bridge_url: {e}")))?;
+
+                Ok(crate::bridge::BridgeConnectionParams {
+                    app_id,
+                    kind: crate::bridge::RequestKind::ProveSession {
+                        session_id: session_id.clone(),
+                    },
+                    constraints,
+                    rp_context: rp_context.clone(),
+                    action_description: action_description.clone(),
+                    legacy_verification_level: crate::VerificationLevel::Deprecated,
+                    legacy_signal: String::new(),
+                    bridge_url,
+                    allow_legacy_proofs: false,
+                })
+            }
+        }
+    }
+
+    fn to_params_from_preset(
+        &self,
+        preset: Preset,
+    ) -> Result<crate::bridge::BridgeConnectionParams, JsValue> {
+        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+        let mut params = self.to_params(constraints)?;
+        params.legacy_verification_level = legacy_verification_level;
+        params.legacy_signal = legacy_signal.unwrap_or_default();
+        Ok(params)
+    }
+}
+
+/// Unified builder for creating `IDKit` requests and sessions (WASM)
+#[wasm_bindgen(js_name = IDKitBuilder)]
+pub struct IDKitBuilderWasm {
+    config: IDKitConfigWasm,
+}
+
+#[wasm_bindgen(js_class = IDKitBuilder)]
+impl IDKitBuilderWasm {
+    /// Creates a new builder for uniqueness requests
     #[must_use]
     #[wasm_bindgen(constructor)]
     pub fn new(
@@ -445,123 +563,95 @@ impl IDKitRequestBuilderWasm {
         allow_legacy_proofs: bool,
     ) -> Self {
         Self {
-            app_id,
-            action,
-            rp_context: rp_context.into_inner(),
-            action_description,
-            bridge_url,
-            allow_legacy_proofs,
+            config: IDKitConfigWasm::Request {
+                app_id,
+                action,
+                rp_context: rp_context.into_inner(),
+                action_description,
+                bridge_url,
+                allow_legacy_proofs,
+            },
         }
     }
 
-    /// Creates an `IDKit` request with the given constraints
-    ///
-    /// # Arguments
-    /// * `constraints_json` - Constraint tree as JSON (`CredentialRequest` or `{any: []}` or `{all: []}`)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the request cannot be created
-    pub fn constraints(self, constraints_json: JsValue) -> js_sys::Promise {
-        let app_id = self.app_id;
-        let action = self.action;
-        let rp_context = self.rp_context;
-        let action_description = self.action_description;
-        let bridge_url = self.bridge_url;
-        let allow_legacy_proofs = self.allow_legacy_proofs;
-
-        future_to_promise(async move {
-            let app_id = crate::AppId::new(&app_id)
-                .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
-
-            let constraints: ConstraintNode = serde_wasm_bindgen::from_value(constraints_json)
-                .map_err(|e| JsValue::from_str(&format!("Invalid constraints payload: {e}")))?;
-
-            let bridge_url_parsed = bridge_url
-                .map(|url| crate::BridgeUrl::new(url, &app_id))
-                .transpose()
-                .map_err(|e| JsValue::from_str(&format!("Invalid bridge_url: {e}")))?;
-
-            let request = crate::IDKitRequest::create(
+    /// Creates a new builder for creating a new session
+    #[must_use]
+    #[wasm_bindgen(js_name = forCreateSession)]
+    pub fn for_create_session(
+        app_id: String,
+        rp_context: RpContextWasm,
+        action_description: Option<String>,
+        bridge_url: Option<String>,
+    ) -> Self {
+        Self {
+            config: IDKitConfigWasm::CreateSession {
                 app_id,
-                action,
-                constraints,
-                rp_context,
+                rp_context: rp_context.into_inner(),
                 action_description,
-                None, // legacy_verification_level - not needed for explicit constraints
-                None, // legacy_signal - not needed for explicit constraints
-                bridge_url_parsed,
-                allow_legacy_proofs,
-            )
-            .await
-            .map_err(|e| JsValue::from_str(&format!("Failed to create request: {e}")))?;
+                bridge_url,
+            },
+        }
+    }
+
+    /// Creates a new builder for proving an existing session
+    #[must_use]
+    #[wasm_bindgen(js_name = forProveSession)]
+    pub fn for_prove_session(
+        session_id: String,
+        app_id: String,
+        rp_context: RpContextWasm,
+        action_description: Option<String>,
+        bridge_url: Option<String>,
+    ) -> Self {
+        Self {
+            config: IDKitConfigWasm::ProveSession {
+                session_id,
+                app_id,
+                rp_context: rp_context.into_inner(),
+                action_description,
+                bridge_url,
+            },
+        }
+    }
+
+    /// Creates a `BridgeConnection` with the given constraints
+    pub fn constraints(self, constraints_json: JsValue) -> js_sys::Promise {
+        let config = self.config;
+        future_to_promise(async move {
+            let constraints: ConstraintNode = serde_wasm_bindgen::from_value(constraints_json)
+                .map_err(|e| JsValue::from_str(&format!("Invalid constraints: {e}")))?;
+
+            let params = config.to_params(constraints)?;
+            let connection = crate::bridge::BridgeConnection::create(params)
+                .await
+                .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
 
             Ok(JsValue::from(IDKitRequest {
-                inner: Rc::new(RefCell::new(Some(request))),
+                inner: Rc::new(RefCell::new(Some(connection))),
             }))
         })
     }
 
-    /// Creates an `IDKit` request from a preset
-    ///
-    /// Presets provide a simplified way to create requests with predefined
-    /// credential configurations. The preset is converted to both World ID 4.0
-    /// constraints and World ID 3.0 legacy fields for backward compatibility.
-    ///
-    /// # Arguments
-    /// * `preset_json` - Preset object from `orbLegacy()`
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the request cannot be created
+    /// Creates a `BridgeConnection` from a preset (works for all request types)
     pub fn preset(self, preset_json: JsValue) -> js_sys::Promise {
-        let app_id = self.app_id;
-        let action = self.action;
-        let rp_context = self.rp_context;
-        let action_description = self.action_description;
-        let bridge_url = self.bridge_url;
-        let allow_legacy_proofs = self.allow_legacy_proofs;
-
+        let config = self.config;
         future_to_promise(async move {
             let preset: Preset = serde_wasm_bindgen::from_value(preset_json)
                 .map_err(|e| JsValue::from_str(&format!("Invalid preset: {e}")))?;
 
-            let app_id_parsed = crate::AppId::new(&app_id)
-                .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
-
-            let bridge_url_parsed = bridge_url
-                .map(|url| crate::BridgeUrl::new(url, &app_id_parsed))
-                .transpose()
-                .map_err(|e| JsValue::from_str(&format!("Invalid bridge_url: {e}")))?;
-
-            let request = crate::IDKitRequest::create_from_preset(
-                app_id_parsed,
-                action,
-                preset,
-                rp_context,
-                action_description,
-                bridge_url_parsed,
-                allow_legacy_proofs,
-            )
-            .await
-            .map_err(|e| JsValue::from_str(&format!("Failed to create request: {e}")))?;
+            let params = config.to_params_from_preset(preset)?;
+            let connection = crate::bridge::BridgeConnection::create(params)
+                .await
+                .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
 
             Ok(JsValue::from(IDKitRequest {
-                inner: Rc::new(RefCell::new(Some(request))),
+                inner: Rc::new(RefCell::new(Some(connection))),
             }))
         })
     }
 }
 
 /// Entry point for creating `IDKit` requests (WASM)
-///
-/// # Arguments
-/// * `app_id` - Application ID from the Developer Portal
-/// * `action` - Action identifier
-/// * `rp_context` - RP context for building protocol-level `ProofRequest`
-/// * `action_description` - Optional action description shown to users
-/// * `bridge_url` - Optional bridge URL (defaults to production)
-/// * `allow_legacy_proofs` - Whether to accept legacy (v3) proofs as fallback
 #[must_use]
 #[wasm_bindgen(js_name = request)]
 pub fn request(
@@ -571,8 +661,8 @@ pub fn request(
     action_description: Option<String>,
     bridge_url: Option<String>,
     allow_legacy_proofs: bool,
-) -> IDKitRequestBuilderWasm {
-    IDKitRequestBuilderWasm::new(
+) -> IDKitBuilderWasm {
+    IDKitBuilderWasm::new(
         app_id,
         action,
         rp_context,
@@ -582,13 +672,44 @@ pub fn request(
     )
 }
 
+/// Entry point for creating a new session (no existing `session_id`) (WASM)
+#[must_use]
+#[wasm_bindgen(js_name = createSession)]
+pub fn create_session(
+    app_id: String,
+    rp_context: RpContextWasm,
+    action_description: Option<String>,
+    bridge_url: Option<String>,
+) -> IDKitBuilderWasm {
+    IDKitBuilderWasm::for_create_session(app_id, rp_context, action_description, bridge_url)
+}
+
+/// Entry point for proving an existing session (WASM)
+#[must_use]
+#[wasm_bindgen(js_name = proveSession)]
+pub fn prove_session(
+    session_id: String,
+    app_id: String,
+    rp_context: RpContextWasm,
+    action_description: Option<String>,
+    bridge_url: Option<String>,
+) -> IDKitBuilderWasm {
+    IDKitBuilderWasm::for_prove_session(
+        session_id,
+        app_id,
+        rp_context,
+        action_description,
+        bridge_url,
+    )
+}
+
 /// World ID verification request
 ///
 /// Manages the verification flow with World App via the bridge.
 #[wasm_bindgen]
 pub struct IDKitRequest {
     #[wasm_bindgen(skip)]
-    inner: Rc<RefCell<Option<crate::IDKitRequest>>>,
+    inner: Rc<RefCell<Option<crate::BridgeConnection>>>,
 }
 
 #[wasm_bindgen]
@@ -606,7 +727,7 @@ impl IDKitRequest {
             .borrow()
             .as_ref()
             .ok_or_else(|| JsValue::from_str("Request closed"))
-            .map(crate::IDKitRequest::connect_url)
+            .map(crate::BridgeConnection::connect_url)
     }
 
     /// Returns the request ID for this request
@@ -700,7 +821,7 @@ export type ConstraintNode =
 // Export ResponseItem/IDKitResult types for unified response
 #[wasm_bindgen(typescript_custom_section)]
 const TS_IDKIT_RESULT: &str = r#"
-/** V4 response item (protocol version 4.0 / World ID v4) */
+/** V4 response item World ID v4 uniqueness proofs*/
 export interface ResponseItemV4 {
     /** Credential identifier */
     identifier: CredentialType;
@@ -716,7 +837,7 @@ export interface ResponseItemV4 {
     issuer_schema_id: string;
 }
 
-/** V3 response item (protocol version 3.0 / World ID v3 - legacy format) */
+/** V3 response item World ID v3 - legacy format */
 export interface ResponseItemV3 {
     /** Credential identifier */
     identifier: CredentialType;
@@ -728,11 +849,21 @@ export interface ResponseItemV3 {
     nullifier_hash: string;
 }
 
-/**
- * A single credential response item - unified type for both bridge and SDK.
- * Type narrowing: use 'proof_timestamp' in item for V4, 'nullifier_hash' in item for V3.
- */
-export type ResponseItem = ResponseItemV4 | ResponseItemV3;
+/** Session response item World ID v4 session proof */
+export interface ResponseItemSession {
+    /** Credential identifier */
+    identifier: CredentialType;
+    /** Compressed Groth16 proof (hex) */
+    proof: string;
+    /** Session nullifier (hex) */
+    session_nullifier: string;
+    /** Authenticator merkle root (hex) */
+    merkle_root: string;
+    /** Unix timestamp when proof was generated */
+    proof_timestamp: number;
+    /** Credential issuer schema ID (hex) */
+    issuer_schema_id: string;
+}
 
 /** V3 result (legacy format - no session support) */
 export interface IDKitResultV3 {
@@ -742,18 +873,57 @@ export interface IDKitResultV3 {
     responses: ResponseItemV3[];
 }
 
-/** V4 result (current format - supports sessions) */
+/** V4 result for uniqueness proofs */
 export interface IDKitResultV4 {
     /** Protocol version 4.0 */
     protocol_version: "4.0";
-    /** Session ID (for session proofs) */
-    session_id?: string;
     /** Array of V4 credential responses */
     responses: ResponseItemV4[];
 }
 
-/** The unified response structure - discriminated union by protocol_version */
-export type IDKitResult = IDKitResultV3 | IDKitResultV4;
+/** V4 result for session proofs */
+export interface IDKitResultSession {
+    /** Protocol version 4.0 */
+    protocol_version: "4.0";
+    /** Session ID returned by the World App */
+    session_id: string;
+    /** Array of session credential responses */
+    responses: ResponseItemSession[];
+}
+
+/**
+ * The unified result structure for all proof types.
+ * Check `session_id` to determine if this is a session proof:
+ * - session_id !== undefined → session proof
+ * - session_id === undefined → uniqueness proof
+ */
+export type IDKitResult = IDKitResultV3 | IDKitResultV4 | IDKitResultSession;
+
+/** Configuration for session requests (no action field, v4 only) */
+export interface IDKitSessionConfig {
+    /** Application ID from the Developer Portal */
+    app_id: `app_${string}`;
+    /** RP context for protocol-level proof requests */
+    rp_context: RpContext;
+    /** Optional action description shown to users */
+    action_description?: string;
+    /** Optional bridge URL (defaults to production) */
+    bridge_url?: string;
+}
+
+/** RpContext for proof requests */
+export interface RpContext {
+    /** The registered RP ID (e.g., "rp_123456789abcdef0") */
+    rp_id: string;
+    /** Unique nonce for this proof request */
+    nonce: string;
+    /** Unix timestamp (seconds since epoch) when created */
+    created_at: number;
+    /** Unix timestamp (seconds since epoch) when expires */
+    expires_at: number;
+    /** The RP's ECDSA signature of the nonce and created_at timestamp */
+    signature: string;
+}
 
 /** Status returned from pollForStatus() */
 export type Status =
@@ -800,4 +970,34 @@ export interface RpSignature {
 }
 
 export function signRequest(action: string, signingKeyHex: string, ttlSeconds?: number): RpSignature;
+"#;
+
+// Export session function types
+#[wasm_bindgen(typescript_custom_section)]
+const TS_SESSION: &str = r#"
+/**
+ * Creates a new session builder for creating a new session (no existing session_id).
+ * Use this when creating a new session for a user who doesn't have one yet.
+ * The response will include a session_id that should be saved for future session proofs.
+ * Sessions are always World ID v4 - there is no legacy (v3) session support.
+ */
+export function createSession(
+    app_id: string,
+    rp_context: RpContextWasm,
+    action_description?: string,
+    bridge_url?: string
+): IDKitBuilder;
+
+/**
+ * Creates a session builder for proving an existing session.
+ * Use this when a returning user needs to prove they own an existing session.
+ * Sessions are always World ID v4 - there is no legacy (v3) session support.
+ */
+export function proveSession(
+    session_id: string,
+    app_id: string,
+    rp_context: RpContextWasm,
+    action_description?: string,
+    bridge_url?: string
+): IDKitBuilder;
 "#;

@@ -45,11 +45,15 @@ func basicVerification() async throws {
             print("Waiting for user to scan QR code...")
         case .awaitingConfirmation:
             print("User scanned code! Awaiting confirmation in World App...")
-        case .confirmed(let proof):
+        case .confirmed(let result):
             print("Verification successful!")
-            print("   Nullifier Hash: \(proof.nullifierHash)")
-            print("   Merkle Root: \(proof.merkleRoot)")
-            print("   Verification Level: \(proof.verificationLevel)")
+            print("   Protocol Version: \(result.protocolVersion)")
+            if let sessionId = result.sessionId {
+                print("   Session ID: \(sessionId)")
+            }
+            for response in result.responses {
+                print("   Response: \(response)")
+            }
             return
         case .failed(let error):
             throw ExampleError.verificationFailed(error)
@@ -83,9 +87,10 @@ func verificationWithStatusUpdates() async throws {
             print("Waiting for user to scan QR code...")
         case .awaitingConfirmation:
             print("User scanned code! Awaiting confirmation in World App...")
-        case .confirmed(let proof):
+        case .confirmed(let result):
             print("Verification complete!")
-            print("   Proof: \(proof.proof.prefix(64))...")
+            print("   Protocol Version: \(result.protocolVersion)")
+            print("   Responses: \(result.responses.count)")
             return
         case .failed(let error):
             throw ExampleError.verificationFailed(error)
@@ -117,8 +122,9 @@ func verificationSimple() async throws {
             print("Waiting for user to scan QR code...")
         case .awaitingConfirmation:
             print("User scanned code! Awaiting confirmation...")
-        case .confirmed(let proof):
-            print("Logged in! Nullifier: \(proof.nullifierHash)")
+        case .confirmed(let result):
+            print("Logged in!")
+            print("   Responses: \(result.responses.count)")
             return
         case .failed(let error):
             throw ExampleError.verificationFailed(error)
@@ -157,8 +163,8 @@ func verificationWithConstraints() async throws {
             print("Waiting for user to scan QR code...")
         case .awaitingConfirmation:
             print("Awaiting confirmation...")
-        case .confirmed(let proof):
-            print("Verified with \(proof.verificationLevel)")
+        case .confirmed(let result):
+            print("Verified with \(result.responses.count) credential(s)")
             return
         case .failed(let error):
             throw ExampleError.verificationFailed(error)

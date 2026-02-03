@@ -5,21 +5,58 @@ public enum IDKit {
     /// Version of the IDKit SDK
     public static let version = "4.0.1"
 
-    /// Creates a new IDKit request builder
+    /// Creates a new IDKit request builder for uniqueness proofs
     ///
     /// This is the main entry point for creating World ID verification requests.
     /// Use the builder pattern with constraints to specify which credentials to accept.
     ///
     /// - Parameter config: Request configuration
-    /// - Returns: An IDKitRequestBuilder instance
+    /// - Returns: An IDKitBuilder instance
     ///
     /// Example:
     /// ```swift
     /// let request = try IDKit.request(config: config)
     ///     .constraints(anyOf(CredentialRequest.create(.orb), CredentialRequest.create(.face)))
     /// ```
-    public static func request(config: IDKitRequestConfig) -> IDKitRequestBuilder {
-        IDKitRequestBuilder(config: config)
+    public static func request(config: IDKitRequestConfig) -> IDKitBuilder {
+        IdKitBuilder.fromRequest(config: config)
+    }
+
+    /// Creates a new IDKit builder for creating a new session
+    ///
+    /// Use this when creating a new session for a user who doesn't have one yet.
+    /// The response will include a session_id that should be saved for future session proofs.
+    ///
+    /// - Parameter config: Session configuration
+    /// - Returns: An IDKitBuilder instance
+    ///
+    /// Example:
+    /// ```swift
+    /// let request = try IDKit.createSession(config: sessionConfig)
+    ///     .constraints(anyOf(CredentialRequest.create(.orb), CredentialRequest.create(.face)))
+    /// let result = try request.pollStatus()
+    /// // Save result.sessionId for future sessions
+    /// ```
+    public static func createSession(config: IDKitSessionConfig) -> IDKitBuilder {
+        IdKitBuilder.fromCreateSession(config: config)
+    }
+
+    /// Creates a new IDKit builder for proving an existing session
+    ///
+    /// Use this when a returning user needs to prove they own an existing session.
+    ///
+    /// - Parameters:
+    ///   - sessionId: The session ID from a previous session creation
+    ///   - config: Session configuration
+    /// - Returns: An IDKitBuilder instance
+    ///
+    /// Example:
+    /// ```swift
+    /// let request = try IDKit.proveSession(sessionId: savedSessionId, config: sessionConfig)
+    ///     .constraints(anyOf(CredentialRequest.create(.orb), CredentialRequest.create(.face)))
+    /// ```
+    public static func proveSession(sessionId: String, config: IDKitSessionConfig) -> IDKitBuilder {
+        IdKitBuilder.fromProveSession(sessionId: sessionId, config: config)
     }
 }
 

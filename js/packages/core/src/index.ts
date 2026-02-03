@@ -27,15 +27,24 @@ export {
 } from "./request";
 
 // Config types
-export type { IDKitRequestConfig, AbiEncodedValue } from "./types/config";
+export type {
+  IDKitRequestConfig,
+  IDKitSessionConfig,
+  AbiEncodedValue,
+} from "./types/config";
 
 // Result types (re-exported from WASM - source of truth in rust/core/src/wasm_bindings.rs)
 export type {
+  // Uniqueness proof response types
   IDKitResult,
-  ResponseItem,
   ResponseItemV4,
   ResponseItemV3,
+  // Session proof response types
+  ResponseItemSession,
+  IDKitResultSession,
+  // Status (includes both action and session confirmed)
   Status,
+  // Shared types
   CredentialType,
   ConstraintNode,
   CredentialRequestType,

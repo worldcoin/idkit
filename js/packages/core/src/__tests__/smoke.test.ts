@@ -71,15 +71,16 @@ describe("IDKitRequest API", () => {
     expect(preset).toHaveProperty("signal", "test-signal");
   });
 
-  it("should throw error when rp_context is missing", () => {
-    expect(() =>
+  it("should throw error when rp_context is missing", async () => {
+    await expect(
       IDKit.request({
         app_id: "app_staging_test",
         action: "test-action",
         // @ts-expect-error - testing missing rp_context
         rp_context: undefined,
+        allow_legacy_proofs: false,
       }),
-    ).toThrow("rp_context is required");
+    ).rejects.toThrow("rp_context is required");
   });
 
   it("should allow any() with no items (validation happens in WASM)", () => {
@@ -90,23 +91,28 @@ describe("IDKitRequest API", () => {
   });
 
   it("should reject empty constraints when creating session", async () => {
+    // Create a valid hex nonce (field element format)
+    const validNonce =
+      "0x0000000000000000000000000000000000000000000000000000000000000001";
+    // Create a valid signature (65 bytes = 130 hex chars + 0x prefix)
+    const validSignature = "0x" + "00".repeat(64) + "1b"; // r(32) + s(32) + v(1)
+
     const createTestRpContext = () => ({
-      rp_id: "rp_test123456789abc",
-      nonce: "test-nonce-" + Date.now(),
+      rp_id: "rp_123456789abcdef0", // Valid format: rp_ + 16 hex chars
+      nonce: validNonce,
       created_at: Math.floor(Date.now() / 1000),
       expires_at: Math.floor(Date.now() / 1000) + 3600,
-      signature: "test-signature",
+      signature: validSignature,
     });
 
     // Empty any() constraint should fail validation in WASM layer
-    await expect(
-      IDKit.request({
-        app_id: "app_staging_test",
-        action: "test-action",
-        rp_context: createTestRpContext(),
-        allow_legacy_proofs: false,
-      }).constraints({ any: [] }),
-    ).rejects.toThrow();
+    const builder = await IDKit.request({
+      app_id: "app_staging_test",
+      action: "test-action",
+      rp_context: createTestRpContext(),
+      allow_legacy_proofs: false,
+    });
+    await expect(builder.constraints({ any: [] })).rejects.toThrow();
   });
 });
 
