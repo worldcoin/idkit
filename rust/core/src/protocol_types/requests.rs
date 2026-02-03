@@ -7,7 +7,7 @@ use alloy_primitives::Signature;
 use serde::{de::Error as _, Deserialize, Serialize};
 use std::collections::HashSet;
 use world_id_primitives::rp::RpId;
-use world_id_primitives::{FieldElement, WorldIdProof};
+use world_id_primitives::{FieldElement, ZeroKnowledgeProof};
 
 use super::constraints::{ConstraintExpr, MAX_CONSTRAINT_NODES};
 
@@ -41,14 +41,6 @@ impl<'de> serde::Deserialize<'de> for RequestVersion {
     }
 }
 
-/// Default value for `share_epoch` field.
-pub const DEFAULT_SHARE_EPOCH: &str = "0";
-
-/// Returns the default share epoch as a String (for serde).
-fn default_share_epoch() -> String {
-    DEFAULT_SHARE_EPOCH.to_string()
-}
-
 /// A proof request from a relying party for an authenticator.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -74,9 +66,6 @@ pub struct ProofRequest {
     /// Session ID for session proofs (optional).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<FieldElement>,
-    /// Share epoch for OPRF key versioning. Defaults to "0".
-    #[serde(default = "default_share_epoch")]
-    pub share_epoch: String,
     /// The RP's ECDSA signature over the request
     pub signature: Signature,
     /// Unique nonce for this request
@@ -121,7 +110,6 @@ impl ProofRequest {
             oprf_key_id,
             action,
             session_id,
-            share_epoch: DEFAULT_SHARE_EPOCH.to_string(),
             signature,
             nonce,
             requests,
@@ -146,6 +134,9 @@ pub struct CredentialRequest {
     /// Optional constraint on minimum genesis issued at timestamp.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub genesis_issued_at_min: Option<u64>,
+    /// Optional constraint on minimum expiration timestamp for the proof.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at_min: Option<u64>,
 }
 
 impl CredentialRequest {
@@ -156,12 +147,14 @@ impl CredentialRequest {
         issuer_schema_id: FieldElement,
         signal: Option<String>,
         genesis_issued_at_min: Option<u64>,
+        expires_at_min: Option<u64>,
     ) -> Self {
         Self {
             identifier,
             issuer_schema_id,
             signal,
             genesis_issued_at_min,
+            expires_at_min,
         }
     }
 }
@@ -189,15 +182,12 @@ pub struct ResponseItem {
     pub identifier: String,
     /// Issuer schema id this item refers to
     pub issuer_schema_id: FieldElement,
-    /// Proof payload (present if successful)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub proof: Option<WorldIdProof>,
-    /// RP-scoped nullifier (present if successful)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub nullifier: Option<FieldElement>,
-    /// Present if credential not provided
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
+    /// Proof payload
+    pub proof: ZeroKnowledgeProof,
+    /// RP-scoped nullifier
+    pub nullifier: FieldElement,
+    /// Minimum expiration timestamp for the proof
+    pub expires_at_min: u64,
 }
 
 impl ProofResponse {
@@ -207,19 +197,17 @@ impl ProofResponse {
         let provided: HashSet<&str> = self
             .responses
             .iter()
-            .filter(|item| item.error.is_none())
             .map(|item| item.identifier.as_str())
             .collect();
 
         constraints.evaluate(&|t| provided.contains(t))
     }
 
-    /// Return the list of successful credential identifiers.
+    /// Return the list of credential identifiers.
     #[must_use]
-    pub fn successful_credentials(&self) -> Vec<&str> {
+    pub fn credential_identifiers(&self) -> Vec<&str> {
         self.responses
             .iter()
-            .filter(|r| r.error.is_none())
             .map(|r| r.identifier.as_str())
             .collect()
     }
@@ -280,7 +268,6 @@ impl ProofRequest {
         let provided: HashSet<&str> = response
             .responses
             .iter()
-            .filter(|r| r.error.is_none())
             .map(|r| r.identifier.as_str())
             .collect();
 
@@ -364,6 +351,7 @@ mod tests {
             issuer_schema_id: FieldElement::from(1_u64),
             signal: Some("test_signal".to_string()),
             genesis_issued_at_min: None,
+            expires_at_min: None,
         };
 
         let json = serde_json::to_string(&item).unwrap();
@@ -376,9 +364,9 @@ mod tests {
         let item = ResponseItem {
             identifier: "orb".to_string(),
             issuer_schema_id: FieldElement::from(1_u64),
-            proof: Some(WorldIdProof::default()),
-            nullifier: Some(FieldElement::from(12345_u64)),
-            error: None,
+            proof: ZeroKnowledgeProof::default(),
+            nullifier: FieldElement::from(12345_u64),
+            expires_at_min: 1_700_000_000,
         };
 
         let json = serde_json::to_string(&item).unwrap();
@@ -387,25 +375,7 @@ mod tests {
     }
 
     #[test]
-    fn test_response_item_with_error() {
-        let item = ResponseItem {
-            identifier: "orb".to_string(),
-            issuer_schema_id: FieldElement::from(1_u64),
-            proof: None,
-            nullifier: None,
-            error: Some("credential_not_available".to_string()),
-        };
-
-        let json = serde_json::to_string(&item).unwrap();
-        assert!(json.contains("credential_not_available"));
-        assert!(!json.contains("proof"));
-
-        let parsed: ResponseItem = serde_json::from_str(&json).unwrap();
-        assert_eq!(item, parsed);
-    }
-
-    #[test]
-    fn test_proof_response_successful_credentials() {
+    fn test_proof_response_credential_identifiers() {
         let response = ProofResponse {
             id: "req_1".to_string(),
             version: RequestVersion::V1,
@@ -414,53 +384,21 @@ mod tests {
                 ResponseItem {
                     identifier: "orb".to_string(),
                     issuer_schema_id: FieldElement::from(1_u64),
-                    proof: Some(WorldIdProof::default()),
-                    nullifier: Some(FieldElement::from(1_u64)),
-                    error: None,
+                    proof: ZeroKnowledgeProof::default(),
+                    nullifier: FieldElement::from(1_u64),
+                    expires_at_min: 1_700_000_000,
                 },
                 ResponseItem {
                     identifier: "document".to_string(),
                     issuer_schema_id: FieldElement::from(2_u64),
-                    proof: None,
-                    nullifier: None,
-                    error: Some("not_available".to_string()),
+                    proof: ZeroKnowledgeProof::default(),
+                    nullifier: FieldElement::from(2_u64),
+                    expires_at_min: 1_700_000_000,
                 },
             ],
         };
 
-        let successful = response.successful_credentials();
-        assert_eq!(successful, vec!["orb"]);
-    }
-
-    #[test]
-    fn test_share_epoch_defaults_to_zero() {
-        use std::str::FromStr;
-
-        // Verify that DEFAULT_SHARE_EPOCH is "0"
-        assert_eq!(DEFAULT_SHARE_EPOCH, "0");
-
-        // Verify that ProofRequest::new() sets share_epoch to DEFAULT_SHARE_EPOCH
-        let rp_id = world_id_primitives::rp::RpId::from_str("rp_0000000000000001").unwrap();
-        let sig_bytes = [0u8; 65];
-        let signature = Signature::try_from(sig_bytes.as_slice()).unwrap();
-        let nonce = FieldElement::from(1_u64);
-
-        let request = ProofRequest::new(
-            1000,
-            2000,
-            rp_id,
-            Some(FieldElement::from(1_u64)), // action
-            None,                            // session_id
-            signature,
-            nonce,
-            vec![],
-            None,
-            false, // allow_legacy_proofs
-        );
-
-        assert_eq!(request.share_epoch, DEFAULT_SHARE_EPOCH);
-        assert!(request.session_id.is_none());
-        assert!(request.action.is_some());
-        assert!(!request.allow_legacy_proofs);
+        let identifiers = response.credential_identifiers();
+        assert_eq!(identifiers, vec!["orb", "document"]);
     }
 }
