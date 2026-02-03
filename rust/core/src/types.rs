@@ -1215,11 +1215,10 @@ mod tests {
             issuer_schema_id: "0x1".to_string(),
         }];
 
-        let result = IDKitResult::new("session-abc".to_string(), responses);
+        let result = IDKitResult::new("v4".to_string(), responses);
         let json = serde_json::to_string(&result).unwrap();
 
         assert!(json.contains(r#""protocol_version":"v4""#));
-        assert!(json.contains(r#""session_id":"session-abc""#));
         assert!(json.contains("responses"));
         assert!(!json.contains("session_id")); // Action results don't have session_id
 
