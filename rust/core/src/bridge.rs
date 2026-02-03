@@ -111,7 +111,7 @@ struct BridgePollResponse {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "protocol_version")]
 enum BridgeResponseItem {
-    #[serde(rename = "4.0")]
+    #[serde(rename = "v4")]
     V4 {
         issuer_schema_id: String,
         proof: String,
@@ -119,7 +119,7 @@ enum BridgeResponseItem {
         merkle_root: String,
         proof_timestamp: u64,
     },
-    #[serde(rename = "3.0")]
+    #[serde(rename = "v3")]
     V3 {
         proof: String,
         merkle_root: String,
@@ -515,7 +515,7 @@ impl BridgeConnection {
                     BridgeResponse::ResponseV1(response) => {
                         // V1 responses are always protocol v3
                         let item = response.into_response_item();
-                        Ok(Status::Confirmed(IDKitResult::new("v3", None, vec![item])))
+                        Ok(Status::Confirmed(IDKitResult::new("v3", vec![item])))
                     }
                 }
             }
@@ -1068,7 +1068,7 @@ mod tests {
             "id": "test-id",
             "responses": [
                 {
-                    "protocol_version": "4.0",
+                    "protocol_version": "v4",
                     "issuer_schema_id": "0x1",
                     "proof": "0xproof123",
                     "nullifier": "0xnullifier123",
@@ -1114,7 +1114,7 @@ mod tests {
         let json = r#"{
             "responses": [
                 {
-                    "protocol_version": "3.0",
+                    "protocol_version": "v3",
                     "proof": "0xproof",
                     "merkle_root": "0xroot",
                     "nullifier_hash": "0xnull",
@@ -1143,7 +1143,7 @@ mod tests {
             "session_id": "session-456",
             "responses": [
                 {
-                    "protocol_version": "4.0",
+                    "protocol_version": "v4",
                     "issuer_schema_id": "0x1",
                     "proof": "0xproof_session",
                     "session_nullifier": "0xsession_null_123",
@@ -1177,7 +1177,7 @@ mod tests {
             "session_id": "session-123",
             "responses": [
                 {
-                    "protocol_version": "4.0",
+                    "protocol_version": "v4",
                     "issuer_schema_id": "0x1",
                     "proof": "0xproof",
                     "session_nullifier": "0xsession_null",
@@ -1194,7 +1194,7 @@ mod tests {
         let action_json = r#"{
             "responses": [
                 {
-                    "protocol_version": "4.0",
+                    "protocol_version": "v4",
                     "issuer_schema_id": "0x1",
                     "proof": "0xproof",
                     "nullifier": "0xnullifier",
@@ -1213,7 +1213,7 @@ mod tests {
         let json = r#"{
             "responses": [
                 {
-                    "protocol_version": "4.0",
+                    "protocol_version": "v4",
                     "issuer_schema_id": "0x1",
                     "proof": "0xproof1",
                     "nullifier": "0xnull1",
@@ -1221,7 +1221,7 @@ mod tests {
                     "proof_timestamp": 1700000000
                 },
                 {
-                    "protocol_version": "4.0",
+                    "protocol_version": "v4",
                     "issuer_schema_id": "0x4",
                     "proof": "0xproof2",
                     "nullifier": "0xnull2",
@@ -1254,7 +1254,7 @@ mod tests {
         let json = r#"{
             "responses": [
                 {
-                    "protocol_version": "4.0",
+                    "protocol_version": "v4",
                     "issuer_schema_id": "0x1",
                     "proof": "0xproof",
                     "nullifier": "0xnull",

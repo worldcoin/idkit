@@ -884,7 +884,7 @@ export interface IDKitResultV4 {
 /** V4 result for session proofs */
 export interface IDKitResultSession {
     /** Protocol version 4.0 */
-    protocol_version: "4.0";
+    protocol_version: "v4";
     /** Session ID returned by the World App */
     session_id: string;
     /** Array of session credential responses */

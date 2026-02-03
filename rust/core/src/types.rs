@@ -508,7 +508,7 @@ impl IDKitResult {
     #[must_use]
     pub fn new_session(session_id: String, responses: Vec<ResponseItem>) -> Self {
         Self {
-            protocol_version: "4.0".to_string(),
+            protocol_version: "v4".to_string(),
             session_id: Some(session_id),
             responses,
         }
@@ -1184,7 +1184,7 @@ mod tests {
             issuer_schema_id: "0x1".to_string(),
         }];
 
-        let result = IDKitResult::new("4.0", responses);
+        let result = IDKitResult::new("v4", responses);
         assert_eq!(result.protocol_version, "v4");
         assert_eq!(result.responses.len(), 1);
     }
@@ -1198,7 +1198,7 @@ mod tests {
             nullifier_hash: "0xnullifier".to_string(),
         }];
 
-        let result = IDKitResult::new("v3", None, responses);
+        let result = IDKitResult::new("v3", responses);
         assert_eq!(result.protocol_version, "v3");
         assert!(result.session_id.is_none());
         assert_eq!(result.responses.len(), 1);
@@ -1215,7 +1215,7 @@ mod tests {
             issuer_schema_id: "0x1".to_string(),
         }];
 
-        let result = IDKitResult::new("v4", Some("session-abc".to_string()), responses);
+        let result = IDKitResult::new("session-abc".to_string(), responses);
         let json = serde_json::to_string(&result).unwrap();
 
         assert!(json.contains(r#""protocol_version":"v4""#));
@@ -1244,7 +1244,7 @@ mod tests {
 
         let result = IDKitResult::new_session("session-123".to_string(), responses);
         assert_eq!(result.session_id, Some("session-123".to_string()));
-        assert_eq!(result.protocol_version, "4.0");
+        assert_eq!(result.protocol_version, "v4");
         assert_eq!(result.responses.len(), 1);
         assert!(result.is_session());
     }
