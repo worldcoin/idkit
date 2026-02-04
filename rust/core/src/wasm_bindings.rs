@@ -84,6 +84,26 @@ impl CredentialRequestWasm {
         )))
     }
 
+    /// Creates a new request item with expiration minimum timestamp
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the credential type is invalid
+    #[wasm_bindgen(js_name = withExpiresAtMin)]
+    pub fn with_expires_at_min(
+        credential_type: JsValue,
+        signal: Option<String>,
+        expires_at_min: u64,
+    ) -> Result<Self, JsValue> {
+        let cred: CredentialType = serde_wasm_bindgen::from_value(credential_type)?;
+        let signal_opt = signal.map(Signal::from_string);
+        Ok(Self(CredentialRequest::with_expires_at_min(
+            cred,
+            signal_opt,
+            expires_at_min,
+        )))
+    }
+
     /// Gets the credential type
     #[must_use]
     #[wasm_bindgen(js_name = credentialType)]
@@ -810,6 +830,7 @@ export interface CredentialRequestType {
     type: CredentialType;
     signal?: string;
     genesis_issued_at_min?: number;
+    expires_at_min?: number;
 }
 
 export type ConstraintNode =
@@ -821,26 +842,24 @@ export type ConstraintNode =
 // Export ResponseItem/IDKitResult types for unified response
 #[wasm_bindgen(typescript_custom_section)]
 const TS_IDKIT_RESULT: &str = r#"
-/** V4 response item World ID v4 uniqueness proofs*/
+/** V4 response item for World ID v4 uniqueness proofs */
 export interface ResponseItemV4 {
-    /** Credential identifier */
-    identifier: CredentialType;
-    /** Compressed Groth16 proof (hex) */
-    proof: string;
+    /** Credential identifier (e.g., "orb", "face", "document") */
+    identifier: string;
+    /** Encoded World ID proof: first 4 elements are compressed Groth16 proof, 5th is Merkle root (hex strings). Compatible with WorldIDVerifier.sol */
+    proof: string[];
     /** RP-scoped nullifier (hex) */
     nullifier: string;
-    /** Authenticator merkle root (hex) */
-    merkle_root: string;
-    /** Unix timestamp when proof was generated */
-    proof_timestamp: number;
-    /** Credential issuer schema ID (hex) */
-    issuer_schema_id: string;
+    /** Credential issuer schema ID (1=orb, 2=face, 3=secure_document, 4=document, 5=device) */
+    issuer_schema_id: number;
+    /** Minimum expiration timestamp (unix seconds) */
+    expires_at_min: number;
 }
 
-/** V3 response item World ID v3 - legacy format */
+/** V3 response item for World ID v3 (legacy format) */
 export interface ResponseItemV3 {
-    /** Credential identifier */
-    identifier: CredentialType;
+    /** Credential identifier (e.g., "orb", "face") */
+    identifier: string;
     /** ABI-encoded proof (hex) */
     proof: string;
     /** Merkle root (hex) */
@@ -849,20 +868,18 @@ export interface ResponseItemV3 {
     nullifier_hash: string;
 }
 
-/** Session response item World ID v4 session proof */
+/** Session response item for World ID v4 session proofs */
 export interface ResponseItemSession {
-    /** Credential identifier */
-    identifier: CredentialType;
-    /** Compressed Groth16 proof (hex) */
-    proof: string;
-    /** Session nullifier (hex) */
-    session_nullifier: string;
-    /** Authenticator merkle root (hex) */
-    merkle_root: string;
-    /** Unix timestamp when proof was generated */
-    proof_timestamp: number;
-    /** Credential issuer schema ID (hex) */
-    issuer_schema_id: string;
+    /** Credential identifier (e.g., "orb", "face", "document") */
+    identifier: string;
+    /** Encoded World ID proof: first 4 elements are compressed Groth16 proof, 5th is Merkle root (hex strings). Compatible with WorldIDVerifier.sol */
+    proof: string[];
+    /** Session nullifier: 1st element is the session nullifier, 2nd is the generated action (hex strings) */
+    session_nullifier: string[];
+    /** Credential issuer schema ID (1=orb, 2=face, 3=secure_document, 4=document, 5=device) */
+    issuer_schema_id: number;
+    /** Minimum expiration timestamp (unix seconds) */
+    expires_at_min: number;
 }
 
 /** V3 result (legacy format - no session support) */
