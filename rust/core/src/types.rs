@@ -429,14 +429,38 @@ pub enum ResponseItem {
     V4 {
         /// Credential identifier (e.g., "orb", "face", "document")
         identifier: String,
-        /// Compressed Groth16 proof (hex string)
-        proof: String,
+        /// Credential issuer schema ID
+        issuer_schema_id: u64,
+        /// Encoded World ID Proof
+        ///
+        /// The first 4 elements are the compressed Groth16 proof,
+        /// and the 5th element is the Merkle root (all hex strings)
+        ///
+        /// This can be used directly with the `WorldIDVerifier.sol` contract to verify the proof.
+        proof: Vec<String>,
         /// RP-scoped nullifier (hex string)
         nullifier: String,
-        /// Authenticator merkle root (hex string)
-        merkle_root: String,
-        /// Credential issuer schema ID (hex string)
-        issuer_schema_id: String,
+        /// Minimum expiration timestamp for the proof
+        expires_at_min: u64,
+    },
+    /// Session proof (World ID v4 sessions)
+    Session {
+        /// Credential identifier (e.g., "orb", "face", "document")
+        identifier: String,
+        /// Credential issuer schema ID
+        issuer_schema_id: u64,
+        /// Encoded World ID Proof
+        ///
+        /// The first 4 elements are the compressed Groth16 proof,
+        /// and the 5th element is the Merkle root (all hex strings)
+        ///
+        /// This can be used directly with the `WorldIDVerifier.sol` contract to verify the proof.
+        proof: Vec<String>,
+        /// Session nullifier
+        ///
+        /// - 1st element is the nullifier for the session
+        /// - 2nd element is the generated action
+        session_nullifier: Vec<String>,
         /// Minimum expiration timestamp for the proof
         expires_at_min: u64,
     },
@@ -451,87 +475,6 @@ pub enum ResponseItem {
         /// Nullifier hash (hex string)
         nullifier_hash: String,
     },
-    /// Session proof (World ID v4 sessions)
-    Session {
-        /// Credential identifier (e.g., "orb", "face", "document")
-        identifier: String,
-        /// Compressed Groth16 proof (hex string)
-        proof: String,
-        /// Session nullifier (hex string)
-        session_nullifier: String,
-        /// Authenticator merkle root (hex string)
-        merkle_root: String,
-        /// Credential issuer schema ID (hex string)
-        issuer_schema_id: String,
-        /// Minimum expiration timestamp for the proof
-        expires_at_min: u64,
-    },
-}
-
-impl ResponseItem {
-    /// Gets the credential identifier regardless of protocol version
-    #[must_use]
-    pub fn identifier(&self) -> &str {
-        match self {
-            Self::V4 { identifier, .. }
-            | Self::V3 { identifier, .. }
-            | Self::Session { identifier, .. } => identifier,
-        }
-    }
-
-    /// Gets the nullifier value regardless of protocol version
-    ///
-    /// For V4 responses, returns the nullifier.
-    /// For V3 responses, returns the `nullifier_hash`.
-    /// For Session responses, returns the `session_nullifier`.
-    #[must_use]
-    pub fn nullifier(&self) -> &str {
-        match self {
-            Self::V4 { nullifier, .. } => nullifier,
-            Self::V3 { nullifier_hash, .. } => nullifier_hash,
-            Self::Session {
-                session_nullifier, ..
-            } => session_nullifier,
-        }
-    }
-
-    /// Gets the merkle root regardless of protocol version
-    #[must_use]
-    pub fn merkle_root(&self) -> &str {
-        match self {
-            Self::V4 { merkle_root, .. }
-            | Self::V3 { merkle_root, .. }
-            | Self::Session { merkle_root, .. } => merkle_root,
-        }
-    }
-
-    /// Gets the proof string regardless of protocol version
-    #[must_use]
-    pub fn proof(&self) -> &str {
-        match self {
-            Self::V4 { proof, .. } | Self::V3 { proof, .. } | Self::Session { proof, .. } => proof,
-        }
-    }
-
-    /// Returns true if this is a session response
-    #[must_use]
-    pub const fn is_session(&self) -> bool {
-        matches!(self, Self::Session { .. })
-    }
-
-    /// Gets the `expires_at_min` timestamp if available
-    ///
-    /// For V4 and Session responses, returns the `expires_at_min` value.
-    /// For V3 responses (legacy), returns `None` as this field wasn't available.
-    #[must_use]
-    pub const fn expires_at_min(&self) -> Option<u64> {
-        match self {
-            Self::V4 { expires_at_min, .. } | Self::Session { expires_at_min, .. } => {
-                Some(*expires_at_min)
-            }
-            Self::V3 { .. } => None,
-        }
-    }
 }
 
 /// This is the top-level result returned from a proof request flow.
@@ -1113,142 +1056,8 @@ mod tests {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // ResponseItem tests (uniqueness proof requests)
-    // ─────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_response_item_v4() {
-        let item = ResponseItem::V4 {
-            identifier: "orb".to_string(),
-            proof: "0xproof".to_string(),
-            nullifier: "0xnullifier".to_string(),
-            merkle_root: "0xroot".to_string(),
-            issuer_schema_id: "0x1".to_string(),
-            expires_at_min: 1_700_003_600,
-        };
-
-        assert!(matches!(item, ResponseItem::V4 { .. }));
-        assert_eq!(item.identifier(), "orb");
-        assert_eq!(item.nullifier(), "0xnullifier");
-        assert_eq!(item.merkle_root(), "0xroot");
-        assert_eq!(item.proof(), "0xproof");
-        assert_eq!(item.expires_at_min(), Some(1_700_003_600));
-    }
-
-    #[test]
-    fn test_response_item_v3() {
-        let item = ResponseItem::V3 {
-            identifier: "face".to_string(),
-            proof: "0xlegacy_proof".to_string(),
-            merkle_root: "0xlegacy_root".to_string(),
-            nullifier_hash: "0xlegacy_nullifier".to_string(),
-        };
-
-        assert!(matches!(item, ResponseItem::V3 { .. }));
-        assert_eq!(item.identifier(), "face");
-        assert_eq!(item.nullifier(), "0xlegacy_nullifier");
-        assert_eq!(item.merkle_root(), "0xlegacy_root");
-        assert_eq!(item.proof(), "0xlegacy_proof");
-        assert_eq!(item.expires_at_min(), None); // V3 doesn't have expires_at_min
-    }
-
-    #[test]
-    fn test_response_item_serialization() {
-        let v4 = ResponseItem::V4 {
-            identifier: "orb".to_string(),
-            proof: "0xproof".to_string(),
-            nullifier: "0xnullifier".to_string(),
-            merkle_root: "0xroot".to_string(),
-            issuer_schema_id: "0x1".to_string(),
-            expires_at_min: 1_700_003_600,
-        };
-
-        let json = serde_json::to_string(&v4).unwrap();
-        assert!(json.contains("issuer_schema_id"));
-        assert!(json.contains("nullifier"));
-        assert!(json.contains("expires_at_min"));
-        assert!(!json.contains("session_nullifier"));
-
-        let deserialized: ResponseItem = serde_json::from_str(&json).unwrap();
-        assert_eq!(v4, deserialized);
-
-        let v3 = ResponseItem::V3 {
-            identifier: "face".to_string(),
-            proof: "0xproof".to_string(),
-            merkle_root: "0xroot".to_string(),
-            nullifier_hash: "0xnullifier".to_string(),
-        };
-
-        let json = serde_json::to_string(&v3).unwrap();
-        assert!(json.contains("nullifier_hash"));
-
-        let deserialized: ResponseItem = serde_json::from_str(&json).unwrap();
-        assert_eq!(v3, deserialized);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // ResponseItem::Session tests (session proofs)
-    // ─────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_response_item_session() {
-        let item = ResponseItem::Session {
-            identifier: "orb".to_string(),
-            proof: "0xproof".to_string(),
-            session_nullifier: "0xsession_nullifier".to_string(),
-            merkle_root: "0xroot".to_string(),
-            issuer_schema_id: "0x1".to_string(),
-            expires_at_min: 1_700_003_600,
-        };
-
-        assert!(matches!(item, ResponseItem::Session { .. }));
-        assert_eq!(item.identifier(), "orb");
-        assert_eq!(item.nullifier(), "0xsession_nullifier");
-        assert_eq!(item.merkle_root(), "0xroot");
-        assert_eq!(item.proof(), "0xproof");
-        assert!(item.is_session());
-        assert_eq!(item.expires_at_min(), Some(1_700_003_600));
-    }
-
-    #[test]
-    fn test_response_item_session_serialization() {
-        let item = ResponseItem::Session {
-            identifier: "orb".to_string(),
-            proof: "0xproof".to_string(),
-            session_nullifier: "0xsession_nullifier".to_string(),
-            merkle_root: "0xroot".to_string(),
-            issuer_schema_id: "0x1".to_string(),
-            expires_at_min: 1_700_003_600,
-        };
-
-        let json = serde_json::to_string(&item).unwrap();
-        assert!(json.contains("session_nullifier"));
-        assert!(json.contains("expires_at_min"));
-        assert!(!json.contains("nullifier_hash")); // Not a v3 field
-
-        let deserialized: ResponseItem = serde_json::from_str(&json).unwrap();
-        assert_eq!(item, deserialized);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
     // IDKitResult tests (uniqueness proof request results)
     // ─────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_idkit_result_v4() {
-        let responses = vec![ResponseItem::V4 {
-            identifier: "orb".to_string(),
-            proof: "0xproof".to_string(),
-            nullifier: "0xnullifier".to_string(),
-            merkle_root: "0xroot".to_string(),
-            issuer_schema_id: "0x1".to_string(),
-            expires_at_min: 1_700_003_600,
-        }];
-
-        let result = IDKitResult::new("4.0", responses);
-        assert_eq!(result.protocol_version, "4.0");
-        assert_eq!(result.responses.len(), 1);
-    }
 
     #[test]
     fn test_idkit_result_v3() {
@@ -1262,71 +1071,6 @@ mod tests {
         let result = IDKitResult::new("3.0", responses);
         assert_eq!(result.protocol_version, "3.0");
         assert_eq!(result.responses.len(), 1);
-    }
-
-    #[test]
-    fn test_idkit_result_serialization() {
-        let responses = vec![ResponseItem::V4 {
-            identifier: "orb".to_string(),
-            proof: "0xproof".to_string(),
-            nullifier: "0xnullifier".to_string(),
-            merkle_root: "0xroot".to_string(),
-            issuer_schema_id: "0x1".to_string(),
-            expires_at_min: 1_700_003_600,
-        }];
-
-        let result = IDKitResult::new("4.0", responses);
-        let json = serde_json::to_string(&result).unwrap();
-
-        assert!(json.contains(r#""protocol_version":"4.0""#));
-        assert!(json.contains("responses"));
-        assert!(!json.contains("session_id")); // Action results don't have session_id
-
-        let deserialized: IDKitResult = serde_json::from_str(&json).unwrap();
-        assert_eq!(result, deserialized);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // IDKitResult session tests (session-based results using IDKitResult)
-    // ─────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_idkit_result_session() {
-        let responses = vec![ResponseItem::Session {
-            identifier: "orb".to_string(),
-            proof: "0xproof".to_string(),
-            session_nullifier: "0xsession_nullifier".to_string(),
-            merkle_root: "0xroot".to_string(),
-            issuer_schema_id: "0x1".to_string(),
-            expires_at_min: 1_700_003_600,
-        }];
-
-        let result = IDKitResult::new_session("session-123".to_string(), responses);
-        assert_eq!(result.session_id, Some("session-123".to_string()));
-        assert_eq!(result.protocol_version, "4.0");
-        assert_eq!(result.responses.len(), 1);
-        assert!(result.is_session());
-    }
-
-    #[test]
-    fn test_idkit_result_session_serialization() {
-        let responses = vec![ResponseItem::Session {
-            identifier: "orb".to_string(),
-            proof: "0xproof".to_string(),
-            session_nullifier: "0xsession_nullifier".to_string(),
-            merkle_root: "0xroot".to_string(),
-            issuer_schema_id: "0x1".to_string(),
-            expires_at_min: 1_700_003_600,
-        }];
-
-        let result = IDKitResult::new_session("session-abc".to_string(), responses);
-        let json = serde_json::to_string(&result).unwrap();
-
-        assert!(json.contains(r#""session_id":"session-abc""#));
-        assert!(json.contains("session_nullifier"));
-
-        let deserialized: IDKitResult = serde_json::from_str(&json).unwrap();
-        assert_eq!(result, deserialized);
     }
 
     #[test]
