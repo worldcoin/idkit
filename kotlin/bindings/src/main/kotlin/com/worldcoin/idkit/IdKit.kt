@@ -224,12 +224,6 @@ object IdKit {
         Preset.DocumentLegacy(signal = signal)
 
     /**
-     * Hash bytes to a field element using Keccak256, shifted right 8 bits.
-     * Returns raw bytes (32 bytes).
-     */
-    fun hashToField(input: ByteArray): ByteArray = uniffi.idkit_core.hashToFieldFfi(input)
-
-    /**
      * Encode a Signal to its hash representation.
      * This is the same encoding used internally when constructing proof requests.
      * Returns a 0x-prefixed hex string.
@@ -306,11 +300,6 @@ fun secureDocumentLegacy(signal: String? = null): Preset =
 fun documentLegacy(signal: String? = null): Preset =
     IdKit.documentLegacy(signal)
 
-/**
- * Hash bytes to a field element using Keccak256, shifted right 8 bits.
- * Returns raw bytes (32 bytes).
- */
-fun hashToField(input: ByteArray): ByteArray = IdKit.hashToField(input)
 
 /**
  * Encode a Signal to its hash representation.

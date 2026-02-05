@@ -65,4 +65,4 @@ export { signRequest } from "./lib/rp-signature";
 export type { RpSignature } from "./lib/rp-signature";
 
 // Hashing utilities
-export { hashSignal, hashSignalBytes, encodeSignal } from "./lib/hashing";
+export { encodeSignal } from "./lib/hashing";
