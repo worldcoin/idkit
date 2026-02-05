@@ -295,15 +295,11 @@
             action: ACTION,
             rp_context: rpContext,
             allow_legacy_proofs: true,
+            override_connect_base_url: "https://staging.world.org/verify",
           }).preset(preset);
 
           // Get the connector URL from the request
-          // const url = await request.connectorURI;
-          //TODO: add option to idkit
-          const url = request.connectorURI.replace(
-            "https://world.org/verify",
-            "worldappstg://verify",
-          );
+          const url = request.connectorURI;
           console.log("Connect URL:", url);
 
           qrDiv.hidden = false;

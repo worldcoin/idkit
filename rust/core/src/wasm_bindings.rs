@@ -471,12 +471,14 @@ enum IDKitConfigWasm {
         action_description: Option<String>,
         bridge_url: Option<String>,
         allow_legacy_proofs: bool,
+        override_connect_base_url: Option<String>,
     },
     CreateSession {
         app_id: String,
         rp_context: RpContext,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        override_connect_base_url: Option<String>,
     },
     ProveSession {
         session_id: String,
@@ -484,6 +486,7 @@ enum IDKitConfigWasm {
         rp_context: RpContext,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        override_connect_base_url: Option<String>,
     },
 }
 
@@ -514,6 +517,7 @@ impl IDKitConfigWasm {
                 action_description,
                 bridge_url,
                 allow_legacy_proofs,
+                override_connect_base_url,
             } => {
                 let app_id = crate::AppId::new(app_id)
                     .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
@@ -536,6 +540,7 @@ impl IDKitConfigWasm {
                     bridge_url,
                     allow_legacy_proofs: *allow_legacy_proofs,
                     signal_hashes: signal_hashes.clone(),
+                    override_connect_base_url: override_connect_base_url.clone(),
                 })
             }
             Self::CreateSession {
@@ -543,6 +548,7 @@ impl IDKitConfigWasm {
                 rp_context,
                 action_description,
                 bridge_url,
+                override_connect_base_url,
             } => {
                 let app_id = crate::AppId::new(app_id)
                     .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
@@ -563,6 +569,7 @@ impl IDKitConfigWasm {
                     bridge_url,
                     allow_legacy_proofs: false,
                     signal_hashes: signal_hashes.clone(),
+                    override_connect_base_url: override_connect_base_url.clone(),
                 })
             }
             Self::ProveSession {
@@ -571,6 +578,7 @@ impl IDKitConfigWasm {
                 rp_context,
                 action_description,
                 bridge_url,
+                override_connect_base_url,
             } => {
                 let app_id = crate::AppId::new(app_id)
                     .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
@@ -593,6 +601,7 @@ impl IDKitConfigWasm {
                     bridge_url,
                     allow_legacy_proofs: false,
                     signal_hashes,
+                    override_connect_base_url: override_connect_base_url.clone(),
                 })
             }
         }
@@ -628,6 +637,7 @@ impl IDKitBuilderWasm {
         action_description: Option<String>,
         bridge_url: Option<String>,
         allow_legacy_proofs: bool,
+        override_connect_base_url: Option<String>,
     ) -> Self {
         Self {
             config: IDKitConfigWasm::Request {
@@ -637,6 +647,7 @@ impl IDKitBuilderWasm {
                 action_description,
                 bridge_url,
                 allow_legacy_proofs,
+                override_connect_base_url,
             },
         }
     }
@@ -649,6 +660,7 @@ impl IDKitBuilderWasm {
         rp_context: RpContextWasm,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        override_connect_base_url: Option<String>,
     ) -> Self {
         Self {
             config: IDKitConfigWasm::CreateSession {
@@ -656,6 +668,7 @@ impl IDKitBuilderWasm {
                 rp_context: rp_context.into_inner(),
                 action_description,
                 bridge_url,
+                override_connect_base_url,
             },
         }
     }
@@ -669,6 +682,7 @@ impl IDKitBuilderWasm {
         rp_context: RpContextWasm,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        override_connect_base_url: Option<String>,
     ) -> Self {
         Self {
             config: IDKitConfigWasm::ProveSession {
@@ -677,6 +691,7 @@ impl IDKitBuilderWasm {
                 rp_context: rp_context.into_inner(),
                 action_description,
                 bridge_url,
+                override_connect_base_url,
             },
         }
     }
@@ -728,6 +743,7 @@ pub fn request(
     action_description: Option<String>,
     bridge_url: Option<String>,
     allow_legacy_proofs: bool,
+    override_connect_base_url: Option<String>,
 ) -> IDKitBuilderWasm {
     IDKitBuilderWasm::new(
         app_id,
@@ -736,6 +752,7 @@ pub fn request(
         action_description,
         bridge_url,
         allow_legacy_proofs,
+        override_connect_base_url,
     )
 }
 
@@ -747,8 +764,15 @@ pub fn create_session(
     rp_context: RpContextWasm,
     action_description: Option<String>,
     bridge_url: Option<String>,
+    override_connect_base_url: Option<String>,
 ) -> IDKitBuilderWasm {
-    IDKitBuilderWasm::for_create_session(app_id, rp_context, action_description, bridge_url)
+    IDKitBuilderWasm::for_create_session(
+        app_id,
+        rp_context,
+        action_description,
+        bridge_url,
+        override_connect_base_url,
+    )
 }
 
 /// Entry point for proving an existing session (WASM)
@@ -760,6 +784,7 @@ pub fn prove_session(
     rp_context: RpContextWasm,
     action_description: Option<String>,
     bridge_url: Option<String>,
+    override_connect_base_url: Option<String>,
 ) -> IDKitBuilderWasm {
     IDKitBuilderWasm::for_prove_session(
         session_id,
@@ -767,6 +792,7 @@ pub fn prove_session(
         rp_context,
         action_description,
         bridge_url,
+        override_connect_base_url,
     )
 }
 

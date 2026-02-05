@@ -302,6 +302,8 @@ pub struct BridgeConnectionParams {
     pub allow_legacy_proofs: bool,
     /// Signal hashes computed from constraints, keyed by identifier
     pub signal_hashes: std::collections::HashMap<String, String>,
+    /// Optional override for the connect base URL (e.g., for staging environments)
+    pub override_connect_base_url: Option<String>,
 }
 
 /// A World ID verification connection to the bridge
@@ -322,6 +324,8 @@ pub struct BridgeConnection {
     action_description: Option<String>,
     /// Nonce from the RP context
     nonce: String,
+    /// Optional override for the connect base URL
+    override_connect_base_url: Option<String>,
 }
 
 impl BridgeConnection {
@@ -462,6 +466,7 @@ impl BridgeConnection {
             action,
             action_description: params.action_description,
             nonce: params.rp_context.nonce.clone(),
+            override_connect_base_url: params.override_connect_base_url,
         })
     }
 
@@ -475,8 +480,14 @@ impl BridgeConnection {
             format!("&b={}", urlencoding::encode(self.bridge_url.as_str()))
         };
 
+        let base_url = self
+            .override_connect_base_url
+            .as_deref()
+            .unwrap_or("https://world.org/verify");
+
         format!(
-            "https://world.org/verify?t=wld&i={}&k={}{}",
+            "{}?t=wld&i={}&k={}{}",
+            base_url,
             self.request_id,
             urlencoding::encode(&key_b64),
             bridge_param
@@ -616,6 +627,8 @@ pub struct IDKitRequestConfig {
     /// - `true`: Accept both v3 and v4 proofs. Use during migration.
     /// - `false`: Only accept v4 proofs. Use after migration cutoff or for new apps.
     pub allow_legacy_proofs: bool,
+    /// Optional override for the connect base URL (e.g., for staging environments)
+    pub override_connect_base_url: Option<String>,
 }
 
 /// Configuration for session requests (no action field, v4 only)
@@ -632,6 +645,8 @@ pub struct IDKitSessionConfig {
     pub action_description: Option<String>,
     /// Optional bridge URL (defaults to production)
     pub bridge_url: Option<String>,
+    /// Optional override for the connect base URL (e.g., for staging environments)
+    pub override_connect_base_url: Option<String>,
 }
 
 /// Internal enum to store builder configuration
@@ -676,6 +691,7 @@ impl IDKitConfig {
                     bridge_url,
                     allow_legacy_proofs: config.allow_legacy_proofs,
                     signal_hashes,
+                    override_connect_base_url: config.override_connect_base_url.clone(),
                 })
             }
             Self::CreateSession(config) => {
@@ -698,6 +714,7 @@ impl IDKitConfig {
                     bridge_url,
                     allow_legacy_proofs: false,
                     signal_hashes,
+                    override_connect_base_url: config.override_connect_base_url.clone(),
                 })
             }
             Self::ProveSession { session_id, config } => {
@@ -722,6 +739,7 @@ impl IDKitConfig {
                     bridge_url,
                     allow_legacy_proofs: false,
                     signal_hashes,
+                    override_connect_base_url: config.override_connect_base_url.clone(),
                 })
             }
         }
@@ -758,6 +776,7 @@ impl IDKitConfig {
                     bridge_url,
                     allow_legacy_proofs: config.allow_legacy_proofs,
                     signal_hashes: signal_hashes.clone(),
+                    override_connect_base_url: config.override_connect_base_url.clone(),
                 })
             }
             Self::CreateSession(config) => {
@@ -779,6 +798,7 @@ impl IDKitConfig {
                     bridge_url,
                     allow_legacy_proofs: false,
                     signal_hashes: signal_hashes.clone(),
+                    override_connect_base_url: config.override_connect_base_url.clone(),
                 })
             }
             Self::ProveSession { session_id, config } => {
@@ -802,6 +822,7 @@ impl IDKitConfig {
                     bridge_url,
                     allow_legacy_proofs: false,
                     signal_hashes,
+                    override_connect_base_url: config.override_connect_base_url.clone(),
                 })
             }
         }
