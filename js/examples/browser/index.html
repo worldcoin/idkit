@@ -77,6 +77,44 @@
         cursor: pointer;
         font-size: 14px;
       }
+
+      .verify-result {
+        padding: 12px;
+        border-radius: 6px;
+        margin: 8px 0;
+      }
+
+      .verify-result.success {
+        background-color: #22c55e;
+        color: white;
+      }
+
+      .verify-result.error {
+        background-color: #ef4444;
+        color: white;
+      }
+
+      .verify-summary {
+        font-weight: bold;
+        margin-bottom: 12px;
+        padding: 8px;
+        border-radius: 4px;
+      }
+
+      .verify-summary.all-success {
+        background-color: #22c55e;
+        color: white;
+      }
+
+      .verify-summary.partial-success {
+        background-color: #f59e0b;
+        color: white;
+      }
+
+      .verify-summary.all-failed {
+        background-color: #ef4444;
+        color: white;
+      }
     </style>
   </head>
   <body>
@@ -91,8 +129,8 @@
 
     <div>
       <button id="verifyOrb">Verify with Orb</button>
-      <button id="verifyFace">Verify with Face</button>
-      <button id="verifyDevice">Verify with Device</button>
+      <button id="verifySecureDocument">Verify with Secure Document</button>
+      <button id="verifyDocument">Verify with Document</button>
     </div>
 
     <section id="qr" hidden>
@@ -138,11 +176,58 @@
 
     <script type="module">
       // Import IDKit core (pure TypeScript, no dependencies)
-      import { IDKit, orbLegacy } from "@worldcoin/idkit-core";
+      import {
+        IDKit,
+        orbLegacy,
+        secureDocumentLegacy,
+        documentLegacy,
+      } from "@worldcoin/idkit-core";
+
+      // Format V4 verify response with visual indicators
+      function formatVerifyResult(response) {
+        const results = response.results || [];
+        const successCount = results.filter((r) => r.success).length;
+        const total = results.length;
+
+        // Determine summary class
+        let summaryClass = "all-failed";
+        if (response.success && successCount === total) {
+          summaryClass = "all-success";
+        } else if (successCount > 0) {
+          summaryClass = "partial-success";
+        }
+
+        // Build summary HTML
+        let html = `<div class="verify-summary ${summaryClass}">`;
+        html += response.success
+          ? `Verification Successful - ${successCount}/${total} proofs verified`
+          : `Verification Failed - ${response.detail || response.code}`;
+        html += "</div>";
+
+        // Build individual result cards
+        for (const result of results) {
+          const cardClass = result.success ? "success" : "error";
+          html += `<div class="verify-result ${cardClass}">`;
+          html += `<strong>Credential: ${result.identifier}</strong>`;
+          if (result.success) {
+            html += `<br>Nullifier: ${result.nullifier}...`;
+          } else {
+            html += `<br>Error: ${result.code} - ${result.detail}`;
+          }
+          html += "</div>";
+        }
+
+        // Add raw JSON in collapsible details
+        html += "<details><summary>Raw JSON</summary>";
+        html += `<pre>${JSON.stringify(response, null, 2)}</pre>`;
+        html += "</details>";
+
+        return html;
+      }
 
       // Demo app configuration
-      const APP_ID = "app_staging_a2304b5df8c4d7ece0aad477ffe8aac9"; // Replace with your actual app ID
-      const RP_ID = "rp_bdb934c4ac0a3f14";
+      const APP_ID = "app_2f5740d59fafcfbd832b71461ca85296"; // Replace with your actual app ID
+      const RP_ID = "rp_dc5750f6b525b3b7";
       const ACTION = "test-action";
 
       // UI elements
@@ -183,7 +268,7 @@
       }
 
       // Function to verify with World ID using the new IDKit.request().constraints() API
-      async function startVerification(credentialType, signal) {
+      async function startVerification(preset) {
         try {
           hideAll();
 
@@ -204,16 +289,13 @@
 
           statusText.textContent = "Creating verification request...";
 
-          // Store credential requests for later use
-          const credentialRequests = [{ type: credentialType, signal }];
-
           // Create a new request using the builder pattern
           const request = await IDKit.request({
             app_id: APP_ID,
             action: ACTION,
             rp_context: rpContext,
             allow_legacy_proofs: true,
-          }).preset(orbLegacy({ signal }));
+          }).preset(preset);
 
           // Get the connector URL from the request
           // const url = await request.connectorURI;
@@ -256,11 +338,7 @@
           statusDiv.hidden = true;
           qrDiv.hidden = true;
           resultDiv.hidden = false;
-          resultData.textContent = JSON.stringify(
-            { proof, verification: verifyResult },
-            null,
-            2,
-          );
+          resultData.innerHTML = formatVerifyResult(verifyResult);
         } catch (error) {
           console.error("Verification error:", error);
           hideAll();
@@ -276,17 +354,17 @@
       document
         .getElementById("verifyOrb")
         .addEventListener("click", () =>
-          startVerification("orb", makeSignal()),
+          startVerification(orbLegacy({ signal: makeSignal() })),
         );
       document
-        .getElementById("verifyFace")
+        .getElementById("verifySecureDocument")
         .addEventListener("click", () =>
-          startVerification("face", makeSignal()),
+          startVerification(secureDocumentLegacy({ signal: makeSignal() })),
         );
       document
-        .getElementById("verifyDevice")
+        .getElementById("verifyDocument")
         .addEventListener("click", () =>
-          startVerification("device", makeSignal()),
+          startVerification(documentLegacy({ signal: makeSignal() })),
         );
     </script>
   </body>

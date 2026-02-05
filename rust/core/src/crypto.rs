@@ -172,6 +172,31 @@ pub fn base64_encode(input: &[u8]) -> String {
     STANDARD.encode(input)
 }
 
+// ============================================================================
+// FFI exports for hashing utilities (Kotlin/Swift)
+// ============================================================================
+
+/// Hashes input bytes using Keccak256, shifted right 8 bits to fit within the field prime.
+///
+/// Returns a 0x-prefixed hex string.
+#[cfg(feature = "ffi")]
+#[must_use]
+#[uniffi::export]
+pub fn hash_to_field_ffi(input: Vec<u8>) -> String {
+    let hash = hash_to_field(&input);
+    format!("{hash:#066x}")
+}
+
+/// Encodes a Signal to a signal hash (0x-prefixed hex string).
+///
+/// This is the same encoding used internally when constructing proof requests.
+#[cfg(feature = "ffi")]
+#[must_use]
+#[uniffi::export]
+pub fn encode_signal_ffi(signal: std::sync::Arc<crate::Signal>) -> String {
+    encode_signal(&signal)
+}
+
 /// Base64 decodes a string
 ///
 /// # Errors
@@ -235,11 +260,11 @@ mod tests {
         assert!(encoded.starts_with("0x"));
         assert_eq!(encoded.len(), 66); // 0x + 64 hex chars
 
-        // Test ABI-encoded signal
-        let abi_signal = Signal::from_abi_encoded(vec![0x01, 0x02, 0x03]);
-        let encoded_abi = encode_signal(&abi_signal);
-        assert!(encoded_abi.starts_with("0x"));
-        assert_eq!(encoded_abi.len(), 66);
+        // Test bytes signal
+        let bytes_signal = Signal::from_bytes(vec![0x01, 0x02, 0x03]);
+        let encoded_bytes = encode_signal(&bytes_signal);
+        assert!(encoded_bytes.starts_with("0x"));
+        assert_eq!(encoded_bytes.len(), 66);
     }
 
     #[test]

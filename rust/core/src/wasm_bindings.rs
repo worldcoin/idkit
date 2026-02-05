@@ -50,7 +50,7 @@ impl CredentialRequestWasm {
         Ok(Self(CredentialRequest::new(cred, signal_opt)))
     }
 
-    /// Creates a new request item with ABI-encoded bytes for the signal
+    /// Creates a new request item with raw bytes for the signal
     ///
     /// # Errors
     ///
@@ -60,7 +60,7 @@ impl CredentialRequestWasm {
         let cred: CredentialType = serde_wasm_bindgen::from_value(credential_type)?;
         Ok(Self(CredentialRequest::new(
             cred,
-            Some(Signal::from_abi_encoded(signal_bytes)),
+            Some(Signal::from_bytes(signal_bytes)),
         )))
     }
 
@@ -288,6 +288,38 @@ pub fn hash_signal_bytes(bytes: &[u8]) -> String {
     use crate::crypto::hash_to_field;
     let hash = hash_to_field(bytes);
     format!("{hash:#066x}")
+}
+
+/// Encodes a Signal (string or Uint8Array) to a signal hash
+///
+/// This is the same encoding used internally when constructing proof requests.
+/// Accepts either a string or Uint8Array and returns the keccak256 hash
+/// shifted right by 8 bits, formatted as a 0x-prefixed hex string.
+///
+/// # Errors
+///
+/// Returns an error if the input is neither a string nor Uint8Array
+#[wasm_bindgen(js_name = encodeSignal)]
+pub fn encode_signal_wasm(signal: JsValue) -> Result<String, JsValue> {
+    // Check if it's a string
+    if let Some(s) = signal.as_string() {
+        // Use existing 0x prefix detection for backwards compat
+        if let Some(stripped) = s.strip_prefix("0x") {
+            if let Ok(bytes) = hex::decode(stripped) {
+                return Ok(crate::crypto::encode_signal(&Signal::from_bytes(bytes)));
+            }
+        }
+        return Ok(crate::crypto::encode_signal(&Signal::from_string(s)));
+    }
+
+    // Check if it's a Uint8Array
+    if let Ok(arr) = signal.dyn_into::<js_sys::Uint8Array>() {
+        return Ok(crate::crypto::encode_signal(&Signal::from_bytes(
+            arr.to_vec(),
+        )));
+    }
+
+    Err(JsValue::from_str("Signal must be a string or Uint8Array"))
 }
 
 // RP Signature wrapper for WASM
@@ -845,7 +877,8 @@ export type CredentialType = "orb" | "face" | "secure_document" | "document" | "
 
 export interface CredentialRequestType {
     type: CredentialType;
-    signal?: string;
+    /** Signal can be a string or raw bytes (Uint8Array) */
+    signal?: string | Uint8Array;
     genesis_issued_at_min?: number;
     expires_at_min?: number;
 }
@@ -854,6 +887,25 @@ export type ConstraintNode =
     | CredentialRequestType
     | { any: ConstraintNode[] }
     | { all: ConstraintNode[] };
+
+/**
+ * Hashes a signal string using Keccak256, shifted right 8 bits.
+ * Returns a 0x-prefixed hex string.
+ */
+export function hashSignal(signal: string): string;
+
+/**
+ * Hashes raw bytes using Keccak256, shifted right 8 bits.
+ * Returns a 0x-prefixed hex string.
+ */
+export function hashSignalBytes(bytes: Uint8Array): string;
+
+/**
+ * Encodes a Signal (string or Uint8Array) to a signal hash.
+ * This is the same encoding used internally when constructing proof requests.
+ * Returns a 0x-prefixed hex string.
+ */
+export function encodeSignal(signal: string | Uint8Array): string;
 "#;
 
 // Export ResponseItem/IDKitResult types for unified response
