@@ -225,6 +225,28 @@ public func documentLegacy(signal: String? = nil) -> Preset {
     .documentLegacy(signal: signal)
 }
 
+// MARK: - Hashing Utilities
+
+public extension IDKit {
+    /// Hashes bytes to a field element using Keccak256, shifted right 8 bits.
+    /// Returns raw bytes (32 bytes).
+    ///
+    /// - Parameter input: The bytes to hash
+    /// - Returns: Data (32 bytes) representing the field element
+    static func hashToField(_ input: Data) -> Data {
+        Data(hashToFieldFfi(input: Array(input)))
+    }
+
+    /// Encodes a Signal to its hash representation.
+    /// This is the same encoding used internally when constructing proof requests.
+    ///
+    /// - Parameter signal: The signal to encode
+    /// - Returns: A 0x-prefixed hex string
+    static func encodeSignal(_ signal: Signal) -> String {
+        encodeSignalFfi(signal: signal)
+    }
+}
+
 // MARK: - Signal convenience extensions
 
 public extension Signal {

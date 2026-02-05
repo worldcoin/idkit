@@ -178,13 +178,12 @@ pub fn base64_encode(input: &[u8]) -> String {
 
 /// Hashes input bytes using Keccak256, shifted right 8 bits to fit within the field prime.
 ///
-/// Returns a 0x-prefixed hex string.
+/// Returns raw bytes (32 bytes).
 #[cfg(feature = "ffi")]
 #[must_use]
 #[uniffi::export]
-pub fn hash_to_field_ffi(input: Vec<u8>) -> String {
-    let hash = hash_to_field(&input);
-    format!("{hash:#066x}")
+pub fn hash_to_field_ffi(input: Vec<u8>) -> Vec<u8> {
+    hash_to_field(&input).to_be_bytes_vec()
 }
 
 /// Encodes a Signal to a signal hash (0x-prefixed hex string).
@@ -273,5 +272,16 @@ mod tests {
         let encoded = base64_encode(input);
         let decoded = base64_decode(&encoded).unwrap();
         assert_eq!(decoded.as_slice(), input);
+    }
+
+    // Known value that was used in previous idkit versions to verify consistency of the hash_to_field implementation
+    #[test]
+    fn test_hash_to_field_empty_string() {
+        let hash = hash_to_field(b"");
+        let hex = format!("{hash:#066x}");
+        assert_eq!(
+            hex,
+            "0x00c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4"
+        );
     }
 }

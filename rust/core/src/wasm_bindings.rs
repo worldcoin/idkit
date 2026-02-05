@@ -272,22 +272,20 @@ impl RpContextWasm {
     }
 }
 
-/// Hashes a signal string using Keccak256
+/// Hashes a signal string using Keccak256, shifted right 8 bits.
+/// Returns raw bytes (32 bytes) as Uint8Array.
 #[must_use]
 #[wasm_bindgen(js_name = hashSignal)]
-pub fn hash_signal(signal: &str) -> String {
-    use crate::crypto::hash_to_field;
-    let hash = hash_to_field(signal.as_bytes());
-    format!("{hash:#066x}")
+pub fn hash_signal(signal: &str) -> Vec<u8> {
+    crate::crypto::hash_to_field(signal.as_bytes()).to_be_bytes_vec()
 }
 
-/// Hashes raw bytes using Keccak256
+/// Hashes raw bytes using Keccak256, shifted right 8 bits.
+/// Returns raw bytes (32 bytes) as Uint8Array.
 #[must_use]
 #[wasm_bindgen(js_name = hashSignalBytes)]
-pub fn hash_signal_bytes(bytes: &[u8]) -> String {
-    use crate::crypto::hash_to_field;
-    let hash = hash_to_field(bytes);
-    format!("{hash:#066x}")
+pub fn hash_signal_bytes(bytes: &[u8]) -> Vec<u8> {
+    crate::crypto::hash_to_field(bytes).to_be_bytes_vec()
 }
 
 /// Encodes a Signal (string or Uint8Array) to a signal hash
@@ -890,15 +888,15 @@ export type ConstraintNode =
 
 /**
  * Hashes a signal string using Keccak256, shifted right 8 bits.
- * Returns a 0x-prefixed hex string.
+ * Returns raw bytes (32 bytes).
  */
-export function hashSignal(signal: string): string;
+export function hashSignal(signal: string): Uint8Array;
 
 /**
  * Hashes raw bytes using Keccak256, shifted right 8 bits.
- * Returns a 0x-prefixed hex string.
+ * Returns raw bytes (32 bytes).
  */
-export function hashSignalBytes(bytes: Uint8Array): string;
+export function hashSignalBytes(bytes: Uint8Array): Uint8Array;
 
 /**
  * Encodes a Signal (string or Uint8Array) to a signal hash.
