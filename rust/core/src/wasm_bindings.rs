@@ -272,7 +272,7 @@ impl RpContextWasm {
     }
 }
 
-/// Encodes a Signal (string or `Uint8Array`) to a signal hash
+/// Hashes a Signal (string or `Uint8Array`) to a signal hash
 ///
 /// This is the same encoding used internally when constructing proof requests.
 /// Accepts either a string or `Uint8Array` and returns the keccak256 hash
@@ -281,22 +281,22 @@ impl RpContextWasm {
 /// # Errors
 ///
 /// Returns an error if the input is neither a string nor `Uint8Array`
-#[wasm_bindgen(js_name = encodeSignal)]
-pub fn encode_signal_wasm(signal: JsValue) -> Result<String, JsValue> {
+#[wasm_bindgen(js_name = hashSignal)]
+pub fn hash_signal_wasm(signal: JsValue) -> Result<String, JsValue> {
     // Check if it's a string
     if let Some(s) = signal.as_string() {
         // Use existing 0x prefix detection for backwards compat
         if let Some(stripped) = s.strip_prefix("0x") {
             if let Ok(bytes) = hex::decode(stripped) {
-                return Ok(crate::crypto::encode_signal(&Signal::from_bytes(bytes)));
+                return Ok(crate::crypto::hash_signal(&Signal::from_bytes(bytes)));
             }
         }
-        return Ok(crate::crypto::encode_signal(&Signal::from_string(s)));
+        return Ok(crate::crypto::hash_signal(&Signal::from_string(s)));
     }
 
     // Check if it's a Uint8Array
     if let Ok(arr) = signal.dyn_into::<js_sys::Uint8Array>() {
-        return Ok(crate::crypto::encode_signal(&Signal::from_bytes(
+        return Ok(crate::crypto::hash_signal(&Signal::from_bytes(
             arr.to_vec(),
         )));
     }
@@ -481,7 +481,7 @@ fn compute_signal_hashes(
     let mut map = std::collections::HashMap::new();
     for item in constraints.collect_items() {
         if let Some(ref signal) = item.signal {
-            let hash = crate::crypto::encode_signal(signal);
+            let hash = crate::crypto::hash_signal(signal);
             map.insert(item.credential_type.as_str().to_string(), hash);
         }
     }
@@ -899,11 +899,11 @@ export type ConstraintNode =
     | { all: ConstraintNode[] };
 
 /**
- * Encodes a Signal (string or Uint8Array) to a signal hash.
+ * Hashes a Signal (string or Uint8Array) to a signal hash.
  * This is the same encoding used internally when constructing proof requests.
  * Returns a 0x-prefixed hex string.
  */
-export function encodeSignal(signal: string | Uint8Array): string;
+export function hashSignal(signal: string | Uint8Array): string;
 "#;
 
 // Export ResponseItem/IDKitResult types for unified response

@@ -228,13 +228,13 @@ public func documentLegacy(signal: String? = nil) -> Preset {
 // MARK: - Hashing Utilities
 
 public extension IDKit {
-    /// Encodes a Signal to its hash representation.
-    /// This is the same encoding used internally when constructing proof requests.
+    /// Hashes a Signal to its hash representation.
+    /// This is the same hashing used internally when constructing proof requests.
     ///
-    /// - Parameter signal: The signal to encode
+    /// - Parameter signal: The signal to hash
     /// - Returns: A 0x-prefixed hex string
-    static func encodeSignal(_ signal: Signal) -> String {
-        encodeSignalFfi(signal: signal)
+    static func hashSignal(_ signal: Signal) -> String {
+        hashSignalFfi(signal: signal)
     }
 }
 

@@ -275,8 +275,8 @@ impl CredentialRequest {
             crate::Error::InvalidConfiguration(format!("Unknown credential type: {identifier}"))
         })?;
 
-        // Encode signal if present
-        let signal = self.signal.as_ref().map(crate::crypto::encode_signal);
+        // Hash signal if present
+        let signal = self.signal.as_ref().map(crate::crypto::hash_signal);
 
         Ok(crate::protocol_types::CredentialRequest::new(
             identifier,

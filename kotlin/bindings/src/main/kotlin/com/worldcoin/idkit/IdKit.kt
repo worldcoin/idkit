@@ -224,11 +224,11 @@ object IdKit {
         Preset.DocumentLegacy(signal = signal)
 
     /**
-     * Encode a Signal to its hash representation.
-     * This is the same encoding used internally when constructing proof requests.
+     * Hash a Signal to its hash representation.
+     * This is the same hashing used internally when constructing proof requests.
      * Returns a 0x-prefixed hex string.
      */
-    fun encodeSignal(signal: Signal): String = uniffi.idkit_core.encodeSignalFfi(signal)
+    fun hashSignal(signal: Signal): String = uniffi.idkit_core.hashSignalFfi(signal)
 }
 
 // Top-level convenience functions for more idiomatic Kotlin usage
@@ -302,11 +302,11 @@ fun documentLegacy(signal: String? = null): Preset =
 
 
 /**
- * Encode a Signal to its hash representation.
- * This is the same encoding used internally when constructing proof requests.
+ * Hash a Signal to its hash representation.
+ * This is the same hashing used internally when constructing proof requests.
  * Returns a 0x-prefixed hex string.
  */
-fun encodeSignal(signal: Signal): String = IdKit.encodeSignal(signal)
+fun hashSignal(signal: Signal): String = IdKit.hashSignal(signal)
 
 // Usage example - Explicit constraints:
 //

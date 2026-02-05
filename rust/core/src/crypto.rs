@@ -147,20 +147,20 @@ pub fn hash_to_field(input: &[u8]) -> U256 {
     n >> 8
 }
 
-/// Encodes a signal using ABI encoding
+/// Hashes a signal using ABI encoding
 ///
 /// Takes any type that implements `alloy_sol_types::SolValue` and returns the keccak256 hash
 #[must_use]
-pub fn encode_signal_abi<V: alloy_sol_types::SolValue>(signal: &V) -> U256 {
+pub fn hash_signal_abi<V: alloy_sol_types::SolValue>(signal: &V) -> U256 {
     hash_to_field(&signal.abi_encode_packed())
 }
 
-/// Encodes a signal using keccak256 hash
+/// Hashes a signal using keccak256 hash
 ///
 /// Takes a `Signal` (either string or bytes) and returns the keccak256 hash,
 /// shifted right by 8 bits, formatted as a hex string with 0x prefix
 #[must_use]
-pub fn encode_signal(signal: &crate::Signal) -> String {
+pub fn hash_signal(signal: &crate::Signal) -> String {
     let hash = hash_to_field(signal.as_bytes());
     format!("{hash:#066x}")
 }
@@ -187,15 +187,15 @@ pub fn hash_to_field_ffi(input: Vec<u8>) -> Vec<u8> {
     hash_to_field(&input).to_be_bytes_vec()
 }
 
-/// Encodes a Signal to a signal hash (0x-prefixed hex string).
+/// Hashes a Signal to a signal hash (0x-prefixed hex string).
 ///
 /// This is the same encoding used internally when constructing proof requests.
 #[cfg(feature = "ffi")]
 #[must_use]
 #[uniffi::export]
 #[allow(clippy::needless_pass_by_value)] // uniffi requires Arc for objects
-pub fn encode_signal_ffi(signal: std::sync::Arc<crate::Signal>) -> String {
-    encode_signal(&signal)
+pub fn hash_signal_ffi(signal: std::sync::Arc<crate::Signal>) -> String {
+    hash_signal(&signal)
 }
 
 /// Base64 decodes a string
@@ -252,20 +252,20 @@ mod tests {
     }
 
     #[test]
-    fn test_encode_signal() {
+    fn test_hash_signal() {
         use crate::Signal;
 
         // Test string signal
         let signal = Signal::from_string("test_signal");
-        let encoded = encode_signal(&signal);
-        assert!(encoded.starts_with("0x"));
-        assert_eq!(encoded.len(), 66); // 0x + 64 hex chars
+        let hashed = hash_signal(&signal);
+        assert!(hashed.starts_with("0x"));
+        assert_eq!(hashed.len(), 66); // 0x + 64 hex chars
 
         // Test bytes signal
         let bytes_signal = Signal::from_bytes(vec![0x01, 0x02, 0x03]);
-        let encoded_bytes = encode_signal(&bytes_signal);
-        assert!(encoded_bytes.starts_with("0x"));
-        assert_eq!(encoded_bytes.len(), 66);
+        let hashed_bytes = hash_signal(&bytes_signal);
+        assert!(hashed_bytes.starts_with("0x"));
+        assert_eq!(hashed_bytes.len(), 66);
     }
 
     #[test]

@@ -282,7 +282,7 @@ fn compute_signal_hashes(
     let mut map = std::collections::HashMap::new();
     for item in constraints.collect_items() {
         if let Some(ref signal) = item.signal {
-            let hash = crate::crypto::encode_signal(signal);
+            let hash = crate::crypto::hash_signal(signal);
             map.insert(item.credential_type.as_str().to_string(), hash);
         }
     }
@@ -390,9 +390,9 @@ impl BridgeConnection {
             params.allow_legacy_proofs,
         );
 
-        // For backwards compatibility we encode the hash of the signal
+        // For backwards compatibility we hash the signal
         let legacy_signal_hash =
-            crate::crypto::encode_signal(&Signal::from_string(params.legacy_signal));
+            crate::crypto::hash_signal(&Signal::from_string(params.legacy_signal));
 
         // Clone action_description for payload (we also need it for BridgeConnection)
         let action_description_for_payload = params.action_description.clone();
