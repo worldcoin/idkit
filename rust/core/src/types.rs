@@ -419,7 +419,7 @@ pub struct BridgeResponseV1 {
 /// A single credential response item for uniqueness proofs
 ///
 /// V4 is detected by presence of `issuer_schema_id`.
-/// V3 is detected by presence of `nullifier_hash`.
+/// V3 is detected by presence of `nullifier` (without `issuer_schema_id`).
 /// Session is detected by presence of `session_nullifier`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
@@ -429,6 +429,9 @@ pub enum ResponseItem {
     V4 {
         /// Credential identifier (e.g., "orb", "face", "document")
         identifier: String,
+        /// Signal hash (optional, included if signal was provided in request)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signal_hash: Option<String>,
         /// Credential issuer schema ID
         issuer_schema_id: u64,
         /// Encoded World ID Proof
@@ -447,6 +450,9 @@ pub enum ResponseItem {
     Session {
         /// Credential identifier (e.g., "orb", "face", "document")
         identifier: String,
+        /// Signal hash (optional, included if signal was provided in request)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signal_hash: Option<String>,
         /// Credential issuer schema ID
         issuer_schema_id: u64,
         /// Encoded World ID Proof
@@ -468,12 +474,15 @@ pub enum ResponseItem {
     V3 {
         /// Credential identifier (e.g., "orb", "face")
         identifier: String,
+        /// Signal hash (optional, included if signal was provided in request)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signal_hash: Option<String>,
         /// ABI-encoded proof (hex string)
         proof: String,
         /// Merkle root (hex string)
         merkle_root: String,
-        /// Nullifier hash (hex string)
-        nullifier_hash: String,
+        /// Nullifier (hex string)
+        nullifier: String,
     },
 }
 
@@ -486,6 +495,17 @@ pub struct IDKitResult {
     /// Protocol version ("4.0" or "3.0") - applies to all responses
     pub protocol_version: String,
 
+    /// Nonce used in the request (always present)
+    pub nonce: String,
+
+    /// Action identifier (only for uniqueness proofs)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
+
+    /// Action description (only if provided in input)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action_description: Option<String>,
+
     /// Session ID (only present for session proofs)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
@@ -497,9 +517,18 @@ pub struct IDKitResult {
 impl IDKitResult {
     /// Creates a new `IDKitResult` with protocol version and responses (no session)
     #[must_use]
-    pub fn new(protocol_version: impl Into<String>, responses: Vec<ResponseItem>) -> Self {
+    pub fn new(
+        protocol_version: impl Into<String>,
+        nonce: impl Into<String>,
+        action: Option<String>,
+        action_description: Option<String>,
+        responses: Vec<ResponseItem>,
+    ) -> Self {
         Self {
             protocol_version: protocol_version.into(),
+            nonce: nonce.into(),
+            action,
+            action_description,
             session_id: None,
             responses,
         }
@@ -507,9 +536,17 @@ impl IDKitResult {
 
     /// Creates a new `IDKitResult` for a session proof with session ID and responses
     #[must_use]
-    pub fn new_session(session_id: String, responses: Vec<ResponseItem>) -> Self {
+    pub fn new_session(
+        nonce: impl Into<String>,
+        session_id: String,
+        action_description: Option<String>,
+        responses: Vec<ResponseItem>,
+    ) -> Self {
         Self {
             protocol_version: "4.0".to_string(),
+            nonce: nonce.into(),
+            action: None,
+            action_description,
             session_id: Some(session_id),
             responses,
         }
@@ -1063,13 +1100,21 @@ mod tests {
     fn test_idkit_result_v3() {
         let responses = vec![ResponseItem::V3 {
             identifier: "face".to_string(),
+            signal_hash: None,
             proof: "0xproof".to_string(),
             merkle_root: "0xroot".to_string(),
-            nullifier_hash: "0xnullifier".to_string(),
+            nullifier: "0xnullifier".to_string(),
         }];
 
-        let result = IDKitResult::new("3.0", responses);
+        let result = IDKitResult::new(
+            "3.0",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            None,
+            None,
+            responses,
+        );
         assert_eq!(result.protocol_version, "3.0");
+        assert_eq!(result.nonce, "0x0000000000000000000000000000000000000000000000000000000000000001");
         assert_eq!(result.responses.len(), 1);
     }
 

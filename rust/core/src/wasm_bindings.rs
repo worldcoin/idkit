@@ -457,11 +457,25 @@ enum IDKitConfigWasm {
     },
 }
 
+/// Computes signal hashes from constraints
+fn compute_signal_hashes(constraints: &ConstraintNode) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    for item in constraints.collect_items() {
+        if let Some(ref signal) = item.signal {
+            let hash = crate::crypto::encode_signal(signal);
+            map.insert(item.credential_type.as_str().to_string(), hash);
+        }
+    }
+    map
+}
+
 impl IDKitConfigWasm {
     fn to_params(
         &self,
         constraints: ConstraintNode,
     ) -> Result<crate::bridge::BridgeConnectionParams, JsValue> {
+        let signal_hashes = compute_signal_hashes(&constraints);
+
         match self {
             Self::Request {
                 app_id,
@@ -491,6 +505,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: *allow_legacy_proofs,
+                    signal_hashes: signal_hashes.clone(),
                 })
             }
             Self::CreateSession {
@@ -517,6 +532,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    signal_hashes: signal_hashes.clone(),
                 })
             }
             Self::ProveSession {
@@ -546,6 +562,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    signal_hashes,
                 })
             }
         }
@@ -846,6 +863,8 @@ const TS_IDKIT_RESULT: &str = r#"
 export interface ResponseItemV4 {
     /** Credential identifier (e.g., "orb", "face", "document") */
     identifier: string;
+    /** Signal hash (optional, included if signal was provided in request) */
+    signal_hash?: string;
     /** Encoded World ID proof: first 4 elements are compressed Groth16 proof, 5th is Merkle root (hex strings). Compatible with WorldIDVerifier.sol */
     proof: string[];
     /** RP-scoped nullifier (hex) */
@@ -860,18 +879,22 @@ export interface ResponseItemV4 {
 export interface ResponseItemV3 {
     /** Credential identifier (e.g., "orb", "face") */
     identifier: string;
+    /** Signal hash (optional, included if signal was provided in request) */
+    signal_hash?: string;
     /** ABI-encoded proof (hex) */
     proof: string;
     /** Merkle root (hex) */
     merkle_root: string;
-    /** Nullifier hash (hex) */
-    nullifier_hash: string;
+    /** Nullifier (hex) */
+    nullifier: string;
 }
 
 /** Session response item for World ID v4 session proofs */
 export interface ResponseItemSession {
     /** Credential identifier (e.g., "orb", "face", "document") */
     identifier: string;
+    /** Signal hash (optional, included if signal was provided in request) */
+    signal_hash?: string;
     /** Encoded World ID proof: first 4 elements are compressed Groth16 proof, 5th is Merkle root (hex strings). Compatible with WorldIDVerifier.sol */
     proof: string[];
     /** Session nullifier: 1st element is the session nullifier, 2nd is the generated action (hex strings) */
@@ -886,6 +909,12 @@ export interface ResponseItemSession {
 export interface IDKitResultV3 {
     /** Protocol version 3.0 */
     protocol_version: "3.0";
+    /** Nonce used in the request */
+    nonce: string;
+    /** Action identifier (only for uniqueness proofs) */
+    action?: string;
+    /** Action description (only if provided in input) */
+    action_description?: string;
     /** Array of V3 credential responses */
     responses: ResponseItemV3[];
 }
@@ -894,6 +923,12 @@ export interface IDKitResultV3 {
 export interface IDKitResultV4 {
     /** Protocol version 4.0 */
     protocol_version: "4.0";
+    /** Nonce used in the request */
+    nonce: string;
+    /** Action identifier (required for uniqueness proofs) */
+    action: string;
+    /** Action description (only if provided in input) */
+    action_description?: string;
     /** Array of V4 credential responses */
     responses: ResponseItemV4[];
 }
@@ -902,6 +937,10 @@ export interface IDKitResultV4 {
 export interface IDKitResultSession {
     /** Protocol version 4.0 */
     protocol_version: "4.0";
+    /** Nonce used in the request */
+    nonce: string;
+    /** Action description (only if provided in input) */
+    action_description?: string;
     /** Session ID returned by the World App */
     session_id: string;
     /** Array of session credential responses */
