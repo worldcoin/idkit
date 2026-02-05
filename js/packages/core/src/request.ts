@@ -274,73 +274,8 @@ export function documentLegacy(
 class IDKitBuilder {
   private wasmBuilder: WasmModule.IDKitBuilder;
 
-  private constructor(wasmBuilder: WasmModule.IDKitBuilder) {
+  constructor(wasmBuilder: WasmModule.IDKitBuilder) {
     this.wasmBuilder = wasmBuilder;
-  }
-
-  /** Create builder for request (internal) */
-  static async forRequest(config: IDKitRequestConfig): Promise<IDKitBuilder> {
-    await initIDKit();
-    const rpContext = new WasmModule.RpContextWasm(
-      config.rp_context.rp_id,
-      config.rp_context.nonce,
-      BigInt(config.rp_context.created_at),
-      BigInt(config.rp_context.expires_at),
-      config.rp_context.signature,
-    );
-    const wasmBuilder = WasmModule.request(
-      config.app_id,
-      String(config.action),
-      rpContext,
-      config.action_description ?? null,
-      config.bridge_url ?? null,
-      config.allow_legacy_proofs,
-    );
-    return new IDKitBuilder(wasmBuilder);
-  }
-
-  /** Create builder for new session (internal) */
-  static async forCreateSession(
-    config: IDKitSessionConfig,
-  ): Promise<IDKitBuilder> {
-    await initIDKit();
-    const rpContext = new WasmModule.RpContextWasm(
-      config.rp_context.rp_id,
-      config.rp_context.nonce,
-      BigInt(config.rp_context.created_at),
-      BigInt(config.rp_context.expires_at),
-      config.rp_context.signature,
-    );
-    const wasmBuilder = WasmModule.createSession(
-      config.app_id,
-      rpContext,
-      config.action_description ?? null,
-      config.bridge_url ?? null,
-    );
-    return new IDKitBuilder(wasmBuilder);
-  }
-
-  /** Create builder for proving session (internal) */
-  static async forProveSession(
-    sessionId: string,
-    config: IDKitSessionConfig,
-  ): Promise<IDKitBuilder> {
-    await initIDKit();
-    const rpContext = new WasmModule.RpContextWasm(
-      config.rp_context.rp_id,
-      config.rp_context.nonce,
-      BigInt(config.rp_context.created_at),
-      BigInt(config.rp_context.expires_at),
-      config.rp_context.signature,
-    );
-    const wasmBuilder = WasmModule.proveSession(
-      sessionId,
-      config.app_id,
-      rpContext,
-      config.action_description ?? null,
-      config.bridge_url ?? null,
-    );
-    return new IDKitBuilder(wasmBuilder);
   }
 
   /**
@@ -356,6 +291,8 @@ class IDKitBuilder {
    * ```
    */
   async constraints(constraints: ConstraintNode): Promise<IDKitRequest> {
+    await initIDKit();
+
     const wasmRequest = (await this.wasmBuilder.constraints(
       constraints,
     )) as unknown as WasmModule.IDKitRequest;
@@ -378,6 +315,8 @@ class IDKitBuilder {
    * ```
    */
   async preset(preset: Preset): Promise<IDKitRequest> {
+    await initIDKit();
+
     const wasmRequest = (await this.wasmBuilder.preset(
       preset,
     )) as unknown as WasmModule.IDKitRequest;
@@ -391,10 +330,8 @@ class IDKitBuilder {
  * This is the main entry point for creating World ID verification requests.
  * Use the builder pattern with constraints to specify which credentials to accept.
  *
- * Note: This function is now async and returns a Promise<IDKitBuilder>.
- *
  * @param config - Request configuration
- * @returns Promise<IDKitBuilder> - A builder instance
+ * @returns IDKitBuilder - A builder instance
  *
  * @example
  * ```typescript
@@ -408,7 +345,7 @@ class IDKitBuilder {
  * const face = CredentialRequest('face')
  *
  * // Create a verification request with constraints
- * const builder = await IDKit.request({
+ * const request = await IDKit.request({
  *   app_id: 'app_staging_xxxxx',
  *   action: 'my-action',
  *   rp_context: {
@@ -419,8 +356,7 @@ class IDKitBuilder {
  *     signature: 'ecdsa-signature-from-backend',
  *   },
  *   allow_legacy_proofs: false,
- * });
- * const request = await builder.constraints(any(orb, face));
+ * }).constraints(any(orb, face));
  *
  * // Display QR code
  * console.log('Scan this:', request.connectorURI)
@@ -430,9 +366,7 @@ class IDKitBuilder {
  * console.log('Success:', proof)
  * ```
  */
-async function createRequest(
-  config: IDKitRequestConfig,
-): Promise<IDKitBuilder> {
+function createRequest(config: IDKitRequestConfig): IDKitBuilder {
   // Validate required fields
   if (!config.app_id) {
     throw new Error("app_id is required");
@@ -450,7 +384,22 @@ async function createRequest(
     );
   }
 
-  return IDKitBuilder.forRequest(config);
+  const rpContext = new WasmModule.RpContextWasm(
+    config.rp_context.rp_id,
+    config.rp_context.nonce,
+    BigInt(config.rp_context.created_at),
+    BigInt(config.rp_context.expires_at),
+    config.rp_context.signature,
+  );
+  const wasmBuilder = WasmModule.request(
+    config.app_id,
+    String(config.action),
+    rpContext,
+    config.action_description ?? null,
+    config.bridge_url ?? null,
+    config.allow_legacy_proofs,
+  );
+  return new IDKitBuilder(wasmBuilder);
 }
 
 /**
@@ -460,21 +409,18 @@ async function createRequest(
  * The response will include a `session_id` that should be saved for future
  * session proofs with `proveSession()`.
  *
- * Note: This function is now async and returns a Promise<IDKitBuilder>.
- *
  * @param config - Session configuration (no action field)
- * @returns Promise<IDKitBuilder> - A builder instance
+ * @returns IDKitBuilder - A builder instance
  *
  * @example
  * ```typescript
  * import { IDKit, CredentialRequest, any } from '@worldcoin/idkit-core'
  *
  * // Create a new session (user doesn't have session_id yet)
- * const builder = await IDKit.createSession({
+ * const request = await IDKit.createSession({
  *   app_id: 'app_staging_xxxxx',
  *   rp_context: { ... },
- * });
- * const request = await builder.constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
+ * }).constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
  *
  * // Display QR, wait for proof
  * const result = await request.pollForUpdates();
@@ -482,9 +428,7 @@ async function createRequest(
  * // result.responses[0].session_nullifier -> for session tracking
  * ```
  */
-async function createSession(
-  config: IDKitSessionConfig,
-): Promise<IDKitBuilder> {
+function createSession(config: IDKitSessionConfig): IDKitBuilder {
   // Validate required fields
   if (!config.app_id) {
     throw new Error("app_id is required");
@@ -492,9 +436,22 @@ async function createSession(
   if (!config.rp_context) {
     throw new Error("rp_context is required");
   }
-  // Sessions are always v4 - no legacy proof validation needed
 
-  return IDKitBuilder.forCreateSession(config);
+  const rpContext = new WasmModule.RpContextWasm(
+    config.rp_context.rp_id,
+    config.rp_context.nonce,
+    BigInt(config.rp_context.created_at),
+    BigInt(config.rp_context.expires_at),
+    config.rp_context.signature,
+  );
+  const wasmBuilder = WasmModule.createSession(
+    config.app_id,
+    rpContext,
+    config.action_description ?? null,
+    config.bridge_url ?? null,
+  );
+
+  return new IDKitBuilder(wasmBuilder);
 }
 
 /**
@@ -503,32 +460,29 @@ async function createSession(
  * Use this when a returning user needs to prove they own an existing session.
  * The `sessionId` should be a value previously returned from `createSession()`.
  *
- * Note: This function is now async and returns a Promise<IDKitBuilder>.
- *
  * @param sessionId - The session ID from a previous session creation
  * @param config - Session configuration (no action field)
- * @returns Promise<IDKitBuilder> - A builder instance
+ * @returns IDKitBuilder - A builder instance
  *
  * @example
  * ```typescript
  * import { IDKit, CredentialRequest, any } from '@worldcoin/idkit-core'
  *
  * // Prove an existing session (user returns)
- * const builder = await IDKit.proveSession(savedSessionId, {
+ * const request = await IDKit.proveSession(savedSessionId, {
  *   app_id: 'app_staging_xxxxx',
  *   rp_context: { ... },
- * });
- * const request = await builder.constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
+ * }).constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
  *
  * const result = await request.pollForUpdates();
  * // result.session_id -> same session
  * // result.responses[0].session_nullifier -> should match for same user
  * ```
  */
-async function proveSession(
+function proveSession(
   sessionId: string,
   config: IDKitSessionConfig,
-): Promise<IDKitBuilder> {
+): IDKitBuilder {
   // Validate required fields
   if (!sessionId) {
     throw new Error("session_id is required");
@@ -539,9 +493,22 @@ async function proveSession(
   if (!config.rp_context) {
     throw new Error("rp_context is required");
   }
-  // Sessions are always v4 - no legacy proof validation needed
 
-  return IDKitBuilder.forProveSession(sessionId, config);
+  const rpContext = new WasmModule.RpContextWasm(
+    config.rp_context.rp_id,
+    config.rp_context.nonce,
+    BigInt(config.rp_context.created_at),
+    BigInt(config.rp_context.expires_at),
+    config.rp_context.signature,
+  );
+  const wasmBuilder = WasmModule.proveSession(
+    sessionId,
+    config.app_id,
+    rpContext,
+    config.action_description ?? null,
+    config.bridge_url ?? null,
+  );
+  return new IDKitBuilder(wasmBuilder);
 }
 
 /**
