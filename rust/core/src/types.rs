@@ -1112,7 +1112,10 @@ mod tests {
             responses,
         );
         assert_eq!(result.protocol_version, "3.0");
-        assert_eq!(result.nonce, "0x0000000000000000000000000000000000000000000000000000000000000001");
+        assert_eq!(
+            result.nonce,
+            "0x0000000000000000000000000000000000000000000000000000000000000001"
+        );
         assert_eq!(result.responses.len(), 1);
     }
 

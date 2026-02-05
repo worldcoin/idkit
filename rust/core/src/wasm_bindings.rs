@@ -273,7 +273,7 @@ impl RpContextWasm {
 }
 
 /// Hashes a signal string using Keccak256, shifted right 8 bits.
-/// Returns raw bytes (32 bytes) as Uint8Array.
+/// Returns raw bytes (32 bytes) as `Uint8Array`.
 #[must_use]
 #[wasm_bindgen(js_name = hashSignal)]
 pub fn hash_signal(signal: &str) -> Vec<u8> {
@@ -281,22 +281,22 @@ pub fn hash_signal(signal: &str) -> Vec<u8> {
 }
 
 /// Hashes raw bytes using Keccak256, shifted right 8 bits.
-/// Returns raw bytes (32 bytes) as Uint8Array.
+/// Returns raw bytes (32 bytes) as `Uint8Array`.
 #[must_use]
 #[wasm_bindgen(js_name = hashSignalBytes)]
 pub fn hash_signal_bytes(bytes: &[u8]) -> Vec<u8> {
     crate::crypto::hash_to_field(bytes).to_be_bytes_vec()
 }
 
-/// Encodes a Signal (string or Uint8Array) to a signal hash
+/// Encodes a Signal (string or `Uint8Array`) to a signal hash
 ///
 /// This is the same encoding used internally when constructing proof requests.
-/// Accepts either a string or Uint8Array and returns the keccak256 hash
+/// Accepts either a string or `Uint8Array` and returns the keccak256 hash
 /// shifted right by 8 bits, formatted as a 0x-prefixed hex string.
 ///
 /// # Errors
 ///
-/// Returns an error if the input is neither a string nor Uint8Array
+/// Returns an error if the input is neither a string nor `Uint8Array`
 #[wasm_bindgen(js_name = encodeSignal)]
 pub fn encode_signal_wasm(signal: JsValue) -> Result<String, JsValue> {
     // Check if it's a string
@@ -491,7 +491,9 @@ enum IDKitConfigWasm {
 }
 
 /// Computes signal hashes from constraints
-fn compute_signal_hashes(constraints: &ConstraintNode) -> std::collections::HashMap<String, String> {
+fn compute_signal_hashes(
+    constraints: &ConstraintNode,
+) -> std::collections::HashMap<String, String> {
     let mut map = std::collections::HashMap::new();
     for item in constraints.collect_items() {
         if let Some(ref signal) = item.signal {
@@ -539,7 +541,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: *allow_legacy_proofs,
-                    signal_hashes: signal_hashes.clone(),
+                    signal_hashes,
                     override_connect_base_url: override_connect_base_url.clone(),
                 })
             }
@@ -568,7 +570,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    signal_hashes: signal_hashes.clone(),
+                    signal_hashes,
                     override_connect_base_url: override_connect_base_url.clone(),
                 })
             }

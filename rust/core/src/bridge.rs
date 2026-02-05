@@ -559,22 +559,24 @@ impl BridgeConnection {
                             .collect();
 
                         // For session proofs, use new_session constructor
-                        Ok(Status::Confirmed(if response.session_id.is_some() {
-                            IDKitResult::new_session(
-                                self.nonce.clone(),
-                                response.session_id.unwrap().to_string(),
-                                self.action_description.clone(),
-                                responses,
-                            )
-                        } else {
-                            IDKitResult::new(
-                                protocol_version,
-                                self.nonce.clone(),
-                                self.action.clone(),
-                                self.action_description.clone(),
-                                responses,
-                            )
-                        }))
+                        Ok(Status::Confirmed(
+                            if let Some(session_id) = response.session_id {
+                                IDKitResult::new_session(
+                                    self.nonce.clone(),
+                                    session_id.to_string(),
+                                    self.action_description.clone(),
+                                    responses,
+                                )
+                            } else {
+                                IDKitResult::new(
+                                    protocol_version,
+                                    self.nonce.clone(),
+                                    self.action.clone(),
+                                    self.action_description.clone(),
+                                    responses,
+                                )
+                            },
+                        ))
                     }
                     BridgeResponse::ResponseV1(response) => {
                         // V1 responses are always protocol 3.0
@@ -772,10 +774,10 @@ impl IDKitConfig {
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
                     legacy_verification_level,
-                    legacy_signal: legacy_signal.clone().unwrap_or_default(),
+                    legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: config.allow_legacy_proofs,
-                    signal_hashes: signal_hashes.clone(),
+                    signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                 })
             }
@@ -794,10 +796,10 @@ impl IDKitConfig {
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
                     legacy_verification_level,
-                    legacy_signal: legacy_signal.clone().unwrap_or_default(),
+                    legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    signal_hashes: signal_hashes.clone(),
+                    signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                 })
             }

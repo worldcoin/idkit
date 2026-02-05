@@ -182,6 +182,7 @@ pub fn base64_encode(input: &[u8]) -> String {
 #[cfg(feature = "ffi")]
 #[must_use]
 #[uniffi::export]
+#[allow(clippy::needless_pass_by_value)] // uniffi requires owned types
 pub fn hash_to_field_ffi(input: Vec<u8>) -> Vec<u8> {
     hash_to_field(&input).to_be_bytes_vec()
 }
@@ -192,6 +193,7 @@ pub fn hash_to_field_ffi(input: Vec<u8>) -> Vec<u8> {
 #[cfg(feature = "ffi")]
 #[must_use]
 #[uniffi::export]
+#[allow(clippy::needless_pass_by_value)] // uniffi requires Arc for objects
 pub fn encode_signal_ffi(signal: std::sync::Arc<crate::Signal>) -> String {
     encode_signal(&signal)
 }
