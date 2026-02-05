@@ -234,7 +234,7 @@ public extension IDKit {
     /// - Parameter input: The bytes to hash
     /// - Returns: Data (32 bytes) representing the field element
     static func hashToField(_ input: Data) -> Data {
-        Data(hashToFieldFfi(input: Array(input)))
+        hashToFieldFfi(input: input)
     }
 
     /// Encodes a Signal to its hash representation.

@@ -71,8 +71,8 @@ describe("IDKitRequest API", () => {
     expect(preset).toHaveProperty("signal", "test-signal");
   });
 
-  it("should throw error when rp_context is missing", async () => {
-    await expect(
+  it("should throw error when rp_context is missing", () => {
+    expect(() =>
       IDKit.request({
         app_id: "app_staging_test",
         action: "test-action",
@@ -80,7 +80,7 @@ describe("IDKitRequest API", () => {
         rp_context: undefined,
         allow_legacy_proofs: false,
       }),
-    ).rejects.toThrow("rp_context is required");
+    ).toThrow("rp_context is required");
   });
 
   it("should allow any() with no items (validation happens in WASM)", () => {
