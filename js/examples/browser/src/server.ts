@@ -45,12 +45,12 @@ app.post("/api/rp-signature", (req, res) => {
 });
 
 app.post("/api/verify-proof", async (req, res) => {
-  const { rp_id, devPortalPaylaod } = req.body;
+  const { rp_id, devPortalPayload } = req.body;
 
-  if (!rp_id || !devPortalPaylaod) {
+  if (!rp_id || !devPortalPayload) {
     res
       .status(400)
-      .json({ error: "Missing required fields: rp_id, devPortalPaylaod" });
+      .json({ error: "Missing required fields: rp_id, devPortalPayload" });
     return;
   }
 
@@ -60,7 +60,7 @@ app.post("/api/verify-proof", async (req, res) => {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(devPortalPaylaod),
+        body: JSON.stringify(devPortalPayload),
       },
     );
 
