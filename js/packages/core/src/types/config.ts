@@ -58,6 +58,9 @@ export type IDKitRequestConfig = {
 
   /** Optional override for the connect base URL (e.g., for staging environments) */
   override_connect_base_url?: string;
+
+  /** Optional environment override. Defaults to "production". */
+  environment?: "production" | "staging";
 };
 
 /**
@@ -79,4 +82,7 @@ export type IDKitSessionConfig = {
   bridge_url?: string;
   /** Optional override for the connect base URL (e.g., for staging environments) */
   override_connect_base_url?: string;
+
+  /** Optional environment override. Defaults to "production". */
+  environment?: "production" | "staging";
 };

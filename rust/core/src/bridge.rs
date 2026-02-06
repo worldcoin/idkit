@@ -24,6 +24,31 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Environment
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Environment for the bridge request
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
+#[serde(rename_all = "snake_case")]
+pub enum Environment {
+    #[default]
+    Production,
+    Staging,
+}
+
+impl Environment {
+    /// Returns the environment as a string
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Production => "production",
+            Self::Staging => "staging",
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Request Kind (internal)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -72,6 +97,9 @@ struct BridgeRequestPayload {
     /// - `true`: Accept both v3 and v4 proofs. Use during migration.
     /// - `false`: Only accept v4 proofs. Use after migration cutoff or for new apps.
     allow_legacy_proofs: bool,
+
+    /// Environment for the bridge request
+    environment: Environment,
 }
 
 /// Encrypted payload sent to/from the bridge
@@ -304,6 +332,8 @@ pub struct BridgeConnectionParams {
     pub signal_hashes: std::collections::HashMap<String, String>,
     /// Optional override for the connect base URL (e.g., for staging environments)
     pub override_connect_base_url: Option<String>,
+    /// Optional environment override (defaults to Production when not specified)
+    pub environment: Option<Environment>,
 }
 
 /// A World ID verification connection to the bridge
@@ -326,6 +356,8 @@ pub struct BridgeConnection {
     nonce: String,
     /// Optional override for the connect base URL
     override_connect_base_url: Option<String>,
+    /// Resolved environment for this connection
+    environment: Environment,
 }
 
 impl BridgeConnection {
@@ -338,7 +370,7 @@ impl BridgeConnection {
     /// # Errors
     ///
     /// Returns an error if the request cannot be created or the bridge call fails
-    #[allow(dead_code)]
+    #[allow(dead_code, clippy::too_many_lines)]
     pub(crate) async fn create(params: BridgeConnectionParams) -> Result<Self> {
         // Validate constraints
         params.constraints.validate()?;
@@ -406,6 +438,7 @@ impl BridgeConnection {
             verification_level: params.legacy_verification_level,
             signal: legacy_signal_hash,
             allow_legacy_proofs: params.allow_legacy_proofs,
+            environment: params.environment.unwrap_or_default(),
         };
 
         let payload_json = serde_json::to_vec(&payload)?;
@@ -467,6 +500,7 @@ impl BridgeConnection {
             action_description: params.action_description,
             nonce: params.rp_context.nonce.clone(),
             override_connect_base_url: params.override_connect_base_url,
+            environment: params.environment.unwrap_or_default(),
         })
     }
 
@@ -566,6 +600,7 @@ impl BridgeConnection {
                                     session_id.to_string(),
                                     self.action_description.clone(),
                                     responses,
+                                    self.environment.as_str(),
                                 )
                             } else {
                                 IDKitResult::new(
@@ -574,6 +609,7 @@ impl BridgeConnection {
                                     self.action.clone(),
                                     self.action_description.clone(),
                                     responses,
+                                    self.environment.as_str(),
                                 )
                             },
                         ))
@@ -592,6 +628,7 @@ impl BridgeConnection {
                             self.action.clone(),
                             self.action_description.clone(),
                             vec![item],
+                            self.environment.as_str(),
                         )))
                     }
                 }
@@ -631,6 +668,8 @@ pub struct IDKitRequestConfig {
     pub allow_legacy_proofs: bool,
     /// Optional override for the connect base URL (e.g., for staging environments)
     pub override_connect_base_url: Option<String>,
+    /// Optional environment override (defaults to Production)
+    pub environment: Option<Environment>,
 }
 
 /// Configuration for session requests (no action field, v4 only)
@@ -649,6 +688,8 @@ pub struct IDKitSessionConfig {
     pub bridge_url: Option<String>,
     /// Optional override for the connect base URL (e.g., for staging environments)
     pub override_connect_base_url: Option<String>,
+    /// Optional environment override (defaults to Production)
+    pub environment: Option<Environment>,
 }
 
 /// Internal enum to store builder configuration
@@ -694,6 +735,7 @@ impl IDKitConfig {
                     allow_legacy_proofs: config.allow_legacy_proofs,
                     signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
+                    environment: config.environment,
                 })
             }
             Self::CreateSession(config) => {
@@ -717,6 +759,7 @@ impl IDKitConfig {
                     allow_legacy_proofs: false,
                     signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
+                    environment: config.environment,
                 })
             }
             Self::ProveSession { session_id, config } => {
@@ -742,6 +785,7 @@ impl IDKitConfig {
                     allow_legacy_proofs: false,
                     signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
+                    environment: config.environment,
                 })
             }
         }
@@ -779,6 +823,7 @@ impl IDKitConfig {
                     allow_legacy_proofs: config.allow_legacy_proofs,
                     signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
+                    environment: config.environment,
                 })
             }
             Self::CreateSession(config) => {
@@ -801,6 +846,7 @@ impl IDKitConfig {
                     allow_legacy_proofs: false,
                     signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
+                    environment: config.environment,
                 })
             }
             Self::ProveSession { session_id, config } => {
@@ -825,6 +871,7 @@ impl IDKitConfig {
                     allow_legacy_proofs: false,
                     signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
+                    environment: config.environment,
                 })
             }
         }
@@ -1095,6 +1142,7 @@ mod tests {
             verification_level: VerificationLevel::Deprecated,
             proof_request,
             allow_legacy_proofs: false,
+            environment: Environment::Production,
         };
 
         let json = serde_json::to_string(&payload).unwrap();

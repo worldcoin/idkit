@@ -456,6 +456,7 @@ enum IDKitConfigWasm {
         bridge_url: Option<String>,
         allow_legacy_proofs: bool,
         override_connect_base_url: Option<String>,
+        environment: Option<String>,
     },
     CreateSession {
         app_id: String,
@@ -463,6 +464,7 @@ enum IDKitConfigWasm {
         action_description: Option<String>,
         bridge_url: Option<String>,
         override_connect_base_url: Option<String>,
+        environment: Option<String>,
     },
     ProveSession {
         session_id: String,
@@ -471,6 +473,7 @@ enum IDKitConfigWasm {
         action_description: Option<String>,
         bridge_url: Option<String>,
         override_connect_base_url: Option<String>,
+        environment: Option<String>,
     },
 }
 
@@ -489,6 +492,7 @@ fn compute_signal_hashes(
 }
 
 impl IDKitConfigWasm {
+    #[allow(clippy::too_many_lines)]
     fn to_params(
         &self,
         constraints: ConstraintNode,
@@ -504,6 +508,7 @@ impl IDKitConfigWasm {
                 bridge_url,
                 allow_legacy_proofs,
                 override_connect_base_url,
+                environment,
             } => {
                 let app_id = crate::AppId::new(app_id)
                     .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
@@ -527,6 +532,10 @@ impl IDKitConfigWasm {
                     allow_legacy_proofs: *allow_legacy_proofs,
                     signal_hashes,
                     override_connect_base_url: override_connect_base_url.clone(),
+                    environment: environment.as_deref().map(|e| match e {
+                        "staging" => crate::bridge::Environment::Staging,
+                        _ => crate::bridge::Environment::Production,
+                    }),
                 })
             }
             Self::CreateSession {
@@ -535,6 +544,7 @@ impl IDKitConfigWasm {
                 action_description,
                 bridge_url,
                 override_connect_base_url,
+                environment,
             } => {
                 let app_id = crate::AppId::new(app_id)
                     .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
@@ -556,6 +566,10 @@ impl IDKitConfigWasm {
                     allow_legacy_proofs: false,
                     signal_hashes,
                     override_connect_base_url: override_connect_base_url.clone(),
+                    environment: environment.as_deref().map(|e| match e {
+                        "staging" => crate::bridge::Environment::Staging,
+                        _ => crate::bridge::Environment::Production,
+                    }),
                 })
             }
             Self::ProveSession {
@@ -565,6 +579,7 @@ impl IDKitConfigWasm {
                 action_description,
                 bridge_url,
                 override_connect_base_url,
+                environment,
             } => {
                 let app_id = crate::AppId::new(app_id)
                     .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
@@ -588,6 +603,10 @@ impl IDKitConfigWasm {
                     allow_legacy_proofs: false,
                     signal_hashes,
                     override_connect_base_url: override_connect_base_url.clone(),
+                    environment: environment.as_deref().map(|e| match e {
+                        "staging" => crate::bridge::Environment::Staging,
+                        _ => crate::bridge::Environment::Production,
+                    }),
                 })
             }
         }
@@ -612,6 +631,7 @@ pub struct IDKitBuilderWasm {
 }
 
 #[wasm_bindgen(js_class = IDKitBuilder)]
+#[allow(clippy::too_many_arguments)]
 impl IDKitBuilderWasm {
     /// Creates a new builder for uniqueness requests
     #[must_use]
@@ -624,6 +644,7 @@ impl IDKitBuilderWasm {
         bridge_url: Option<String>,
         allow_legacy_proofs: bool,
         override_connect_base_url: Option<String>,
+        environment: Option<String>,
     ) -> Self {
         Self {
             config: IDKitConfigWasm::Request {
@@ -634,6 +655,7 @@ impl IDKitBuilderWasm {
                 bridge_url,
                 allow_legacy_proofs,
                 override_connect_base_url,
+                environment,
             },
         }
     }
@@ -647,6 +669,7 @@ impl IDKitBuilderWasm {
         action_description: Option<String>,
         bridge_url: Option<String>,
         override_connect_base_url: Option<String>,
+        environment: Option<String>,
     ) -> Self {
         Self {
             config: IDKitConfigWasm::CreateSession {
@@ -655,6 +678,7 @@ impl IDKitBuilderWasm {
                 action_description,
                 bridge_url,
                 override_connect_base_url,
+                environment,
             },
         }
     }
@@ -669,6 +693,7 @@ impl IDKitBuilderWasm {
         action_description: Option<String>,
         bridge_url: Option<String>,
         override_connect_base_url: Option<String>,
+        environment: Option<String>,
     ) -> Self {
         Self {
             config: IDKitConfigWasm::ProveSession {
@@ -678,6 +703,7 @@ impl IDKitBuilderWasm {
                 action_description,
                 bridge_url,
                 override_connect_base_url,
+                environment,
             },
         }
     }
@@ -722,6 +748,7 @@ impl IDKitBuilderWasm {
 /// Entry point for creating `IDKit` requests (WASM)
 #[must_use]
 #[wasm_bindgen(js_name = request)]
+#[allow(clippy::too_many_arguments)]
 pub fn request(
     app_id: String,
     action: String,
@@ -730,6 +757,7 @@ pub fn request(
     bridge_url: Option<String>,
     allow_legacy_proofs: bool,
     override_connect_base_url: Option<String>,
+    environment: Option<String>,
 ) -> IDKitBuilderWasm {
     IDKitBuilderWasm::new(
         app_id,
@@ -739,6 +767,7 @@ pub fn request(
         bridge_url,
         allow_legacy_proofs,
         override_connect_base_url,
+        environment,
     )
 }
 
@@ -751,6 +780,7 @@ pub fn create_session(
     action_description: Option<String>,
     bridge_url: Option<String>,
     override_connect_base_url: Option<String>,
+    environment: Option<String>,
 ) -> IDKitBuilderWasm {
     IDKitBuilderWasm::for_create_session(
         app_id,
@@ -758,6 +788,7 @@ pub fn create_session(
         action_description,
         bridge_url,
         override_connect_base_url,
+        environment,
     )
 }
 
@@ -771,6 +802,7 @@ pub fn prove_session(
     action_description: Option<String>,
     bridge_url: Option<String>,
     override_connect_base_url: Option<String>,
+    environment: Option<String>,
 ) -> IDKitBuilderWasm {
     IDKitBuilderWasm::for_prove_session(
         session_id,
@@ -779,6 +811,7 @@ pub fn prove_session(
         action_description,
         bridge_url,
         override_connect_base_url,
+        environment,
     )
 }
 
@@ -967,6 +1000,8 @@ export interface IDKitResultV3 {
     action_description?: string;
     /** Array of V3 credential responses */
     responses: ResponseItemV3[];
+    /** The environment used for this request ("production" or "staging") */
+    environment: string;
 }
 
 /** V4 result for uniqueness proofs */
@@ -981,6 +1016,8 @@ export interface IDKitResultV4 {
     action_description?: string;
     /** Array of V4 credential responses */
     responses: ResponseItemV4[];
+    /** The environment used for this request ("production" or "staging") */
+    environment: string;
 }
 
 /** V4 result for session proofs */
@@ -995,6 +1032,8 @@ export interface IDKitResultSession {
     session_id: string;
     /** Array of session credential responses */
     responses: ResponseItemSession[];
+    /** The environment used for this request ("production" or "staging") */
+    environment: string;
 }
 
 /**
@@ -1091,7 +1130,9 @@ export function createSession(
     app_id: string,
     rp_context: RpContextWasm,
     action_description?: string,
-    bridge_url?: string
+    bridge_url?: string,
+    override_connect_base_url?: string,
+    environment?: string
 ): IDKitBuilder;
 
 /**
@@ -1104,6 +1145,8 @@ export function proveSession(
     app_id: string,
     rp_context: RpContextWasm,
     action_description?: string,
-    bridge_url?: string
+    bridge_url?: string,
+    override_connect_base_url?: string,
+    environment?: string
 ): IDKitBuilder;
 "#;

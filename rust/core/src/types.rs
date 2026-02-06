@@ -511,6 +511,9 @@ pub struct IDKitResult {
 
     /// Array of credential responses (always successful - errors at `BridgeResponse` level)
     pub responses: Vec<ResponseItem>,
+
+    /// The environment used for this request ("production" or "staging")
+    pub environment: String,
 }
 
 impl IDKitResult {
@@ -522,6 +525,7 @@ impl IDKitResult {
         action: Option<String>,
         action_description: Option<String>,
         responses: Vec<ResponseItem>,
+        environment: impl Into<String>,
     ) -> Self {
         Self {
             protocol_version: protocol_version.into(),
@@ -530,6 +534,7 @@ impl IDKitResult {
             action_description,
             session_id: None,
             responses,
+            environment: environment.into(),
         }
     }
 
@@ -540,6 +545,7 @@ impl IDKitResult {
         session_id: String,
         action_description: Option<String>,
         responses: Vec<ResponseItem>,
+        environment: impl Into<String>,
     ) -> Self {
         Self {
             protocol_version: "4.0".to_string(),
@@ -548,6 +554,7 @@ impl IDKitResult {
             action_description,
             session_id: Some(session_id),
             responses,
+            environment: environment.into(),
         }
     }
 
@@ -1110,6 +1117,7 @@ mod tests {
             None,
             None,
             responses,
+            "production",
         );
         assert_eq!(result.protocol_version, "3.0");
         assert_eq!(

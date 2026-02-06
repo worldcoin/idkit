@@ -155,7 +155,8 @@ func requestBuilderAPIShape() {
         actionDescription: nil,
         bridgeUrl: nil,
         allowLegacyProofs: false,
-        overrideConnectBaseUrl: nil
+        overrideConnectBaseUrl: nil,
+        environment: nil
     )
 
     // This will throw without valid credentials - verify API exists
@@ -196,7 +197,8 @@ func requestPresetAPIShape() {
         actionDescription: nil,
         bridgeUrl: nil,
         allowLegacyProofs: false,
-        overrideConnectBaseUrl: nil
+        overrideConnectBaseUrl: nil,
+        environment: nil
     )
 
     // This will throw without valid credentials - verify API exists

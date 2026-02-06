@@ -400,6 +400,7 @@ function createRequest(config: IDKitRequestConfig): IDKitBuilder {
     config.bridge_url ?? null,
     config.allow_legacy_proofs,
     config.override_connect_base_url ?? null,
+    config.environment ?? null,
   );
   return new IDKitBuilder(wasmBuilder);
 }
@@ -452,6 +453,7 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
     config.action_description ?? null,
     config.bridge_url ?? null,
     config.override_connect_base_url ?? null,
+    config.environment ?? null,
   );
 
   return new IDKitBuilder(wasmBuilder);
@@ -511,6 +513,7 @@ function proveSession(
     config.action_description ?? null,
     config.bridge_url ?? null,
     config.override_connect_base_url ?? null,
+    config.environment ?? null,
   );
   return new IDKitBuilder(wasmBuilder);
 }
