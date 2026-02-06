@@ -21,8 +21,6 @@ pub mod protocol_types;
 #[cfg(feature = "rp-signature")]
 pub mod rp_signature;
 pub mod types;
-#[cfg(feature = "verification")]
-pub mod verification;
 
 #[cfg(feature = "wasm-bindings")]
 pub mod wasm_bindings;
@@ -41,9 +39,6 @@ pub use types::{
     AppId, BridgeResponseV1, BridgeUrl, CredentialRequest, CredentialType, IDKitResult,
     ResponseItem, RpContext, Signal, VerificationLevel,
 };
-
-#[cfg(feature = "verification")]
-pub use verification::{verify_proof, verify_proof_with_endpoint};
 
 // UniFFI scaffolding for core types
 #[cfg(feature = "ffi")]

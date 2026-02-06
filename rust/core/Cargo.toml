@@ -45,7 +45,7 @@ tokio = { workspace = true, optional = true }
 reqwest = { workspace = true, features = ["json"], optional = true }
 
 [features]
-default = ["native-crypto", "bridge", "verification"]
+default = ["native-crypto", "bridge"]
 
 # Cryptography implementations
 native-crypto = ["aes-gcm"]  # AES-256-GCM encryption for native platforms
@@ -60,7 +60,6 @@ wasm-bindings = ["wasm-crypto", "bridge-wasm", "rp-signature", "dep:wasm-bindgen
 # Protocol features
 bridge = ["uuid/v4", "reqwest", "dep:tokio", "dep:urlencoding"]   # Bridge client and session management for verifications
 bridge-wasm = ["uuid/js", "reqwest", "dep:urlencoding"]           # Bridge for WASM (no tokio)
-verification = ["reqwest", "dep:tokio"]                           # Backend proof verification via Developer Portal API
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false  # Disable wasm-opt due to compatibility issues with bulk memory operations
