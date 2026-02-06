@@ -134,7 +134,7 @@ jobs:
 
       - name: Build host library and generate UniFFI bindings
         run: |
-          cargo build --package idkit-uniffi --release --locked
+          cargo build --package idkit-core --release --locked --features ffi
 
           # Generate UniFFI Kotlin bindings
           cargo run -p uniffi-bindgen generate \
@@ -226,7 +226,7 @@ jobs:
         run: |
           echo "Building for ${{ matrix.target }} -> ${{ matrix.abi }}"
           # Use CARGO_HOME=/tmp to reduce disk usage in workspace
-          CARGO_HOME=/tmp CROSS_NO_WARNINGS=1 cross build --package idkit-uniffi --target ${{ matrix.target }} --release --locked
+          CARGO_HOME=/tmp CROSS_NO_WARNINGS=1 cross build --package idkit-core --target ${{ matrix.target }} --release --locked --features ffi
 
           mkdir -p android-libs/${{ matrix.abi }}
           cp target/${{ matrix.target }}/release/libidkit.so android-libs/${{ matrix.abi }}/
