@@ -14,8 +14,7 @@
     }
   },
   "files": [
-    "dist",
-    "wasm"
+    "dist"
   ],
   "scripts": {
     "build:wasm": "cd ../../../ && ./scripts/build-wasm.sh",

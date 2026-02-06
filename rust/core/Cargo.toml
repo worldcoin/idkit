@@ -62,4 +62,5 @@ bridge = ["uuid/v4", "reqwest", "dep:tokio", "dep:urlencoding"]   # Bridge clien
 bridge-wasm = ["uuid/js", "reqwest", "dep:urlencoding"]           # Bridge for WASM (no tokio)
 
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = false  # Disable wasm-opt due to compatibility issues with bulk memory operations
+# opt-level 3 is used for both native (Kotlin/Swift) and WASM; wasm-opt -Oz handles WASM-specific size reduction
+wasm-opt = ["-Oz", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
