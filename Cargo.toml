@@ -66,7 +66,6 @@ opt-level = 3
 lto = true
 codegen-units = 1
 strip = true
-panic = "abort"  # Removes unwinding machinery, reducing binary size (especially WASM)
 
 [profile.wasm-release]
 inherits = "release"
