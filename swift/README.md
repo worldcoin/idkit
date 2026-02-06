@@ -1,1 +1,1 @@
-⚠️ IDkit swift SDK is still developed. Create a github issue if you need access or contact us.
+⚠️ IDkit swift SDK is still in development. Create a github issue if you need access or contact us.

@@ -1,6 +1,6 @@
 # IDKit - World ID SDK
 
-IDKit is the toolkit for identity online. Easily integrate the [World ID Protocol](https://world.org/world-id) into your application.
+IDKit is the toolkit for anonymous proof of human. Easily integrate the [World ID Protocol](https://world.org/world-id) into your application.
 
 ## Getting Started
 
