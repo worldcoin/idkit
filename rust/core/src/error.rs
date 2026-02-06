@@ -53,7 +53,7 @@ pub enum Error {
     InvalidProof(String),
 
     /// HTTP request error
-    #[cfg(any(feature = "bridge", feature = "bridge-wasm", feature = "verification"))]
+    #[cfg(any(feature = "bridge", feature = "bridge-wasm"))]
     #[error(transparent)]
     Http(#[from] reqwest::Error),
 }
@@ -172,7 +172,7 @@ impl From<Error> for IdkitError {
             Error::UnexpectedResponse => Self::UnexpectedResponse,
             Error::ConnectionFailed => Self::ConnectionFailed,
             Error::Timeout => Self::Timeout,
-            #[cfg(any(feature = "bridge", feature = "bridge-wasm", feature = "verification"))]
+            #[cfg(any(feature = "bridge", feature = "bridge-wasm"))]
             Error::Http(err) => Self::BridgeError {
                 details: format!("HTTP error: {err}"),
             },
