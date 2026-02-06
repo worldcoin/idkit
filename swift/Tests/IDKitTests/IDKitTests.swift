@@ -43,7 +43,7 @@ func signalFromString() {
 @Test("Signal from ABI-encoded bytes")
 func signalFromAbiEncoded() {
     let bytes = Data([0x00, 0x01, 0x02, 0x03])
-    let signal = Signal.fromAbiEncoded(bytes: bytes)
+    let signal = Signal.fromBytes(bytes: bytes)
 
     #expect(signal.bytesData == Data(bytes))
     #expect(signal.asString() == nil)  // Not a valid UTF-8 string
@@ -154,7 +154,8 @@ func requestBuilderAPIShape() {
         rpContext: rpContext,
         actionDescription: nil,
         bridgeUrl: nil,
-        allowLegacyProofs: false
+        allowLegacyProofs: false,
+        overrideConnectBaseUrl: nil
     )
 
     // This will throw without valid credentials - verify API exists
@@ -173,7 +174,7 @@ func orbLegacyPresetHelper() {
     switch preset {
     case .orbLegacy(let signal):
         #expect(signal == "test-signal")
-    default:
+    case .secureDocumentLegacy, .documentLegacy:
         Issue.record("Expected orbLegacy preset")
     }
 }
@@ -194,7 +195,8 @@ func requestPresetAPIShape() {
         rpContext: rpContext,
         actionDescription: nil,
         bridgeUrl: nil,
-        allowLegacyProofs: false
+        allowLegacyProofs: false,
+        overrideConnectBaseUrl: nil
     )
 
     // This will throw without valid credentials - verify API exists

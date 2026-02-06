@@ -66,19 +66,18 @@ impl CredentialType {
     }
 }
 
-/// A signal value that can be either a UTF-8 string or ABI-encoded data
+/// A signal value that can be either a UTF-8 string or raw bytes
 ///
 /// Signals are used to create unique proofs. They can be:
 /// - UTF-8 strings (common case for off-chain usage)
-/// - ABI-encoded bytes (for on-chain use cases)
+/// - Raw bytes (user handles any encoding, e.g., ABI encoding for on-chain use)
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Object))]
-// TODO: Unify on a signal type that makes sense for both protocol
 pub enum Signal {
     /// UTF-8 string signal
     String(String),
-    /// ABI-encoded signal data (hex-encoded for JSON serialization)
-    AbiEncoded(Vec<u8>),
+    /// Raw bytes signal (user handles any encoding)
+    Bytes(Vec<u8>),
 }
 
 impl Signal {
@@ -88,13 +87,13 @@ impl Signal {
         Self::String(s.into())
     }
 
-    /// Creates a signal from ABI-encoded bytes
+    /// Creates a signal from raw bytes
     ///
-    /// Use this for on-chain use cases where the signal needs to be ABI-encoded
-    /// according to Solidity encoding rules.
+    /// Use this when you have pre-encoded bytes (e.g., ABI-encoded for on-chain use).
+    /// The caller is responsible for any encoding.
     #[must_use]
-    pub fn from_abi_encoded(bytes: impl Into<Vec<u8>>) -> Self {
-        Self::AbiEncoded(bytes.into())
+    pub fn from_bytes(bytes: impl Into<Vec<u8>>) -> Self {
+        Self::Bytes(bytes.into())
     }
 
     /// Gets the raw bytes of the signal
@@ -104,7 +103,7 @@ impl Signal {
     pub fn as_bytes(&self) -> &[u8] {
         match self {
             Self::String(s) => s.as_bytes(),
-            Self::AbiEncoded(b) => b,
+            Self::Bytes(b) => b,
         }
     }
 
@@ -119,7 +118,7 @@ impl Signal {
     pub fn as_str(&self) -> Option<&str> {
         match self {
             Self::String(s) => Some(s),
-            Self::AbiEncoded(_) => None,
+            Self::Bytes(_) => None,
         }
     }
 }
@@ -136,11 +135,11 @@ impl Signal {
         Arc::new(Self::from_string(s))
     }
 
-    /// Creates a signal from ABI-encoded bytes
+    /// Creates a signal from raw bytes
     #[must_use]
-    #[uniffi::constructor(name = "from_abi_encoded")]
-    pub fn ffi_from_abi_encoded(bytes: Vec<u8>) -> Arc<Self> {
-        Arc::new(Self::from_abi_encoded(bytes))
+    #[uniffi::constructor(name = "from_bytes")]
+    pub fn ffi_from_bytes(bytes: Vec<u8>) -> Arc<Self> {
+        Arc::new(Self::from_bytes(bytes))
     }
 
     /// Gets the signal as raw bytes
@@ -165,7 +164,7 @@ impl Serialize for Signal {
     {
         match self {
             Self::String(s) => serializer.serialize_str(s),
-            Self::AbiEncoded(b) => serializer.serialize_str(&format!("0x{}", hex::encode(b))),
+            Self::Bytes(b) => serializer.serialize_str(&format!("0x{}", hex::encode(b))),
         }
     }
 }
@@ -177,10 +176,10 @@ impl<'de> Deserialize<'de> for Signal {
     {
         let s = String::deserialize(deserializer)?;
 
-        // Only decode as ABI-encoded if it has the "0x" prefix
+        // Only decode as bytes if it has the "0x" prefix
         if let Some(stripped) = s.strip_prefix("0x") {
             if let Ok(bytes) = hex::decode(stripped) {
-                return Ok(Self::AbiEncoded(bytes));
+                return Ok(Self::Bytes(bytes));
             }
         }
 
@@ -276,8 +275,8 @@ impl CredentialRequest {
             crate::Error::InvalidConfiguration(format!("Unknown credential type: {identifier}"))
         })?;
 
-        // Encode signal if present
-        let signal = self.signal.as_ref().map(crate::crypto::encode_signal);
+        // Hash signal if present
+        let signal = self.signal.as_ref().map(crate::crypto::hash_signal);
 
         Ok(crate::protocol_types::CredentialRequest::new(
             identifier,
@@ -419,7 +418,7 @@ pub struct BridgeResponseV1 {
 /// A single credential response item for uniqueness proofs
 ///
 /// V4 is detected by presence of `issuer_schema_id`.
-/// V3 is detected by presence of `nullifier_hash`.
+/// V3 is detected by presence of `nullifier` (without `issuer_schema_id`).
 /// Session is detected by presence of `session_nullifier`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
@@ -429,6 +428,9 @@ pub enum ResponseItem {
     V4 {
         /// Credential identifier (e.g., "orb", "face", "document")
         identifier: String,
+        /// Signal hash (optional, included if signal was provided in request)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signal_hash: Option<String>,
         /// Credential issuer schema ID
         issuer_schema_id: u64,
         /// Encoded World ID Proof
@@ -447,6 +449,9 @@ pub enum ResponseItem {
     Session {
         /// Credential identifier (e.g., "orb", "face", "document")
         identifier: String,
+        /// Signal hash (optional, included if signal was provided in request)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signal_hash: Option<String>,
         /// Credential issuer schema ID
         issuer_schema_id: u64,
         /// Encoded World ID Proof
@@ -468,12 +473,15 @@ pub enum ResponseItem {
     V3 {
         /// Credential identifier (e.g., "orb", "face")
         identifier: String,
+        /// Signal hash (optional, included if signal was provided in request)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signal_hash: Option<String>,
         /// ABI-encoded proof (hex string)
         proof: String,
         /// Merkle root (hex string)
         merkle_root: String,
-        /// Nullifier hash (hex string)
-        nullifier_hash: String,
+        /// Nullifier (hex string)
+        nullifier: String,
     },
 }
 
@@ -486,6 +494,17 @@ pub struct IDKitResult {
     /// Protocol version ("4.0" or "3.0") - applies to all responses
     pub protocol_version: String,
 
+    /// Nonce used in the request (always present)
+    pub nonce: String,
+
+    /// Action identifier (only for uniqueness proofs)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
+
+    /// Action description (only if provided in input)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action_description: Option<String>,
+
     /// Session ID (only present for session proofs)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
@@ -497,9 +516,18 @@ pub struct IDKitResult {
 impl IDKitResult {
     /// Creates a new `IDKitResult` with protocol version and responses (no session)
     #[must_use]
-    pub fn new(protocol_version: impl Into<String>, responses: Vec<ResponseItem>) -> Self {
+    pub fn new(
+        protocol_version: impl Into<String>,
+        nonce: impl Into<String>,
+        action: Option<String>,
+        action_description: Option<String>,
+        responses: Vec<ResponseItem>,
+    ) -> Self {
         Self {
             protocol_version: protocol_version.into(),
+            nonce: nonce.into(),
+            action,
+            action_description,
             session_id: None,
             responses,
         }
@@ -507,9 +535,17 @@ impl IDKitResult {
 
     /// Creates a new `IDKitResult` for a session proof with session ID and responses
     #[must_use]
-    pub fn new_session(session_id: String, responses: Vec<ResponseItem>) -> Self {
+    pub fn new_session(
+        nonce: impl Into<String>,
+        session_id: String,
+        action_description: Option<String>,
+        responses: Vec<ResponseItem>,
+    ) -> Self {
         Self {
             protocol_version: "4.0".to_string(),
+            nonce: nonce.into(),
+            action: None,
+            action_description,
             session_id: Some(session_id),
             responses,
         }
@@ -922,16 +958,15 @@ mod tests {
     }
 
     #[test]
-    fn test_request_item_with_abi_encoded_signal() {
-        // Test creating request item with ABI-encoded bytes
+    fn test_request_item_with_bytes_signal() {
+        // Test creating request item with raw bytes
         let bytes = b"arbitrary\x00\xFF\xFE data";
-        let item =
-            CredentialRequest::new(CredentialType::Orb, Some(Signal::from_abi_encoded(bytes)));
+        let item = CredentialRequest::new(CredentialType::Orb, Some(Signal::from_bytes(bytes)));
 
-        // Verify signal is stored as ABI-encoded
+        // Verify signal is stored as bytes
         assert!(item.signal.is_some());
         let signal = item.signal.as_ref().unwrap();
-        assert_eq!(signal, &Signal::from_abi_encoded(bytes));
+        assert_eq!(signal, &Signal::from_bytes(bytes));
 
         // Verify we can decode back to bytes
         let decoded = item.signal_bytes().unwrap();
@@ -964,20 +999,20 @@ mod tests {
         let json = serde_json::to_string(&signal).unwrap();
         assert_eq!(json, r#""test_signal""#);
 
-        // Test ABI-encoded signal serialization (hex-encoded with 0x prefix)
-        let abi_signal = Signal::from_abi_encoded(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]); // "Hello" bytes
-        let json = serde_json::to_string(&abi_signal).unwrap();
+        // Test bytes signal serialization (hex-encoded with 0x prefix)
+        let bytes_signal = Signal::from_bytes(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]); // "Hello" bytes
+        let json = serde_json::to_string(&bytes_signal).unwrap();
         assert_eq!(json, r#""0x48656c6c6f""#);
     }
 
     #[test]
     fn test_signal_deserialization() {
-        // Test 0x-prefixed hex deserialization (treated as ABI-encoded)
+        // Test 0x-prefixed hex deserialization (treated as bytes)
         let signal: Signal = serde_json::from_str(r#""0x48656c6c6f""#).unwrap();
         assert_eq!(signal.as_bytes(), b"Hello");
-        assert!(matches!(signal, Signal::AbiEncoded(_)));
+        assert!(matches!(signal, Signal::Bytes(_)));
 
-        // Test non-prefixed hex is treated as a plain string (not ABI-encoded)
+        // Test non-prefixed hex is treated as a plain string (not bytes)
         // This prevents ambiguity with strings like "cafe" or "deadbeef"
         let signal: Signal = serde_json::from_str(r#""48656c6c6f""#).unwrap();
         assert_eq!(signal.as_str(), Some("48656c6c6f"));
@@ -1063,13 +1098,24 @@ mod tests {
     fn test_idkit_result_v3() {
         let responses = vec![ResponseItem::V3 {
             identifier: "face".to_string(),
+            signal_hash: None,
             proof: "0xproof".to_string(),
             merkle_root: "0xroot".to_string(),
-            nullifier_hash: "0xnullifier".to_string(),
+            nullifier: "0xnullifier".to_string(),
         }];
 
-        let result = IDKitResult::new("3.0", responses);
+        let result = IDKitResult::new(
+            "3.0",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            None,
+            None,
+            responses,
+        );
         assert_eq!(result.protocol_version, "3.0");
+        assert_eq!(
+            result.nonce,
+            "0x0000000000000000000000000000000000000000000000000000000000000001"
+        );
         assert_eq!(result.responses.len(), 1);
     }
 

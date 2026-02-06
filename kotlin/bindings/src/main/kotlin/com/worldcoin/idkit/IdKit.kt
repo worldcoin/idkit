@@ -36,12 +36,12 @@ object IdKit {
     ): CredentialRequest = CredentialRequest.new(credentialType, signal?.let { Signal.fromString(it) })
 
     /**
-     * Create a CredentialRequest from ABI-encoded signal bytes.
+     * Create a CredentialRequest from raw signal bytes.
      */
-    fun credentialRequestAbi(
+    fun credentialRequestBytes(
         credentialType: CredentialType,
-        abiEncodedSignal: ByteArray,
-    ): CredentialRequest = CredentialRequest.new(credentialType, Signal.fromAbiEncoded(abiEncodedSignal))
+        signalBytes: ByteArray,
+    ): CredentialRequest = CredentialRequest.new(credentialType, Signal.fromBytes(signalBytes))
 
     /**
      * Build an OR constraint - at least one item must be satisfied.
@@ -222,6 +222,13 @@ object IdKit {
      */
     fun documentLegacy(signal: String? = null): Preset =
         Preset.DocumentLegacy(signal = signal)
+
+    /**
+     * Hash a Signal to its hash representation.
+     * This is the same hashing used internally when constructing proof requests.
+     * Returns a 0x-prefixed hex string.
+     */
+    fun hashSignal(signal: Signal): String = uniffi.idkit_core.hashSignalFfi(signal)
 }
 
 // Top-level convenience functions for more idiomatic Kotlin usage
@@ -292,6 +299,14 @@ fun secureDocumentLegacy(signal: String? = null): Preset =
  */
 fun documentLegacy(signal: String? = null): Preset =
     IdKit.documentLegacy(signal)
+
+
+/**
+ * Hash a Signal to its hash representation.
+ * This is the same hashing used internally when constructing proof requests.
+ * Returns a 0x-prefixed hex string.
+ */
+fun hashSignal(signal: Signal): String = IdKit.hashSignal(signal)
 
 // Usage example - Explicit constraints:
 //

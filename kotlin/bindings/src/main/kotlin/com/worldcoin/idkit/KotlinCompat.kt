@@ -34,7 +34,7 @@ fun CredentialRequest(
     credentialType: CredentialType,
     abiEncodedSignal: ByteArray,
 ): CredentialRequest {
-    val signalObj = Signal.fromAbiEncoded(abiEncodedSignal)
+    val signalObj = Signal.fromBytes(abiEncodedSignal)
     return CredentialRequest.new(credentialType, signalObj)
 }
 

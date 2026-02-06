@@ -55,6 +55,9 @@ export type IDKitRequestConfig = {
    * - `false`: Only accept v4 proofs. Use after migration cutoff or for new apps.
    */
   allow_legacy_proofs: boolean;
+
+  /** Optional override for the connect base URL (e.g., for staging environments) */
+  override_connect_base_url?: string;
 };
 
 /**
@@ -74,4 +77,6 @@ export type IDKitSessionConfig = {
   action_description?: string;
   /** URL to a third-party bridge to use when connecting to the World App. Optional. */
   bridge_url?: string;
+  /** Optional override for the connect base URL (e.g., for staging environments) */
+  override_connect_base_url?: string;
 };

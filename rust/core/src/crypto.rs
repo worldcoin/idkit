@@ -147,20 +147,20 @@ pub fn hash_to_field(input: &[u8]) -> U256 {
     n >> 8
 }
 
-/// Encodes a signal using ABI encoding
+/// Hashes a signal using ABI encoding
 ///
 /// Takes any type that implements `alloy_sol_types::SolValue` and returns the keccak256 hash
 #[must_use]
-pub fn encode_signal_abi<V: alloy_sol_types::SolValue>(signal: &V) -> U256 {
+pub fn hash_signal_abi<V: alloy_sol_types::SolValue>(signal: &V) -> U256 {
     hash_to_field(&signal.abi_encode_packed())
 }
 
-/// Encodes a signal using keccak256 hash
+/// Hashes a signal using keccak256 hash
 ///
 /// Takes a `Signal` (either string or bytes) and returns the keccak256 hash,
 /// shifted right by 8 bits, formatted as a hex string with 0x prefix
 #[must_use]
-pub fn encode_signal(signal: &crate::Signal) -> String {
+pub fn hash_signal(signal: &crate::Signal) -> String {
     let hash = hash_to_field(signal.as_bytes());
     format!("{hash:#066x}")
 }
@@ -170,6 +170,32 @@ pub fn encode_signal(signal: &crate::Signal) -> String {
 pub fn base64_encode(input: &[u8]) -> String {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
     STANDARD.encode(input)
+}
+
+// ============================================================================
+// FFI exports for hashing utilities (Kotlin/Swift)
+// ============================================================================
+
+/// Hashes input bytes using Keccak256, shifted right 8 bits to fit within the field prime.
+///
+/// Returns raw bytes (32 bytes).
+#[cfg(feature = "ffi")]
+#[must_use]
+#[uniffi::export]
+#[allow(clippy::needless_pass_by_value)] // uniffi requires owned types
+pub fn hash_to_field_ffi(input: Vec<u8>) -> Vec<u8> {
+    hash_to_field(&input).to_be_bytes_vec()
+}
+
+/// Hashes a Signal to a signal hash (0x-prefixed hex string).
+///
+/// This is the same encoding used internally when constructing proof requests.
+#[cfg(feature = "ffi")]
+#[must_use]
+#[uniffi::export]
+#[allow(clippy::needless_pass_by_value)] // uniffi requires Arc for objects
+pub fn hash_signal_ffi(signal: std::sync::Arc<crate::Signal>) -> String {
+    hash_signal(&signal)
 }
 
 /// Base64 decodes a string
@@ -226,20 +252,20 @@ mod tests {
     }
 
     #[test]
-    fn test_encode_signal() {
+    fn test_hash_signal() {
         use crate::Signal;
 
         // Test string signal
         let signal = Signal::from_string("test_signal");
-        let encoded = encode_signal(&signal);
-        assert!(encoded.starts_with("0x"));
-        assert_eq!(encoded.len(), 66); // 0x + 64 hex chars
+        let hashed = hash_signal(&signal);
+        assert!(hashed.starts_with("0x"));
+        assert_eq!(hashed.len(), 66); // 0x + 64 hex chars
 
-        // Test ABI-encoded signal
-        let abi_signal = Signal::from_abi_encoded(vec![0x01, 0x02, 0x03]);
-        let encoded_abi = encode_signal(&abi_signal);
-        assert!(encoded_abi.starts_with("0x"));
-        assert_eq!(encoded_abi.len(), 66);
+        // Test bytes signal
+        let bytes_signal = Signal::from_bytes(vec![0x01, 0x02, 0x03]);
+        let hashed_bytes = hash_signal(&bytes_signal);
+        assert!(hashed_bytes.starts_with("0x"));
+        assert_eq!(hashed_bytes.len(), 66);
     }
 
     #[test]
@@ -248,5 +274,16 @@ mod tests {
         let encoded = base64_encode(input);
         let decoded = base64_decode(&encoded).unwrap();
         assert_eq!(decoded.as_slice(), input);
+    }
+
+    // Known value that was used in previous idkit versions to verify consistency of the hash_to_field implementation
+    #[test]
+    fn test_hash_to_field_empty_string() {
+        let hash = hash_to_field(b"");
+        let hex = format!("{hash:#066x}");
+        assert_eq!(
+            hex,
+            "0x00c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4"
+        );
     }
 }

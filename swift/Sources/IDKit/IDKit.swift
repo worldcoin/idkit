@@ -225,6 +225,19 @@ public func documentLegacy(signal: String? = nil) -> Preset {
     .documentLegacy(signal: signal)
 }
 
+// MARK: - Hashing Utilities
+
+public extension IDKit {
+    /// Hashes a Signal to its hash representation.
+    /// This is the same hashing used internally when constructing proof requests.
+    ///
+    /// - Parameter signal: The signal to hash
+    /// - Returns: A 0x-prefixed hex string
+    static func hashSignal(_ signal: Signal) -> String {
+        hashSignalFfi(signal: signal)
+    }
+}
+
 // MARK: - Signal convenience extensions
 
 public extension Signal {

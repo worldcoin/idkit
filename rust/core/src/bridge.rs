@@ -125,13 +125,27 @@ enum BridgeResponseItem {
         identifier: String,
         proof: String,
         merkle_root: String,
-        nullifier_hash: String,
+        nullifier: String,
     },
 }
 
 impl BridgeResponseItem {
+    /// Returns the identifier for this response item
+    fn identifier(&self) -> &str {
+        match self {
+            Self::V4 { identifier, .. } | Self::V3 { identifier, .. } => identifier,
+        }
+    }
+}
+
+impl BridgeResponseItem {
     /// Converts to a `ResponseItem` for uniqueness proofs
-    fn into_response_item(self, is_session_proof: bool, action: FieldElement) -> ResponseItem {
+    fn into_response_item(
+        self,
+        is_session_proof: bool,
+        action: FieldElement,
+        signal_hash: Option<String>,
+    ) -> ResponseItem {
         match self {
             Self::V4 {
                 identifier,
@@ -145,6 +159,7 @@ impl BridgeResponseItem {
                 if is_session_proof {
                     ResponseItem::Session {
                         identifier,
+                        signal_hash,
                         proof: proof
                             .as_ethereum_representation()
                             .map(|bytes| bytes.to_string())
@@ -156,6 +171,7 @@ impl BridgeResponseItem {
                 } else {
                     ResponseItem::V4 {
                         identifier,
+                        signal_hash,
                         proof: proof
                             .as_ethereum_representation()
                             .map(|bytes| bytes.to_string())
@@ -171,24 +187,26 @@ impl BridgeResponseItem {
                 identifier,
                 proof,
                 merkle_root,
-                nullifier_hash,
+                nullifier,
             } => ResponseItem::V3 {
                 identifier,
+                signal_hash,
                 proof,
                 merkle_root,
-                nullifier_hash,
+                nullifier,
             },
         }
     }
 }
 
 impl BridgeResponseV1 {
-    fn into_response_item(self) -> ResponseItem {
+    fn into_response_item(self, signal_hash: Option<String>) -> ResponseItem {
         ResponseItem::V3 {
             identifier: self.verification_level.as_str().to_string(),
+            signal_hash,
             proof: self.proof,
             merkle_root: self.merkle_root,
-            nullifier_hash: self.nullifier_hash,
+            nullifier: self.nullifier_hash,
         }
     }
 }
@@ -254,6 +272,23 @@ pub enum Status {
     Failed(AppError),
 }
 
+/// Computes signal hashes from constraints
+///
+/// Returns a map from identifier (credential type) to signal hash
+#[allow(dead_code)]
+fn compute_signal_hashes(
+    constraints: &ConstraintNode,
+) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    for item in constraints.collect_items() {
+        if let Some(ref signal) = item.signal {
+            let hash = crate::crypto::hash_signal(signal);
+            map.insert(item.credential_type.as_str().to_string(), hash);
+        }
+    }
+    map
+}
+
 /// Parameters for creating a `BridgeConnection`
 pub struct BridgeConnectionParams {
     pub app_id: AppId,
@@ -265,6 +300,10 @@ pub struct BridgeConnectionParams {
     pub legacy_signal: String,
     pub bridge_url: Option<BridgeUrl>,
     pub allow_legacy_proofs: bool,
+    /// Signal hashes computed from constraints, keyed by identifier
+    pub signal_hashes: std::collections::HashMap<String, String>,
+    /// Optional override for the connect base URL (e.g., for staging environments)
+    pub override_connect_base_url: Option<String>,
 }
 
 /// A World ID verification connection to the bridge
@@ -277,6 +316,16 @@ pub struct BridgeConnection {
     key_bytes: Vec<u8>,
     request_id: Uuid,
     client: reqwest::Client,
+    /// Signal hashes computed from constraints, keyed by identifier
+    signal_hashes: std::collections::HashMap<String, String>,
+    /// Action identifier (only for uniqueness proofs)
+    action: Option<String>,
+    /// Action description (only if provided in input)
+    action_description: Option<String>,
+    /// Nonce from the RP context
+    nonce: String,
+    /// Optional override for the connect base URL
+    override_connect_base_url: Option<String>,
 }
 
 impl BridgeConnection {
@@ -341,15 +390,18 @@ impl BridgeConnection {
             params.allow_legacy_proofs,
         );
 
-        // For backwards compatibility we encode the hash of the signal
+        // For backwards compatibility we hash the signal
         let legacy_signal_hash =
-            crate::crypto::encode_signal(&Signal::from_string(params.legacy_signal));
+            crate::crypto::hash_signal(&Signal::from_string(params.legacy_signal));
+
+        // Clone action_description for payload (we also need it for BridgeConnection)
+        let action_description_for_payload = params.action_description.clone();
 
         // Prepare the payload
         let payload = BridgeRequestPayload {
             app_id: params.app_id.as_str().to_string(),
             action: action_str,
-            action_description: params.action_description,
+            action_description: action_description_for_payload,
             proof_request,
             verification_level: params.legacy_verification_level,
             signal: legacy_signal_hash,
@@ -397,6 +449,12 @@ impl BridgeConnection {
 
         let create_response: BridgeCreateResponse = response.json().await?;
 
+        // Extract action from kind for result
+        let action = match &params.kind {
+            RequestKind::Uniqueness { action } => Some(action.clone()),
+            _ => None,
+        };
+
         Ok(Self {
             bridge_url,
             #[cfg(feature = "native-crypto")]
@@ -404,6 +462,11 @@ impl BridgeConnection {
             key_bytes: key_bytes.to_vec(),
             request_id: create_response.request_id,
             client,
+            signal_hashes: params.signal_hashes,
+            action,
+            action_description: params.action_description,
+            nonce: params.rp_context.nonce.clone(),
+            override_connect_base_url: params.override_connect_base_url,
         })
     }
 
@@ -417,8 +480,14 @@ impl BridgeConnection {
             format!("&b={}", urlencoding::encode(self.bridge_url.as_str()))
         };
 
+        let base_url = self
+            .override_connect_base_url
+            .as_deref()
+            .unwrap_or("https://world.org/verify");
+
         format!(
-            "https://world.org/verify?t=wld&i={}&k={}{}",
+            "{}?t=wld&i={}&k={}{}",
+            base_url,
             self.request_id,
             urlencoding::encode(&key_b64),
             bridge_param
@@ -475,25 +544,55 @@ impl BridgeConnection {
                                 BridgeResponseItem::V3 { .. } => "3.0",
                             });
 
-                        let responses = response
+                        let responses: Vec<ResponseItem> = response
                             .responses
                             .into_iter()
                             .map(|item| {
+                                let signal_hash =
+                                    self.signal_hashes.get(item.identifier()).cloned();
                                 item.into_response_item(
                                     response.session_id.is_some(),
                                     response.action,
+                                    signal_hash,
                                 )
                             })
                             .collect();
-                        Ok(Status::Confirmed(IDKitResult::new(
-                            protocol_version,
-                            responses,
-                        )))
+
+                        // For session proofs, use new_session constructor
+                        Ok(Status::Confirmed(
+                            if let Some(session_id) = response.session_id {
+                                IDKitResult::new_session(
+                                    self.nonce.clone(),
+                                    session_id.to_string(),
+                                    self.action_description.clone(),
+                                    responses,
+                                )
+                            } else {
+                                IDKitResult::new(
+                                    protocol_version,
+                                    self.nonce.clone(),
+                                    self.action.clone(),
+                                    self.action_description.clone(),
+                                    responses,
+                                )
+                            },
+                        ))
                     }
                     BridgeResponse::ResponseV1(response) => {
                         // V1 responses are always protocol 3.0
-                        let item = response.into_response_item();
-                        Ok(Status::Confirmed(IDKitResult::new("3.0", vec![item])))
+                        // For V1 we don't have identifier, use verification_level as key
+                        let signal_hash = self
+                            .signal_hashes
+                            .get(response.verification_level.as_str())
+                            .cloned();
+                        let item = response.into_response_item(signal_hash);
+                        Ok(Status::Confirmed(IDKitResult::new(
+                            "3.0",
+                            self.nonce.clone(),
+                            self.action.clone(),
+                            self.action_description.clone(),
+                            vec![item],
+                        )))
                     }
                 }
             }
@@ -530,6 +629,8 @@ pub struct IDKitRequestConfig {
     /// - `true`: Accept both v3 and v4 proofs. Use during migration.
     /// - `false`: Only accept v4 proofs. Use after migration cutoff or for new apps.
     pub allow_legacy_proofs: bool,
+    /// Optional override for the connect base URL (e.g., for staging environments)
+    pub override_connect_base_url: Option<String>,
 }
 
 /// Configuration for session requests (no action field, v4 only)
@@ -546,6 +647,8 @@ pub struct IDKitSessionConfig {
     pub action_description: Option<String>,
     /// Optional bridge URL (defaults to production)
     pub bridge_url: Option<String>,
+    /// Optional override for the connect base URL (e.g., for staging environments)
+    pub override_connect_base_url: Option<String>,
 }
 
 /// Internal enum to store builder configuration
@@ -575,6 +678,7 @@ impl IDKitConfig {
                     .as_ref()
                     .map(|url| BridgeUrl::new(url, &app_id))
                     .transpose()?;
+                let signal_hashes = compute_signal_hashes(&constraints);
 
                 Ok(BridgeConnectionParams {
                     app_id,
@@ -588,6 +692,8 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: config.allow_legacy_proofs,
+                    signal_hashes,
+                    override_connect_base_url: config.override_connect_base_url.clone(),
                 })
             }
             Self::CreateSession(config) => {
@@ -597,6 +703,7 @@ impl IDKitConfig {
                     .as_ref()
                     .map(|url| BridgeUrl::new(url, &app_id))
                     .transpose()?;
+                let signal_hashes = compute_signal_hashes(&constraints);
 
                 Ok(BridgeConnectionParams {
                     app_id,
@@ -608,6 +715,8 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    signal_hashes,
+                    override_connect_base_url: config.override_connect_base_url.clone(),
                 })
             }
             Self::ProveSession { session_id, config } => {
@@ -617,6 +726,7 @@ impl IDKitConfig {
                     .as_ref()
                     .map(|url| BridgeUrl::new(url, &app_id))
                     .transpose()?;
+                let signal_hashes = compute_signal_hashes(&constraints);
 
                 Ok(BridgeConnectionParams {
                     app_id,
@@ -630,6 +740,8 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    signal_hashes,
+                    override_connect_base_url: config.override_connect_base_url.clone(),
                 })
             }
         }
@@ -642,6 +754,7 @@ impl IDKitConfig {
         preset: Preset,
     ) -> std::result::Result<BridgeConnectionParams, crate::error::IdkitError> {
         let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+        let signal_hashes = compute_signal_hashes(&constraints);
 
         match self {
             Self::Request(config) => {
@@ -664,6 +777,8 @@ impl IDKitConfig {
                     legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: config.allow_legacy_proofs,
+                    signal_hashes,
+                    override_connect_base_url: config.override_connect_base_url.clone(),
                 })
             }
             Self::CreateSession(config) => {
@@ -684,6 +799,8 @@ impl IDKitConfig {
                     legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    signal_hashes,
+                    override_connect_base_url: config.override_connect_base_url.clone(),
                 })
             }
             Self::ProveSession { session_id, config } => {
@@ -706,6 +823,8 @@ impl IDKitConfig {
                     legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    signal_hashes,
+                    override_connect_base_url: config.override_connect_base_url.clone(),
                 })
             }
         }

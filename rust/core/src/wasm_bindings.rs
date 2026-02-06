@@ -50,7 +50,7 @@ impl CredentialRequestWasm {
         Ok(Self(CredentialRequest::new(cred, signal_opt)))
     }
 
-    /// Creates a new request item with ABI-encoded bytes for the signal
+    /// Creates a new request item with raw bytes for the signal
     ///
     /// # Errors
     ///
@@ -60,7 +60,7 @@ impl CredentialRequestWasm {
         let cred: CredentialType = serde_wasm_bindgen::from_value(credential_type)?;
         Ok(Self(CredentialRequest::new(
             cred,
-            Some(Signal::from_abi_encoded(signal_bytes)),
+            Some(Signal::from_bytes(signal_bytes)),
         )))
     }
 
@@ -272,22 +272,36 @@ impl RpContextWasm {
     }
 }
 
-/// Hashes a signal string using Keccak256
-#[must_use]
+/// Hashes a Signal (string or `Uint8Array`) to a signal hash
+///
+/// This is the same encoding used internally when constructing proof requests.
+/// Accepts either a string or `Uint8Array` and returns the keccak256 hash
+/// shifted right by 8 bits, formatted as a 0x-prefixed hex string.
+///
+/// # Errors
+///
+/// Returns an error if the input is neither a string nor `Uint8Array`
 #[wasm_bindgen(js_name = hashSignal)]
-pub fn hash_signal(signal: &str) -> String {
-    use crate::crypto::hash_to_field;
-    let hash = hash_to_field(signal.as_bytes());
-    format!("{hash:#066x}")
-}
+pub fn hash_signal_wasm(signal: JsValue) -> Result<String, JsValue> {
+    // Check if it's a string
+    if let Some(s) = signal.as_string() {
+        // Use existing 0x prefix detection for backwards compat
+        if let Some(stripped) = s.strip_prefix("0x") {
+            if let Ok(bytes) = hex::decode(stripped) {
+                return Ok(crate::crypto::hash_signal(&Signal::from_bytes(bytes)));
+            }
+        }
+        return Ok(crate::crypto::hash_signal(&Signal::from_string(s)));
+    }
 
-/// Hashes raw bytes using Keccak256
-#[must_use]
-#[wasm_bindgen(js_name = hashSignalBytes)]
-pub fn hash_signal_bytes(bytes: &[u8]) -> String {
-    use crate::crypto::hash_to_field;
-    let hash = hash_to_field(bytes);
-    format!("{hash:#066x}")
+    // Check if it's a Uint8Array
+    if let Ok(arr) = signal.dyn_into::<js_sys::Uint8Array>() {
+        return Ok(crate::crypto::hash_signal(&Signal::from_bytes(
+            arr.to_vec(),
+        )));
+    }
+
+    Err(JsValue::from_str("Signal must be a string or Uint8Array"))
 }
 
 // RP Signature wrapper for WASM
@@ -441,12 +455,14 @@ enum IDKitConfigWasm {
         action_description: Option<String>,
         bridge_url: Option<String>,
         allow_legacy_proofs: bool,
+        override_connect_base_url: Option<String>,
     },
     CreateSession {
         app_id: String,
         rp_context: RpContext,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        override_connect_base_url: Option<String>,
     },
     ProveSession {
         session_id: String,
@@ -454,7 +470,22 @@ enum IDKitConfigWasm {
         rp_context: RpContext,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        override_connect_base_url: Option<String>,
     },
+}
+
+/// Computes signal hashes from constraints
+fn compute_signal_hashes(
+    constraints: &ConstraintNode,
+) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    for item in constraints.collect_items() {
+        if let Some(ref signal) = item.signal {
+            let hash = crate::crypto::hash_signal(signal);
+            map.insert(item.credential_type.as_str().to_string(), hash);
+        }
+    }
+    map
 }
 
 impl IDKitConfigWasm {
@@ -462,6 +493,8 @@ impl IDKitConfigWasm {
         &self,
         constraints: ConstraintNode,
     ) -> Result<crate::bridge::BridgeConnectionParams, JsValue> {
+        let signal_hashes = compute_signal_hashes(&constraints);
+
         match self {
             Self::Request {
                 app_id,
@@ -470,6 +503,7 @@ impl IDKitConfigWasm {
                 action_description,
                 bridge_url,
                 allow_legacy_proofs,
+                override_connect_base_url,
             } => {
                 let app_id = crate::AppId::new(app_id)
                     .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
@@ -491,6 +525,8 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: *allow_legacy_proofs,
+                    signal_hashes,
+                    override_connect_base_url: override_connect_base_url.clone(),
                 })
             }
             Self::CreateSession {
@@ -498,6 +534,7 @@ impl IDKitConfigWasm {
                 rp_context,
                 action_description,
                 bridge_url,
+                override_connect_base_url,
             } => {
                 let app_id = crate::AppId::new(app_id)
                     .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
@@ -517,6 +554,8 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    signal_hashes,
+                    override_connect_base_url: override_connect_base_url.clone(),
                 })
             }
             Self::ProveSession {
@@ -525,6 +564,7 @@ impl IDKitConfigWasm {
                 rp_context,
                 action_description,
                 bridge_url,
+                override_connect_base_url,
             } => {
                 let app_id = crate::AppId::new(app_id)
                     .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
@@ -546,6 +586,8 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    signal_hashes,
+                    override_connect_base_url: override_connect_base_url.clone(),
                 })
             }
         }
@@ -581,6 +623,7 @@ impl IDKitBuilderWasm {
         action_description: Option<String>,
         bridge_url: Option<String>,
         allow_legacy_proofs: bool,
+        override_connect_base_url: Option<String>,
     ) -> Self {
         Self {
             config: IDKitConfigWasm::Request {
@@ -590,6 +633,7 @@ impl IDKitBuilderWasm {
                 action_description,
                 bridge_url,
                 allow_legacy_proofs,
+                override_connect_base_url,
             },
         }
     }
@@ -602,6 +646,7 @@ impl IDKitBuilderWasm {
         rp_context: RpContextWasm,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        override_connect_base_url: Option<String>,
     ) -> Self {
         Self {
             config: IDKitConfigWasm::CreateSession {
@@ -609,6 +654,7 @@ impl IDKitBuilderWasm {
                 rp_context: rp_context.into_inner(),
                 action_description,
                 bridge_url,
+                override_connect_base_url,
             },
         }
     }
@@ -622,6 +668,7 @@ impl IDKitBuilderWasm {
         rp_context: RpContextWasm,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        override_connect_base_url: Option<String>,
     ) -> Self {
         Self {
             config: IDKitConfigWasm::ProveSession {
@@ -630,6 +677,7 @@ impl IDKitBuilderWasm {
                 rp_context: rp_context.into_inner(),
                 action_description,
                 bridge_url,
+                override_connect_base_url,
             },
         }
     }
@@ -681,6 +729,7 @@ pub fn request(
     action_description: Option<String>,
     bridge_url: Option<String>,
     allow_legacy_proofs: bool,
+    override_connect_base_url: Option<String>,
 ) -> IDKitBuilderWasm {
     IDKitBuilderWasm::new(
         app_id,
@@ -689,6 +738,7 @@ pub fn request(
         action_description,
         bridge_url,
         allow_legacy_proofs,
+        override_connect_base_url,
     )
 }
 
@@ -700,8 +750,15 @@ pub fn create_session(
     rp_context: RpContextWasm,
     action_description: Option<String>,
     bridge_url: Option<String>,
+    override_connect_base_url: Option<String>,
 ) -> IDKitBuilderWasm {
-    IDKitBuilderWasm::for_create_session(app_id, rp_context, action_description, bridge_url)
+    IDKitBuilderWasm::for_create_session(
+        app_id,
+        rp_context,
+        action_description,
+        bridge_url,
+        override_connect_base_url,
+    )
 }
 
 /// Entry point for proving an existing session (WASM)
@@ -713,6 +770,7 @@ pub fn prove_session(
     rp_context: RpContextWasm,
     action_description: Option<String>,
     bridge_url: Option<String>,
+    override_connect_base_url: Option<String>,
 ) -> IDKitBuilderWasm {
     IDKitBuilderWasm::for_prove_session(
         session_id,
@@ -720,6 +778,7 @@ pub fn prove_session(
         rp_context,
         action_description,
         bridge_url,
+        override_connect_base_url,
     )
 }
 
@@ -828,7 +887,8 @@ export type CredentialType = "orb" | "face" | "secure_document" | "document" | "
 
 export interface CredentialRequestType {
     type: CredentialType;
-    signal?: string;
+    /** Signal can be a string or raw bytes (Uint8Array) */
+    signal?: string | Uint8Array;
     genesis_issued_at_min?: number;
     expires_at_min?: number;
 }
@@ -837,6 +897,13 @@ export type ConstraintNode =
     | CredentialRequestType
     | { any: ConstraintNode[] }
     | { all: ConstraintNode[] };
+
+/**
+ * Hashes a Signal (string or Uint8Array) to a signal hash.
+ * This is the same encoding used internally when constructing proof requests.
+ * Returns a 0x-prefixed hex string.
+ */
+export function hashSignal(signal: string | Uint8Array): string;
 "#;
 
 // Export ResponseItem/IDKitResult types for unified response
@@ -846,6 +913,8 @@ const TS_IDKIT_RESULT: &str = r#"
 export interface ResponseItemV4 {
     /** Credential identifier (e.g., "orb", "face", "document") */
     identifier: string;
+    /** Signal hash (optional, included if signal was provided in request) */
+    signal_hash?: string;
     /** Encoded World ID proof: first 4 elements are compressed Groth16 proof, 5th is Merkle root (hex strings). Compatible with WorldIDVerifier.sol */
     proof: string[];
     /** RP-scoped nullifier (hex) */
@@ -860,18 +929,22 @@ export interface ResponseItemV4 {
 export interface ResponseItemV3 {
     /** Credential identifier (e.g., "orb", "face") */
     identifier: string;
+    /** Signal hash (optional, included if signal was provided in request) */
+    signal_hash?: string;
     /** ABI-encoded proof (hex) */
     proof: string;
     /** Merkle root (hex) */
     merkle_root: string;
-    /** Nullifier hash (hex) */
-    nullifier_hash: string;
+    /** Nullifier (hex) */
+    nullifier: string;
 }
 
 /** Session response item for World ID v4 session proofs */
 export interface ResponseItemSession {
     /** Credential identifier (e.g., "orb", "face", "document") */
     identifier: string;
+    /** Signal hash (optional, included if signal was provided in request) */
+    signal_hash?: string;
     /** Encoded World ID proof: first 4 elements are compressed Groth16 proof, 5th is Merkle root (hex strings). Compatible with WorldIDVerifier.sol */
     proof: string[];
     /** Session nullifier: 1st element is the session nullifier, 2nd is the generated action (hex strings) */
@@ -886,6 +959,12 @@ export interface ResponseItemSession {
 export interface IDKitResultV3 {
     /** Protocol version 3.0 */
     protocol_version: "3.0";
+    /** Nonce used in the request */
+    nonce: string;
+    /** Action identifier (only for uniqueness proofs) */
+    action?: string;
+    /** Action description (only if provided in input) */
+    action_description?: string;
     /** Array of V3 credential responses */
     responses: ResponseItemV3[];
 }
@@ -894,6 +973,12 @@ export interface IDKitResultV3 {
 export interface IDKitResultV4 {
     /** Protocol version 4.0 */
     protocol_version: "4.0";
+    /** Nonce used in the request */
+    nonce: string;
+    /** Action identifier (required for uniqueness proofs) */
+    action: string;
+    /** Action description (only if provided in input) */
+    action_description?: string;
     /** Array of V4 credential responses */
     responses: ResponseItemV4[];
 }
@@ -902,6 +987,10 @@ export interface IDKitResultV4 {
 export interface IDKitResultSession {
     /** Protocol version 4.0 */
     protocol_version: "4.0";
+    /** Nonce used in the request */
+    nonce: string;
+    /** Action description (only if provided in input) */
+    action_description?: string;
     /** Session ID returned by the World App */
     session_id: string;
     /** Array of session credential responses */
