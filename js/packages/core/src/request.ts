@@ -290,14 +290,15 @@ class IDKitBuilder {
    * const request = await builder.constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
    * ```
    */
-  async constraints(constraints: ConstraintNode): Promise<IDKitRequest> {
-    await initIDKit();
+  //TODO: re-enable once this is supported and World ID 4.0 is rolled out live
+  // async constraints(constraints: ConstraintNode): Promise<IDKitRequest> {
+  //   await initIDKit();
 
-    const wasmRequest = (await this.wasmBuilder.constraints(
-      constraints,
-    )) as unknown as WasmModule.IDKitRequest;
-    return new IDKitRequestImpl(wasmRequest);
-  }
+  //   const wasmRequest = (await this.wasmBuilder.constraints(
+  //     constraints,
+  //   )) as unknown as WasmModule.IDKitRequest;
+  //   return new IDKitRequestImpl(wasmRequest);
+  // }
 
   /**
    * Creates an IDKit request from a preset (works for all request types)
