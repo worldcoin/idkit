@@ -13,10 +13,7 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": [
-    "dist",
-    "wasm"
-  ],
+  "files": ["dist"],
   "scripts": {
     "build:wasm": "cd ../../../ && ./scripts/build-wasm.sh",
     "build:ts": "tsup",
