@@ -8,14 +8,10 @@ export interface TranslationStrings {
   "All set!": string;
   "Your World ID is now connected": string;
   "Something went wrong": string;
-  "Verification Declined": string;
   "Request cancelled": string;
-  "Connection to your wallet failed. Please try again.": string;
   "You've cancelled the request in World App.": string;
-  "You have already verified the maximum number of times for this action.": string;
-  "It seems you do not have the verification level required by this app.": string;
-  "Invalid network. If you are the app owner, visit docs.world.org/test for details.": string;
-  "Your identity is still being registered. Please wait a few minutes and try again.": string;
+  "Connection lost": string;
+  "Please check your connection and try again.": string;
   "We couldn't complete your request. Please try again.": string;
   "Try Again": string;
   "Open World App": string;

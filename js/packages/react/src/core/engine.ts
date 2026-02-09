@@ -109,7 +109,9 @@ async function createRequestFromStrategy(
     return requestBuilder.preset(config.preset);
   }
 
-  return requestBuilder.constraints(config.constraints);
+  // TODO: re-enable when .constraints() is added back to IDKitBuilder
+  // return requestBuilder.constraints(config.constraints);
+  throw new Error("constraints are not yet supported");
 }
 
 async function pollRequest(
