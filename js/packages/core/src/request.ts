@@ -290,14 +290,15 @@ class IDKitBuilder {
    * const request = await builder.constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
    * ```
    */
-  async constraints(constraints: ConstraintNode): Promise<IDKitRequest> {
-    await initIDKit();
+  //TODO: re-enable once this is supported and World ID 4.0 is rolled out live
+  // async constraints(constraints: ConstraintNode): Promise<IDKitRequest> {
+  //   await initIDKit();
 
-    const wasmRequest = (await this.wasmBuilder.constraints(
-      constraints,
-    )) as unknown as WasmModule.IDKitRequest;
-    return new IDKitRequestImpl(wasmRequest);
-  }
+  //   const wasmRequest = (await this.wasmBuilder.constraints(
+  //     constraints,
+  //   )) as unknown as WasmModule.IDKitRequest;
+  //   return new IDKitRequestImpl(wasmRequest);
+  // }
 
   /**
    * Creates an IDKit request from a preset (works for all request types)
@@ -399,6 +400,7 @@ function createRequest(config: IDKitRequestConfig): IDKitBuilder {
     config.bridge_url ?? null,
     config.allow_legacy_proofs,
     config.override_connect_base_url ?? null,
+    config.environment ?? null,
   );
   return new IDKitBuilder(wasmBuilder);
 }
@@ -451,6 +453,7 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
     config.action_description ?? null,
     config.bridge_url ?? null,
     config.override_connect_base_url ?? null,
+    config.environment ?? null,
   );
 
   return new IDKitBuilder(wasmBuilder);
@@ -510,6 +513,7 @@ function proveSession(
     config.action_description ?? null,
     config.bridge_url ?? null,
     config.override_connect_base_url ?? null,
+    config.environment ?? null,
   );
   return new IDKitBuilder(wasmBuilder);
 }
