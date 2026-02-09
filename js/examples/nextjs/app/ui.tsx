@@ -154,7 +154,9 @@ export function DemoClient(): ReactElement {
           Widget manages state + UI in a shadow root and runs the request flow.
         </p>
         <div className="stack">
-          <button onClick={() => startWidgetFlow("orb")}>Verify with Orb</button>
+          <button onClick={() => startWidgetFlow("orb")}>
+            Verify with Orb
+          </button>
           <button onClick={() => startWidgetFlow("secure_document")}>
             Verify with Secure Document
           </button>
@@ -180,6 +182,7 @@ export function DemoClient(): ReactElement {
             onError={(error) => {
               setWidgetError(error.message);
             }}
+            environment="staging"
             override_connect_base_url="https://staging.world.org/verify"
           />
         ) : null}

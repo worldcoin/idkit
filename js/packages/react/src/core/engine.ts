@@ -172,6 +172,7 @@ export async function runRequestFlow(
     bridge_url: config.bridge_url,
     allow_legacy_proofs: config.allow_legacy_proofs,
     override_connect_base_url: config.override_connect_base_url,
+    environment: config.environment,
   });
 
   const request = await createRequestFromStrategy(builder, config);
@@ -203,6 +204,7 @@ export async function runSessionFlow(
         action_description: config.action_description,
         bridge_url: config.bridge_url,
         override_connect_base_url: config.override_connect_base_url,
+        environment: config.environment,
       })
     : IDKit.createSession({
         app_id: config.app_id,
@@ -210,6 +212,7 @@ export async function runSessionFlow(
         action_description: config.action_description,
         bridge_url: config.bridge_url,
         override_connect_base_url: config.override_connect_base_url,
+        environment: config.environment,
       });
 
   const request = await createRequestFromStrategy(builder, config);
