@@ -902,7 +902,7 @@ impl IDKitRequest {
                         .serialize(&serializer)
                 }
                 crate::Status::Failed(error) => {
-                    serde_json::json!({"type": "failed", "error": format!("{error:?}")})
+                    serde_json::json!({"type": "failed", "error": serde_json::to_value(&error).unwrap_or(serde_json::Value::String(format!("{error:?}")))})
                         .serialize(&serializer)
                 }
             }

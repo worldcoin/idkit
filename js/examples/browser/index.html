@@ -342,7 +342,7 @@
           console.error("Verification error:", error);
           hideAll();
           errorDiv.hidden = false;
-          errorText.textContent = error.message;
+          errorText.textContent = `Message: ${error.message}, Code: ${error.code || "N/A"}`;
         }
       }
 
