@@ -120,8 +120,8 @@ export const WIDGET_STYLES = `
 /* Close button */
 .idkit-close {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 24px;
+  right: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -140,8 +140,8 @@ export const WIDGET_STYLES = `
   background: var(--idkit-surface);
 }
 .idkit-close svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 /* Content area */
@@ -151,19 +151,22 @@ export const WIDGET_STYLES = `
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 32px 24px;
+  padding: 24px 24px 24px;
   text-align: center;
 }
 
 /* Footer */
 .idkit-footer {
-  border-top: 1px solid var(--idkit-border);
-  padding: 16px 32px;
+  border-top: 1px solid #F5F5F7;
+  padding: 28px 32px;
   text-align: center;
+}
+:host(.dark) .idkit-footer {
+  border-top-color: rgba(245, 245, 247, 0.15);
 }
 .idkit-footer a {
   color: var(--idkit-text-muted);
-  font-size: 13px;
+  font-size: 14px;
   text-decoration: none;
   transition: color 0.15s ease;
 }
@@ -207,7 +210,7 @@ export const WIDGET_STYLES = `
 .idkit-qr-container {
   position: relative;
   width: 100%;
-  margin-top: 20px;
+  margin-top: 40px;
 }
 
 .idkit-qr-overlay {
@@ -264,27 +267,24 @@ export const WIDGET_STYLES = `
   animation: idkit-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Copy toast */
+/* Copy toast — absolutely positioned so it never shifts layout */
 .idkit-copy-toast {
-  display: grid;
-  justify-items: center;
-  transition: grid-template-rows 0.4s ease-in-out, opacity 0.25s ease-in-out, margin-top 0.4s ease-in-out;
-}
-.idkit-copy-toast.hidden {
-  grid-template-rows: 0fr;
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
   opacity: 0;
-  margin-top: 0;
+  transition: opacity 0.25s ease-in-out;
+  pointer-events: none;
+  white-space: nowrap;
 }
 .idkit-copy-toast.visible {
-  grid-template-rows: 1fr;
   opacity: 1;
-  margin-top: 8px;
-  margin-bottom: 8px;
-  transition: grid-template-rows 0.25s ease-in-out, opacity 0.2s ease-in-out 0.05s, margin-top 0.25s ease-in-out;
+  transition: opacity 0.2s ease-in-out 0.05s;
 }
 .idkit-copy-toast > span {
-  overflow: hidden;
-  display: block;
+  display: inline-block;
   border-radius: 8px;
   border: 1px solid var(--idkit-border-light);
   padding: 4px 8px;
@@ -377,7 +377,7 @@ export const WIDGET_STYLES = `
 
 .idkit-error-message {
   margin: 8px auto 0;
-  max-width: 260px;
+  max-width: 224px;
   font-size: 16px;
   color: var(--idkit-text-muted);
   line-height: 1.4;
@@ -401,6 +401,12 @@ export const WIDGET_STYLES = `
 }
 .idkit-retry-btn:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Success subtext: old SDK used text-lg (18px) */
+.idkit-success-icon ~ .idkit-subtext {
+  font-size: 18px;
+  line-height: 1.56;
 }
 
 /* Responsive: mobile full-screen bottom-anchored */
@@ -432,6 +438,10 @@ export const WIDGET_STYLES = `
   }
   .idkit-desktop-only {
     display: block;
+    position: relative;
+  }
+  .idkit-subtext {
+    margin-top: 8px;
   }
 }
 `;
