@@ -9,6 +9,7 @@ import uniffi.idkit_core.IdKitRequestBuilder
 import uniffi.idkit_core.IdKitRequestConfig
 import uniffi.idkit_core.request
 import uniffi.idkit_core.Preset
+import uniffi.idkit_core.Environment
 
 // Type aliases for public API consistency - UniFFI 0.30 generates IdKit* names
 typealias IDKitRequestBuilder = IdKitRequestBuilder
@@ -145,12 +146,14 @@ object IdKit {
         rpContext: RpContext,
         actionDescription: String? = null,
         bridgeUrl: String? = null,
+        environment: Environment? = null,
     ): IDKitRequestConfig = IDKitRequestConfig(
         appId = appId,
         action = action,
         rpContext = rpContext,
         actionDescription = actionDescription,
         bridgeUrl = bridgeUrl,
+        environment = environment,
     )
 
     /**
