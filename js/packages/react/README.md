@@ -1,0 +1,29 @@
+# @worldcoin/idkit
+
+React SDK for World ID built on top of `@worldcoin/idkit-core`.
+
+## Highlights
+
+- Headless hooks for custom UI
+- Built-in controlled widgets with shadow DOM isolation
+- Separate request and session APIs
+
+## Installation
+
+```bash
+npm install @worldcoin/idkit
+```
+
+## Basic usage
+
+```tsx
+import { useIDKitRequest } from "@worldcoin/idkit";
+
+const flow = useIDKitRequest({
+  app_id: "app_xxxxx",
+  action: "my-action",
+  rp_context,
+  allow_legacy_proofs: false,
+  constraints: any(CredentialRequest("orb")),
+});
+```
