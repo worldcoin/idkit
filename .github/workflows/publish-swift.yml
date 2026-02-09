@@ -69,7 +69,7 @@ jobs:
         if: steps.config.outputs.should_publish == 'true'
         id: version
         run: |
-          BASE_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
+          BASE_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-core") | .version')
 
           if [ "${{ steps.config.outputs.is_prerelease }}" = "true" ]; then
             # Dev release: append -dev.SHORT_SHA
