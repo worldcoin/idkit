@@ -67,6 +67,11 @@ pub enum AppError {
     #[error("User rejected the request")]
     UserRejected,
 
+    /// Verification rejected
+    /// Legacy error, it's replaced by `UserRejected` in the new Bridge Protocol
+    #[error("Verification rejected")]
+    VerificationRejected,
+
     /// Credential unavailable
     #[error("Requested credential is not available")]
     CredentialUnavailable,
@@ -95,8 +100,17 @@ pub enum AppError {
     #[error("Failed to connect to World App")]
     ConnectionFailed,
 
+    /// Maximum verifications reached
+    #[error("Maximum verifications reached")]
+    MaxVerificationsReached,
+
+    /// Verification failed by host app
+    #[error("Verification failed by host app")]
+    FailedByHostApp,
+
     /// Generic error
     #[error("An error occurred")]
+    #[serde(other)]
     GenericError,
 }
 

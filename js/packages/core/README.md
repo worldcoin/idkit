@@ -67,16 +67,21 @@ Poll for the verification proof, then verify it server-side:
 
 ```typescript
 // Wait for the user to scan and approve
-const result = await request.pollForUpdates({
+const completion = await request.pollUntilCompletion({
   pollInterval: 2000,
   timeout: 120_000,
 });
+
+if (!completion.success) {
+  console.error("Verification failed:", completion.error);
+  return;
+}
 
 // Send proof to your backend for verification
 const verified = await fetch("/api/verify-proof", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(result),
+  body: JSON.stringify(completion.result),
 }).then((r) => r.json());
 ```
 

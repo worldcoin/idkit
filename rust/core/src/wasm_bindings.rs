@@ -902,7 +902,7 @@ impl IDKitRequest {
                         .serialize(&serializer)
                 }
                 crate::Status::Failed(error) => {
-                    serde_json::json!({"type": "failed", "error": format!("{error:?}")})
+                    serde_json::json!({"type": "failed", "error": serde_json::to_value(error).unwrap_or_else(|_| serde_json::Value::String(format!("{error:?}")))})
                         .serialize(&serializer)
                 }
             }
@@ -1070,12 +1070,27 @@ export interface RpContext {
     signature: string;
 }
 
+/** Error codes from World App (mirrors Rust AppError) */
+export type IDKitErrorCode =
+    | "user_rejected"
+    | "verification_rejected"
+    | "credential_unavailable"
+    | "malformed_request"
+    | "invalid_network"
+    | "inclusion_proof_pending"
+    | "inclusion_proof_failed"
+    | "unexpected_response"
+    | "connection_failed"
+    | "max_verifications_reached"
+    | "failed_by_host_app"
+    | "generic_error";
+
 /** Status returned from pollForStatus() */
 export type Status =
     | { type: "waiting_for_connection" }
     | { type: "awaiting_confirmation" }
     | { type: "confirmed"; result: IDKitResult }
-    | { type: "failed"; error: string };
+    | { type: "failed"; error: IDKitErrorCode };
 "#;
 
 // Export preset types

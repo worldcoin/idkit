@@ -125,7 +125,9 @@
     ></button>
 
     <h1>IDKit Browser Example</h1>
-    <p>Minimal example showing World ID verification via the Rust/WASM core.</p>
+    <p>
+      Minimal example showing World ID verification using @worldcoin/idkit-core
+    </p>
 
     <div>
       <button id="verifyOrb">Verify with Orb</button>
@@ -227,8 +229,8 @@
 
       // Demo app configuration
       // Replace with your actual app ID and RP ID from the World App dashboard
-      const APP_ID = "app_2f5740d59fafcfbd832b71461ca85296"; // Replace with your actual app ID
-      const RP_ID = "rp_dc5750f6b525b3b7";
+      const APP_ID = "app_982a2852d071269417befc64ab3981c2"; // Replace with your actual app ID
+      const RP_ID = "rp_45a9b5d97996bb9a";
       const ACTION = "test-action";
 
       // UI elements
@@ -296,8 +298,6 @@
             action: ACTION,
             rp_context: rpContext,
             allow_legacy_proofs: true,
-            // TODO: Remove this once we ship dev portal 4.0 in production
-            override_connect_base_url: "https://staging.world.org/verify",
             environment: "staging",
           }).preset(preset);
 
@@ -312,12 +312,17 @@
 
           statusText.textContent = "Waiting for scan...";
 
-          // Poll for updates until proof is received
-          const result = await request.pollForUpdates({
+          // Poll until completion
+          const completion = await request.pollUntilCompletion({
             pollInterval: 2000, // Poll every 2 seconds
             timeout: 120000, // 2 minute timeout
           });
 
+          if (!completion.success) {
+            throw new Error(`Verification failed: ${completion.error}`);
+          }
+
+          const result = completion.result;
           console.log("Received proof:", result);
 
           // Build portal request and verify proof
@@ -342,7 +347,7 @@
           console.error("Verification error:", error);
           hideAll();
           errorDiv.hidden = false;
-          errorText.textContent = error.message;
+          errorText.textContent = `Message: ${error.message}, Code: ${error.code || "N/A"}`;
         }
       }
 
