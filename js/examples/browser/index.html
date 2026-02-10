@@ -125,7 +125,9 @@
     ></button>
 
     <h1>IDKit Browser Example</h1>
-    <p>Minimal example showing World ID verification via the Rust/WASM core.</p>
+    <p>
+      Minimal example showing World ID verification using @worldcoin/idkit-core
+    </p>
 
     <div>
       <button id="verifyOrb">Verify with Orb</button>
@@ -227,8 +229,8 @@
 
       // Demo app configuration
       // Replace with your actual app ID and RP ID from the World App dashboard
-      const APP_ID = "app_9944fc8cc40c21f87e94023e9859d01f"; // Replace with your actual app ID
-      const RP_ID = "rp_67c9f66e2d185b05";
+      const APP_ID = "app_982a2852d071269417befc64ab3981c2"; // Replace with your actual app ID
+      const RP_ID = "rp_45a9b5d97996bb9a";
       const ACTION = "test-action";
 
       // UI elements
@@ -296,8 +298,6 @@
             action: ACTION,
             rp_context: rpContext,
             allow_legacy_proofs: true,
-            // TODO: Remove this once we ship dev portal 4.0 in production
-            override_connect_base_url: "https://staging.world.org/verify",
             environment: "staging",
           }).preset(preset);
 
