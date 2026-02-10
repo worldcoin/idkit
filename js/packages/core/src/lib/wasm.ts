@@ -95,6 +95,7 @@ export type {
   IDKitResultSession,
   ResponseItemSession,
   Status,
+  IDKitErrorCode,
   // Shared types
   CredentialType,
   ConstraintNode,

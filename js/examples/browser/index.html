@@ -227,8 +227,8 @@
 
       // Demo app configuration
       // Replace with your actual app ID and RP ID from the World App dashboard
-      const APP_ID = "app_2f5740d59fafcfbd832b71461ca85296"; // Replace with your actual app ID
-      const RP_ID = "rp_dc5750f6b525b3b7";
+      const APP_ID = "app_9944fc8cc40c21f87e94023e9859d01f"; // Replace with your actual app ID
+      const RP_ID = "rp_67c9f66e2d185b05";
       const ACTION = "test-action";
 
       // UI elements
@@ -312,12 +312,17 @@
 
           statusText.textContent = "Waiting for scan...";
 
-          // Poll for updates until proof is received
-          const result = await request.pollForUpdates({
+          // Poll until completion
+          const completion = await request.pollUntilCompletion({
             pollInterval: 2000, // Poll every 2 seconds
             timeout: 120000, // 2 minute timeout
           });
 
+          if (!completion.success) {
+            throw new Error(`Verification failed: ${completion.error}`);
+          }
+
+          const result = completion.result;
           console.log("Received proof:", result);
 
           // Build portal request and verify proof

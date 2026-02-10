@@ -18,6 +18,7 @@ export {
   documentLegacy,
   // Types
   type IDKitRequest,
+  type IDKitCompletionResult,
   type WaitOptions,
   type RpContext,
   type Preset,
@@ -50,12 +51,9 @@ export type {
   CredentialRequestType,
 } from "./types/result";
 
-// Bridge error codes
-export {
-  AppErrorCodes,
-  VerificationState,
-  ResponseStatus,
-} from "./types/bridge";
+// Error codes
+export { IDKitErrorCodes } from "./types/result";
+export type { IDKitErrorCode } from "./types/result";
 
 // Utilities
 export { isReactNative, isWeb, isNode } from "./lib/platform";
