@@ -251,7 +251,11 @@ function extractSignalFromConstraints(
   node: ConstraintNode,
 ): string | undefined {
   if ("type" in node && "signal" in node) {
-    return (node as CredentialRequestType).signal;
+    const signal = (node as CredentialRequestType).signal;
+    if (signal instanceof Uint8Array) {
+      return new TextDecoder().decode(signal);
+    }
+    return signal;
   }
   if ("any" in node) {
     for (const child of (node as { any: ConstraintNode[] }).any) {
