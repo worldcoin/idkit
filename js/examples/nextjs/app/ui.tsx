@@ -148,52 +148,43 @@ export function DemoClient(): ReactElement {
       >
         {isLightTheme ? "Dark" : "Light"}
       </button>
-      <section>
-        <h2>Start IDKit request</h2>
-        <p className="status">
-          Widget manages state + UI in a shadow root and runs the request flow.
-        </p>
-        <div className="stack">
-          <button onClick={() => startWidgetFlow("orb")}>
-            Verify with Orb
-          </button>
-          <button onClick={() => startWidgetFlow("secure_document")}>
-            Verify with Secure Document
-          </button>
-          <button onClick={() => startWidgetFlow("document")}>
-            Verify with Document
-          </button>
-        </div>
-        {widgetError ? <p className="status">Error: {widgetError}</p> : null}
+      <div className="stack">
+        <button onClick={() => startWidgetFlow("orb")}>Verify with Orb</button>
+        <button onClick={() => startWidgetFlow("secure_document")}>
+          Verify with Secure Document
+        </button>
+        <button onClick={() => startWidgetFlow("document")}>
+          Verify with Document
+        </button>
+      </div>
+      {widgetError ? <p className="status">Error: {widgetError}</p> : null}
 
-        {widgetRpContext ? (
-          <IDKitRequestWidget
-            open={widgetOpen}
-            onOpenChange={setWidgetOpen}
-            app_id={APP_ID}
-            action={ACTION}
-            rp_context={widgetRpContext}
-            allow_legacy_proofs={true}
-            preset={widgetPreset}
-            onSuccess={async (result) => {
-              const verified = await verifyProof(result);
-              setWidgetVerifyResult(verified);
-            }}
-            onError={(error) => {
-              setWidgetError(error.message);
-            }}
-            environment="staging"
-            override_connect_base_url="https://staging.world.org/verify"
-          />
-        ) : null}
+      {widgetRpContext ? (
+        <IDKitRequestWidget
+          open={widgetOpen}
+          onOpenChange={setWidgetOpen}
+          app_id={APP_ID}
+          action={ACTION}
+          rp_context={widgetRpContext}
+          allow_legacy_proofs={true}
+          preset={widgetPreset}
+          onSuccess={async (result) => {
+            const verified = await verifyProof(result);
+            setWidgetVerifyResult(verified);
+          }}
+          onError={(errorCode) => {
+            setWidgetError(`Verification failed: ${errorCode}`);
+          }}
+          environment="staging"
+        />
+      ) : null}
 
-        {widgetVerifyResult ? (
-          <>
-            <h3>Verification response</h3>
-            <pre>{JSON.stringify(widgetVerifyResult, null, 2)}</pre>
-          </>
-        ) : null}
-      </section>
+      {widgetVerifyResult ? (
+        <>
+          <h3>Verification response</h3>
+          <pre>{JSON.stringify(widgetVerifyResult, null, 2)}</pre>
+        </>
+      ) : null}
     </>
   );
 }

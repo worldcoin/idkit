@@ -1,12 +1,11 @@
 import type { ReactElement } from "react";
 import { __ } from "../../lang";
 import { IDKitErrorCodes } from "@worldcoin/idkit-core";
-import { IDKitFlowError } from "../../core/errors";
 import { ErrorIcon } from "../Icons/ErrorIcon";
 import { WarningIcon } from "../Icons/WarningIcon";
 
 type ErrorStateProps = {
-  error: Error | null;
+  errorCode: IDKitErrorCodes | null;
   onRetry: () => void;
 };
 
@@ -38,15 +37,19 @@ const variantConfig = {
   },
 };
 
-function getVariant(error: Error | null): ErrorVariant {
-  if (error instanceof IDKitFlowError && error.code) {
-    return errorCodeVariants[error.code as IDKitErrorCodes] ?? "generic";
+function getVariant(errorCode: IDKitErrorCodes | null): ErrorVariant {
+  if (!errorCode) {
+    return "generic";
   }
-  return "generic";
+
+  return errorCodeVariants[errorCode] ?? "generic";
 }
 
-export function ErrorState({ error, onRetry }: ErrorStateProps): ReactElement {
-  const variant = getVariant(error);
+export function ErrorState({
+  errorCode,
+  onRetry,
+}: ErrorStateProps): ReactElement {
+  const variant = getVariant(errorCode);
   const { title, message, Icon } = variantConfig[variant];
 
   return (

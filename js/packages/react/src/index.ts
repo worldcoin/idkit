@@ -5,17 +5,17 @@ export { IDKitRequestWidget } from "./widget/IDKitRequestWidget";
 export { IDKitSessionWidget } from "./widget/IDKitSessionWidget";
 
 export type {
-  IDKitFlowStatus,
-  IDKitFlowResult,
+  IDKitHookStatus,
+  IDKitHookResult,
   PollingConfig,
 } from "./types/common";
 export type {
-  IDKitRequestFlowConfig,
-  UseIDKitRequestResult,
+  IDKitRequestHookConfig,
+  UseIDKitRequestHookResult,
 } from "./types/request";
 export type {
-  IDKitSessionFlowConfig,
-  UseIDKitSessionResult,
+  IDKitSessionHookConfig,
+  UseIDKitSessionHookResult,
 } from "./types/session";
 export type {
   IDKitRequestWidgetProps,

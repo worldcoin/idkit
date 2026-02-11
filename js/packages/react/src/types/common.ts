@@ -1,6 +1,7 @@
-export type IDKitFlowStatus =
+import type { IDKitErrorCodes } from "@worldcoin/idkit-core";
+
+export type IDKitHookStatus =
   | "idle"
-  | "preparing"
   | "waiting_for_connection"
   | "awaiting_confirmation"
   | "confirmed"
@@ -11,13 +12,13 @@ export type PollingConfig = {
   timeout?: number;
 };
 
-export type IDKitFlowResult<TResult> = {
+export type IDKitHookResult<TResult> = {
   open: () => void;
   reset: () => void;
-  status: IDKitFlowStatus;
+  status: IDKitHookStatus;
   connectorURI: string | null;
   result: TResult | null;
-  error: Error | null;
+  errorCode: IDKitErrorCodes | null;
   isOpen: boolean;
   setOpen: (open: boolean) => void;
 };

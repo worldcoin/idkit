@@ -1,17 +1,17 @@
 import { useEffect, useRef, type ReactElement } from "react";
+import type { IDKitErrorCodes } from "@worldcoin/idkit-core";
 import type { IDKitSessionWidgetProps } from "../types";
 import { useIDKitSession } from "../hooks/useIDKitSession";
-import { normalizeError } from "../core/errors";
 import { IDKitModal } from "./IDKitModal";
 import { WorldIDState } from "../components/States/WorldIDState";
 import { SuccessState } from "../components/States/SuccessState";
 import { ErrorState } from "../components/States/ErrorState";
 import { setLocalizationConfig } from "../lang";
-import type { IDKitFlowStatus } from "../types/common";
+import type { IDKitHookStatus } from "../types/common";
 
 type VisualStage = "worldid" | "success" | "error";
 
-function getVisualStage(status: IDKitFlowStatus): VisualStage {
+function getVisualStage(status: IDKitHookStatus): VisualStage {
   switch (status) {
     case "confirmed":
       return "success";
@@ -39,10 +39,10 @@ export function IDKitSessionWidget({
   const status = flow.status;
   const connectorURI = flow.connectorURI;
   const result = flow.result;
-  const error = flow.error;
+  const errorCode = flow.errorCode;
 
   const lastResultRef = useRef<unknown>(null);
-  const lastErrorRef = useRef<unknown>(null);
+  const lastErrorCodeRef = useRef<IDKitErrorCodes | null>(null);
 
   // Set language config
   useEffect(() => {
@@ -70,23 +70,21 @@ export function IDKitSessionWidget({
     }
 
     lastResultRef.current = result;
-    void Promise.resolve(onSuccess?.(result)).catch(callbackError => {
-      const normalized = normalizeError(callbackError);
-      lastErrorRef.current = normalized;
-      void onError?.(normalized);
+    void Promise.resolve(onSuccess?.(result)).catch(() => {
+      // Swallow host callback errors to keep widget flow stable.
     });
   }, [onSuccess, result]);
 
   useEffect(() => {
-    if (!error || error === lastErrorRef.current) {
+    if (!errorCode || errorCode === lastErrorCodeRef.current) {
       return;
     }
 
-    lastErrorRef.current = error;
-    void Promise.resolve(onError?.(error)).catch(() => {
+    lastErrorCodeRef.current = errorCode;
+    void Promise.resolve(onError?.(errorCode)).catch(() => {
       // Swallow host callback errors to keep widget flow stable.
     });
-  }, [error, onError]);
+  }, [errorCode, onError]);
 
   // Auto-close on success
   useEffect(() => {
@@ -113,7 +111,7 @@ export function IDKitSessionWidget({
       {stage === "success" && <SuccessState />}
       {stage === "error" && (
         <ErrorState
-          error={error}
+          errorCode={errorCode}
           onRetry={() => {
             resetFlow();
             openFlow();

@@ -27,3 +27,15 @@ const flow = useIDKitRequest({
   preset: orbLegacy({ signal: "user-123" }),
 });
 ```
+
+```tsx
+import type { IDKitRequestHookConfig } from "@worldcoin/idkit";
+
+const config: IDKitRequestHookConfig = {
+  app_id: "app_xxxxx",
+  action: "my-action",
+  rp_context,
+  allow_legacy_proofs: false,
+  preset: { type: "OrbLegacy" },
+};
+```
