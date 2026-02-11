@@ -4,18 +4,22 @@
  * When running inside World App, verification requests are sent via
  * WebView postMessage instead of the WASM bridge (QR + polling).
  *
+ * The native payload mirrors MiniKit's verify command format:
+ * - `verification_level` is always sent as a `string[]`
+ *
  * Security notes:
  * - Origin validation is not applicable here. In the World App WebView, messages
  *   are exchanged between the mini-app and the host app via the native bridge
  *   (webkit.messageHandlers / Android.postMessage). The host app is the only
  *   entity that can inject messages, and it is trusted.
- * - Request correlation (matching responses to specific requests) is not currently
- *   supported by the World App native protocol. The native bridge processes one
- *   verify command at a time. If this changes, add request_id to the outgoing
- *   payload and match in the response handler.
  */
 
-import type { IDKitRequest, IDKitCompletionResult, WaitOptions, Status } from "../request";
+import type {
+  IDKitRequest,
+  IDKitCompletionResult,
+  WaitOptions,
+  Status,
+} from "../request";
 import type { IDKitResult } from "../types/result";
 import type { RpContext } from "../types/config";
 import type { Preset } from "../lib/wasm";
@@ -197,28 +201,31 @@ class NativeVerifyError extends Error {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function extractVerificationLevel(
-  config: { preset?: Preset; constraints?: ConstraintNode },
-): string | string[] {
+function extractVerificationLevel(config: {
+  preset?: Preset;
+  constraints?: ConstraintNode;
+}): string[] {
   if (config.preset) {
     switch ((config.preset as any).type) {
       case "OrbLegacy":
-        return "orb";
+        return ["orb"];
       case "SecureDocumentLegacy":
-        return "secure_document";
+        return ["secure_document"];
       case "DocumentLegacy":
-        return "document";
+        return ["document"];
     }
   }
   if (config.constraints) {
-    return extractTypesFromConstraints(config.constraints);
+    const types = extractTypesFromConstraints(config.constraints);
+    return Array.isArray(types) ? types : [types];
   }
-  return "orb";
+  return ["orb"];
 }
 
-function extractSignal(
-  config: { preset?: Preset; constraints?: ConstraintNode },
-): string | undefined {
+function extractSignal(config: {
+  preset?: Preset;
+  constraints?: ConstraintNode;
+}): string | undefined {
   if (config.preset && "signal" in config.preset) {
     return (config.preset as any).signal;
   }
@@ -228,9 +235,7 @@ function extractSignal(
   return undefined;
 }
 
-function extractTypesFromConstraints(
-  node: ConstraintNode,
-): string | string[] {
+function extractTypesFromConstraints(node: ConstraintNode): string | string[] {
   if ("type" in node) return (node as CredentialRequestType).type;
   if ("any" in node) {
     return (node as { any: ConstraintNode[] }).any.flatMap((n) => {
