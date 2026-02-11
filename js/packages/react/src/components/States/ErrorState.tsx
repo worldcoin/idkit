@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { __ } from "../../lang";
-import { AppErrorCodes } from "@worldcoin/idkit-core";
+import { IDKitErrorCodes } from "@worldcoin/idkit-core";
 import { IDKitFlowError } from "../../core/errors";
 import { ErrorIcon } from "../Icons/ErrorIcon";
 import { WarningIcon } from "../Icons/WarningIcon";
@@ -12,10 +12,12 @@ type ErrorStateProps = {
 
 type ErrorVariant = "cancelled" | "connection" | "generic";
 
-const errorCodeVariants: Partial<Record<AppErrorCodes, ErrorVariant>> = {
-  [AppErrorCodes.VerificationRejected]: "cancelled",
-  [AppErrorCodes.FailedByHostApp]: "cancelled",
-  [AppErrorCodes.ConnectionFailed]: "connection",
+const errorCodeVariants: Partial<Record<IDKitErrorCodes, ErrorVariant>> = {
+  [IDKitErrorCodes.UserRejected]: "cancelled",
+  [IDKitErrorCodes.VerificationRejected]: "cancelled",
+  [IDKitErrorCodes.FailedByHostApp]: "cancelled",
+  [IDKitErrorCodes.Cancelled]: "cancelled",
+  [IDKitErrorCodes.ConnectionFailed]: "connection",
 };
 
 const variantConfig = {
@@ -38,7 +40,7 @@ const variantConfig = {
 
 function getVariant(error: Error | null): ErrorVariant {
   if (error instanceof IDKitFlowError && error.code) {
-    return errorCodeVariants[error.code as AppErrorCodes] ?? "generic";
+    return errorCodeVariants[error.code as IDKitErrorCodes] ?? "generic";
   }
   return "generic";
 }

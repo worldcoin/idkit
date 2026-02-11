@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const initMock = vi.fn(async () => undefined);
-const createSessionMock = vi.fn();
-const proveSessionMock = vi.fn();
+const { initMock, createSessionMock, proveSessionMock } = vi.hoisted(() => ({
+  initMock: vi.fn(async () => undefined),
+  createSessionMock: vi.fn(),
+  proveSessionMock: vi.fn(),
+}));
 
 vi.mock("@worldcoin/idkit-core", () => {
   return {
@@ -11,7 +13,7 @@ vi.mock("@worldcoin/idkit-core", () => {
       createSession: createSessionMock,
       proveSession: proveSessionMock,
     },
-    AppErrorCodes: {
+    IDKitErrorCodes: {
       GenericError: "generic_error",
     },
   };
@@ -50,7 +52,7 @@ describe("runSessionFlow", () => {
         expires_at: 2,
         signature: "0x1234",
       },
-      constraints: { any: [] },
+      preset: { type: "OrbLegacy" },
     });
 
     expect(initMock).toHaveBeenCalledTimes(1);
@@ -88,6 +90,7 @@ describe("runSessionFlow", () => {
       action_description: undefined,
       bridge_url: undefined,
       override_connect_base_url: undefined,
+      environment: undefined,
     });
     expect(createSessionMock).not.toHaveBeenCalled();
     expect(result.session_id).toBe("session_2");

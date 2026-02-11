@@ -10,8 +10,7 @@ import {
   any,
   orbLegacy,
   isNode,
-  AppErrorCodes,
-  VerificationState,
+  IDKitErrorCodes,
   signRequest,
 } from "../index";
 
@@ -118,18 +117,14 @@ describe("IDKitRequest API", () => {
 });
 
 describe("Enums", () => {
-  it("should export AppErrorCodes enum", () => {
-    expect(AppErrorCodes.ConnectionFailed).toBe("connection_failed");
-    expect(AppErrorCodes.VerificationRejected).toBe("verification_rejected");
-    expect(AppErrorCodes.CredentialUnavailable).toBe("credential_unavailable");
-  });
-
-  it("should export VerificationState enum", () => {
-    expect(VerificationState.PreparingClient).toBe("loading_widget");
-    expect(VerificationState.WaitingForConnection).toBe("awaiting_connection");
-    expect(VerificationState.WaitingForApp).toBe("awaiting_app");
-    expect(VerificationState.Confirmed).toBe("confirmed");
-    expect(VerificationState.Failed).toBe("failed");
+  it("should export IDKitErrorCodes enum", () => {
+    expect(IDKitErrorCodes.ConnectionFailed).toBe("connection_failed");
+    expect(IDKitErrorCodes.VerificationRejected).toBe("verification_rejected");
+    expect(IDKitErrorCodes.CredentialUnavailable).toBe(
+      "credential_unavailable",
+    );
+    expect(IDKitErrorCodes.Timeout).toBe("timeout");
+    expect(IDKitErrorCodes.Cancelled).toBe("cancelled");
   });
 });
 

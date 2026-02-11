@@ -1,5 +1,5 @@
 import {
-  AppErrorCodes,
+  IDKitErrorCodes,
   IDKit,
   type IDKitRequest,
   type IDKitResult,
@@ -149,7 +149,7 @@ async function pollRequest(
     }
 
     if (status.type === "failed") {
-      const code = status.error ?? AppErrorCodes.GenericError;
+      const code = status.error ?? IDKitErrorCodes.GenericError;
       throw new IDKitFlowError(`Verification failed: ${code}`, { code });
     }
 

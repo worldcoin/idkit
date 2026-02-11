@@ -14,10 +14,10 @@ import type {
   CredentialType,
   CredentialRequestType,
 } from "./types/result";
-import { AppErrorCodes } from "./types/bridge";
+import { IDKitErrorCodes } from "./types/result";
 import { WasmModule, initIDKit, initIDKitServer } from "./lib/wasm";
 
-/** Options for pollForUpdates() */
+/** Options for pollUntilCompletion() */
 export interface WaitOptions {
   /** Milliseconds between polls (default: 1000) */
   pollInterval?: number;
@@ -35,8 +35,13 @@ export interface Status {
     | "confirmed"
     | "failed";
   result?: IDKitResult;
-  error?: AppErrorCodes;
+  error?: IDKitErrorCodes;
 }
+
+/** Result from pollUntilCompletion() — discriminated union, never throws */
+export type IDKitCompletionResult =
+  | { success: true; result: IDKitResult }
+  | { success: false; error: IDKitErrorCodes };
 
 // Re-export RpContext for convenience
 export type { RpContext };
@@ -55,7 +60,7 @@ export interface IDKitRequest {
   /** Poll once for current status (for manual polling) */
   pollOnce(): Promise<Status>;
   /** Poll continuously until completion or timeout */
-  pollForUpdates(options?: WaitOptions): Promise<IDKitResult>;
+  pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult>;
 }
 
 /**
@@ -84,35 +89,36 @@ class IDKitRequestImpl implements IDKitRequest {
     return (await this.wasmRequest.pollForStatus()) as Status;
   }
 
-  async pollForUpdates(options?: WaitOptions): Promise<IDKitResult> {
+  async pollUntilCompletion(
+    options?: WaitOptions,
+  ): Promise<IDKitCompletionResult> {
     const pollInterval = options?.pollInterval ?? 1000;
     const timeout = options?.timeout ?? 300000; // 5 minutes default
     const startTime = Date.now();
 
     while (true) {
-      // Check for cancellation
       if (options?.signal?.aborted) {
-        throw new Error("Verification cancelled");
+        return { success: false, error: IDKitErrorCodes.Cancelled };
       }
 
-      // Check timeout
       if (Date.now() - startTime > timeout) {
-        throw new Error(`Timeout waiting for proof after ${timeout}ms`);
+        return { success: false, error: IDKitErrorCodes.Timeout };
       }
 
-      // Poll status
       const status = await this.pollOnce();
 
       if (status.type === "confirmed" && status.result) {
-        return status.result;
+        return { success: true, result: status.result };
       }
 
       if (status.type === "failed") {
-        const errorCode = status.error ?? AppErrorCodes.GenericError;
-        throw new Error(`Verification failed: ${errorCode}`);
+        return {
+          success: false,
+          error:
+            (status.error as IDKitErrorCodes) ?? IDKitErrorCodes.GenericError,
+        };
       }
 
-      // Wait before next poll
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
     }
   }
@@ -363,7 +369,7 @@ class IDKitBuilder {
  * console.log('Scan this:', request.connectorURI)
  *
  * // Wait for proof
- * const proof = await request.pollForUpdates()
+ * const proof = await request.pollUntilCompletion()
  * console.log('Success:', proof)
  * ```
  */
@@ -426,7 +432,7 @@ function createRequest(config: IDKitRequestConfig): IDKitBuilder {
  * }).constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
  *
  * // Display QR, wait for proof
- * const result = await request.pollForUpdates();
+ * const result = await request.pollUntilCompletion();
  * // result.session_id -> save this for future sessions
  * // result.responses[0].session_nullifier -> for session tracking
  * ```
@@ -479,7 +485,7 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
  *   rp_context: { ... },
  * }).constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
  *
- * const result = await request.pollForUpdates();
+ * const result = await request.pollUntilCompletion();
  * // result.session_id -> same session
  * // result.responses[0].session_nullifier -> should match for same user
  * ```
@@ -537,7 +543,7 @@ function proveSession(
  *
  * // Display QR and wait for proof
  * console.log(request.connectorURI)
- * const proof = await request.pollForUpdates()
+ * const proof = await request.pollUntilCompletion()
  * ```
  */
 export const IDKit = {

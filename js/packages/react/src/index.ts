@@ -33,8 +33,7 @@ export {
   orbLegacy,
   documentLegacy,
   secureDocumentLegacy,
-  VerificationState,
-  AppErrorCodes,
+  IDKitErrorCodes,
 } from "@worldcoin/idkit-core";
 
 export type {
@@ -50,4 +49,5 @@ export type {
   ResponseItemV3,
   ResponseItemV4,
   ResponseItemSession,
+  IDKitErrorCode,
 } from "@worldcoin/idkit-core";

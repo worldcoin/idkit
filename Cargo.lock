@@ -1623,7 +1623,7 @@ dependencies = [
 
 [[package]]
 name = "idkit-core"
-version = "4.0.1"
+version = "4.0.0"
 dependencies = [
  "aes-gcm",
  "alloy-primitives 1.5.2",
@@ -3276,7 +3276,7 @@ dependencies = [
 
 [[package]]
 name = "uniffi-bindgen"
-version = "4.0.1"
+version = "4.0.0"
 dependencies = [
  "uniffi",
 ]

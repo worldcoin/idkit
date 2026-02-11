@@ -1,11 +1,14 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-const runRequestFlowMock = vi.fn();
+const { runRequestFlowMock, runSessionFlowMock } = vi.hoisted(() => ({
+  runRequestFlowMock: vi.fn(),
+  runSessionFlowMock: vi.fn(),
+}));
 
 vi.mock("../core/engine", () => ({
   runRequestFlow: runRequestFlowMock,
-  runSessionFlow: vi.fn(),
+  runSessionFlow: runSessionFlowMock,
 }));
 
 import { useIDKitRequest } from "../hooks/useIDKitRequest";
