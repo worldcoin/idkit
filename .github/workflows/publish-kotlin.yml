@@ -151,12 +151,13 @@ jobs:
         run: |
           echo "Checking for generated UniFFI files..."
           ls -la kotlin/bindings/src/main/kotlin/
-          if [ ! -d "kotlin/bindings/src/main/kotlin/uniffi" ]; then
-            echo "ERROR: uniffi directory not found!"
+          GENERATED_COUNT=$(find kotlin/bindings/src/main/kotlin -type f -name "*.kt" | wc -l | tr -d '[:space:]')
+          if [ "$GENERATED_COUNT" -eq 0 ]; then
+            echo "ERROR: no Kotlin bindings were generated!"
             exit 1
           fi
-          echo "UniFFI files found:"
-          find kotlin/bindings/src/main/kotlin/uniffi -type f -name "*.kt"
+          echo "UniFFI files found ($GENERATED_COUNT):"
+          find kotlin/bindings/src/main/kotlin -type f -name "*.kt" | sort
 
       - name: Upload host artifacts
         uses: actions/upload-artifact@v4
