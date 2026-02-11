@@ -4,8 +4,9 @@
  * When running inside World App, verification requests are sent via
  * WebView postMessage instead of the WASM bridge (QR + polling).
  *
- * The native payload mirrors MiniKit's verify command format:
- * - `verification_level` is always sent as a `string[]`
+ * The native payload includes both v4 and legacy fields:
+ * - v4: `constraints` or `preset`, `allow_legacy_proofs`, `app_id`
+ * - legacy: `verification_level` (string[]) and `signal` for backward compat
  *
  * Security notes:
  * - Origin validation is not applicable here. In the World App WebView, messages
@@ -62,10 +63,6 @@ let _requestCounter = 0;
 
 /**
  * Create an IDKitRequest that communicates via World App postMessage.
- *
- * All config types (request, session, proveSession) use the same native
- * "verify" command — the World App does not distinguish between them at
- * the postMessage level. Session semantics are handled server-side.
  */
 export function createNativeRequest(
   builderConfig: BuilderConfig,
@@ -88,9 +85,6 @@ class NativeIDKitRequest implements IDKitRequest {
   ) {
     this.requestId =
       crypto.randomUUID?.() ?? `native-${Date.now()}-${++_requestCounter}`;
-
-    const verificationLevel = extractVerificationLevel(credentialConfig);
-    const signal = extractSignal(credentialConfig);
 
     this.resultPromise = new Promise<IDKitResult>((resolve, reject) => {
       const handler = (event: MessageEvent) => {
@@ -118,17 +112,8 @@ class NativeIDKitRequest implements IDKitRequest {
       this.messageHandler = handler;
       window.addEventListener("message", handler);
 
-      // Send verify command via WebView bridge
-      const sendPayload = {
-        command: "verify",
-        version: 1,
-        payload: {
-          action: config.action ?? "",
-          signal: signal,
-          verification_level: verificationLevel,
-          timestamp: new Date().toISOString(),
-        },
-      };
+      // Build the native payload with both v4 and legacy fields
+      const sendPayload = buildNativePayload(config, credentialConfig);
 
       const w = window as any;
       if (w.webkit?.messageHandlers?.minikit) {
@@ -198,7 +183,63 @@ class NativeVerifyError extends Error {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers
+// Outgoing payload
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Build the postMessage payload sent to World App.
+ *
+ * Includes v4 fields (constraints/preset, app_id, allow_legacy_proofs)
+ * alongside legacy fields (verification_level, signal) for backward compat.
+ */
+function buildNativePayload(
+  config: BuilderConfig,
+  credentialConfig: { preset?: Preset; constraints?: ConstraintNode },
+) {
+  const payload: Record<string, unknown> = {
+    app_id: config.app_id,
+    action: config.action ?? "",
+    timestamp: new Date().toISOString(),
+    allow_legacy_proofs: config.allow_legacy_proofs ?? false,
+
+    // Legacy fields for older World App versions
+    verification_level: extractVerificationLevel(credentialConfig),
+    signal: extractSignal(credentialConfig),
+  };
+
+  // v4 fields — World App uses whichever is present
+  if (credentialConfig.constraints) {
+    payload.constraints = credentialConfig.constraints;
+  }
+  if (credentialConfig.preset) {
+    payload.preset = credentialConfig.preset;
+  }
+
+  // Session fields
+  if (config.type === "session" || config.type === "proveSession") {
+    payload.request_type = config.type;
+  }
+  if (config.session_id) {
+    payload.session_id = config.session_id;
+  }
+
+  if (config.action_description) {
+    payload.action_description = config.action_description;
+  }
+
+  if (config.environment) {
+    payload.environment = config.environment;
+  }
+
+  return {
+    command: "verify",
+    version: 2,
+    payload,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legacy field extraction (backward compat with older World App versions)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function extractVerificationLevel(config: {
@@ -277,11 +318,28 @@ function extractSignalFromConstraints(
   return undefined;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Incoming response mapping
+// ─────────────────────────────────────────────────────────────────────────────
+
 function nativeResultToIDKitResult(
   payload: any,
   config: BuilderConfig,
 ): IDKitResult {
-  // Multi-verification response (multiple verifications array)
+  // v4 response — World App returns `responses` array directly
+  if ("responses" in payload && Array.isArray(payload.responses)) {
+    return {
+      protocol_version: payload.protocol_version ?? "4.0",
+      nonce: payload.nonce ?? "",
+      action: payload.action ?? config.action ?? "",
+      action_description: payload.action_description,
+      session_id: payload.session_id,
+      responses: payload.responses,
+      environment: payload.environment ?? config.environment ?? "production",
+    } as unknown as IDKitResult;
+  }
+
+  // Legacy multi-verification response (MiniKit v3 format)
   if ("verifications" in payload) {
     return {
       protocol_version: "4.0",
@@ -299,7 +357,7 @@ function nativeResultToIDKitResult(
     } as unknown as IDKitResult;
   }
 
-  // Single verification response (v3 format from World App)
+  // Legacy single verification response (v3 format from World App)
   return {
     protocol_version: "3.0",
     nonce: "",
