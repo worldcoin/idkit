@@ -4,7 +4,14 @@ import { CheckIcon } from "../Icons/CheckIcon";
 
 export function SuccessState(): ReactElement {
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        textAlign: "center",
+      }}
+    >
       <div className="idkit-success-icon">
         <CheckIcon />
       </div>

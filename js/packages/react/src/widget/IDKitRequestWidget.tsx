@@ -97,11 +97,7 @@ export function IDKitRequestWidget({
   const stage = getVisualStage(status);
 
   return (
-    <IDKitModal
-      open={open}
-      onOpenChange={onOpenChange}
-      shadowRoot={shadowRoot}
-    >
+    <IDKitModal open={open} onOpenChange={onOpenChange} shadowRoot={shadowRoot}>
       {stage === "worldid" && (
         <WorldIDState
           connectorURI={connectorURI}

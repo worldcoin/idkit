@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 export function useMedia(): "desktop" | "mobile" {
   const getInitialState = (): "desktop" | "mobile" => {
     if (typeof window !== "undefined") {
-      return window.matchMedia("(max-width: 1024px)").matches ? "mobile" : "desktop";
+      return window.matchMedia("(max-width: 1024px)").matches
+        ? "mobile"
+        : "desktop";
     }
     return "desktop";
   };

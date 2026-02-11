@@ -1,5 +1,9 @@
 import { translations } from "./translations";
-import type { LocalizationConfig, SupportedLanguage, TranslationStrings } from "./types";
+import type {
+  LocalizationConfig,
+  SupportedLanguage,
+  TranslationStrings,
+} from "./types";
 
 let currentConfig: LocalizationConfig = {};
 

@@ -10,11 +10,21 @@ type WorldIDStateProps = {
   isAwaitingConfirmation: boolean;
 };
 
-export function WorldIDState({ connectorURI, isAwaitingConfirmation }: WorldIDStateProps): ReactElement {
+export function WorldIDState({
+  connectorURI,
+  isAwaitingConfirmation,
+}: WorldIDStateProps): ReactElement {
   const media = useMedia();
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        textAlign: "center",
+      }}
+    >
       {/* Worldcoin logo */}
       <div className="idkit-worldid-icon">
         <WorldcoinIcon />
@@ -26,7 +36,9 @@ export function WorldIDState({ connectorURI, isAwaitingConfirmation }: WorldIDSt
       {/* Subtext: different for mobile vs desktop */}
       <p className="idkit-subtext">
         {media === "mobile"
-          ? __("You will be redirected to the app, please return to this page once you're done")
+          ? __(
+              "You will be redirected to the app, please return to this page once you're done",
+            )
           : __("Use phone camera to scan the QR code")}
       </p>
 
@@ -44,7 +56,9 @@ export function WorldIDState({ connectorURI, isAwaitingConfirmation }: WorldIDSt
           </div>
         )}
 
-        <div className={`idkit-qr-blur ${isAwaitingConfirmation ? "blurred" : ""}`}>
+        <div
+          className={`idkit-qr-blur ${isAwaitingConfirmation ? "blurred" : ""}`}
+        >
           <div style={{ display: "flex", justifyContent: "center" }}>
             <QRState qrData={connectorURI} />
           </div>

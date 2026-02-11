@@ -34,7 +34,11 @@ export function QRState({ qrData }: QRStateProps): ReactElement {
       <div className="idkit-desktop-only">
         <div
           className={`idkit-copy-toast ${copiedLink ? "visible" : "hidden"}`}
-          style={{ textAlign: "center", fontSize: "14px", color: "var(--idkit-text-secondary)" }}
+          style={{
+            textAlign: "center",
+            fontSize: "14px",
+            color: "var(--idkit-text-secondary)",
+          }}
         >
           <span>{__("QR Code copied")}</span>
         </div>
@@ -43,7 +47,9 @@ export function QRState({ qrData }: QRStateProps): ReactElement {
             {qrData ? (
               <div
                 onClick={copyLink}
-                onKeyDown={e => { if (e.key === "Enter") copyLink(); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") copyLink();
+                }}
                 role="button"
                 tabIndex={0}
                 style={{ cursor: "pointer" }}

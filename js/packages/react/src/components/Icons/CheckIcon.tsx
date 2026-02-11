@@ -2,10 +2,30 @@ import type { SVGProps } from "react";
 
 export function CheckIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg width="88" height="88" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <svg
+      width="88"
+      height="88"
+      viewBox="0 0 88 88"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
       <rect width="88" height="88" rx="44" fill="#00C230" />
-      <rect opacity="0.2" width="88" height="88" rx="44" fill="url(#idkit_check_radial)" />
-      <rect x="0.5" y="0.5" width="87" height="87" rx="43.5" stroke="url(#idkit_check_linear)" />
+      <rect
+        opacity="0.2"
+        width="88"
+        height="88"
+        rx="44"
+        fill="url(#idkit_check_radial)"
+      />
+      <rect
+        x="0.5"
+        y="0.5"
+        width="87"
+        height="87"
+        rx="43.5"
+        stroke="url(#idkit_check_linear)"
+      />
       <path d="M29.5 45.5L37.5 53.5L57.5 33.5" stroke="white" strokeWidth="3" />
       <defs>
         <radialGradient

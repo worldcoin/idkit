@@ -2,7 +2,12 @@ import type { SVGProps } from "react";
 
 export function QRPlaceholderIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 200 200" {...props}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 200 200"
+      {...props}
+    >
       <path
         fill="#EBECEF"
         fillRule="evenodd"
@@ -66,7 +71,14 @@ export function QRPlaceholderIcon(props: SVGProps<SVGSVGElement>) {
         d="M95.018 0a6.05 6.05 0 0 0-6.05 6.05v17.082a6.05 6.05 0 0 0 6.05 6.05h9.252a6.05 6.05 0 0 0 6.05-6.05V6.05A6.05 6.05 0 0 0 104.27 0h-9.252Z"
       />
       <defs>
-        <linearGradient id="idkit_qr_placeholder_gradient" x1="0" x2="200" y1="0" y2="200" gradientUnits="userSpaceOnUse">
+        <linearGradient
+          id="idkit_qr_placeholder_gradient"
+          x1="0"
+          x2="200"
+          y1="0"
+          y2="200"
+          gradientUnits="userSpaceOnUse"
+        >
           <stop offset=".37" stopColor="#fff" stopOpacity="0" />
           <stop offset=".5" stopColor="#fff" stopOpacity=".85" />
           <stop offset=".63" stopColor="#fff" stopOpacity="0" />

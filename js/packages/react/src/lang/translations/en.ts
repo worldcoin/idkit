@@ -16,7 +16,8 @@ export const en: TranslationStrings = {
   "Open World App": "Open World App",
   "QR Code copied": "QR Code copied",
   "Connect your World ID": "Connect your World ID",
-  "Use phone camera to scan the QR code": "Use phone camera to scan the QR code",
+  "Use phone camera to scan the QR code":
+    "Use phone camera to scan the QR code",
   "Connecting...": "Connecting...",
   "Please continue in app": "Please continue in app",
   "You will be redirected to the app, please return to this page once you're done":

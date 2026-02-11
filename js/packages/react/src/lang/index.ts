@@ -5,7 +5,9 @@ const getLang = (): TranslationStrings | undefined => {
   return getTranslations();
 };
 
-type HasPlaceholder<T extends string> = T extends `${string}:${string}` ? true : false;
+type HasPlaceholder<T extends string> = T extends `${string}:${string}`
+  ? true
+  : false;
 
 type GetPlaceholderName<T extends string> = T extends `:${infer Name}`
   ? Name extends `${infer Word}${" " | "," | ":" | "!" | "?" | "."}${string}`
@@ -18,9 +20,14 @@ type GetAllPlaceholders<T extends string> = T extends `${string}:${infer After}`
   : never;
 
 type TranslationParams<T extends string> =
-  GetAllPlaceholders<T> extends never ? never : { [K in GetAllPlaceholders<T>]: string };
+  GetAllPlaceholders<T> extends never
+    ? never
+    : { [K in GetAllPlaceholders<T>]: string };
 
-const replaceParams = (str: string, params?: Record<string, string>): string => {
+const replaceParams = (
+  str: string,
+  params?: Record<string, string>,
+): string => {
   if (!params) return str;
 
   let result = str;
@@ -44,5 +51,9 @@ export function __<T extends string>(
   return replaceParams(translated, params);
 }
 
-export { setLocalizationConfig, getLocalizationConfig, getCurrentLanguage } from "./localization";
+export {
+  setLocalizationConfig,
+  getLocalizationConfig,
+  getCurrentLanguage,
+} from "./localization";
 export type { SupportedLanguage, TranslationStrings } from "./types";
