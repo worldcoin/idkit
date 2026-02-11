@@ -12,7 +12,7 @@ function getEnv(name: string): string {
 
 async function ensureServerInit(): Promise<void> {
   if (!initPromise) {
-    initPromise = IDKit.initServer().catch(error => {
+    initPromise = IDKit.initServer().catch((error) => {
       // Allow retry if initialization fails (e.g. after hot-reload with stale state).
       initPromise = null;
       throw error;
@@ -21,7 +21,10 @@ async function ensureServerInit(): Promise<void> {
   await initPromise;
 }
 
-export async function createRpSignature(action: string, ttl?: number): Promise<{
+export async function createRpSignature(
+  action: string,
+  ttl?: number,
+): Promise<{
   sig: string;
   nonce: string;
   created_at: number;

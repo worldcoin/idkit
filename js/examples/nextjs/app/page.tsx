@@ -6,7 +6,8 @@ export default function HomePage(): ReactElement {
     <main>
       <h1>IDKit Next.js Example</h1>
       <p>
-        This example shows the widget request flow with the same three legacy presets as the browser example.
+        This example shows the widget request flow with the same three legacy
+        presets as the browser example.
       </p>
       <DemoClient />
     </main>

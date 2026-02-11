@@ -11,10 +11,7 @@ export async function POST(request: Request): Promise<Response> {
     };
 
     if (!body.rp_id || typeof body.rp_id !== "string") {
-      return NextResponse.json(
-        { error: "rp_id is required" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "rp_id is required" }, { status: 400 });
     }
 
     if (!body.devPortalPayload) {
