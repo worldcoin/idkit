@@ -5,38 +5,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import uniffi.idkit_core.CredentialRequest
 import uniffi.idkit_core.IdKitRequestWrapper
 import uniffi.idkit_core.Signal
 import uniffi.idkit_core.StatusWrapper
-import uniffi.idkit_core.CredentialType
 import uniffi.idkit_core.IdKitResult
 
 // Type aliases for public API consistency - UniFFI 0.30 generates IdKit* names
 typealias IDKitRequestWrapper = IdKitRequestWrapper
 typealias IDKitResult = IdKitResult
-
-/**
- * Create a CredentialRequest from a credential type and optional signal string.
- */
-fun CredentialRequest(
-    credentialType: CredentialType,
-    signal: String? = null,
-): CredentialRequest {
-    val signalObj = signal?.let { Signal.fromString(it) }
-    return CredentialRequest.new(credentialType, signalObj)
-}
-
-/**
- * Create a CredentialRequest from a credential type and ABI-encoded signal bytes.
- */
-fun CredentialRequest(
-    credentialType: CredentialType,
-    abiEncodedSignal: ByteArray,
-): CredentialRequest {
-    val signalObj = Signal.fromBytes(abiEncodedSignal)
-    return CredentialRequest.new(credentialType, signalObj)
-}
 
 val Signal.data: ByteArray
     get() = this.asBytes()
