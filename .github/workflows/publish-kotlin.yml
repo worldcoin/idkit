@@ -259,7 +259,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: kotlin-bindings-host
-          path: kotlin/bindings/src/main/
+          path: .
 
       - name: Download Android artifacts
         uses: actions/download-artifact@v4
@@ -282,6 +282,16 @@ jobs:
 
           echo "Final jniLibs structure:"
           find kotlin/bindings/src/main/jniLibs -name "*.so"
+
+      - name: Verify Kotlin sources include generated UniFFI code
+        run: |
+          GENERATED_COUNT=$(find kotlin/bindings/src/main/kotlin -type f -name "*.kt" | wc -l | tr -d '[:space:]')
+          echo "Kotlin source files found: $GENERATED_COUNT"
+          find kotlin/bindings/src/main/kotlin -type f -name "*.kt" | sort
+          if [ "$GENERATED_COUNT" -eq 0 ]; then
+            echo "ERROR: expected generated Kotlin bindings were not downloaded"
+            exit 1
+          fi
 
       - name: Setup Java
         uses: actions/setup-java@v4
