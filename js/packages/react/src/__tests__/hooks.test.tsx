@@ -16,7 +16,7 @@ import { useIDKitRequest } from "../hooks/useIDKitRequest";
 describe("useIDKitRequest", () => {
   it("opens flow and exposes connector/result", async () => {
     runRequestFlowMock.mockImplementation(async (_config, options) => {
-      options.onStatusChange?.("awaiting_connection");
+      options.onStatusChange?.("waiting_for_connection");
       options.onConnectorURI?.("wc://request");
       options.onStatusChange?.("confirmed");
       return { proof: "ok" };
@@ -34,7 +34,7 @@ describe("useIDKitRequest", () => {
           signature: "0x1234",
         },
         allow_legacy_proofs: false,
-        constraints: { any: [] },
+        preset: { type: "OrbLegacy" },
       }),
     );
 
@@ -65,7 +65,7 @@ describe("useIDKitRequest", () => {
           signature: "0x1234",
         },
         allow_legacy_proofs: false,
-        constraints: { any: [] },
+        preset: { type: "OrbLegacy" },
       }),
     );
 

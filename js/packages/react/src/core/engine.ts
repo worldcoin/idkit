@@ -4,7 +4,6 @@ import {
   type IDKitRequest,
   type IDKitResult,
   type IDKitResultSession,
-  type Status,
 } from "@worldcoin/idkit-core";
 import type {
   IDKitRequestFlowConfig,
@@ -12,19 +11,11 @@ import type {
   IDKitFlowStatus,
 } from "../types";
 import { IDKitFlowError } from "./errors";
-import { mapCorePollStatus } from "./status";
 
 type RunOptions = {
   signal?: AbortSignal;
   onStatusChange?: (status: IDKitFlowStatus) => void;
   onConnectorURI?: (connectorURI: string) => void;
-};
-
-type StrategyConfig = {
-  preset?: IDKitRequestFlowConfig["preset"] | IDKitSessionFlowConfig["preset"];
-  constraints?:
-    | IDKitRequestFlowConfig["constraints"]
-    | IDKitSessionFlowConfig["constraints"];
 };
 
 function assertSessionId(sessionId: string | undefined): string | undefined {
@@ -37,26 +28,6 @@ function assertSessionId(sessionId: string | undefined): string | undefined {
   }
 
   return sessionId;
-}
-
-function assertStrategy(config: StrategyConfig): asserts config is
-  | {
-      preset: NonNullable<StrategyConfig["preset"]>;
-      constraints?: never;
-    }
-  | {
-      constraints: NonNullable<StrategyConfig["constraints"]>;
-      preset?: never;
-    } {
-  if (config.preset && config.constraints) {
-    throw new IDKitFlowError(
-      "Provide either preset or constraints, not both",
-    );
-  }
-
-  if (!config.preset && !config.constraints) {
-    throw new IDKitFlowError("Either preset or constraints is required");
-  }
 }
 
 function ensureNotAborted(signal?: AbortSignal): void {
@@ -96,24 +67,6 @@ function isSessionResult(result: IDKitResult): result is IDKitResultSession {
   );
 }
 
-async function createRequestFromStrategy(
-  requestBuilder:
-    | ReturnType<typeof IDKit.request>
-    | ReturnType<typeof IDKit.createSession>
-    | ReturnType<typeof IDKit.proveSession>,
-  config: StrategyConfig,
-): Promise<IDKitRequest> {
-  assertStrategy(config);
-
-  if (config.preset) {
-    return requestBuilder.preset(config.preset);
-  }
-
-  // TODO: re-enable when .constraints() is added back to IDKitBuilder
-  // return requestBuilder.constraints(config.constraints);
-  throw new Error("constraints are not yet supported");
-}
-
 async function pollRequest(
   request: IDKitRequest,
   options: {
@@ -134,9 +87,8 @@ async function pollRequest(
       throw new IDKitFlowError(`Timeout waiting for proof after ${timeout}ms`);
     }
 
-    const status = (await request.pollOnce()) as Status;
-    const mappedStatus = mapCorePollStatus(status.type);
-    options.onStatusChange?.(mappedStatus);
+    const status = await request.pollOnce();
+    options.onStatusChange?.(status.type);
 
     if (status.type === "confirmed") {
       if (!status.result) {
@@ -177,7 +129,9 @@ export async function runRequestFlow(
     environment: config.environment,
   });
 
-  const request = await createRequestFromStrategy(builder, config);
+  // TODO: reintroduce strategy abstraction when core JS re-enables
+  // IDKitBuilder.constraints() and React supports constraints again.
+  const request = await builder.preset(config.preset);
   options.onConnectorURI?.(request.connectorURI);
 
   return pollRequest(request, {
@@ -217,7 +171,9 @@ export async function runSessionFlow(
         environment: config.environment,
       });
 
-  const request = await createRequestFromStrategy(builder, config);
+  // TODO: reintroduce strategy abstraction when core JS re-enables
+  // IDKitBuilder.constraints() and React supports constraints again.
+  const request = await builder.preset(config.preset);
   options.onConnectorURI?.(request.connectorURI);
 
   const result = await pollRequest(request, {

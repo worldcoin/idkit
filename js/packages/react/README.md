@@ -17,13 +17,13 @@ npm install @worldcoin/idkit
 ## Basic usage
 
 ```tsx
-import { useIDKitRequest } from "@worldcoin/idkit";
+import { useIDKitRequest, orbLegacy } from "@worldcoin/idkit";
 
 const flow = useIDKitRequest({
   app_id: "app_xxxxx",
   action: "my-action",
   rp_context,
   allow_legacy_proofs: false,
-  constraints: any(CredentialRequest("orb")),
+  preset: orbLegacy({ signal: "user-123" }),
 });
 ```

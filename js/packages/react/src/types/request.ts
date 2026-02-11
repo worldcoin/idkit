@@ -1,12 +1,15 @@
-import type { IDKitRequestConfig, IDKitResult } from "@worldcoin/idkit-core";
 import type {
-  ConstraintOrPreset,
-  IDKitFlowResult,
-  PollingConfig,
-} from "./common";
+  IDKitRequestConfig,
+  IDKitResult,
+  Preset,
+} from "@worldcoin/idkit-core";
+import type { IDKitFlowResult, PollingConfig } from "./common";
 
 export type IDKitRequestFlowConfig = IDKitRequestConfig &
-  ConstraintOrPreset &
-  PollingConfig;
+  PollingConfig & {
+    // TODO: Reintroduce `constraints` once core JS re-exposes
+    // IDKitBuilder.constraints().
+    preset: Preset;
+  };
 
 export type UseIDKitRequestResult = IDKitFlowResult<IDKitResult>;

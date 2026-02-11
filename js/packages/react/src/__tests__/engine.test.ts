@@ -1,15 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { initMock, createSessionMock, proveSessionMock } = vi.hoisted(() => ({
-  initMock: vi.fn(async () => undefined),
-  createSessionMock: vi.fn(),
-  proveSessionMock: vi.fn(),
-}));
+const { initMock, requestMock, createSessionMock, proveSessionMock } =
+  vi.hoisted(() => ({
+    initMock: vi.fn(async () => undefined),
+    requestMock: vi.fn(),
+    createSessionMock: vi.fn(),
+    proveSessionMock: vi.fn(),
+  }));
 
 vi.mock("@worldcoin/idkit-core", () => {
   return {
     IDKit: {
       init: initMock,
+      request: requestMock,
       createSession: createSessionMock,
       proveSession: proveSessionMock,
     },
@@ -19,7 +22,7 @@ vi.mock("@worldcoin/idkit-core", () => {
   };
 });
 
-import { runSessionFlow } from "../core/engine";
+import { runRequestFlow, runSessionFlow } from "../core/engine";
 
 function makeBuilder(result: unknown) {
   return {
@@ -27,16 +30,62 @@ function makeBuilder(result: unknown) {
       connectorURI: "wc://flow",
       pollOnce: vi.fn(async () => ({ type: "confirmed", result })),
     })),
-    constraints: vi.fn(async () => ({
-      connectorURI: "wc://flow",
-      pollOnce: vi.fn(async () => ({ type: "confirmed", result })),
-    })),
   };
 }
 
-describe("runSessionFlow", () => {
+describe("engine flows", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("passes through core poll status values in runRequestFlow", async () => {
+    const resultPayload = { proof: "ok" };
+    const pollOnce = vi
+      .fn()
+      .mockResolvedValueOnce({ type: "waiting_for_connection" })
+      .mockResolvedValueOnce({ type: "awaiting_confirmation" })
+      .mockResolvedValueOnce({ type: "confirmed", result: resultPayload });
+
+    requestMock.mockReturnValue({
+      preset: vi.fn(async () => ({
+        connectorURI: "wc://request",
+        pollOnce,
+      })),
+    });
+
+    const statuses: string[] = [];
+
+    const result = await runRequestFlow(
+      {
+        app_id: "app_test",
+        action: "test-action",
+        rp_context: {
+          rp_id: "rp_abc",
+          nonce: "nonce",
+          created_at: 1,
+          expires_at: 2,
+          signature: "0x1234",
+        },
+        allow_legacy_proofs: false,
+        preset: { type: "OrbLegacy" },
+        pollInterval: 0,
+      },
+      {
+        onStatusChange: status => {
+          statuses.push(status);
+        },
+      },
+    );
+
+    expect(initMock).toHaveBeenCalledTimes(1);
+    expect(requestMock).toHaveBeenCalledTimes(1);
+    expect(result).toBe(resultPayload);
+    expect(statuses).toEqual([
+      "preparing",
+      "waiting_for_connection",
+      "awaiting_confirmation",
+      "confirmed",
+    ]);
   });
 
   it("uses createSession when existing_session_id is absent", async () => {

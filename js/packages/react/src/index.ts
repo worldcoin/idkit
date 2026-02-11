@@ -7,7 +7,6 @@ export { IDKitSessionWidget } from "./widget/IDKitSessionWidget";
 export type {
   IDKitFlowStatus,
   IDKitFlowResult,
-  ConstraintOrPreset,
   PollingConfig,
 } from "./types/common";
 export type {
