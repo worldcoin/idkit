@@ -140,6 +140,7 @@ jobs:
           # Generate UniFFI Kotlin bindings
           CARGO_PROFILE_RELEASE_STRIP=none cargo run -p uniffi-bindgen generate \
             --library target/release/libidkit.so \
+            --crate idkit \
             --language kotlin \
             --no-format \
             --out-dir kotlin/bindings/src/main/kotlin
