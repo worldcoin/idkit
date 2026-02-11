@@ -134,10 +134,11 @@ jobs:
 
       - name: Build host library and generate UniFFI bindings
         run: |
-          cargo build --package idkit-core --release --locked --features uniffi-bindings
+          # Keep UniFFI metadata symbols so bindgen can introspect the shared library on Linux.
+          CARGO_PROFILE_RELEASE_STRIP=none cargo build --package idkit-core --release --locked --features uniffi-bindings
 
           # Generate UniFFI Kotlin bindings
-          cargo run -p uniffi-bindgen generate \
+          CARGO_PROFILE_RELEASE_STRIP=none cargo run -p uniffi-bindgen generate \
             --library target/release/libidkit.so \
             --language kotlin \
             --no-format \
@@ -151,13 +152,13 @@ jobs:
         run: |
           echo "Checking for generated UniFFI files..."
           ls -la kotlin/bindings/src/main/kotlin/
-          GENERATED_COUNT=$(find kotlin/bindings/src/main/kotlin -type f -name "*.kt" | wc -l | tr -d '[:space:]')
+          GENERATED_COUNT=$(find kotlin/bindings/src/main/kotlin/uniffi -type f -name "*.kt" 2>/dev/null | wc -l | tr -d '[:space:]')
           if [ "$GENERATED_COUNT" -eq 0 ]; then
-            echo "ERROR: no Kotlin bindings were generated!"
+            echo "ERROR: generated UniFFI Kotlin files were not found under kotlin/bindings/src/main/kotlin/uniffi"
             exit 1
           fi
-          echo "UniFFI files found ($GENERATED_COUNT):"
-          find kotlin/bindings/src/main/kotlin -type f -name "*.kt" | sort
+          echo "Generated UniFFI files found ($GENERATED_COUNT):"
+          find kotlin/bindings/src/main/kotlin/uniffi -type f -name "*.kt" | sort
 
       - name: Upload host artifacts
         uses: actions/upload-artifact@v4
@@ -285,11 +286,11 @@ jobs:
 
       - name: Verify Kotlin sources include generated UniFFI code
         run: |
-          GENERATED_COUNT=$(find kotlin/bindings/src/main/kotlin -type f -name "*.kt" | wc -l | tr -d '[:space:]')
-          echo "Kotlin source files found: $GENERATED_COUNT"
+          GENERATED_COUNT=$(find kotlin/bindings/src/main/kotlin/uniffi -type f -name "*.kt" 2>/dev/null | wc -l | tr -d '[:space:]')
+          echo "Generated UniFFI Kotlin source files found: $GENERATED_COUNT"
           find kotlin/bindings/src/main/kotlin -type f -name "*.kt" | sort
           if [ "$GENERATED_COUNT" -eq 0 ]; then
-            echo "ERROR: expected generated Kotlin bindings were not downloaded"
+            echo "ERROR: expected generated UniFFI Kotlin bindings were not downloaded"
             exit 1
           fi
 
