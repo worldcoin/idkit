@@ -55,6 +55,9 @@ export type {
 export { IDKitErrorCodes } from "./types/result";
 export type { IDKitErrorCode } from "./types/result";
 
+// Environment detection
+export { isInWorldApp } from "./transports/native";
+
 // Utilities
 export { isReactNative, isWeb, isNode } from "./lib/platform";
 
