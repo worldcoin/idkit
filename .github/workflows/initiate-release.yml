@@ -43,7 +43,7 @@ jobs:
           BUMP_TYPE: ${{ github.event.inputs.bump_type }}
         run: |
           # Get current version from workspace package in Cargo.toml
-          CURRENT_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
+          CURRENT_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-core") | .version')
 
           # Ensure CURRENT_VERSION is in semantic versioning format
           if [[ ! "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -176,6 +176,8 @@ jobs:
           echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Commit and Open PR
+        # Skip PR creation during local `act` dry runs.
+        if: ${{ !env.ACT }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
           RELEASE_NOTES: ${{ steps.release_notes.outputs.release_notes }}
