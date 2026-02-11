@@ -117,7 +117,8 @@ export function useIDKitSession(
               rp_context: currentConfig.rp_context,
               action_description: currentConfig.action_description,
               bridge_url: currentConfig.bridge_url,
-              override_connect_base_url: currentConfig.override_connect_base_url,
+              override_connect_base_url:
+                currentConfig.override_connect_base_url,
               environment: currentConfig.environment,
             })
           : IDKit.createSession({
@@ -125,7 +126,8 @@ export function useIDKitSession(
               rp_context: currentConfig.rp_context,
               action_description: currentConfig.action_description,
               bridge_url: currentConfig.bridge_url,
-              override_connect_base_url: currentConfig.override_connect_base_url,
+              override_connect_base_url:
+                currentConfig.override_connect_base_url,
               environment: currentConfig.environment,
             });
 

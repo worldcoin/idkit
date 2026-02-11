@@ -64,9 +64,7 @@ export function toErrorCode(error: unknown): IDKitErrorCodes {
   }
 
   if (typeof error === "object" && error !== null && "code" in error) {
-    const nestedCode = asKnownErrorCode(
-      (error as { code?: unknown }).code,
-    );
+    const nestedCode = asKnownErrorCode((error as { code?: unknown }).code);
     if (nestedCode) {
       return nestedCode;
     }

@@ -28,7 +28,10 @@ function Example() {
   });
 
   return (
-    <button onClick={flow.open} disabled={flow.status === "awaiting_confirmation"}>
+    <button
+      onClick={flow.open}
+      disabled={flow.status === "awaiting_confirmation"}
+    >
       Verify
     </button>
   );
