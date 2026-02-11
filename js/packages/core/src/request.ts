@@ -225,7 +225,7 @@ import type {
  *
  * @example
  * ```typescript
- * const request = await IDKit.verify({ app_id, action, rp_context, allow_legacy_proofs: true })
+ * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: true })
  *   .preset(orbLegacy({ signal: 'user-123' }))
  * ```
  */
@@ -244,7 +244,7 @@ export function orbLegacy(opts: { signal?: string } = {}): OrbLegacyPreset {
  *
  * @example
  * ```typescript
- * const request = await IDKit.verify({ app_id, action, rp_context, allow_legacy_proofs: true })
+ * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: true })
  *   .preset(secureDocumentLegacy({ signal: 'user-123' }))
  * ```
  */
@@ -265,7 +265,7 @@ export function secureDocumentLegacy(
  *
  * @example
  * ```typescript
- * const request = await IDKit.verify({ app_id, action, rp_context, allow_legacy_proofs: true })
+ * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: true })
  *   .preset(documentLegacy({ signal: 'user-123' }))
  * ```
  */
@@ -356,7 +356,7 @@ class IDKitBuilder {
    *
    * @example
    * ```typescript
-   * const request = await IDKit.verify({ app_id, action, rp_context, allow_legacy_proofs: false })
+   * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: false })
    *   .constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
    * ```
    */
@@ -385,7 +385,7 @@ class IDKitBuilder {
    *
    * @example
    * ```typescript
-   * const request = await IDKit.verify({ app_id, action, rp_context, allow_legacy_proofs: true })
+   * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: true })
    *   .preset(orbLegacy({ signal: 'user-123' }));
    * ```
    */
@@ -423,7 +423,7 @@ class IDKitBuilder {
  * import { IDKit, CredentialRequest, any, orbLegacy } from '@worldcoin/idkit-core'
  *
  * // With preset (legacy support)
- * const request = await IDKit.verify({
+ * const request = await IDKit.request({
  *   app_id: 'app_staging_xxxxx',
  *   action: 'my-action',
  *   rp_context: { ... },
@@ -431,7 +431,7 @@ class IDKitBuilder {
  * }).preset(orbLegacy({ signal: 'user-123' }));
  *
  * // With constraints (v4 only)
- * const request = await IDKit.verify({
+ * const request = await IDKit.request({
  *   app_id: 'app_staging_xxxxx',
  *   action: 'my-action',
  *   rp_context: { ... },
@@ -590,7 +590,7 @@ function proveSession(
  * import { IDKit, CredentialRequest, any, orbLegacy } from '@worldcoin/idkit-core'
  *
  * // Create a verification request
- * const request = await IDKit.verify({
+ * const request = await IDKit.request({
  *   app_id: 'app_staging_xxxxx',
  *   action: 'my-action',
  *   rp_context: { ... },
@@ -608,8 +608,6 @@ export const IDKit = {
   init: initIDKit,
   /** Initialize WASM for Node.js/server environments */
   initServer: initIDKitServer,
-  /** Create a new verification request (alias: request) */
-  verify: createRequest,
   /** Create a new verification request */
   request: createRequest,
   /** Create a new session (no action, no existing session_id) */
