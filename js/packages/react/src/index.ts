@@ -1,7 +1,7 @@
 export { useIDKitRequest } from "./hooks/useIDKitRequest";
 export { useIDKitSession } from "./hooks/useIDKitSession";
 
-export type { IDKitHookResult, PollingConfig } from "./types/common";
+export type { IDKitHookResult } from "./types/common";
 export type {
   IDKitRequestHookConfig,
   UseIDKitRequestHookResult,

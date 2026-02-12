@@ -1,13 +1,15 @@
 import type { IDKitErrorCodes, Preset } from "@worldcoin/idkit-core";
 
-export type PollingConfig = {
+export type FlowConfig = {
   polling?: {
     interval?: number;
     timeout?: number;
   };
+} & {
+  // TODO: Reintroduce `constraints` once core JS re-exposes
+  // IDKitBuilder.constraints().
+  preset: Preset;
 };
-
-export type FlowConfig = PollingConfig & { preset: Preset };
 
 export type IDKitHookResult<TResult> = {
   open: () => void;
