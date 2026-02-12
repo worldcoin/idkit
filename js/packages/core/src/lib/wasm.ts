@@ -7,6 +7,15 @@ import initWasm, * as WasmModule from "../../wasm/idkit_wasm.js";
 let wasmInitialized = false;
 let wasmInitPromise: Promise<void> | null = null;
 
+async function importNodeModule(specifier: string): Promise<unknown> {
+  // Avoid static analysis of node-only imports in browser bundles.
+  const dynamicImport = Function("moduleName", "return import(moduleName)") as (
+    moduleName: string,
+  ) => Promise<unknown>;
+
+  return dynamicImport(specifier);
+}
+
 /**
  * Initializes the WASM module for browser environments
  * Uses fetch-based loading (works with http/https URLs)
@@ -52,11 +61,21 @@ export async function initIDKitServer(): Promise<void> {
 
   wasmInitPromise = (async () => {
     try {
-      const { readFile } = await import("node:fs/promises");
-      const { fileURLToPath } = await import("node:url");
-      // WASM file is copied to dist/ by tsup, same directory as the bundled JS
-      const wasmUrl = new URL("idkit_wasm_bg.wasm", import.meta.url);
-      const wasmBuffer = await readFile(fileURLToPath(wasmUrl));
+      const { readFile } = (await importNodeModule(
+        "node:fs/promises",
+      )) as typeof import("node:fs/promises");
+      const { fileURLToPath } = (await importNodeModule(
+        "node:url",
+      )) as typeof import("node:url");
+      const { dirname, join } = (await importNodeModule(
+        "node:path",
+      )) as typeof import("node:path");
+      // WASM file is copied to dist/ by tsup, same directory as the bundled JS.
+      // Avoid `new URL(..., import.meta.url)` because some server bundlers rewrite
+      // it into runtime-invalid URLs.
+      const modulePath = fileURLToPath(import.meta.url);
+      const wasmPath = join(dirname(modulePath), "idkit_wasm_bg.wasm");
+      const wasmBuffer = await readFile(wasmPath);
       await initWasm({ module_or_path: wasmBuffer });
       wasmInitialized = true;
     } catch (error) {
