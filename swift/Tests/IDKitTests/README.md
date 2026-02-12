@@ -1,41 +1,29 @@
-# Testing Swift Bindings
+# Swift Tests
 
-## Note on Local Testing
+## What is covered
 
-The Swift package tests require proper linking to the compiled Rust library (`libidkit.dylib`).
+- Canonical Swift request status mapping (`pollStatusOnce`)
+- Completion polling behavior (`success`, `failure`, `timeout`, `cancelled`)
+- Hash overload parity (`String` and `Data`)
+- Request item options ergonomics (`signal`, `genesisIssuedAtMin`, `expiresAtMin`)
 
-Swift Package Manager alone cannot handle linking external C libraries from the file system without additional configuration. The tests will work properly in:
+## Run locally
 
-1. **CI Environment** - Where we use system-wide uniffi-bindgen installation
-2. **Xcode Projects** - Where you can configure library search paths
-3. **Production Apps** - Where the library is bundled with the framework
-
-## Running Tests Locally
-
-### Verify Code Compiles (Without Running)
-
-The fact that the code compiles with the generated bindings is a good smoke test:
+From repo root:
 
 ```bash
-# Generate bindings
-./scripts/build-swift.sh
-
-# Check if Swift files are valid
+bash scripts/package-swift.sh
 cd swift
-swift build --dry-run
+swift build
+swift test
+xcodebuild test -scheme IDKit -destination "platform=macOS"
 ```
 
-### Xcode
+## Notes
 
-1. Generate bindings: `./scripts/build-swift.sh`
-2. Open `swift/` in Xcode
-3. Configure library search paths to include `../target/release/`
-4. Run tests in Xcode
+- `scripts/package-swift.sh` must run first to refresh generated bindings and xcframework artifacts.
+- The iOS sample app compile check is separate:
 
-### CI Testing
-
-The CI workflow:
-1. Builds Rust library
-2. Generates Swift bindings
-3. Builds Swift package with proper linking
-4. Runs all tests
+```bash
+xcodebuild -project swift/Examples/IDKitSampleApp/IDKitSampleApp.xcodeproj -scheme IDKitSampleApp -destination "generic/platform=iOS Simulator" CODE_SIGNING_ALLOWED=NO build
+```

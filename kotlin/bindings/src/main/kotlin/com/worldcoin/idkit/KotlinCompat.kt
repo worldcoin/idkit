@@ -33,10 +33,7 @@ fun IDKitRequestWrapper.statusFlow(pollInterval: Duration = 3.seconds): Flow<Sta
     var last: StatusWrapper? = null
 
     while (true) {
-        val current = pollStatus(
-            pollIntervalMs = pollInterval.inWholeMilliseconds.toULong(),
-            timeoutMs = null
-        )
+        val current = pollStatusOnce()
         if (current != last) {
             last = current
             emit(current)

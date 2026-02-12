@@ -80,6 +80,9 @@ jobs:
         working-directory: swift
         run: xcodebuild test -scheme IDKit -destination "platform=macOS"
 
+      - name: Build Swift sample app (iOS simulator)
+        run: xcodebuild -project swift/Examples/IDKitSampleApp/IDKitSampleApp.xcodeproj -scheme IDKitSampleApp -destination "generic/platform=iOS Simulator" CODE_SIGNING_ALLOWED=NO build
+
       - name: Cache Swift .build
         if: steps.restore-swift-build.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
