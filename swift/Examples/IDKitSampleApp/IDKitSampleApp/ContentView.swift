@@ -81,8 +81,8 @@ struct ContentView: View {
 final class SampleModel: ObservableObject {
     // **Note**: Update this to an ngrok/hosted backend server
     // For an example backend implementation, see: js/examples/browser/src/server.ts
-    @Published var signatureEndpoint = "https://tfh-takis.ngrok.dev/api/rp-signature"
-    @Published var verifyEndpoint = "https://tfh-takis.ngrok.dev/api/verify-proof"
+    @Published var signatureEndpoint = "http://localhost:3000/api/rp-signature"
+    @Published var verifyEndpoint = "http://localhost:3000/api/verify-proof"
     @Published var appId = "app_982a2852d071269417befc64ab3981c2"
     @Published var rpId = "rp_45a9b5d97996bb9a"
     @Published var action = "test-action"
