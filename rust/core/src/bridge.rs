@@ -1026,7 +1026,7 @@ impl From<Status> for StatusWrapper {
 }
 
 #[cfg(feature = "ffi")]
-fn to_app_error(error: Error) -> AppError {
+fn to_app_error(error: &Error) -> AppError {
     match error {
         Error::InvalidConfiguration(_) => AppError::MalformedRequest,
         Error::BridgeError(_) => AppError::ConnectionFailed,
@@ -1034,7 +1034,7 @@ fn to_app_error(error: Error) -> AppError {
         Error::Crypto(_) => AppError::UnexpectedResponse,
         Error::Base64(_) => AppError::UnexpectedResponse,
         Error::Url(_) => AppError::ConnectionFailed,
-        Error::AppError(app_error) => app_error,
+        Error::AppError(app_error) => *app_error,
         Error::UnexpectedResponse => AppError::UnexpectedResponse,
         Error::ConnectionFailed => AppError::ConnectionFailed,
         Error::Timeout => AppError::ConnectionFailed,
@@ -1066,9 +1066,10 @@ impl IDKitRequestWrapper {
     /// `poll_interval_ms` and `timeout_ms` are ignored.
     pub fn poll_status(
         &self,
-        _poll_interval_ms: Option<u64>,
-        _timeout_ms: Option<u64>,
+        poll_interval_ms: Option<u64>,
+        timeout_ms: Option<u64>,
     ) -> StatusWrapper {
+        let _ = (poll_interval_ms, timeout_ms);
         self.poll_status_once()
     }
 
@@ -1077,7 +1078,7 @@ impl IDKitRequestWrapper {
         match self.runtime.block_on(self.inner.poll_for_status()) {
             Ok(status) => status.into(),
             Err(err) => StatusWrapper::Failed {
-                error: to_app_error(err),
+                error: to_app_error(&err),
             },
         }
     }
