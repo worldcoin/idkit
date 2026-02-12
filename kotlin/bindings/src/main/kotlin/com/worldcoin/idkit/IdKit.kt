@@ -5,14 +5,14 @@ import uniffi.idkit_core.CredentialRequest
 import uniffi.idkit_core.RpContext
 import uniffi.idkit_core.Signal
 import uniffi.idkit_core.CredentialType
-import uniffi.idkit_core.IdKitRequestBuilder
+import uniffi.idkit_core.IdKitBuilder
 import uniffi.idkit_core.IdKitRequestConfig
 import uniffi.idkit_core.request
 import uniffi.idkit_core.Preset
 import uniffi.idkit_core.Environment
 
 // Type aliases for public API consistency - UniFFI 0.30 generates IdKit* names
-typealias IDKitRequestBuilder = IdKitRequestBuilder
+typealias IDKitRequestBuilder = IdKitBuilder
 typealias IDKitRequestConfig = IdKitRequestConfig
 
 /**
@@ -34,7 +34,7 @@ object IdKit {
     fun credentialRequest(
         credentialType: CredentialType,
         signal: String? = null,
-    ): CredentialRequest = CredentialRequest.new(credentialType, signal?.let { Signal.fromString(it) })
+    ): CredentialRequest = CredentialRequest(credentialType, signal?.let { Signal.fromString(it) })
 
     /**
      * Create a CredentialRequest from raw signal bytes.
@@ -42,7 +42,7 @@ object IdKit {
     fun credentialRequestBytes(
         credentialType: CredentialType,
         signalBytes: ByteArray,
-    ): CredentialRequest = CredentialRequest.new(credentialType, Signal.fromBytes(signalBytes))
+    ): CredentialRequest = CredentialRequest(credentialType, Signal.fromBytes(signalBytes))
 
     /**
      * Build an OR constraint - at least one item must be satisfied.
@@ -146,6 +146,8 @@ object IdKit {
         rpContext: RpContext,
         actionDescription: String? = null,
         bridgeUrl: String? = null,
+        allowLegacyProofs: Boolean = false,
+        overrideConnectBaseUrl: String? = null,
         environment: Environment? = null,
     ): IDKitRequestConfig = IDKitRequestConfig(
         appId = appId,
@@ -153,6 +155,8 @@ object IdKit {
         rpContext = rpContext,
         actionDescription = actionDescription,
         bridgeUrl = bridgeUrl,
+        allowLegacyProofs = allowLegacyProofs,
+        overrideConnectBaseUrl = overrideConnectBaseUrl,
         environment = environment,
     )
 
@@ -247,6 +251,12 @@ object IdKit {
  */
 fun CredentialRequest(type: CredentialType, signal: String? = null): CredentialRequest =
     IdKit.credentialRequest(type, signal)
+
+/**
+ * Create a CredentialRequest for a credential type from ABI-encoded signal bytes.
+ */
+fun CredentialRequest(type: CredentialType, abiEncodedSignal: ByteArray): CredentialRequest =
+    IdKit.credentialRequestBytes(type, abiEncodedSignal)
 
 /**
  * Build an OR constraint - at least one item must be satisfied.

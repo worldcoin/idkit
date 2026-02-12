@@ -3,7 +3,6 @@ export { useIDKitSession } from "./hooks/useIDKitSession";
 
 export { IDKitRequestWidget } from "./widget/IDKitRequestWidget";
 export { IDKitSessionWidget } from "./widget/IDKitSessionWidget";
-
 export type { IDKitHookResult, PollingConfig } from "./types/common";
 export type {
   IDKitRequestHookConfig,

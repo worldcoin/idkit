@@ -14,7 +14,7 @@ React SDK for World ID built on top of `@worldcoin/idkit-core`.
 npm install @worldcoin/idkit
 ```
 
-## Basic usage
+## Hook usage
 
 ```tsx
 import { useIDKitRequest, orbLegacy } from "@worldcoin/idkit";
