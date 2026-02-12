@@ -1,16 +1,26 @@
 # IDKit - World ID SDK
 
-IDKit is the toolkit for anonymous proof of human. Easily integrate the [World ID Protocol](https://world.org/world-id) into your application.
+IDKit is the toolkit for anonymous proof of human. Integrate the [World ID Protocol](https://world.org/world-id) into your application.
 
-## Getting Started
+## SDKs
 
-**JavaScript / TypeScript** - [`@worldcoin/idkit-core`](./js/packages/core) · [Browser example](./js/examples/browser)
+- JavaScript / TypeScript: [`@worldcoin/idkit-core`](./js/packages/core)
+- Swift: [`./swift`](./swift)
+- Kotlin: [`./kotlin`](./kotlin)
+
+## Swift quick local run
 
 ```bash
-npm install @worldcoin/idkit-core
+bash scripts/package-swift.sh
+cd swift
+swift build
+swift test
+xcodebuild test -scheme IDKit -destination "platform=macOS"
 ```
 
-Kotlin and Swift SDKs are coming soon.
+Example iOS app:
+
+- Project: `./swift/Examples/IDKitSampleApp/IDKitSampleApp.xcodeproj`
 
 ## License
 

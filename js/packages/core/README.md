@@ -53,6 +53,7 @@ const request = await IDKit.request({
     expires_at: rpSig.expires_at,
     signature: rpSig.sig,
   },
+  allow_legacy_proofs: false,
 }).preset(orbLegacy({ signal: "user-123" }));
 
 // Display QR code for World App
