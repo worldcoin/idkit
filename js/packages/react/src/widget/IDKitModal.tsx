@@ -1,5 +1,4 @@
 import { useEffect, type ReactElement, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { WIDGET_STYLES } from "../styles/widgetStyles";
 import { ShadowHost } from "./ShadowHost";
 import { XMarkIcon } from "../components/Icons/XMarkIcon";
@@ -8,14 +7,13 @@ import { __ } from "../lang";
 type IDKitModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  shadowRoot?: boolean;
   children: ReactNode;
 };
 
 function ModalContent({
   onOpenChange,
   children,
-}: Omit<IDKitModalProps, "open" | "shadowRoot">): ReactElement {
+}: Omit<IDKitModalProps, "open">): ReactElement {
   return (
     <>
       <style>{WIDGET_STYLES}</style>
@@ -62,7 +60,6 @@ function ModalContent({
 export function IDKitModal({
   open,
   onOpenChange,
-  shadowRoot = true,
   children,
 }: IDKitModalProps): ReactElement | null {
   useEffect(() => {
@@ -88,9 +85,5 @@ export function IDKitModal({
     <ModalContent onOpenChange={onOpenChange}>{children}</ModalContent>
   );
 
-  if (shadowRoot) {
-    return <ShadowHost>{content}</ShadowHost>;
-  }
-
-  return createPortal(content, document.body);
+  return <ShadowHost>{content}</ShadowHost>;
 }

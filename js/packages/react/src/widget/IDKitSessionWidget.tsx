@@ -7,19 +7,19 @@ import { WorldIDState } from "../components/States/WorldIDState";
 import { SuccessState } from "../components/States/SuccessState";
 import { ErrorState } from "../components/States/ErrorState";
 import { setLocalizationConfig } from "../lang";
-import type { IDKitHookStatus } from "../types/common";
 
 type VisualStage = "worldid" | "success" | "error";
 
-function getVisualStage(status: IDKitHookStatus): VisualStage {
-  switch (status) {
-    case "confirmed":
-      return "success";
-    case "failed":
-      return "error";
-    default:
-      return "worldid";
+function getVisualStage(isSuccess: boolean, isError: boolean): VisualStage {
+  if (isSuccess) {
+    return "success";
   }
+
+  if (isError) {
+    return "error";
+  }
+
+  return "worldid";
 }
 
 export function IDKitSessionWidget({
@@ -27,19 +27,12 @@ export function IDKitSessionWidget({
   onOpenChange,
   onSuccess,
   onError,
-  onStatusChange,
-  shadowRoot = true,
   autoClose = true,
   language,
   ...config
 }: IDKitSessionWidgetProps): ReactElement | null {
   const flow = useIDKitSession(config);
-  const openFlow = flow.open;
-  const resetFlow = flow.reset;
-  const status = flow.status;
-  const connectorURI = flow.connectorURI;
-  const result = flow.result;
-  const errorCode = flow.errorCode;
+  const { open: openFlow, reset: resetFlow } = flow;
 
   const lastResultRef = useRef<unknown>(null);
   const lastErrorCodeRef = useRef<IDKitErrorCodes | null>(null);
@@ -61,53 +54,49 @@ export function IDKitSessionWidget({
   }, [open, openFlow, resetFlow]);
 
   useEffect(() => {
-    onStatusChange?.(status);
-  }, [onStatusChange, status]);
-
-  useEffect(() => {
-    if (!result || result === lastResultRef.current) {
+    if (!flow.result || flow.result === lastResultRef.current) {
       return;
     }
 
-    lastResultRef.current = result;
-    void Promise.resolve(onSuccess?.(result)).catch(() => {
+    lastResultRef.current = flow.result;
+    void Promise.resolve(onSuccess?.(flow.result)).catch(() => {
       // Swallow host callback errors to keep widget flow stable.
     });
-  }, [onSuccess, result]);
+  }, [onSuccess, flow.result]);
 
   useEffect(() => {
-    if (!errorCode || errorCode === lastErrorCodeRef.current) {
+    if (!flow.errorCode || flow.errorCode === lastErrorCodeRef.current) {
       return;
     }
 
-    lastErrorCodeRef.current = errorCode;
-    void Promise.resolve(onError?.(errorCode)).catch(() => {
+    lastErrorCodeRef.current = flow.errorCode;
+    void Promise.resolve(onError?.(flow.errorCode)).catch(() => {
       // Swallow host callback errors to keep widget flow stable.
     });
-  }, [errorCode, onError]);
+  }, [flow.errorCode, onError]);
 
   // Auto-close on success
   useEffect(() => {
-    if (status === "confirmed" && autoClose) {
+    if (flow.isSuccess && autoClose) {
       const timer = setTimeout(() => onOpenChange(false), 2500);
       return () => clearTimeout(timer);
     }
-  }, [status, autoClose, onOpenChange]);
+  }, [flow.isSuccess, autoClose, onOpenChange]);
 
-  const stage = getVisualStage(status);
+  const stage = getVisualStage(flow.isSuccess, flow.isError);
 
   return (
-    <IDKitModal open={open} onOpenChange={onOpenChange} shadowRoot={shadowRoot}>
+    <IDKitModal open={open} onOpenChange={onOpenChange}>
       {stage === "worldid" && (
         <WorldIDState
-          connectorURI={connectorURI}
-          isAwaitingConfirmation={status === "awaiting_confirmation"}
+          connectorURI={flow.connectorURI}
+          isPending={flow.isPending}
         />
       )}
       {stage === "success" && <SuccessState />}
       {stage === "error" && (
         <ErrorState
-          errorCode={errorCode}
+          errorCode={flow.errorCode}
           onRetry={() => {
             resetFlow();
             openFlow();

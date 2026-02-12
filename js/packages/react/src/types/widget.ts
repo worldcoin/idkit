@@ -1,6 +1,5 @@
 import type { IDKitRequestHookConfig } from "./request";
 import type { IDKitSessionHookConfig } from "./session";
-import type { IDKitHookStatus } from "./common";
 import type {
   IDKitErrorCodes,
   IDKitResult,
@@ -15,8 +14,6 @@ type WidgetSharedProps<TResult> = {
   onOpenChange: (open: boolean) => void;
   onSuccess?: (result: TResult) => MaybePromise<void>;
   onError?: (errorCode: IDKitErrorCodes) => MaybePromise<void>;
-  onStatusChange?: (status: IDKitHookStatus) => void;
-  shadowRoot?: boolean;
   autoClose?: boolean;
   language?: SupportedLanguage;
 };
