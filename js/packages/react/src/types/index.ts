@@ -7,3 +7,7 @@ export type {
   IDKitSessionHookConfig,
   UseIDKitSessionHookResult,
 } from "./session";
+export type {
+  IDKitRequestWidgetProps,
+  IDKitSessionWidgetProps,
+} from "./widget";

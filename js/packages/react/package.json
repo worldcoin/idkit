@@ -42,12 +42,14 @@
     "react-dom": ">=18"
   },
   "dependencies": {
-    "@worldcoin/idkit-core": "workspace:*"
+    "@worldcoin/idkit-core": "workspace:*",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "happy-dom": "20.0.0",

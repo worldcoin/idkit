@@ -5,6 +5,7 @@ React SDK for World ID built on top of `@worldcoin/idkit-core`.
 ## Highlights
 
 - Headless hooks for custom UI
+- Built-in controlled widgets with shadow DOM isolation
 - Separate request and session APIs
 
 ## Installation

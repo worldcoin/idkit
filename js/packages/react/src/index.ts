@@ -1,6 +1,8 @@
 export { useIDKitRequest } from "./hooks/useIDKitRequest";
 export { useIDKitSession } from "./hooks/useIDKitSession";
 
+export { IDKitRequestWidget } from "./widget/IDKitRequestWidget";
+export { IDKitSessionWidget } from "./widget/IDKitSessionWidget";
 export type { IDKitHookResult, PollingConfig } from "./types/common";
 export type {
   IDKitRequestHookConfig,
@@ -10,6 +12,12 @@ export type {
   IDKitSessionHookConfig,
   UseIDKitSessionHookResult,
 } from "./types/session";
+export type {
+  IDKitRequestWidgetProps,
+  IDKitSessionWidgetProps,
+} from "./types/widget";
+
+export type { SupportedLanguage } from "./lang/types";
 
 export {
   IDKit,
