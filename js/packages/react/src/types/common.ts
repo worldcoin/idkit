@@ -1,4 +1,4 @@
-import type { IDKitErrorCodes } from "@worldcoin/idkit-core";
+import type { IDKitErrorCodes, Preset } from "@worldcoin/idkit-core";
 
 export type IDKitHookStatus =
   | "idle"
@@ -11,6 +11,8 @@ export type PollingConfig = {
   pollInterval?: number;
   timeout?: number;
 };
+
+export type FlowConfig = PollingConfig & { preset: Preset };
 
 export type IDKitHookResult<TResult> = {
   open: () => void;

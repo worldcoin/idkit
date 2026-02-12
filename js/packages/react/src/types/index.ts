@@ -1,4 +1,4 @@
-export type { IDKitHookStatus, PollingConfig, IDKitHookResult } from "./common";
+export type { IDKitHookStatus, PollingConfig, FlowConfig, IDKitHookResult } from "./common";
 export type {
   IDKitRequestHookConfig,
   UseIDKitRequestHookResult,
