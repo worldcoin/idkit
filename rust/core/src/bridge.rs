@@ -364,6 +364,11 @@ pub struct BridgeConnection {
 ///
 /// This is the single source of truth for payload construction, used by both
 /// the bridge transport (encrypt + send) and the native transport (postMessage).
+///
+/// # Errors
+///
+/// Returns an error if constraints are invalid, the signature/nonce format is
+/// wrong, or serialization fails.
 pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_json::Value> {
     params.constraints.validate()?;
 
@@ -392,7 +397,7 @@ pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_js
     let proof_request = ProofRequest::new(
         params.rp_context.created_at,
         params.rp_context.expires_at,
-        params.rp_context.rp_id.clone(),
+        params.rp_context.rp_id,
         action_fe,
         session_id_fe,
         signature,
@@ -433,8 +438,6 @@ impl BridgeConnection {
     /// Returns an error if the request cannot be created or the bridge call fails
     #[allow(dead_code, clippy::too_many_lines)]
     pub(crate) async fn create(params: BridgeConnectionParams) -> Result<Self> {
-        let bridge_url = params.bridge_url.clone().unwrap_or_default();
-
         // Generate encryption key and IV
         #[cfg(feature = "native-crypto")]
         let (key_bytes, nonce_bytes) = crate::crypto::generate_key()?;
@@ -445,9 +448,12 @@ impl BridgeConnection {
         #[cfg(not(feature = "native-crypto"))]
         let (key_bytes, nonce_bytes) = crate::crypto::generate_key()?;
 
-        // Build the payload using the shared function
+        // Build the payload using the shared function (borrows params)
         let payload_value = build_request_payload(&params)?;
         let payload_json = serde_json::to_vec(&payload_value)?;
+
+        // Extract bridge_url after the borrow is done
+        let bridge_url = params.bridge_url.unwrap_or_default();
 
         // Encrypt the payload
         #[cfg(feature = "native-crypto")]

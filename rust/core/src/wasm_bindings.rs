@@ -712,6 +712,10 @@ impl IDKitBuilderWasm {
     ///
     /// Used by the native transport to get the same payload format as the bridge
     /// without creating a network connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if constraints are invalid or payload construction fails.
     #[wasm_bindgen(js_name = nativePayload)]
     pub fn native_payload(self, constraints_json: JsValue) -> Result<JsValue, JsValue> {
         let constraints: ConstraintNode = serde_wasm_bindgen::from_value(constraints_json)
@@ -732,6 +736,10 @@ impl IDKitBuilderWasm {
     ///
     /// Used by the native transport to get the same payload format as the bridge
     /// without creating a network connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the preset is invalid or payload construction fails.
     #[wasm_bindgen(js_name = nativePayloadFromPreset)]
     pub fn native_payload_from_preset(self, preset_json: JsValue) -> Result<JsValue, JsValue> {
         let preset: Preset = serde_wasm_bindgen::from_value(preset_json)
