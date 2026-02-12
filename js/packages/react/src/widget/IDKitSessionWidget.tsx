@@ -90,7 +90,7 @@ export function IDKitSessionWidget({
       {stage === "worldid" && (
         <WorldIDState
           connectorURI={flow.connectorURI}
-          isPending={flow.isPending}
+          isAwaitingUserConfirmation={flow.isAwaitingUserConfirmation}
         />
       )}
       {stage === "success" && <SuccessState />}

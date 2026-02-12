@@ -7,12 +7,12 @@ import { QRState } from "./QRState";
 
 type WorldIDStateProps = {
   connectorURI: string | null;
-  isPending: boolean;
+  isAwaitingUserConfirmation: boolean;
 };
 
 export function WorldIDState({
   connectorURI,
-  isPending,
+  isAwaitingUserConfirmation,
 }: WorldIDStateProps): ReactElement {
   const media = useMedia();
 
@@ -44,7 +44,7 @@ export function WorldIDState({
 
       {/* QR Container */}
       <div className="idkit-qr-container">
-        {isPending && (
+        {isAwaitingUserConfirmation && (
           <div className="idkit-qr-overlay">
             <div className="idkit-spinner">
               <LoadingIcon />
@@ -56,7 +56,9 @@ export function WorldIDState({
           </div>
         )}
 
-        <div className={`idkit-qr-blur ${isPending ? "blurred" : ""}`}>
+        <div
+          className={`idkit-qr-blur ${isAwaitingUserConfirmation ? "blurred" : ""}`}
+        >
           <div style={{ display: "flex", justifyContent: "center" }}>
             <QRState qrData={connectorURI} />
           </div>
