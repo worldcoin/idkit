@@ -3,7 +3,7 @@ import { __ } from "../../lang";
 import { useMedia } from "../../hooks/useMedia";
 import { QRCode } from "../../widget/QRCode";
 import { QRPlaceholderIcon } from "../Icons/QRPlaceholderIcon";
-import { WorldcoinIcon } from "../Icons/WorldcoinIcon";
+import { WorldcoinIcon } from "../Icons/WorldIcon";
 
 type QRStateProps = {
   qrData: string | null;

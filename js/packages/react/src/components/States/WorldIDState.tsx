@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { __ } from "../../lang";
 import { useMedia } from "../../hooks/useMedia";
-import { WorldcoinIcon } from "../Icons/WorldcoinIcon";
+import { WorldcoinIcon } from "../Icons/WorldIcon";
 import { LoadingIcon } from "../Icons/LoadingIcon";
 import { QRState } from "./QRState";
 
@@ -25,7 +25,7 @@ export function WorldIDState({
         textAlign: "center",
       }}
     >
-      {/* Worldcoin logo */}
+      {/* World logo */}
       <div className="idkit-worldid-icon">
         <WorldcoinIcon />
       </div>
