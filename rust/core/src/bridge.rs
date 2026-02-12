@@ -360,6 +360,67 @@ pub struct BridgeConnection {
     environment: Environment,
 }
 
+/// Builds a `BridgeRequestPayload` from params without connecting to the bridge.
+///
+/// This is the single source of truth for payload construction, used by both
+/// the bridge transport (encrypt + send) and the native transport (postMessage).
+pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_json::Value> {
+    params.constraints.validate()?;
+
+    // Extract action and session_id from kind
+    let (action_fe, session_id_fe, action_str) = match &params.kind {
+        RequestKind::Uniqueness { action } => {
+            let fe = FieldElement::from_arbitrary_raw_bytes(action.as_bytes());
+            (Some(fe), None, Some(action.clone()))
+        }
+        RequestKind::CreateSession => (None, None, None),
+        RequestKind::ProveSession { session_id } => {
+            let fe = FieldElement::from_str(session_id).map_err(|_| {
+                Error::InvalidConfiguration("Invalid session_id format".to_string())
+            })?;
+            (None, Some(fe), None)
+        }
+    };
+
+    // Build ProofRequest protocol type
+    let (request_items, constraint_expr) = params.constraints.to_protocol_top_level()?;
+    let signature = Signature::from_str(&params.rp_context.signature)
+        .map_err(|_| Error::InvalidConfiguration("Invalid signature".to_string()))?;
+    let nonce = FieldElement::from_str(&params.rp_context.nonce)
+        .map_err(|_| Error::InvalidConfiguration("Invalid nonce format".to_string()))?;
+
+    let proof_request = ProofRequest::new(
+        params.rp_context.created_at,
+        params.rp_context.expires_at,
+        params.rp_context.rp_id.clone(),
+        action_fe,
+        session_id_fe,
+        signature,
+        nonce,
+        request_items,
+        constraint_expr,
+        params.allow_legacy_proofs,
+    );
+
+    // For backwards compatibility we hash the signal
+    let legacy_signal_hash =
+        crate::crypto::hash_signal(&Signal::from_string(params.legacy_signal.clone()));
+
+    // Prepare the payload
+    let payload = BridgeRequestPayload {
+        app_id: params.app_id.as_str().to_string(),
+        action: action_str,
+        action_description: params.action_description.clone(),
+        proof_request,
+        verification_level: params.legacy_verification_level,
+        signal: legacy_signal_hash,
+        allow_legacy_proofs: params.allow_legacy_proofs,
+        environment: params.environment.unwrap_or_default(),
+    };
+
+    serde_json::to_value(&payload).map_err(Into::into)
+}
+
 impl BridgeConnection {
     /// Creates a new bridge connection
     ///
@@ -372,10 +433,7 @@ impl BridgeConnection {
     /// Returns an error if the request cannot be created or the bridge call fails
     #[allow(dead_code, clippy::too_many_lines)]
     pub(crate) async fn create(params: BridgeConnectionParams) -> Result<Self> {
-        // Validate constraints
-        params.constraints.validate()?;
-
-        let bridge_url = params.bridge_url.unwrap_or_default();
+        let bridge_url = params.bridge_url.clone().unwrap_or_default();
 
         // Generate encryption key and IV
         #[cfg(feature = "native-crypto")]
@@ -387,61 +445,9 @@ impl BridgeConnection {
         #[cfg(not(feature = "native-crypto"))]
         let (key_bytes, nonce_bytes) = crate::crypto::generate_key()?;
 
-        // Extract action and session_id from kind
-        let (action_fe, session_id_fe, action_str) = match &params.kind {
-            RequestKind::Uniqueness { action } => {
-                let fe = FieldElement::from_arbitrary_raw_bytes(action.as_bytes());
-                (Some(fe), None, Some(action.clone()))
-            }
-            RequestKind::CreateSession => (None, None, None),
-            RequestKind::ProveSession { session_id } => {
-                let fe = FieldElement::from_str(session_id).map_err(|_| {
-                    Error::InvalidConfiguration("Invalid session_id format".to_string())
-                })?;
-                (None, Some(fe), None)
-            }
-        };
-
-        // Build ProofRequest protocol type
-        let (request_items, constraint_expr) = params.constraints.to_protocol_top_level()?;
-        let signature = Signature::from_str(&params.rp_context.signature)
-            .map_err(|_| Error::InvalidConfiguration("Invalid signature".to_string()))?;
-        let nonce = FieldElement::from_str(&params.rp_context.nonce)
-            .map_err(|_| Error::InvalidConfiguration("Invalid nonce format".to_string()))?;
-
-        let proof_request = ProofRequest::new(
-            params.rp_context.created_at,
-            params.rp_context.expires_at,
-            params.rp_context.rp_id,
-            action_fe,
-            session_id_fe,
-            signature,
-            nonce,
-            request_items,
-            constraint_expr,
-            params.allow_legacy_proofs,
-        );
-
-        // For backwards compatibility we hash the signal
-        let legacy_signal_hash =
-            crate::crypto::hash_signal(&Signal::from_string(params.legacy_signal));
-
-        // Clone action_description for payload (we also need it for BridgeConnection)
-        let action_description_for_payload = params.action_description.clone();
-
-        // Prepare the payload
-        let payload = BridgeRequestPayload {
-            app_id: params.app_id.as_str().to_string(),
-            action: action_str,
-            action_description: action_description_for_payload,
-            proof_request,
-            verification_level: params.legacy_verification_level,
-            signal: legacy_signal_hash,
-            allow_legacy_proofs: params.allow_legacy_proofs,
-            environment: params.environment.unwrap_or_default(),
-        };
-
-        let payload_json = serde_json::to_vec(&payload)?;
+        // Build the payload using the shared function
+        let payload_value = build_request_payload(&params)?;
+        let payload_json = serde_json::to_vec(&payload_value)?;
 
         // Encrypt the payload
         #[cfg(feature = "native-crypto")]

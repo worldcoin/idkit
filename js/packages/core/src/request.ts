@@ -276,7 +276,7 @@ export function documentLegacy(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// WASM builder factory (used only for bridge path)
+// WASM builder factory (used for both native and bridge paths)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function createWasmBuilderFromConfig(
@@ -361,13 +361,15 @@ class IDKitBuilder {
    * ```
    */
   async constraints(constraints: ConstraintNode): Promise<IDKitRequest> {
+    await initIDKit();
+    const wasmBuilder = createWasmBuilderFromConfig(this.config);
+
     if (isInWorldApp()) {
-      return createNativeRequest(this.config, { constraints });
+      const payload = wasmBuilder.nativePayload(constraints);
+      return createNativeRequest(payload, this.config);
     }
 
     // Bridge path — WASM
-    await initIDKit();
-    const wasmBuilder = createWasmBuilderFromConfig(this.config);
     const wasmRequest = (await wasmBuilder.constraints(
       constraints,
     )) as unknown as WasmModule.IDKitRequest;
@@ -390,13 +392,15 @@ class IDKitBuilder {
    * ```
    */
   async preset(preset: Preset): Promise<IDKitRequest> {
+    await initIDKit();
+    const wasmBuilder = createWasmBuilderFromConfig(this.config);
+
     if (isInWorldApp()) {
-      return createNativeRequest(this.config, { preset });
+      const payload = wasmBuilder.nativePayloadFromPreset(preset);
+      return createNativeRequest(payload, this.config);
     }
 
     // Bridge path — WASM
-    await initIDKit();
-    const wasmBuilder = createWasmBuilderFromConfig(this.config);
     const wasmRequest = (await wasmBuilder.preset(
       preset,
     )) as unknown as WasmModule.IDKitRequest;
@@ -454,10 +458,9 @@ function createRequest(config: IDKitRequestConfig): IDKitBuilder {
   if (!config.action) {
     throw new Error("action is required");
   }
-  // rp_context only required for bridge, not native
-  if (!isInWorldApp() && !config.rp_context) {
+  if (!config.rp_context) {
     throw new Error(
-      "rp_context is required for web verification. Generate it on your backend using signRequest().",
+      "rp_context is required. Generate it on your backend using signRequest().",
     );
   }
   if (typeof config.allow_legacy_proofs !== "boolean") {
@@ -511,9 +514,9 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
   if (!config.app_id) {
     throw new Error("app_id is required");
   }
-  if (!isInWorldApp() && !config.rp_context) {
+  if (!config.rp_context) {
     throw new Error(
-      "rp_context is required for web sessions. Generate it on your backend using signRequest().",
+      "rp_context is required. Generate it on your backend using signRequest().",
     );
   }
 
@@ -564,9 +567,9 @@ function proveSession(
   if (!config.app_id) {
     throw new Error("app_id is required");
   }
-  if (!isInWorldApp() && !config.rp_context) {
+  if (!config.rp_context) {
     throw new Error(
-      "rp_context is required for web sessions. Generate it on your backend using signRequest().",
+      "rp_context is required. Generate it on your backend using signRequest().",
     );
   }
 
