@@ -72,7 +72,7 @@ describe("request/session hooks", () => {
         rp_context: baseRpContext,
         allow_legacy_proofs: false,
         preset: { type: "OrbLegacy" },
-        pollInterval: 0,
+        polling: { interval: 0 },
       }),
     );
 
@@ -80,7 +80,7 @@ describe("request/session hooks", () => {
       result.current.open();
     });
 
-    expect(result.current.status).toBe("waiting_for_connection");
+    expect(result.current.isPending).toBe(true);
     await waitFor(() => {
       expect(result.current.connectorURI).toBe("wc://request");
     });
@@ -92,7 +92,7 @@ describe("request/session hooks", () => {
       pollResolvers.shift()?.({ type: "waiting_for_connection" });
     });
     await waitFor(() => {
-      expect(result.current.status).toBe("waiting_for_connection");
+      expect(result.current.isPending).toBe(true);
     });
 
     await waitFor(() => {
@@ -102,7 +102,7 @@ describe("request/session hooks", () => {
       pollResolvers.shift()?.({ type: "awaiting_confirmation" });
     });
     await waitFor(() => {
-      expect(result.current.status).toBe("awaiting_confirmation");
+      expect(result.current.isPending).toBe(true);
     });
 
     await waitFor(() => {
@@ -112,7 +112,7 @@ describe("request/session hooks", () => {
       pollResolvers.shift()?.({ type: "confirmed", result: { proof: "ok" } });
     });
     await waitFor(() => {
-      expect(result.current.status).toBe("confirmed");
+      expect(result.current.isSuccess).toBe(true);
     });
 
     expect(initMock).toHaveBeenCalledTimes(1);
@@ -145,7 +145,7 @@ describe("request/session hooks", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.status).toBe("confirmed");
+      expect(result.current.isSuccess).toBe(true);
     });
 
     expect(createSessionMock).toHaveBeenCalledTimes(1);
@@ -178,7 +178,7 @@ describe("request/session hooks", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.status).toBe("confirmed");
+      expect(result.current.isSuccess).toBe(true);
     });
 
     expect(proveSessionMock).toHaveBeenCalledWith("session_2", {
@@ -207,7 +207,7 @@ describe("request/session hooks", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.status).toBe("failed");
+      expect(result.current.isError).toBe(true);
     });
 
     expect(result.current.errorCode).toBe(IDKitErrorCodes.MalformedRequest);
@@ -238,7 +238,7 @@ describe("request/session hooks", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.status).toBe("failed");
+      expect(result.current.isError).toBe(true);
     });
 
     expect(result.current.errorCode).toBe(IDKitErrorCodes.ConnectionFailed);
@@ -268,7 +268,7 @@ describe("request/session hooks", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.status).toBe("failed");
+      expect(result.current.isError).toBe(true);
     });
 
     expect(result.current.errorCode).toBe(IDKitErrorCodes.UnexpectedResponse);
@@ -303,10 +303,12 @@ describe("request/session hooks", () => {
     });
 
     act(() => {
-      result.current.setOpen(false);
+      result.current.reset();
     });
 
-    expect(result.current.status).toBe("idle");
+    expect(result.current.isPending).toBe(false);
+    expect(result.current.isSuccess).toBe(false);
+    expect(result.current.isError).toBe(false);
     expect(result.current.result).toBeNull();
     expect(result.current.connectorURI).toBeNull();
     expect(result.current.errorCode).toBeNull();
@@ -315,7 +317,9 @@ describe("request/session hooks", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
 
-    expect(result.current.status).toBe("idle");
+    expect(result.current.isPending).toBe(false);
+    expect(result.current.isSuccess).toBe(false);
+    expect(result.current.isError).toBe(false);
     expect(result.current.result).toBeNull();
     expect(result.current.connectorURI).toBeNull();
     expect(result.current.errorCode).toBeNull();

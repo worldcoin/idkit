@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IDKit, IDKitErrorCodes, type IDKitRequest } from "@worldcoin/idkit-core";
+import {
+  IDKit,
+  IDKitErrorCodes,
+  type IDKitRequest,
+} from "@worldcoin/idkit-core";
 import type { FlowConfig, IDKitHookResult } from "../types";
 import {
   createInitialHookState,
@@ -13,8 +17,10 @@ export function useIDKitFlow<TResult>(
   createFlowHandle: () => Promise<IDKitRequest>,
   config: FlowConfig,
 ): IDKitHookResult<TResult> {
-  const [state, setState] = useState<HookState<TResult>>(createInitialHookState);
-  // Mutable handle so event handlers (reset/setOpen) can cancel the active polling loop.
+  const [state, setState] = useState<HookState<TResult>>(
+    createInitialHookState,
+  );
+  // Mutable handle so event handlers (reset) can cancel the active polling loop.
   const abortRef = useRef<AbortController | null>(null);
   // Refs keep the effect stable (deps: [state.isOpen]) while always reading the latest values.
   const createFlowHandleRef = useRef(createFlowHandle);
@@ -30,14 +36,7 @@ export function useIDKitFlow<TResult>(
     setState(createInitialHookState);
   }, []);
 
-  const setOpen = useCallback((open: boolean) => {
-    if (!open) {
-      abortRef.current?.abort();
-      abortRef.current = null;
-      setState(createInitialHookState);
-      return;
-    }
-
+  const open = useCallback(() => {
     setState((prev) => {
       if (prev.isOpen) {
         return prev;
@@ -52,10 +51,6 @@ export function useIDKitFlow<TResult>(
       };
     });
   }, []);
-
-  const open = useCallback(() => {
-    setOpen(true);
-  }, [setOpen]);
 
   useEffect(() => {
     if (!state.isOpen) {
@@ -94,8 +89,8 @@ export function useIDKitFlow<TResult>(
           return { ...prev, connectorURI: request.connectorURI };
         });
 
-        const pollInterval = configRef.current.pollInterval ?? 1000;
-        const timeout = configRef.current.timeout ?? 300000;
+        const pollInterval = configRef.current.polling?.interval ?? 1000;
+        const timeout = configRef.current.polling?.timeout ?? 300000;
         const startedAt = Date.now();
 
         while (true) {
@@ -159,11 +154,14 @@ export function useIDKitFlow<TResult>(
   return {
     open,
     reset,
-    status: state.status,
+    isPending:
+      state.status === "waiting_for_connection" ||
+      state.status === "awaiting_confirmation",
+    isSuccess: state.status === "confirmed",
+    isError: state.status === "failed",
     connectorURI: state.connectorURI,
     result: state.result,
     errorCode: state.errorCode,
     isOpen: state.isOpen,
-    setOpen,
   };
 }

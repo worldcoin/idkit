@@ -1,5 +1,11 @@
-import type { IDKitHookStatus } from "../types";
 import { IDKitErrorCodes } from "@worldcoin/idkit-core";
+
+type IDKitHookStatus =
+  | "idle"
+  | "waiting_for_connection"
+  | "awaiting_confirmation"
+  | "confirmed"
+  | "failed";
 
 export type HookState<TResult> = {
   isOpen: boolean;
