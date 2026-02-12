@@ -12,7 +12,8 @@ export type FlowConfig = PollingConfig & { preset: Preset };
 export type IDKitHookResult<TResult> = {
   open: () => void;
   reset: () => void;
-  isPending: boolean;
+  isAwaitingUserConnection: boolean;
+  isAwaitingUserConfirmation: boolean;
   isSuccess: boolean;
   isError: boolean;
   connectorURI: string | null;

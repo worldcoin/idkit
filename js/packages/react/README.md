@@ -26,9 +26,11 @@ function Example() {
     allow_legacy_proofs: false,
     preset: orbLegacy({ signal: "user-123" }),
   });
+  const isBusy =
+    flow.isAwaitingUserConnection || flow.isAwaitingUserConfirmation;
 
   return (
-    <button onClick={flow.open} disabled={flow.isPending}>
+    <button onClick={flow.open} disabled={isBusy}>
       Verify
     </button>
   );

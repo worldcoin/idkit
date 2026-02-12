@@ -154,9 +154,8 @@ export function useIDKitFlow<TResult>(
   return {
     open,
     reset,
-    isPending:
-      state.status === "waiting_for_connection" ||
-      state.status === "awaiting_confirmation",
+    isAwaitingUserConnection: state.status === "waiting_for_connection",
+    isAwaitingUserConfirmation: state.status === "awaiting_confirmation",
     isSuccess: state.status === "confirmed",
     isError: state.status === "failed",
     connectorURI: state.connectorURI,

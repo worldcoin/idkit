@@ -80,7 +80,8 @@ describe("request/session hooks", () => {
       result.current.open();
     });
 
-    expect(result.current.isPending).toBe(true);
+    expect(result.current.isAwaitingUserConnection).toBe(true);
+    expect(result.current.isAwaitingUserConfirmation).toBe(false);
     await waitFor(() => {
       expect(result.current.connectorURI).toBe("wc://request");
     });
@@ -92,7 +93,8 @@ describe("request/session hooks", () => {
       pollResolvers.shift()?.({ type: "waiting_for_connection" });
     });
     await waitFor(() => {
-      expect(result.current.isPending).toBe(true);
+      expect(result.current.isAwaitingUserConnection).toBe(true);
+      expect(result.current.isAwaitingUserConfirmation).toBe(false);
     });
 
     await waitFor(() => {
@@ -102,7 +104,8 @@ describe("request/session hooks", () => {
       pollResolvers.shift()?.({ type: "awaiting_confirmation" });
     });
     await waitFor(() => {
-      expect(result.current.isPending).toBe(true);
+      expect(result.current.isAwaitingUserConnection).toBe(false);
+      expect(result.current.isAwaitingUserConfirmation).toBe(true);
     });
 
     await waitFor(() => {
@@ -113,6 +116,8 @@ describe("request/session hooks", () => {
     });
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
+      expect(result.current.isAwaitingUserConnection).toBe(false);
+      expect(result.current.isAwaitingUserConfirmation).toBe(false);
     });
 
     expect(initMock).toHaveBeenCalledTimes(1);
@@ -306,7 +311,8 @@ describe("request/session hooks", () => {
       result.current.reset();
     });
 
-    expect(result.current.isPending).toBe(false);
+    expect(result.current.isAwaitingUserConnection).toBe(false);
+    expect(result.current.isAwaitingUserConfirmation).toBe(false);
     expect(result.current.isSuccess).toBe(false);
     expect(result.current.isError).toBe(false);
     expect(result.current.result).toBeNull();
@@ -317,7 +323,8 @@ describe("request/session hooks", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
 
-    expect(result.current.isPending).toBe(false);
+    expect(result.current.isAwaitingUserConnection).toBe(false);
+    expect(result.current.isAwaitingUserConfirmation).toBe(false);
     expect(result.current.isSuccess).toBe(false);
     expect(result.current.isError).toBe(false);
     expect(result.current.result).toBeNull();
