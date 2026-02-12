@@ -1,27 +1,38 @@
 import { NextResponse } from "next/server";
-import { createRpSignature } from "../../../lib/idkit";
+import { signRequest, IDKit } from "@worldcoin/idkit-core";
 
-export const runtime = "nodejs";
+// export const runtime = "nodejs";
 
 export async function POST(request: Request): Promise<Response> {
   try {
     const body = (await request.json()) as {
-      action?: unknown;
-      ttl?: unknown;
+      action?: string;
+      ttl?: number;
     };
 
-    if (!body.action || typeof body.action !== "string") {
-      return NextResponse.json(
-        { error: "action is required" },
-        { status: 400 },
-      );
-    }
+    const signingKey = process.env.RP_SIGNING_KEY;
+    await IDKit.initServer();
+    const { sig, nonce, createdAt, expiresAt } = signRequest(
+      body.action!,
+      signingKey!,
+      body.ttl,
+    );
 
-    const ttl = typeof body.ttl === "number" ? body.ttl : undefined;
-    const signature = await createRpSignature(body.action, ttl);
+    console.log("Generated RP signature:", {
+      sig,
+      nonce,
+      createdAt,
+      expiresAt,
+    });
 
-    return NextResponse.json(signature);
+    return NextResponse.json({
+      sig: sig,
+      nonce: nonce,
+      created_at: Number(createdAt),
+      expires_at: Number(expiresAt),
+    });
   } catch (error) {
+    console.error("Error generating RP signature:", error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Unknown server error",

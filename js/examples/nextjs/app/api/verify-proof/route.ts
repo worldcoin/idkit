@@ -1,42 +1,28 @@
 import { NextResponse } from "next/server";
-import { verifyWithDeveloperPortal } from "../../../lib/idkit";
 
-export const runtime = "nodejs";
+// export const runtime = "nodejs";
 
 export async function POST(request: Request): Promise<Response> {
   try {
     const body = (await request.json()) as {
-      rp_id?: unknown;
+      rp_id?: string;
       devPortalPayload?: unknown;
     };
 
-    if (!body.rp_id || typeof body.rp_id !== "string") {
-      return NextResponse.json({ error: "rp_id is required" }, { status: 400 });
-    }
+    const baseUrl =
+      process.env.DEV_PORTAL_BASE_URL?.trim() || "https://developer.world.org";
 
-    if (!body.devPortalPayload) {
-      return NextResponse.json(
-        { error: "devPortalPayload is required" },
-        { status: 400 },
-      );
-    }
+    const response = await fetch(`${baseUrl}/api/v4/verify/${body.rp_id}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body.devPortalPayload),
+    });
 
-    const portalResponse = await verifyWithDeveloperPortal(
-      body.rp_id,
-      body.devPortalPayload,
-    );
+    const payload = await response.json();
 
-    if (portalResponse.status >= 400) {
-      return NextResponse.json(
-        {
-          error: "Verification failed",
-          details: portalResponse.payload,
-        },
-        { status: portalResponse.status },
-      );
-    }
-
-    return NextResponse.json(portalResponse.payload);
+    return NextResponse.json(payload);
   } catch (error) {
     return NextResponse.json(
       {

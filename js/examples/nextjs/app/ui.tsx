@@ -54,6 +54,8 @@ async function fetchRpContext(action: string): Promise<RpContext> {
     throw new Error("Missing NEXT_PUBLIC_RP_ID");
   }
 
+  console.log(data);
+
   return {
     rp_id: RP_ID,
     nonce: data.nonce,
@@ -169,13 +171,20 @@ export function DemoClient(): ReactElement {
           allow_legacy_proofs={true}
           preset={widgetPreset}
           onSuccess={async (result) => {
+            // try {
             const verified = await verifyProof(result);
             setWidgetVerifyResult(verified);
+            // } catch (error) {
+            //   setWidgetError(
+            //     "Failed to verify proof: " +
+            //       (error instanceof Error ? error.message : "Unknown error"),
+            //   );
+            // }
           }}
           onError={(errorCode) => {
             setWidgetError(`Verification failed: ${errorCode}`);
           }}
-          environment="staging"
+          environment="production"
         />
       ) : null}
 
