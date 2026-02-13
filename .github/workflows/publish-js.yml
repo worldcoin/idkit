@@ -34,13 +34,17 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
           GITHUB_SHA: ${{ github.sha }}
-          IS_RELEASE_PR: ${{ github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release') }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "npm_tag=dev" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
             echo "ref=${INPUT_COMMIT_SHA:-$GITHUB_SHA}" >> $GITHUB_OUTPUT
-          elif [ "$IS_RELEASE_PR" = "true" ]; then
+          elif [ "$PR_MERGED" = "true" ] && \
+               echo "$PR_LABELS" | grep -q '"release"' && \
+               echo "$PR_BODY" | grep -q "<!-- release_target:js-core -->"; then
             echo "npm_tag=latest" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
             echo "ref=$GITHUB_SHA" >> $GITHUB_OUTPUT

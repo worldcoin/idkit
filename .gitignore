@@ -8,6 +8,7 @@
 /swift/Sources/IDKit/Generated/
 /swift/Sources/idkitFFI/
 /swift/IDKitFFI.xcframework
+/swift/.clang-module-cache
 /IDKitFFI.xcframework/
 /ios_build/
 /js/packages/core/wasm/

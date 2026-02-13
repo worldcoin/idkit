@@ -1,0 +1,222 @@
+name: Publish React Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Commit SHA to publish as dev release (leave empty for HEAD)"
+        required: false
+        type: string
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  prepare:
+    runs-on:
+      group: arc-public-large-amd64-runner
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      core_version: ${{ steps.version.outputs.core_version }}
+      npm_tag: ${{ steps.config.outputs.npm_tag }}
+      ref: ${{ steps.config.outputs.ref }}
+      should_publish: ${{ steps.config.outputs.should_publish }}
+
+    steps:
+      - name: Determine release type
+        id: config
+        # Use env vars to avoid script injection via github context interpolation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+          GITHUB_SHA: ${{ github.sha }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "npm_tag=dev" >> $GITHUB_OUTPUT
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+            echo "ref=${INPUT_COMMIT_SHA:-$GITHUB_SHA}" >> $GITHUB_OUTPUT
+          elif [ "$PR_MERGED" = "true" ] && \
+               echo "$PR_LABELS" | grep -q '"release"' && \
+               echo "$PR_BODY" | grep -q "<!-- release_target:react -->"; then
+            echo "npm_tag=latest" >> $GITHUB_OUTPUT
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+            echo "ref=$GITHUB_SHA" >> $GITHUB_OUTPUT
+          else
+            echo "should_publish=false" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/checkout@v6
+        if: steps.config.outputs.should_publish == 'true'
+        with:
+          ref: ${{ steps.config.outputs.ref }}
+
+      - name: Generate versions
+        if: steps.config.outputs.should_publish == 'true'
+        id: version
+        run: |
+          BASE_VERSION=$(node -p "require('./js/packages/react/package.json').version")
+          CORE_VERSION=$(node -p "require('./js/packages/core/package.json').version")
+
+          if [ -z "$BASE_VERSION" ] || [ -z "$CORE_VERSION" ]; then
+            echo "Error: Failed to resolve react/core versions from package manifests"
+            exit 1
+          fi
+
+          if [ "${{ steps.config.outputs.npm_tag }}" = "dev" ]; then
+            BASE_VERSION=$(echo "$BASE_VERSION" | sed 's/-.*$//')
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            VERSION="${BASE_VERSION}-dev.${SHORT_SHA}"
+            echo "Dev version: $VERSION"
+          else
+            VERSION="$BASE_VERSION"
+            echo "Production version: $VERSION"
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "core_version=$CORE_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Validate version against npm
+        if: steps.config.outputs.should_publish == 'true' && steps.config.outputs.npm_tag == 'latest'
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.version }}"
+          LATEST_RELEASE=$(npm view @worldcoin/idkit version 2>/dev/null || echo "0.0.0")
+
+          echo "Latest release on npm: $LATEST_RELEASE"
+          echo "New version: $NEW_VERSION"
+
+          if [ "$LATEST_RELEASE" != "0.0.0" ]; then
+            if ! { [ "$(printf '%s\n' "$LATEST_RELEASE" "$NEW_VERSION" | sort -V | tail -n1)" = "$NEW_VERSION" ] && \
+                   [ "$NEW_VERSION" != "$LATEST_RELEASE" ]; }; then
+              echo "Error: New version ($NEW_VERSION) is not greater than latest release ($LATEST_RELEASE)"
+              exit 1
+            fi
+          fi
+
+          echo "Version check passed: $NEW_VERSION > $LATEST_RELEASE"
+
+      - name: Validate core dependency exists on npm (production only)
+        if: steps.config.outputs.should_publish == 'true' && steps.config.outputs.npm_tag == 'latest'
+        env:
+          CORE_VERSION: ${{ steps.version.outputs.core_version }}
+        run: |
+          if ! npm view "@worldcoin/idkit-core@$CORE_VERSION" version >/dev/null 2>&1; then
+            echo "Error: Required core dependency @worldcoin/idkit-core@$CORE_VERSION is not published on npm"
+            exit 1
+          fi
+
+          echo "Core dependency check passed: @worldcoin/idkit-core@$CORE_VERSION"
+
+  publish:
+    needs: prepare
+    if: needs.prepare.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Update npm for OIDC trusted publishing
+        run: |
+          # npm trusted publishing requires npm >= 11.5.1
+          echo "Current npm version: $(npm --version)"
+          npm install -g npm@latest
+          echo "Updated npm version: $(npm --version)"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
+
+      - name: Set package version
+        working-directory: js/packages/react
+        env:
+          PKG_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          npm version "$PKG_VERSION" --no-git-tag-version --allow-same-version
+          echo "Package version set to: $PKG_VERSION"
+
+      - name: Install dependencies
+        working-directory: js
+        run: pnpm install
+
+      - name: Build packages
+        working-directory: js
+        run: pnpm -r build
+
+      - name: Rewrite core dependency to published version
+        working-directory: js/packages/react
+        env:
+          CORE_VERSION: ${{ needs.prepare.outputs.core_version }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkgPath = 'package.json';
+            const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+            pkg.dependencies = pkg.dependencies || {};
+            pkg.dependencies['@worldcoin/idkit-core'] = process.env.CORE_VERSION;
+            fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          echo "Updated @worldcoin/idkit-core dependency to ${CORE_VERSION}"
+
+      - name: Verify packaged manifest does not contain workspace protocol
+        working-directory: js/packages/react
+        env:
+          CORE_VERSION: ${{ needs.prepare.outputs.core_version }}
+          NPM_TAG: ${{ needs.prepare.outputs.npm_tag }}
+        run: |
+          PACK_OUTPUT=$(npm pack --pack-destination /tmp --json)
+          TARBALL=$(echo "$PACK_OUTPUT" | jq -r '.[0].filename')
+          PACKAGE_JSON=$(tar -xOf "/tmp/$TARBALL" package/package.json)
+
+          if echo "$PACKAGE_JSON" | jq -e '.dependencies["@worldcoin/idkit-core"] == "workspace:*"' >/dev/null; then
+            echo "Error: packaged dependency still uses workspace:*"
+            exit 1
+          fi
+
+          if ! echo "$PACKAGE_JSON" | jq -e --arg core "$CORE_VERSION" '.dependencies["@worldcoin/idkit-core"] == $core' >/dev/null; then
+            echo "Error: packaged dependency does not match expected core version $CORE_VERSION"
+            exit 1
+          fi
+
+          if [ "$NPM_TAG" = "latest" ]; then
+            TMP_DIR=$(mktemp -d)
+            cd "$TMP_DIR"
+            npm init -y >/dev/null 2>&1
+            npm install "/tmp/$TARBALL" --ignore-scripts --no-audit --no-fund
+            echo "Tarball install check passed for production release"
+          fi
+
+      - name: Publish @worldcoin/idkit
+        working-directory: js/packages/react
+        env:
+          PKG_VERSION: ${{ needs.prepare.outputs.version }}
+          NPM_TAG: ${{ needs.prepare.outputs.npm_tag }}
+        run: |
+          echo "Publishing @worldcoin/idkit@$PKG_VERSION with tag '$NPM_TAG'"
+          npm publish --access public --provenance --tag "$NPM_TAG"

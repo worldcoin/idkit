@@ -4,20 +4,14 @@ import org.gradle.jvm.tasks.Jar
 plugins {
     kotlin("jvm") version "1.9.24"
     `maven-publish`
-    signing
 }
 
 group = "com.worldcoin"
 
-// Read version from Cargo.toml (single source of truth)
-val cargoToml = file("../../Cargo.toml")
-val versionRegex = """version\s*=\s*"([^"]+)"""".toRegex()
-val cargoContent = cargoToml.readText()
-
 // Support version override from CI for dev releases
 version = System.getenv("PKG_VERSION")?.takeIf { it.isNotBlank() }
-    ?: versionRegex.find(cargoContent)?.groupValues?.get(1)
-    ?: throw GradleException("Could not find version in Cargo.toml")
+    ?: project.version.toString().takeIf { it.isNotBlank() && it != "unspecified" }
+    ?: throw GradleException("Could not find version in kotlin/gradle.properties")
 
 java {
     toolchain {
@@ -88,19 +82,14 @@ publishing {
             }
         }
     }
-}
-
-signing {
-    val signingKey = System.getenv("SIGNING_KEY")
-    val signingPassword = System.getenv("SIGNING_PASSWORD")
-    val wantsPublish = gradle.startParameter.taskNames.any { it.contains("publish", ignoreCase = true) }
-
-    if (wantsPublish && (signingKey.isNullOrBlank() || signingPassword.isNullOrBlank())) {
-        throw GradleException("SIGNING_KEY and SIGNING_PASSWORD must be set for publishing")
-    }
-
-    if (!signingKey.isNullOrBlank() && !signingPassword.isNullOrBlank()) {
-        useInMemoryPgpKeys(signingKey, signingPassword)
-        sign(publishing.publications)
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/worldcoin/idkit")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR")
+                password = System.getenv("GITHUB_TOKEN")
+            }
+        }
     }
 }

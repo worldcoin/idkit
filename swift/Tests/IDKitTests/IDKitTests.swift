@@ -2,156 +2,50 @@ import Foundation
 import Testing
 @testable import IDKit
 
-// MARK: - CredentialRequest Tests
+private actor StatusPoller {
+    private var queue: [IDKitStatus]
 
-@Test("CredentialRequest creation with signal via UniFFI init")
-func credentialRequestCreationWithSignal() throws {
-    let signal = Signal.fromString(s: "test_signal")
-    // Use the UniFFI-generated initializer directly
-    let item = CredentialRequest(credentialType: .orb, signal: signal)
+    init(_ queue: [IDKitStatus]) {
+        self.queue = queue
+    }
 
-    #expect(item.credentialType() == .orb)
-    #expect(item.getSignalBytes() != nil)
+    func next() -> IDKitStatus {
+        if queue.isEmpty {
+            return .waitingForConnection
+        }
+        return queue.removeFirst()
+    }
 }
 
-@Test("CredentialRequest creation without signal via UniFFI init")
-func credentialRequestCreationWithoutSignal() {
-    // Use the UniFFI-generated initializer directly
-    let item = CredentialRequest(credentialType: .device, signal: nil)
-
-    #expect(item.credentialType() == .device)
-    #expect(item.getSignalBytes() == nil)
-}
-
-@Test("CredentialRequest.create convenience method")
-func credentialRequestConvenience() {
-    let item = CredentialRequest.create(.orb, signal: "test-signal")
-
-    #expect(item.credentialType() == .orb)
-}
-
-// MARK: - Signal Tests
-
-@Test("Signal from string")
-func signalFromString() {
-    let signal = Signal.fromString(s: "test_signal")
-
-    #expect(signal.asString() == "test_signal")
-    #expect(String(data: signal.bytesData, encoding: .utf8) == "test_signal")
-}
-
-@Test("Signal from ABI-encoded bytes")
-func signalFromAbiEncoded() {
-    let bytes = Data([0x00, 0x01, 0x02, 0x03])
-    let signal = Signal.fromBytes(bytes: bytes)
-
-    #expect(signal.bytesData == Data(bytes))
-    #expect(signal.asString() == nil)  // Not a valid UTF-8 string
-}
-
-@Test("Signal bytesData property")
-func signalBytesDataProperty() {
-    let signal = Signal.fromString(s: "test")
-    let data = signal.bytesData
-
-    #expect(String(data: data, encoding: .utf8) == "test")
-}
-
-@Test("Signal stringValue property")
-func signalStringValueProperty() {
-    let signal = Signal.fromString(s: "hello")
-
-    #expect(signal.stringValue == "hello")
-}
-
-// MARK: - CredentialType Tests
-
-@Test("All credential types are available")
-func credentialTypeExists() {
-    // Test that all credential types are available from Rust
-    let types: [CredentialType] = [.orb, .face, .device, .secureDocument, .document]
-
-    #expect(types.count == 5)
-}
-
-// MARK: - VerificationLevel Tests
-
-@Test("All verification levels are available")
-func verificationLevelExists() {
-    // Test that all verification levels are available from Rust
-    let levels: [VerificationLevel] = [.orb, .face, .device, .secureDocument, .document, .deprecated]
-
-    #expect(levels.count == 6)
-}
-
-// MARK: - ConstraintNode Tests
-
-@Test("ConstraintNode item leaf")
-func constraintNodeItem() throws {
-    let item = CredentialRequest.create(.orb)
-    let node = ConstraintNode.item(request: item)
-
-    let json = try node.toJson()
-    #expect(!json.isEmpty)
-}
-
-@Test("ConstraintNode with ANY operator")
-func constraintNodeAny() throws {
-    let orb = ConstraintNode.item(request: CredentialRequest.create(.orb))
-    let face = ConstraintNode.item(request: CredentialRequest.create(.face))
-
-    let anyNode = ConstraintNode.any(nodes: [orb, face])
-
-    let json = try anyNode.toJson()
-    #expect(!json.isEmpty)
-}
-
-@Test("ConstraintNode with ALL operator")
-func constraintNodeAll() throws {
-    let orb = ConstraintNode.item(request: CredentialRequest.create(.orb))
-    let doc = ConstraintNode.item(request: CredentialRequest.create(.secureDocument))
-
-    let allNode = ConstraintNode.all(nodes: [orb, doc])
-
-    let json = try allNode.toJson()
-    #expect(!json.isEmpty)
-}
-
-@Test("anyOf convenience function")
-func anyOfConvenience() throws {
-    let constraint = anyOf(CredentialRequest.create(.orb), CredentialRequest.create(.face))
-
-    let json = try constraint.toJson()
-    #expect(!json.isEmpty)
-}
-
-@Test("allOf convenience function")
-func allOfConvenience() throws {
-    let constraint = allOf(CredentialRequest.create(.orb), CredentialRequest.create(.document))
-
-    let json = try constraint.toJson()
-    #expect(!json.isEmpty)
-}
-
-// MARK: - IDKitRequest Creation Tests
-// Note: These tests verify API shape, actual requests need valid credentials
-
-@Test("request() builder API shape")
-func requestBuilderAPIShape() {
-    // Create a test RpContext (in production this would come from your backend)
-    // Note: RpId must be "rp_" followed by exactly 16 hex characters
-    let rpContext = try! RpContext(
-        rpId: "rp_1234567890abcdef",
-        nonce: "test-nonce",
-        createdAt: UInt64(Date().timeIntervalSince1970),
-        expiresAt: UInt64(Date().timeIntervalSince1970) + 3600,
-        signature: "test-signature"
+private func sampleResult(sessionId: String? = nil) -> IDKitResult {
+    IDKitResult(
+        protocolVersion: "4.0",
+        nonce: "0x1234",
+        action: sessionId == nil ? "login" : nil,
+        actionDescription: "Sample action",
+        sessionId: sessionId,
+        responses: [],
+        environment: "production"
     )
+}
 
-    let config = IDKitRequestConfig(
-        appId: "app_test_invalid",
-        action: "test",
-        rpContext: rpContext,
+private func sampleRpContext() throws -> RpContext {
+    let signature = "0x" + String(repeating: "00", count: 64) + "1b"
+    return try RpContext(
+        rpId: "rp_1234567890abcdef",
+        nonce: "0x0000000000000000000000000000000000000000000000000000000000000001",
+        createdAt: 1_700_000_000,
+        expiresAt: 1_700_003_600,
+        signature: signature
+    )
+}
+
+@Test("IDKit entrypoints expose canonical builders")
+func idkitEntrypoints() throws {
+    let requestConfig = IDKitRequestConfig(
+        appId: "app_staging_1234567890abcdef",
+        action: "login",
+        rpContext: try sampleRpContext(),
         actionDescription: nil,
         bridgeUrl: nil,
         allowLegacyProofs: false,
@@ -159,92 +53,174 @@ func requestBuilderAPIShape() {
         environment: nil
     )
 
-    // This will throw without valid credentials - verify API exists
-    let builder = IDKit.request(config: config)
-    _ = try? builder.constraints(constraints: anyOf(CredentialRequest.create(.orb)))
+    let sessionConfig = IDKitSessionConfig(
+        appId: "app_staging_1234567890abcdef",
+        rpContext: try sampleRpContext(),
+        actionDescription: nil,
+        bridgeUrl: nil,
+        overrideConnectBaseUrl: nil,
+        environment: nil
+    )
 
-    // If we reach here without crashing, the API exists
+    _ = IDKit.request(config: requestConfig)
+    _ = IDKit.createSession(config: sessionConfig)
+    _ = IDKit.proveSession(sessionId: "0x01", config: sessionConfig)
+
     #expect(Bool(true))
 }
 
-@Test("orbLegacy preset helper")
-func orbLegacyPresetHelper() {
-    let preset = orbLegacy(signal: "test-signal")
+@Test("Status mapping covers all canonical variants")
+func statusMapping() {
+    let result = sampleResult()
 
-    // Verify the preset was created
-    switch preset {
+    #expect(IDKitRequest.mapStatus(.waitingForConnection) == .waitingForConnection)
+    #expect(IDKitRequest.mapStatus(.awaitingConfirmation) == .awaitingConfirmation)
+    #expect(IDKitRequest.mapStatus(.confirmed(result: result)) == .confirmed(result))
+    #expect(IDKitRequest.mapStatus(.failed(error: .invalidNetwork)) == .failed(.invalidNetwork))
+}
+
+@Test("pollUntilCompletion success path")
+func pollUntilCompletionSuccess() async {
+    let poller = StatusPoller([
+        .waitingForConnection,
+        .awaitingConfirmation,
+        .confirmed(sampleResult())
+    ])
+
+    let request = IDKitRequest(
+        connectorURL: URL(string: "https://world.org/verify?t=wld")!,
+        requestID: UUID(),
+        pollOnce: { await poller.next() }
+    )
+
+    let completion = await request.pollUntilCompletion(options: .init(pollIntervalMs: 1, timeoutMs: 1_000))
+    #expect(completion == .success(sampleResult()))
+}
+
+@Test("pollUntilCompletion timeout path")
+func pollUntilCompletionTimeout() async {
+    let request = IDKitRequest(
+        connectorURL: URL(string: "https://world.org/verify?t=wld")!,
+        requestID: UUID(),
+        pollOnce: { .waitingForConnection }
+    )
+
+    let completion = await request.pollUntilCompletion(options: .init(pollIntervalMs: 5, timeoutMs: 20))
+    #expect(completion == .failure(.timeout))
+}
+
+@Test("pollUntilCompletion cancellation path")
+func pollUntilCompletionCancellation() async {
+    let request = IDKitRequest(
+        connectorURL: URL(string: "https://world.org/verify?t=wld")!,
+        requestID: UUID(),
+        pollOnce: { .waitingForConnection }
+    )
+
+    let task = Task {
+        await request.pollUntilCompletion(options: .init(pollIntervalMs: 100, timeoutMs: 10_000))
+    }
+    task.cancel()
+
+    let completion = await task.value
+    #expect(completion == .failure(.cancelled))
+}
+
+@Test("pollUntilCompletion app failure path")
+func pollUntilCompletionAppFailure() async {
+    let request = IDKitRequest(
+        connectorURL: URL(string: "https://world.org/verify?t=wld")!,
+        requestID: UUID(),
+        pollOnce: { .failed(.userRejected) }
+    )
+
+    let completion = await request.pollUntilCompletion(options: .init(pollIntervalMs: 1, timeoutMs: 1_000))
+    #expect(completion == .failure(.userRejected))
+}
+
+@Test("hashSignal string and data overloads are deterministic")
+func hashSignalOverloads() {
+    let raw = "test-signal"
+    let hashFromString = IDKit.hashSignal(raw)
+    let hashFromData = IDKit.hashSignal(Data(raw.utf8))
+
+    #expect(hashFromString == hashFromData)
+    #expect(hashFromString.hasPrefix("0x"))
+    #expect(!hashFromString.isEmpty)
+}
+
+@Test("CredentialRequest.create signal-only options")
+func credentialRequestOptionsSignalOnly() throws {
+    let request = try CredentialRequest.create(
+        .orb,
+        options: .init(signal: "user-123")
+    )
+
+    #expect(request.credentialType() == .orb)
+    #expect(String(data: request.getSignalBytes()!, encoding: .utf8) == "user-123")
+    #expect(request.genesisIssuedAtMin() == nil)
+    #expect(request.expiresAtMin() == nil)
+}
+
+@Test("CredentialRequest.create genesis-only options")
+func credentialRequestOptionsGenesisOnly() throws {
+    let request = try CredentialRequest.create(
+        .orb,
+        options: .init(genesisIssuedAtMin: 1_700_000_000)
+    )
+
+    #expect(request.genesisIssuedAtMin() == 1_700_000_000)
+    #expect(request.expiresAtMin() == nil)
+}
+
+@Test("CredentialRequest.create expiry-only options")
+func credentialRequestOptionsExpiryOnly() throws {
+    let request = try CredentialRequest.create(
+        .orb,
+        options: .init(expiresAtMin: 1_800_000_000)
+    )
+
+    #expect(request.genesisIssuedAtMin() == nil)
+    #expect(request.expiresAtMin() == 1_800_000_000)
+}
+
+@Test("CredentialRequest.create combined options")
+func credentialRequestOptionsCombined() throws {
+    let request = try CredentialRequest.create(
+        .orb,
+        options: .init(signal: "user-123", genesisIssuedAtMin: 1_700_000_000, expiresAtMin: 1_800_000_000)
+    )
+
+    #expect(request.credentialType() == .orb)
+    #expect(String(data: request.getSignalBytes()!, encoding: .utf8) == "user-123")
+    #expect(request.genesisIssuedAtMin() == 1_700_000_000)
+    #expect(request.expiresAtMin() == 1_800_000_000)
+}
+
+@Test("Legacy preset helpers remain available")
+func legacyPresetHelpers() {
+    let orb = orbLegacy(signal: "x")
+    let secureDoc = secureDocumentLegacy(signal: "y")
+    let doc = documentLegacy(signal: "z")
+
+    switch orb {
     case .orbLegacy(let signal):
-        #expect(signal == "test-signal")
+        #expect(signal == "x")
     case .secureDocumentLegacy, .documentLegacy:
         Issue.record("Expected orbLegacy preset")
     }
-}
 
-@Test("request().preset() API shape")
-func requestPresetAPIShape() {
-    let rpContext = try! RpContext(
-        rpId: "rp_1234567890abcdef",
-        nonce: "test-nonce",
-        createdAt: UInt64(Date().timeIntervalSince1970),
-        expiresAt: UInt64(Date().timeIntervalSince1970) + 3600,
-        signature: "test-signature"
-    )
-
-    let config = IDKitRequestConfig(
-        appId: "app_test_invalid",
-        action: "test",
-        rpContext: rpContext,
-        actionDescription: nil,
-        bridgeUrl: nil,
-        allowLegacyProofs: false,
-        overrideConnectBaseUrl: nil,
-        environment: nil
-    )
-
-    // This will throw without valid credentials - verify API exists
-    let builder = IDKit.request(config: config)
-    _ = try? builder.preset(preset: orbLegacy())
-
-    // If we reach here without crashing, the API exists
-    #expect(Bool(true))
-}
-
-// MARK: - SDK Version Test
-
-// TODO: Re-enable this test once linker issue is resolved
-// @Test("SDK version is valid")
-// func sdkVersion() {
-//     #expect(!IDKit.version.isEmpty)
-//     #expect(IDKit.version.hasPrefix("3."))
-// }
-
-// MARK: - Swift Extensions Tests
-
-@Suite("Swift Extension Convenience APIs")
-struct SwiftExtensionsTests {
-
-    @Test("CredentialRequest.create with string signal")
-    func credentialRequestConvenienceWithString() {
-        let item = CredentialRequest.create(.orb, signal: "test_signal")
-
-        #expect(item.credentialType() == .orb)
-        #expect(item.getSignalBytes() != nil)
+    switch secureDoc {
+    case .secureDocumentLegacy(let signal):
+        #expect(signal == "y")
+    case .orbLegacy, .documentLegacy:
+        Issue.record("Expected secureDocumentLegacy preset")
     }
 
-    @Test("CredentialRequest.create without signal")
-    func credentialRequestConvenienceWithoutSignal() {
-        let item = CredentialRequest.create(.face)
-
-        #expect(item.credentialType() == .face)
-        #expect(item.getSignalBytes() == nil)
-    }
-
-    @Test("Signal convenience properties")
-    func signalConvenienceProperties() {
-        let signal = Signal.fromString(s: "test_signal")
-
-        // Test Swift extension properties
-        #expect(signal.stringValue == "test_signal")
-        #expect(signal.bytesData == Data("test_signal".utf8))
+    switch doc {
+    case .documentLegacy(let signal):
+        #expect(signal == "z")
+    case .orbLegacy, .secureDocumentLegacy:
+        Issue.record("Expected documentLegacy preset")
     }
 }
