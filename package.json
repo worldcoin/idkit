@@ -17,8 +17,7 @@
     "type-check": "pnpm -r type-check",
     "format:js": "pnpm -C js format",
     "lint:js": "pnpm -C js lint:format",
-    "lint:rust": "cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings",
-    "vercel:install": "pnpm install && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . $HOME/.cargo/env && curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh"
+    "lint:rust": "cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings"
   },
   "keywords": [
     "worldcoin",
