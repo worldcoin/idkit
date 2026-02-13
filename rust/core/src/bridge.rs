@@ -1022,7 +1022,7 @@ pub enum StatusWrapper {
     /// For session proofs, `IDKitResult.session_id` will be `Some(id)`
     Confirmed { result: IDKitResult },
     /// Request has failed
-    Failed { error: String },
+    Failed { error: AppError },
 }
 
 #[cfg(feature = "ffi")]
@@ -1032,10 +1032,27 @@ impl From<Status> for StatusWrapper {
             Status::WaitingForConnection => Self::WaitingForConnection,
             Status::AwaitingConfirmation => Self::AwaitingConfirmation,
             Status::Confirmed(result) => Self::Confirmed { result },
-            Status::Failed(app_error) => Self::Failed {
-                error: app_error.to_string(),
-            },
+            Status::Failed(app_error) => Self::Failed { error: app_error },
         }
+    }
+}
+
+#[cfg(feature = "ffi")]
+fn to_app_error(error: &Error) -> AppError {
+    match error {
+        Error::InvalidConfiguration(_) => AppError::MalformedRequest,
+        Error::BridgeError(_) => AppError::ConnectionFailed,
+        Error::Json(_) => AppError::UnexpectedResponse,
+        Error::Crypto(_) => AppError::UnexpectedResponse,
+        Error::Base64(_) => AppError::UnexpectedResponse,
+        Error::Url(_) => AppError::ConnectionFailed,
+        Error::AppError(app_error) => *app_error,
+        Error::UnexpectedResponse => AppError::UnexpectedResponse,
+        Error::ConnectionFailed => AppError::ConnectionFailed,
+        Error::Timeout => AppError::ConnectionFailed,
+        Error::InvalidProof(_) => AppError::UnexpectedResponse,
+        #[cfg(any(feature = "bridge", feature = "bridge-wasm"))]
+        Error::Http(_) => AppError::ConnectionFailed,
     }
 }
 
@@ -1055,46 +1072,26 @@ impl IDKitRequestWrapper {
         self.inner.request_id().to_string()
     }
 
-    /// Polls the request for updates until completion
+    /// Polls the request once for the current status.
+    ///
+    /// This method preserves the existing FFI signature for compatibility.
+    /// `poll_interval_ms` and `timeout_ms` are ignored.
     pub fn poll_status(
         &self,
         poll_interval_ms: Option<u64>,
         timeout_ms: Option<u64>,
     ) -> StatusWrapper {
-        let poll_interval = std::time::Duration::from_millis(poll_interval_ms.unwrap_or(2000));
-        let timeout = timeout_ms.map(std::time::Duration::from_millis);
+        let _ = (poll_interval_ms, timeout_ms);
+        self.poll_status_once()
+    }
 
-        let mut elapsed = std::time::Duration::from_millis(0);
-
-        loop {
-            match self.runtime.block_on(self.inner.poll_for_status()) {
-                Ok(status) => match status {
-                    Status::WaitingForConnection | Status::AwaitingConfirmation => {
-                        if let Some(timeout) = timeout {
-                            if elapsed >= timeout {
-                                return StatusWrapper::Failed {
-                                    error: "Timed out waiting for confirmation".to_string(),
-                                };
-                            }
-                        }
-                        std::thread::sleep(poll_interval);
-                        elapsed += poll_interval;
-                    }
-                    Status::Confirmed(result) => {
-                        return StatusWrapper::Confirmed { result };
-                    }
-                    Status::Failed(app_error) => {
-                        return StatusWrapper::Failed {
-                            error: app_error.to_string(),
-                        };
-                    }
-                },
-                Err(err) => {
-                    return StatusWrapper::Failed {
-                        error: err.to_string(),
-                    };
-                }
-            }
+    /// Polls the request exactly once for updates.
+    pub fn poll_status_once(&self) -> StatusWrapper {
+        match self.runtime.block_on(self.inner.poll_for_status()) {
+            Ok(status) => status.into(),
+            Err(err) => StatusWrapper::Failed {
+                error: to_app_error(&err),
+            },
         }
     }
 }

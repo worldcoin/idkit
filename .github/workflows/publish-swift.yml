@@ -17,9 +17,6 @@ permissions:
 
 jobs:
   prepare:
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -38,6 +35,9 @@ jobs:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
           GITHUB_SHA_VAL: ${{ github.sha }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             # Dev release triggered manually
@@ -50,13 +50,21 @@ jobs:
             echo "should_publish=true" >> $GITHUB_OUTPUT
             echo "release_type=dev" >> $GITHUB_OUTPUT
             echo "📦 Dev release from commit: $REF"
-          else
+          elif [ "$PR_MERGED" = "true" ] && \
+               echo "$PR_LABELS" | grep -q '"release"' && \
+               echo "$PR_BODY" | grep -q "<!-- release_target:swift -->"; then
             # Production release from PR merge
             echo "ref=$GITHUB_SHA_VAL" >> $GITHUB_OUTPUT
             echo "is_prerelease=false" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
             echo "release_type=production" >> $GITHUB_OUTPUT
             echo "📦 Production release from PR merge"
+          else
+            echo "ref=" >> $GITHUB_OUTPUT
+            echo "is_prerelease=" >> $GITHUB_OUTPUT
+            echo "should_publish=false" >> $GITHUB_OUTPUT
+            echo "release_type=" >> $GITHUB_OUTPUT
+            echo "Skipping: not a matching swift release event"
           fi
 
       - name: Checkout code
@@ -69,7 +77,11 @@ jobs:
         if: steps.config.outputs.should_publish == 'true'
         id: version
         run: |
-          BASE_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
+          BASE_VERSION=$(sed -n 's/.*public static let version = "\([^"]*\)".*/\1/p' swift/Sources/IDKit/IDKit.swift | head -n1)
+          if [ -z "$BASE_VERSION" ]; then
+            echo "Error: Failed to resolve version from swift/Sources/IDKit/IDKit.swift"
+            exit 1
+          fi
 
           if [ "${{ steps.config.outputs.is_prerelease }}" = "true" ]; then
             # Dev release: append -dev.SHORT_SHA

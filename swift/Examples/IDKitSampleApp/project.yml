@@ -1,0 +1,36 @@
+name: IDKitSampleApp
+options:
+  minimumXcodeGenVersion: 2.38.0
+  deploymentTarget:
+    iOS: 15.0
+packages:
+  IDKit:
+    path: ../..
+targets:
+  IDKitSampleApp:
+    type: application
+    platform: iOS
+    deploymentTarget: 15.0
+    sources:
+      - path: IDKitSampleApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.worldcoin.idkit.sample
+        INFOPLIST_FILE: IDKitSampleApp/Info.plist
+        SWIFT_VERSION: 5.9
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 1.0
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+    dependencies:
+      - package: IDKit
+        product: IDKit
+schemes:
+  IDKitSampleApp:
+    build:
+      targets:
+        IDKitSampleApp: all
+    run:
+      config: Debug
+    test:
+      config: Debug

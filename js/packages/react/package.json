@@ -1,0 +1,62 @@
+{
+  "name": "@worldcoin/idkit",
+  "version": "4.0.0",
+  "description": "React SDK for World ID built on @worldcoin/idkit-core",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "worldcoin",
+    "world-id",
+    "idkit",
+    "react"
+  ],
+  "author": "Tools for Humanity",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/worldcoin/idkit",
+    "directory": "js/packages/react"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "dependencies": {
+    "@worldcoin/idkit-core": "workspace:*",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "happy-dom": "20.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}

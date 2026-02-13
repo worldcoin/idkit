@@ -11,6 +11,15 @@ on:
           - patch
           - minor
           - major
+      release_target:
+        description: "SDK target to release"
+        required: true
+        type: choice
+        options:
+          - js-core
+          - react
+          - kotlin
+          - swift
 
 jobs:
   initiate-release:
@@ -28,30 +37,56 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-
-      - name: Setup Node.js (for jq alternative)
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - name: Calculate new version
+      - name: Resolve current version and calculate next version
         id: version
         env:
           BUMP_TYPE: ${{ github.event.inputs.bump_type }}
+          RELEASE_TARGET: ${{ github.event.inputs.release_target }}
         run: |
-          # Get current version from workspace package in Cargo.toml
-          CURRENT_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-uniffi") | .version')
+          case "$RELEASE_TARGET" in
+            "js-core")
+              CURRENT_VERSION=$(node -p "require('./js/packages/core/package.json').version")
+              TARGET_FILE="js/packages/core/package.json"
+              TARGET_NAME="JS Core"
+              ;;
+            "react")
+              CURRENT_VERSION=$(node -p "require('./js/packages/react/package.json').version")
+              TARGET_FILE="js/packages/react/package.json"
+              TARGET_NAME="React"
+              ;;
+            "kotlin")
+              CURRENT_VERSION=$(grep '^version=' kotlin/gradle.properties | cut -d= -f2- | tr -d '[:space:]')
+              TARGET_FILE="kotlin/gradle.properties"
+              TARGET_NAME="Kotlin"
+              ;;
+            "swift")
+              CURRENT_VERSION=$(sed -n 's/.*public static let version = "\([^"]*\)".*/\1/p' swift/Sources/IDKit/IDKit.swift | head -n1)
+              TARGET_FILE="swift/Sources/IDKit/IDKit.swift"
+              TARGET_NAME="Swift"
+              ;;
+            *)
+              echo "Unsupported release target: $RELEASE_TARGET"
+              exit 1
+              ;;
+          esac
+
+          if [ -z "$CURRENT_VERSION" ]; then
+            echo "Failed to resolve current version for target: $RELEASE_TARGET"
+            exit 1
+          fi
 
           # Ensure CURRENT_VERSION is in semantic versioning format
           if [[ ! "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "CRITICAL ERROR: CURRENT_VERSION '$CURRENT_VERSION' is not in semantic versioning format (MAJOR.MINOR.PATCH)."
-              exit 1
+            echo "CRITICAL ERROR: CURRENT_VERSION '$CURRENT_VERSION' is not in semantic versioning format (MAJOR.MINOR.PATCH)."
+            exit 1
           fi
 
-          echo "Current version: $CURRENT_VERSION"
+          echo "Current version for $TARGET_NAME: $CURRENT_VERSION"
 
           # Split version into components
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
@@ -69,64 +104,55 @@ jobs:
               ;;
           esac
 
-          echo "New version will be: $NEW_VERSION"
+          echo "New version for $TARGET_NAME: $NEW_VERSION"
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "target_file=$TARGET_FILE" >> $GITHUB_OUTPUT
+          echo "target_name=$TARGET_NAME" >> $GITHUB_OUTPUT
+          echo "release_target=$RELEASE_TARGET" >> $GITHUB_OUTPUT
 
-      - name: Install cargo-edit
-        run: cargo install cargo-edit
-
-      - name: Update Cargo.toml version
-        run: cargo set-version ${{ steps.version.outputs.new_version }}
-
-      - name: Sync Swift version
+      - name: Update target SDK version
         env:
+          RELEASE_TARGET: ${{ steps.version.outputs.release_target }}
           NEW_VERSION: ${{ steps.version.outputs.new_version }}
         run: |
-          # Update version in IDKit.swift
-          sed -i "s/version = \".*\"/version = \"$NEW_VERSION\"/" swift/Sources/IDKit/IDKit.swift
-
-          # Verify the change was made
-          if ! grep -q "version = \"$NEW_VERSION\"" swift/Sources/IDKit/IDKit.swift; then
-            echo "❌ Failed to update Swift version"
-            exit 1
-          fi
-          echo "✅ Updated swift/Sources/IDKit/IDKit.swift"
-
-      - name: Sync JS versions
-        env:
-          NEW_VERSION: ${{ steps.version.outputs.new_version }}
-        run: |
-          # Update js/package.json
-          cd js
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            pkg.version = '$NEW_VERSION';
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-          "
-
-          # Verify the change was made
-          if ! grep -q "\"version\": \"$NEW_VERSION\"" package.json; then
-            echo "❌ Failed to update js/package.json version"
-            exit 1
-          fi
-          echo "✅ Updated js/package.json"
-
-          # Update js/packages/core/package.json
-          cd packages/core
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            pkg.version = '$NEW_VERSION';
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-          "
-
-          # Verify the change was made
-          if ! grep -q "\"version\": \"$NEW_VERSION\"" package.json; then
-            echo "❌ Failed to update js/packages/core/package.json version"
-            exit 1
-          fi
-          echo "✅ Updated js/packages/core/package.json"
+          case "$RELEASE_TARGET" in
+            "js-core")
+              node -e "
+                const fs = require('fs');
+                const pkgPath = 'js/packages/core/package.json';
+                const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+                pkg.version = '$NEW_VERSION';
+                fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+              "
+              grep -q "\"version\": \"$NEW_VERSION\"" js/packages/core/package.json || { echo "❌ Failed to update js/packages/core/package.json"; exit 1; }
+              echo "✅ Updated js/packages/core/package.json"
+              ;;
+            "react")
+              node -e "
+                const fs = require('fs');
+                const pkgPath = 'js/packages/react/package.json';
+                const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+                pkg.version = '$NEW_VERSION';
+                fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+              "
+              grep -q "\"version\": \"$NEW_VERSION\"" js/packages/react/package.json || { echo "❌ Failed to update js/packages/react/package.json"; exit 1; }
+              echo "✅ Updated js/packages/react/package.json"
+              ;;
+            "kotlin")
+              sed -i "s/^version=.*/version=$NEW_VERSION/" kotlin/gradle.properties
+              grep -q "^version=$NEW_VERSION$" kotlin/gradle.properties || { echo "❌ Failed to update kotlin/gradle.properties"; exit 1; }
+              echo "✅ Updated kotlin/gradle.properties"
+              ;;
+            "swift")
+              sed -i "s/public static let version = \".*\"/public static let version = \"$NEW_VERSION\"/" swift/Sources/IDKit/IDKit.swift
+              grep -q "public static let version = \"$NEW_VERSION\"" swift/Sources/IDKit/IDKit.swift || { echo "❌ Failed to update swift/Sources/IDKit/IDKit.swift"; exit 1; }
+              echo "✅ Updated swift/Sources/IDKit/IDKit.swift"
+              ;;
+            *)
+              echo "Unsupported release target: $RELEASE_TARGET"
+              exit 1
+              ;;
+          esac
 
       - name: Generate Release Notes
         id: release_notes
@@ -163,7 +189,7 @@ jobs:
       - name: Get branch name
         id: branch_name
         env:
-          CANDIDATE_BRANCH_NAME: release-${{ steps.version.outputs.new_version }}
+          CANDIDATE_BRANCH_NAME: release-${{ steps.version.outputs.release_target }}-${{ steps.version.outputs.new_version }}
         run: |
           BRANCH_NAME="$CANDIDATE_BRANCH_NAME"
 
@@ -176,33 +202,39 @@ jobs:
           echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Commit and Open PR
+        # Skip PR creation during local `act` dry runs.
+        if: ${{ !env.ACT }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
           RELEASE_NOTES: ${{ steps.release_notes.outputs.release_notes }}
           BRANCH_NAME: ${{ steps.branch_name.outputs.branch_name }}
           NEW_VERSION: ${{ steps.version.outputs.new_version }}
+          RELEASE_TARGET: ${{ steps.version.outputs.release_target }}
+          TARGET_FILE: ${{ steps.version.outputs.target_file }}
+          TARGET_NAME: ${{ steps.version.outputs.target_name }}
         run: |
           git checkout -b "$BRANCH_NAME"
 
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
 
-          # Add all version-related files
-          git add Cargo.toml
-          git add Cargo.lock
-          git add swift/Sources/IDKit/IDKit.swift
-          git add js/package.json
-          git add js/packages/core/package.json
+          # Add only the target SDK version file
+          git add "$TARGET_FILE"
 
-          git commit -m "Release $NEW_VERSION"
+          git commit -m "Release ${TARGET_NAME} ${NEW_VERSION}"
           git push origin "$BRANCH_NAME"
 
           echo "Creating PR with release notes:"
           echo "$RELEASE_NOTES"
 
+          {
+            printf '<!-- release_target:%s -->\n\n' "$RELEASE_TARGET"
+            printf '%s\n' "$RELEASE_NOTES"
+          } > /tmp/release-pr-body.md
+
           gh pr create \
-            --title "IDKit Release $NEW_VERSION" \
-            --body "$RELEASE_NOTES" \
+            --title "IDKit ${TARGET_NAME} Release $NEW_VERSION" \
+            --body-file /tmp/release-pr-body.md \
             --base main \
             --label "release" \
             --head "$BRANCH_NAME"

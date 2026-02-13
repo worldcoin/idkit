@@ -13,7 +13,7 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   prepare:
@@ -39,6 +39,7 @@ jobs:
           GH_SHA: ${{ github.sha }}
           PR_MERGED: ${{ github.event.pull_request.merged }}
           PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "Release type: dev"
@@ -51,7 +52,8 @@ jobs:
             fi
           elif [ "$EVENT_NAME" = "pull_request" ]; then
             if [ "$PR_MERGED" = "true" ] && \
-               echo "$PR_LABELS" | grep -q '"release"'; then
+               echo "$PR_LABELS" | grep -q '"release"' && \
+               echo "$PR_BODY" | grep -q "<!-- release_target:kotlin -->"; then
               echo "Release type: production"
               echo "environment=production" >> $GITHUB_OUTPUT
               echo "should_publish=true" >> $GITHUB_OUTPUT
@@ -71,7 +73,7 @@ jobs:
 
       - name: Checkout code
         if: steps.release-type.outputs.should_publish == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ steps.release-type.outputs.ref }}
 
@@ -79,7 +81,11 @@ jobs:
         if: steps.release-type.outputs.should_publish == 'true'
         id: version
         run: |
-          BASE_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-core") | .version')
+          BASE_VERSION=$(grep '^version=' kotlin/gradle.properties | cut -d= -f2- | tr -d '[:space:]')
+          if [ -z "$BASE_VERSION" ]; then
+            echo "Error: Failed to resolve version from kotlin/gradle.properties"
+            exit 1
+          fi
 
           if [ "${{ steps.release-type.outputs.environment }}" = "development" ]; then
             SHORT_SHA=$(echo "${{ steps.release-type.outputs.ref }}" | cut -c1-7)
@@ -92,28 +98,6 @@ jobs:
 
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Validate version (production only)
-        if: steps.release-type.outputs.should_publish == 'true' && steps.release-type.outputs.environment == 'production'
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-
-          # Check Maven Central for latest version
-          LATEST_RELEASE=$(curl -s "https://repo1.maven.org/maven2/com/worldcoin/idkit/maven-metadata.xml" | grep -oP '(?<=<latest>)[^<]+' || echo "0.0.0")
-
-          echo "Latest release on Maven Central: $LATEST_RELEASE"
-          echo "New version: $VERSION"
-
-          # Ensure the new version is greater than the latest published version
-          if [ "$LATEST_RELEASE" != "0.0.0" ]; then
-            if ! { [ "$(printf '%s\n' "$LATEST_RELEASE" "$VERSION" | sort -V | tail -n1)" = "$VERSION" ] && \
-                   [ "$VERSION" != "$LATEST_RELEASE" ]; }; then
-              echo "Error: New version ($VERSION) is not greater than latest release ($LATEST_RELEASE)"
-              exit 1
-            fi
-          fi
-
-          echo "Version check passed: $VERSION > $LATEST_RELEASE"
-
   build-host:
     name: Build Host Library & UniFFI Bindings
     runs-on: ubuntu-latest
@@ -122,7 +106,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ needs.prepare.outputs.ref }}
 
@@ -134,16 +118,16 @@ jobs:
 
       - name: Build host library and generate UniFFI bindings
         run: |
-          cargo build --package idkit-uniffi --release --locked
+          # Keep UniFFI metadata symbols so bindgen can introspect the shared library on Linux.
+          CARGO_PROFILE_RELEASE_STRIP=none cargo build --package idkit-core --release --locked --features uniffi-bindings
 
-          # Generate UniFFI Kotlin bindings
-          cargo run -p uniffi-bindgen generate \
+          CARGO_PROFILE_RELEASE_STRIP=none cargo run -p uniffi-bindgen generate \
             --library target/release/libidkit.so \
+            --crate idkit \
             --language kotlin \
             --no-format \
             --out-dir kotlin/bindings/src/main/kotlin
 
-          # Copy host library to resources
           mkdir -p kotlin/bindings/src/main/resources
           cp target/release/libidkit.so kotlin/bindings/src/main/resources/
 
@@ -151,12 +135,13 @@ jobs:
         run: |
           echo "Checking for generated UniFFI files..."
           ls -la kotlin/bindings/src/main/kotlin/
-          if [ ! -d "kotlin/bindings/src/main/kotlin/uniffi" ]; then
-            echo "ERROR: uniffi directory not found!"
+          GENERATED_COUNT=$(find kotlin/bindings/src/main/kotlin/uniffi -type f -name "*.kt" 2>/dev/null | wc -l | tr -d '[:space:]')
+          if [ "$GENERATED_COUNT" -eq 0 ]; then
+            echo "ERROR: generated UniFFI Kotlin files were not found under kotlin/bindings/src/main/kotlin/uniffi"
             exit 1
           fi
-          echo "UniFFI files found:"
-          find kotlin/bindings/src/main/kotlin/uniffi -type f -name "*.kt"
+          echo "Generated UniFFI files found ($GENERATED_COUNT):"
+          find kotlin/bindings/src/main/kotlin/uniffi -type f -name "*.kt" | sort
 
       - name: Upload host artifacts
         uses: actions/upload-artifact@v4
@@ -186,7 +171,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ needs.prepare.outputs.ref }}
 
@@ -225,13 +210,11 @@ jobs:
       - name: Build Android ${{ matrix.abi }}
         run: |
           echo "Building for ${{ matrix.target }} -> ${{ matrix.abi }}"
-          # Use CARGO_HOME=/tmp to reduce disk usage in workspace
-          CARGO_HOME=/tmp CROSS_NO_WARNINGS=1 cross build --package idkit-uniffi --target ${{ matrix.target }} --release --locked
+          CARGO_HOME=/tmp CROSS_NO_WARNINGS=1 cross build --package idkit-core --target ${{ matrix.target }} --release --locked --features uniffi-bindings
 
           mkdir -p android-libs/${{ matrix.abi }}
           cp target/${{ matrix.target }}/release/libidkit.so android-libs/${{ matrix.abi }}/
 
-          # Clean up to save disk space
           echo "Cleaning up Docker resources..."
           docker system prune -f || true
 
@@ -243,14 +226,17 @@ jobs:
           retention-days: 1
 
   publish:
-    name: Publish to Maven Central
+    name: Publish to GitHub Packages
     runs-on: ubuntu-latest
     needs: [prepare, build-host, build-android]
     environment: ${{ needs.prepare.outputs.environment }}
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ needs.prepare.outputs.ref }}
 
@@ -271,7 +257,6 @@ jobs:
         run: |
           mkdir -p kotlin/bindings/src/main/jniLibs
 
-          # Move each ABI to the correct location
           for abi_dir in android-libs-temp/kotlin-bindings-android-*; do
             abi=$(basename "$abi_dir" | sed 's/kotlin-bindings-android-//')
             echo "Processing $abi..."
@@ -281,6 +266,16 @@ jobs:
 
           echo "Final jniLibs structure:"
           find kotlin/bindings/src/main/jniLibs -name "*.so"
+
+      - name: Verify Kotlin sources include generated UniFFI code
+        run: |
+          GENERATED_COUNT=$(find kotlin/bindings/src/main/kotlin/uniffi -type f -name "*.kt" 2>/dev/null | wc -l | tr -d '[:space:]')
+          echo "Generated UniFFI Kotlin source files found: $GENERATED_COUNT"
+          find kotlin/bindings/src/main/kotlin -type f -name "*.kt" | sort
+          if [ "$GENERATED_COUNT" -eq 0 ]; then
+            echo "ERROR: expected generated UniFFI Kotlin bindings were not downloaded"
+            exit 1
+          fi
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -299,14 +294,12 @@ jobs:
         env:
           PKG_VERSION: ${{ needs.prepare.outputs.version }}
 
-      - name: Publish to Maven Central (Sonatype)
+      - name: Publish to GitHub Packages
         uses: gradle/gradle-build-action@v3
         with:
           gradle-version: 8.9
-          arguments: -p kotlin publishToSonatype closeAndReleaseSonatypeStagingRepository
+          arguments: -p kotlin bindings:publish
         env:
           PKG_VERSION: ${{ needs.prepare.outputs.version }}
-          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
-          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ github.token }}
