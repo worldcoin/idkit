@@ -57,9 +57,16 @@ export interface BuilderConfig {
 // ─────────────────────────────────────────────────────────────────────────────
 
 let _requestCounter = 0;
+let _activeNativeRequest: NativeIDKitRequest | null = null;
 
 /**
  * Create an IDKitRequest that communicates via World App postMessage.
+ *
+ * Only one native request can be in flight at a time. If a previous request
+ * is still pending, it is cancelled before the new one starts. This prevents
+ * two listeners from consuming the same World App response (World App does
+ * not echo a correlation ID, so there is no way to match responses to
+ * requests).
  *
  * @param wasmPayload - Pre-built payload from the WASM module (same format as bridge)
  * @param config - Builder config (used for response normalization)
@@ -68,7 +75,12 @@ export function createNativeRequest(
   wasmPayload: unknown,
   config: BuilderConfig,
 ): IDKitRequest {
-  return new NativeIDKitRequest(wasmPayload, config);
+  if (_activeNativeRequest) {
+    _activeNativeRequest.cancel();
+  }
+  const request = new NativeIDKitRequest(wasmPayload, config);
+  _activeNativeRequest = request;
+  return request;
 }
 
 class NativeIDKitRequest implements IDKitRequest {
@@ -76,15 +88,20 @@ class NativeIDKitRequest implements IDKitRequest {
   readonly requestId: string;
   private resultPromise: Promise<IDKitResult>;
   private resolved = false;
+  private cancelled = false;
   private resolvedResult: IDKitResult | null = null;
   private messageHandler: ((event: MessageEvent) => void) | null = null;
+  private rejectFn: ((reason: Error) => void) | null = null;
 
   constructor(wasmPayload: unknown, config: BuilderConfig) {
     this.requestId =
       crypto.randomUUID?.() ?? `native-${Date.now()}-${++_requestCounter}`;
 
     this.resultPromise = new Promise<IDKitResult>((resolve, reject) => {
+      this.rejectFn = reject;
+
       const handler = (event: MessageEvent) => {
+        if (this.cancelled) return;
         const data = event.data;
         if (
           data?.type === "miniapp-verify-action" ||
@@ -128,7 +145,28 @@ class NativeIDKitRequest implements IDKitRequest {
     });
 
     // Ensure listener is always cleaned up when the promise settles
-    this.resultPromise.catch(() => {}).finally(() => this.cleanup());
+    this.resultPromise
+      .catch(() => {})
+      .finally(() => {
+        this.cleanup();
+        if (_activeNativeRequest === this) {
+          _activeNativeRequest = null;
+        }
+      });
+  }
+
+  /**
+   * Cancel this request. Removes the message listener so it cannot consume
+   * a response meant for a later request, and rejects the pending promise.
+   */
+  cancel(): void {
+    if (this.resolved || this.cancelled) return;
+    this.cancelled = true;
+    this.cleanup();
+    this.rejectFn?.(new NativeVerifyError(IDKitErrorCodes.Cancelled));
+    if (_activeNativeRequest === this) {
+      _activeNativeRequest = null;
+    }
   }
 
   private cleanup(): void {
@@ -191,11 +229,13 @@ function nativeResultToIDKitResult(
   payload: any,
   config: BuilderConfig,
 ): IDKitResult {
+  const rpNonce = config.rp_context?.nonce ?? "";
+
   // v4 response — World App returns `responses` array directly
   if ("responses" in payload && Array.isArray(payload.responses)) {
     return {
       protocol_version: payload.protocol_version ?? "4.0",
-      nonce: payload.nonce ?? "",
+      nonce: payload.nonce ?? rpNonce,
       action: payload.action ?? config.action ?? "",
       action_description: payload.action_description,
       session_id: payload.session_id,
@@ -208,7 +248,7 @@ function nativeResultToIDKitResult(
   if ("verifications" in payload) {
     return {
       protocol_version: "4.0",
-      nonce: "",
+      nonce: rpNonce,
       action: config.action ?? "",
       responses: payload.verifications.map((v: any) => ({
         identifier: v.verification_level,
@@ -225,7 +265,7 @@ function nativeResultToIDKitResult(
   // Legacy single verification response (v3 format from World App)
   return {
     protocol_version: "3.0",
-    nonce: "",
+    nonce: rpNonce,
     action: config.action ?? "",
     responses: [
       {
