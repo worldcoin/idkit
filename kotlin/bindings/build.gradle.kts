@@ -8,15 +8,10 @@ plugins {
 
 group = "com.worldcoin"
 
-// Read version from Cargo.toml (single source of truth)
-val cargoToml = file("../../Cargo.toml")
-val versionRegex = """version\s*=\s*"([^"]+)"""".toRegex()
-val cargoContent = cargoToml.readText()
-
 // Support version override from CI for dev releases
 version = System.getenv("PKG_VERSION")?.takeIf { it.isNotBlank() }
-    ?: versionRegex.find(cargoContent)?.groupValues?.get(1)
-    ?: throw GradleException("Could not find version in Cargo.toml")
+    ?: project.version.toString().takeIf { it.isNotBlank() && it != "unspecified" }
+    ?: throw GradleException("Could not find version in kotlin/gradle.properties")
 
 java {
     toolchain {

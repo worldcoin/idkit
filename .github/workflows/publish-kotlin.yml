@@ -39,6 +39,7 @@ jobs:
           GH_SHA: ${{ github.sha }}
           PR_MERGED: ${{ github.event.pull_request.merged }}
           PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "Release type: dev"
@@ -51,7 +52,8 @@ jobs:
             fi
           elif [ "$EVENT_NAME" = "pull_request" ]; then
             if [ "$PR_MERGED" = "true" ] && \
-               echo "$PR_LABELS" | grep -q '"release"'; then
+               echo "$PR_LABELS" | grep -q '"release"' && \
+               echo "$PR_BODY" | grep -q "<!-- release_target:kotlin -->"; then
               echo "Release type: production"
               echo "environment=production" >> $GITHUB_OUTPUT
               echo "should_publish=true" >> $GITHUB_OUTPUT
@@ -79,7 +81,11 @@ jobs:
         if: steps.release-type.outputs.should_publish == 'true'
         id: version
         run: |
-          BASE_VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name=="idkit-core") | .version')
+          BASE_VERSION=$(grep '^version=' kotlin/gradle.properties | cut -d= -f2- | tr -d '[:space:]')
+          if [ -z "$BASE_VERSION" ]; then
+            echo "Error: Failed to resolve version from kotlin/gradle.properties"
+            exit 1
+          fi
 
           if [ "${{ steps.release-type.outputs.environment }}" = "development" ]; then
             SHORT_SHA=$(echo "${{ steps.release-type.outputs.ref }}" | cut -c1-7)
@@ -91,29 +97,6 @@ jobs:
           fi
 
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Validate version (production only)
-        if: steps.release-type.outputs.should_publish == 'true' && steps.release-type.outputs.environment == 'production'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-
-          LATEST_RELEASE=$(gh release list -L 1 --exclude-pre-releases --repo worldcoin/idkit --json tagName -q '.[0].tagName' 2>/dev/null || echo "0.0.0")
-          LATEST_RELEASE="${LATEST_RELEASE#v}"
-
-          echo "Latest release on GitHub: $LATEST_RELEASE"
-          echo "New version: $VERSION"
-
-          if [ "$LATEST_RELEASE" != "0.0.0" ]; then
-            if ! { [ "$(printf '%s\n' "$LATEST_RELEASE" "$VERSION" | sort -V | tail -n1)" = "$VERSION" ] && \
-                   [ "$VERSION" != "$LATEST_RELEASE" ]; }; then
-              echo "Error: New version ($VERSION) is not greater than latest release ($LATEST_RELEASE)"
-              exit 1
-            fi
-          fi
-
-          echo "Version check passed: $VERSION > $LATEST_RELEASE"
 
   build-host:
     name: Build Host Library & UniFFI Bindings
