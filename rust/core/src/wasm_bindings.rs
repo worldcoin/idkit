@@ -708,6 +708,54 @@ impl IDKitBuilderWasm {
         }
     }
 
+    /// Builds the native payload for constraints (synchronous, no bridge connection).
+    ///
+    /// Used by the native transport to get the same payload format as the bridge
+    /// without creating a network connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if constraints are invalid or payload construction fails.
+    #[wasm_bindgen(js_name = nativePayload)]
+    pub fn native_payload(self, constraints_json: JsValue) -> Result<JsValue, JsValue> {
+        let constraints: ConstraintNode = serde_wasm_bindgen::from_value(constraints_json)
+            .map_err(|e| JsValue::from_str(&format!("Invalid constraints: {e}")))?;
+
+        let params = self.config.to_params(constraints)?;
+
+        let payload = crate::bridge::build_request_payload(&params)
+            .map_err(|e| JsValue::from_str(&format!("Failed to build payload: {e}")))?;
+
+        let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+        payload
+            .serialize(&serializer)
+            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
+    }
+
+    /// Builds the native payload from a preset (synchronous, no bridge connection).
+    ///
+    /// Used by the native transport to get the same payload format as the bridge
+    /// without creating a network connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the preset is invalid or payload construction fails.
+    #[wasm_bindgen(js_name = nativePayloadFromPreset)]
+    pub fn native_payload_from_preset(self, preset_json: JsValue) -> Result<JsValue, JsValue> {
+        let preset: Preset = serde_wasm_bindgen::from_value(preset_json)
+            .map_err(|e| JsValue::from_str(&format!("Invalid preset: {e}")))?;
+
+        let params = self.config.to_params_from_preset(preset)?;
+
+        let payload = crate::bridge::build_request_payload(&params)
+            .map_err(|e| JsValue::from_str(&format!("Failed to build payload: {e}")))?;
+
+        let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+        payload
+            .serialize(&serializer)
+            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
+    }
+
     /// Creates a `BridgeConnection` with the given constraints
     pub fn constraints(self, constraints_json: JsValue) -> js_sys::Promise {
         let config = self.config;

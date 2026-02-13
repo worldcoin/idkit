@@ -16,6 +16,11 @@ import type {
 } from "./types/result";
 import { IDKitErrorCodes } from "./types/result";
 import { WasmModule, initIDKit, initIDKitServer } from "./lib/wasm";
+import {
+  isInWorldApp,
+  createNativeRequest,
+  type BuilderConfig,
+} from "./transports/native";
 
 /** Options for pollUntilCompletion() */
 export interface WaitOptions {
@@ -64,7 +69,7 @@ export interface IDKitRequest {
 }
 
 /**
- * Internal request implementation
+ * Internal request implementation (bridge/WASM path)
  */
 class IDKitRequestImpl implements IDKitRequest {
   private wasmRequest: WasmModule.IDKitRequest;
@@ -220,7 +225,7 @@ import type {
  *
  * @example
  * ```typescript
- * const request = await IDKit.request({ app_id, action, rp_context })
+ * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: true })
  *   .preset(orbLegacy({ signal: 'user-123' }))
  * ```
  */
@@ -239,7 +244,7 @@ export function orbLegacy(opts: { signal?: string } = {}): OrbLegacyPreset {
  *
  * @example
  * ```typescript
- * const request = await IDKit.request({ app_id, action, rp_context })
+ * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: true })
  *   .preset(secureDocumentLegacy({ signal: 'user-123' }))
  * ```
  */
@@ -260,7 +265,7 @@ export function secureDocumentLegacy(
  *
  * @example
  * ```typescript
- * const request = await IDKit.request({ app_id, action, rp_context })
+ * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: true })
  *   .preset(documentLegacy({ signal: 'user-123' }))
  * ```
  */
@@ -271,17 +276,76 @@ export function documentLegacy(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// IDKitBuilder (Merged builder for all request types)
+// WASM builder factory (used for both native and bridge paths)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function createWasmBuilderFromConfig(
+  config: BuilderConfig,
+): WasmModule.IDKitBuilder {
+  if (!config.rp_context) {
+    throw new Error("rp_context is required for WASM bridge transport");
+  }
+
+  const rpContext = new WasmModule.RpContextWasm(
+    config.rp_context.rp_id,
+    config.rp_context.nonce,
+    BigInt(config.rp_context.created_at),
+    BigInt(config.rp_context.expires_at),
+    config.rp_context.signature,
+  );
+
+  if (config.type === "request") {
+    return WasmModule.request(
+      config.app_id,
+      String(config.action ?? ""),
+      rpContext,
+      config.action_description ?? null,
+      config.bridge_url ?? null,
+      config.allow_legacy_proofs ?? false,
+      config.override_connect_base_url ?? null,
+      config.environment ?? null,
+    );
+  }
+
+  if (config.type === "proveSession") {
+    return WasmModule.proveSession(
+      config.session_id!,
+      config.app_id,
+      rpContext,
+      config.action_description ?? null,
+      config.bridge_url ?? null,
+      config.override_connect_base_url ?? null,
+      config.environment ?? null,
+    );
+  }
+
+  // type === "session"
+  return WasmModule.createSession(
+    config.app_id,
+    rpContext,
+    config.action_description ?? null,
+    config.bridge_url ?? null,
+    config.override_connect_base_url ?? null,
+    config.environment ?? null,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IDKitBuilder (transport-aware: native postMessage vs WASM bridge)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Merged builder for IDKit requests
+ * Builder for IDKit requests
+ *
+ * Stores configuration and defers transport selection to `.preset()` / `.constraints()`.
+ * In World App: uses native postMessage transport (no WASM needed).
+ * On web: uses WASM bridge transport (QR code + polling).
  */
 class IDKitBuilder {
-  private wasmBuilder: WasmModule.IDKitBuilder;
+  private config: BuilderConfig;
 
-  constructor(wasmBuilder: WasmModule.IDKitBuilder) {
-    this.wasmBuilder = wasmBuilder;
+  constructor(config: BuilderConfig) {
+    this.config = config;
   }
 
   /**
@@ -292,19 +356,25 @@ class IDKitBuilder {
    *
    * @example
    * ```typescript
-   * const builder = await IDKit.request({ app_id, action, rp_context });
-   * const request = await builder.constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
+   * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: false })
+   *   .constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
    * ```
    */
-  //TODO: re-enable once this is supported and World ID 4.0 is rolled out live
-  // async constraints(constraints: ConstraintNode): Promise<IDKitRequest> {
-  //   await initIDKit();
+  async constraints(constraints: ConstraintNode): Promise<IDKitRequest> {
+    await initIDKit();
+    const wasmBuilder = createWasmBuilderFromConfig(this.config);
 
-  //   const wasmRequest = (await this.wasmBuilder.constraints(
-  //     constraints,
-  //   )) as unknown as WasmModule.IDKitRequest;
-  //   return new IDKitRequestImpl(wasmRequest);
-  // }
+    if (isInWorldApp()) {
+      const payload = wasmBuilder.nativePayload(constraints);
+      return createNativeRequest(payload, this.config);
+    }
+
+    // Bridge path — WASM
+    const wasmRequest = (await wasmBuilder.constraints(
+      constraints,
+    )) as unknown as WasmModule.IDKitRequest;
+    return new IDKitRequestImpl(wasmRequest);
+  }
 
   /**
    * Creates an IDKit request from a preset (works for all request types)
@@ -312,65 +382,72 @@ class IDKitBuilder {
    * Presets provide a simplified way to create requests with predefined
    * credential configurations.
    *
-   * @param preset - A preset object from orbLegacy()
+   * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), or documentLegacy()
    * @returns A new IDKitRequest instance
    *
    * @example
    * ```typescript
-   * const builder = await IDKit.request({ app_id, action, rp_context });
-   * const request = await builder.preset(orbLegacy({ signal: 'user-123' }));
+   * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: true })
+   *   .preset(orbLegacy({ signal: 'user-123' }));
    * ```
    */
   async preset(preset: Preset): Promise<IDKitRequest> {
     await initIDKit();
+    const wasmBuilder = createWasmBuilderFromConfig(this.config);
 
-    const wasmRequest = (await this.wasmBuilder.preset(
+    if (isInWorldApp()) {
+      const payload = wasmBuilder.nativePayloadFromPreset(preset);
+      return createNativeRequest(payload, this.config);
+    }
+
+    // Bridge path — WASM
+    const wasmRequest = (await wasmBuilder.preset(
       preset,
     )) as unknown as WasmModule.IDKitRequest;
     return new IDKitRequestImpl(wasmRequest);
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Entry points
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
- * Creates an IDKit request builder
+ * Creates an IDKit verification request builder
  *
  * This is the main entry point for creating World ID verification requests.
- * Use the builder pattern with constraints to specify which credentials to accept.
+ * Use the builder pattern with `.preset()` or `.constraints()` to specify
+ * which credentials to accept.
  *
  * @param config - Request configuration
  * @returns IDKitBuilder - A builder instance
  *
  * @example
  * ```typescript
- * import { IDKit, CredentialRequest, any } from '@worldcoin/idkit-core'
+ * import { IDKit, CredentialRequest, any, orbLegacy } from '@worldcoin/idkit-core'
  *
- * // Initialize WASM (only needed once)
- * await IDKit.init()
- *
- * // Create request items
- * const orb = CredentialRequest('orb', { signal: 'user-123' })
- * const face = CredentialRequest('face')
- *
- * // Create a verification request with constraints
+ * // With preset (legacy support)
  * const request = await IDKit.request({
  *   app_id: 'app_staging_xxxxx',
  *   action: 'my-action',
- *   rp_context: {
- *     rp_id: 'rp_123456789abcdef0',
- *     nonce: 'unique-nonce',
- *     created_at: Math.floor(Date.now() / 1000),
- *     expires_at: Math.floor(Date.now() / 1000) + 3600,
- *     signature: 'ecdsa-signature-from-backend',
- *   },
+ *   rp_context: { ... },
+ *   allow_legacy_proofs: true,
+ * }).preset(orbLegacy({ signal: 'user-123' }));
+ *
+ * // With constraints (v4 only)
+ * const request = await IDKit.request({
+ *   app_id: 'app_staging_xxxxx',
+ *   action: 'my-action',
+ *   rp_context: { ... },
  *   allow_legacy_proofs: false,
- * }).constraints(any(orb, face));
+ * }).constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
  *
- * // Display QR code
- * console.log('Scan this:', request.connectorURI)
+ * // In World App: connectorURI is empty, result comes via postMessage
+ * // On web: connectorURI is the QR URL to display
+ * console.log(request.connectorURI);
  *
- * // Wait for proof
- * const proof = await request.pollUntilCompletion()
- * console.log('Success:', proof)
+ * // Wait for result — same interface in both environments
+ * const proof = await request.pollUntilCompletion();
  * ```
  */
 function createRequest(config: IDKitRequestConfig): IDKitBuilder {
@@ -382,7 +459,9 @@ function createRequest(config: IDKitRequestConfig): IDKitBuilder {
     throw new Error("action is required");
   }
   if (!config.rp_context) {
-    throw new Error("rp_context is required");
+    throw new Error(
+      "rp_context is required. Generate it on your backend using signRequest().",
+    );
   }
   if (typeof config.allow_legacy_proofs !== "boolean") {
     throw new Error(
@@ -391,24 +470,17 @@ function createRequest(config: IDKitRequestConfig): IDKitBuilder {
     );
   }
 
-  const rpContext = new WasmModule.RpContextWasm(
-    config.rp_context.rp_id,
-    config.rp_context.nonce,
-    BigInt(config.rp_context.created_at),
-    BigInt(config.rp_context.expires_at),
-    config.rp_context.signature,
-  );
-  const wasmBuilder = WasmModule.request(
-    config.app_id,
-    String(config.action),
-    rpContext,
-    config.action_description ?? null,
-    config.bridge_url ?? null,
-    config.allow_legacy_proofs,
-    config.override_connect_base_url ?? null,
-    config.environment ?? null,
-  );
-  return new IDKitBuilder(wasmBuilder);
+  return new IDKitBuilder({
+    type: "request",
+    app_id: config.app_id,
+    action: String(config.action),
+    rp_context: config.rp_context,
+    action_description: config.action_description,
+    bridge_url: config.bridge_url,
+    allow_legacy_proofs: config.allow_legacy_proofs,
+    override_connect_base_url: config.override_connect_base_url,
+    environment: config.environment,
+  });
 }
 
 /**
@@ -443,26 +515,20 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
     throw new Error("app_id is required");
   }
   if (!config.rp_context) {
-    throw new Error("rp_context is required");
+    throw new Error(
+      "rp_context is required. Generate it on your backend using signRequest().",
+    );
   }
 
-  const rpContext = new WasmModule.RpContextWasm(
-    config.rp_context.rp_id,
-    config.rp_context.nonce,
-    BigInt(config.rp_context.created_at),
-    BigInt(config.rp_context.expires_at),
-    config.rp_context.signature,
-  );
-  const wasmBuilder = WasmModule.createSession(
-    config.app_id,
-    rpContext,
-    config.action_description ?? null,
-    config.bridge_url ?? null,
-    config.override_connect_base_url ?? null,
-    config.environment ?? null,
-  );
-
-  return new IDKitBuilder(wasmBuilder);
+  return new IDKitBuilder({
+    type: "session",
+    app_id: config.app_id,
+    rp_context: config.rp_context,
+    action_description: config.action_description,
+    bridge_url: config.bridge_url,
+    override_connect_base_url: config.override_connect_base_url,
+    environment: config.environment,
+  });
 }
 
 /**
@@ -502,26 +568,21 @@ function proveSession(
     throw new Error("app_id is required");
   }
   if (!config.rp_context) {
-    throw new Error("rp_context is required");
+    throw new Error(
+      "rp_context is required. Generate it on your backend using signRequest().",
+    );
   }
 
-  const rpContext = new WasmModule.RpContextWasm(
-    config.rp_context.rp_id,
-    config.rp_context.nonce,
-    BigInt(config.rp_context.created_at),
-    BigInt(config.rp_context.expires_at),
-    config.rp_context.signature,
-  );
-  const wasmBuilder = WasmModule.proveSession(
-    sessionId,
-    config.app_id,
-    rpContext,
-    config.action_description ?? null,
-    config.bridge_url ?? null,
-    config.override_connect_base_url ?? null,
-    config.environment ?? null,
-  );
-  return new IDKitBuilder(wasmBuilder);
+  return new IDKitBuilder({
+    type: "proveSession",
+    session_id: sessionId,
+    app_id: config.app_id,
+    rp_context: config.rp_context,
+    action_description: config.action_description,
+    bridge_url: config.bridge_url,
+    override_connect_base_url: config.override_connect_base_url,
+    environment: config.environment,
+  });
 }
 
 /**
@@ -529,25 +590,24 @@ function proveSession(
  *
  * @example
  * ```typescript
- * import { IDKit, CredentialRequest, any } from '@worldcoin/idkit-core'
+ * import { IDKit, CredentialRequest, any, orbLegacy } from '@worldcoin/idkit-core'
  *
- * // Initialize (only needed once)
- * await IDKit.init()
- *
- * // Create a request
+ * // Create a verification request
  * const request = await IDKit.request({
  *   app_id: 'app_staging_xxxxx',
  *   action: 'my-action',
  *   rp_context: { ... },
- * }).constraints(any(CredentialRequest('orb'), CredentialRequest('face')))
+ *   allow_legacy_proofs: true,
+ * }).preset(orbLegacy({ signal: 'user-123' }))
  *
- * // Display QR and wait for proof
+ * // In World App: result comes via postMessage (no QR needed)
+ * // On web: display QR code and wait for proof
  * console.log(request.connectorURI)
  * const proof = await request.pollUntilCompletion()
  * ```
  */
 export const IDKit = {
-  /** Initialize WASM for browser environments */
+  /** Initialize WASM for browser environments (not needed in World App) */
   init: initIDKit,
   /** Initialize WASM for Node.js/server environments */
   initServer: initIDKitServer,
