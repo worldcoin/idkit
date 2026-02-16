@@ -4,9 +4,8 @@ import { IDKitErrorCodes } from "@worldcoin/idkit-core";
 import { useIDKitRequest } from "../hooks/useIDKitRequest";
 import { useIDKitSession } from "../hooks/useIDKitSession";
 
-const { initMock, requestMock, createSessionMock, proveSessionMock } =
+const { requestMock, createSessionMock, proveSessionMock } =
   vi.hoisted(() => ({
-    initMock: vi.fn(async () => undefined),
     requestMock: vi.fn(),
     createSessionMock: vi.fn(),
     proveSessionMock: vi.fn(),
@@ -14,7 +13,6 @@ const { initMock, requestMock, createSessionMock, proveSessionMock } =
 
 vi.mock("@worldcoin/idkit-core", () => ({
   IDKit: {
-    init: initMock,
     request: requestMock,
     createSession: createSessionMock,
     proveSession: proveSessionMock,
@@ -120,7 +118,6 @@ describe("request/session hooks", () => {
       expect(result.current.isAwaitingUserConfirmation).toBe(false);
     });
 
-    expect(initMock).toHaveBeenCalledTimes(1);
     expect(requestMock).toHaveBeenCalledTimes(1);
     expect(result.current.connectorURI).toBe("wc://request");
     expect(result.current.result).toEqual({ proof: "ok" });
