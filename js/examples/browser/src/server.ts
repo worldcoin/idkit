@@ -1,6 +1,6 @@
 import "dotenv/config";
 import express from "express";
-import { IDKit, signRequest } from "@worldcoin/idkit-core";
+import { signRequest } from "@worldcoin/idkit-core/signing";
 
 const app = express();
 app.use(express.json());
@@ -11,9 +11,6 @@ const DEMO_SIGNING_KEY =
   "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
 const DEV_PORTAL_BASE_URL =
   process.env.DEV_PORTAL_BASE_URL || "https://developer.world.org";
-
-// Initialize WASM for server environment
-await IDKit.initServer();
 
 app.post("/api/rp-signature", (req, res) => {
   const { action, ttl } = req.body;
@@ -33,8 +30,8 @@ app.post("/api/rp-signature", (req, res) => {
     res.json({
       sig: sig.sig,
       nonce: sig.nonce,
-      created_at: Number(sig.createdAt),
-      expires_at: Number(sig.expiresAt),
+      created_at: sig.createdAt,
+      expires_at: sig.expiresAt,
     });
   } catch (error) {
     console.error("Error computing RP signature:", error);

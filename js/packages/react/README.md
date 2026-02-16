@@ -7,6 +7,7 @@ React SDK for World ID built on top of `@worldcoin/idkit-core`.
 - Headless hooks for custom UI
 - Built-in controlled widgets with shadow DOM isolation
 - Separate request and session APIs
+- Pure JS `/signing` and `/hashing` subpath exports for server-side use
 
 ## Installation
 
@@ -48,4 +49,13 @@ const config: IDKitRequestHookConfig = {
   allow_legacy_proofs: false,
   preset: { type: "OrbLegacy" },
 };
+```
+
+## Subpath Exports
+
+Pure JS subpath exports for server-side use (no WASM or React required):
+
+```typescript
+import { signRequest } from "@worldcoin/idkit/signing";
+import { hashSignal } from "@worldcoin/idkit/hashing";
 ```
