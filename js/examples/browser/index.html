@@ -251,9 +251,6 @@
         errorDiv.hidden = true;
       };
 
-      // Initialize WASM on page load
-      await IDKit.init();
-
       // Fetch RP signature from the backend
       async function fetchRpSignature(action) {
         const res = await fetch("/api/rp-signature", {

@@ -1,1 +1,1 @@
-export { hashSignal, hashToField } from "./lib/hashing";
+export { hashSignal } from "./lib/hashing";

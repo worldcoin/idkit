@@ -36,8 +36,6 @@ For common verification scenarios with World ID 3.0 backward compatibility:
 ```typescript
 import { IDKit, orbLegacy } from "@worldcoin/idkit-core";
 
-await IDKit.init();
-
 // Fetch signature from your backend
 const rpSig = await fetch("/api/rp-signature").then((r) => r.json());
 
@@ -106,7 +104,7 @@ Pure JS subpath exports are available for server-side use without WASM initializ
 | Subpath    | Exports                                                          |
 | ---------- | ---------------------------------------------------------------- |
 | `/signing` | `signRequest`, `computeRpSignatureMessage`, `RpSignature` (type) |
-| `/hashing` | `hashSignal`, `hashToField`                                      |
+| `/hashing` | `hashSignal`                                                     |
 
 ```typescript
 import { signRequest } from "@worldcoin/idkit-core/signing";

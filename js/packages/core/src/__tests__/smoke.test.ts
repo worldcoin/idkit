@@ -14,22 +14,6 @@ import {
   signRequest,
 } from "../index";
 
-describe("WASM Initialization", () => {
-  it("should initialize WASM via IDKit.init", async () => {
-    // Call IDKit.init to initialize WASM
-    await IDKit.init();
-    // If we get here without throwing, WASM is initialized
-    expect(true).toBe(true);
-  });
-
-  it("should be safe to call IDKit.init multiple times", async () => {
-    await IDKit.init();
-    await IDKit.init();
-    // If we get here without throwing, multiple init calls are safe
-    expect(true).toBe(true);
-  });
-});
-
 describe("Platform Detection", () => {
   it("should detect Node.js environment", () => {
     expect(isNode()).toBe(true);
