@@ -102,3 +102,37 @@ pre {
   z-index: 10;
   padding: 8px 12px;
 }
+
+.config-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.config-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.config-row > label {
+  min-width: 100px;
+  opacity: 0.7;
+  font-size: 14px;
+}
+
+.config-row input[type="text"],
+.config-row select {
+  flex: 1;
+  font-family: monospace;
+  font-size: 14px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--button-bg);
+  color: var(--text-color);
+}
+
+.config-row input[type="text"][readonly] {
+  opacity: 0.5;
+}

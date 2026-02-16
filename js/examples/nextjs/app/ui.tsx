@@ -12,7 +12,6 @@ import {
 
 const APP_ID = process.env.NEXT_PUBLIC_APP_ID as `app_${string}` | undefined;
 const RP_ID = process.env.NEXT_PUBLIC_RP_ID;
-const ACTION = "test-action";
 
 type PresetKind = "orb" | "secure_document" | "document";
 
@@ -94,6 +93,10 @@ export function DemoClient(): ReactElement {
   const [widgetVerifyResult, setWidgetVerifyResult] = useState<unknown>(null);
   const [widgetPresetKind, setWidgetPresetKind] = useState<PresetKind>("orb");
   const [widgetSignal, setWidgetSignal] = useState("demo-signal-initial");
+  const [action, setAction] = useState("test-action");
+  const [environment, setEnvironment] = useState<"production" | "staging">(
+    "production",
+  );
 
   const widgetPreset = useMemo(
     () => createPreset(widgetPresetKind, widgetSignal),
@@ -112,7 +115,7 @@ export function DemoClient(): ReactElement {
     setWidgetVerifyResult(null);
 
     try {
-      const rpContext = await fetchRpContext(ACTION);
+      const rpContext = await fetchRpContext(action || "test-action");
       setWidgetPresetKind(presetKind);
       setWidgetSignal(`demo-signal-${Date.now()}`);
       setWidgetRpContext(rpContext);
@@ -150,6 +153,39 @@ export function DemoClient(): ReactElement {
       >
         {isLightTheme ? "Dark" : "Light"}
       </button>
+      <section className="config-panel">
+        <div className="config-row">
+          <label htmlFor="cfgAppId">App ID</label>
+          <input type="text" id="cfgAppId" value={APP_ID} readOnly />
+        </div>
+        <div className="config-row">
+          <label htmlFor="cfgRpId">RP ID</label>
+          <input type="text" id="cfgRpId" value={RP_ID} readOnly />
+        </div>
+        <div className="config-row">
+          <label htmlFor="cfgAction">Action</label>
+          <input
+            type="text"
+            id="cfgAction"
+            value={action}
+            onChange={(e) => setAction(e.target.value)}
+          />
+        </div>
+        <div className="config-row">
+          <label htmlFor="cfgEnv">Environment</label>
+          <select
+            id="cfgEnv"
+            value={environment}
+            onChange={(e) =>
+              setEnvironment(e.target.value as "production" | "staging")
+            }
+          >
+            <option value="production">Production</option>
+            <option value="staging">Staging</option>
+          </select>
+        </div>
+      </section>
+
       <div className="stack">
         <button onClick={() => startWidgetFlow("orb")}>Verify with Orb</button>
         <button onClick={() => startWidgetFlow("secure_document")}>
@@ -166,7 +202,7 @@ export function DemoClient(): ReactElement {
           open={widgetOpen}
           onOpenChange={setWidgetOpen}
           app_id={APP_ID}
-          action={ACTION}
+          action={action || "test-action"}
           rp_context={widgetRpContext}
           allow_legacy_proofs={true}
           preset={widgetPreset}
@@ -184,7 +220,7 @@ export function DemoClient(): ReactElement {
           onError={(errorCode) => {
             setWidgetError(`Verification failed: ${errorCode}`);
           }}
-          environment="production"
+          environment={environment}
         />
       ) : null}
 

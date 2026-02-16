@@ -4,12 +4,11 @@ import { IDKitErrorCodes } from "@worldcoin/idkit-core";
 import { useIDKitRequest } from "../hooks/useIDKitRequest";
 import { useIDKitSession } from "../hooks/useIDKitSession";
 
-const { requestMock, createSessionMock, proveSessionMock } =
-  vi.hoisted(() => ({
-    requestMock: vi.fn(),
-    createSessionMock: vi.fn(),
-    proveSessionMock: vi.fn(),
-  }));
+const { requestMock, createSessionMock, proveSessionMock } = vi.hoisted(() => ({
+  requestMock: vi.fn(),
+  createSessionMock: vi.fn(),
+  proveSessionMock: vi.fn(),
+}));
 
 vi.mock("@worldcoin/idkit-core", () => ({
   IDKit: {

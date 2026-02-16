@@ -10,7 +10,10 @@ type QRStateProps = {
   showSimulatorCallout?: boolean;
 };
 
-export function QRState({ qrData, showSimulatorCallout }: QRStateProps): ReactElement {
+export function QRState({
+  qrData,
+  showSimulatorCallout,
+}: QRStateProps): ReactElement {
   const media = useMedia();
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -68,7 +71,7 @@ export function QRState({ qrData, showSimulatorCallout }: QRStateProps): ReactEl
           <p className="idkit-simulator-callout">
             Testing in staging?{" "}
             <a
-              href={`https://simulator.worldcoin.org?connect_url=${encodeURIComponent(qrData)}`}
+              href={`http://localhost:3000?connect_url=${encodeURIComponent(qrData)}`}
               target="_blank"
               rel="noopener noreferrer"
             >

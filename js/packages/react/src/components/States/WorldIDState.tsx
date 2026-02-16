@@ -62,7 +62,10 @@ export function WorldIDState({
           className={`idkit-qr-blur ${isAwaitingUserConfirmation ? "blurred" : ""}`}
         >
           <div style={{ display: "flex", justifyContent: "center" }}>
-            <QRState qrData={connectorURI} showSimulatorCallout={showSimulatorCallout} />
+            <QRState
+              qrData={connectorURI}
+              showSimulatorCallout={showSimulatorCallout}
+            />
           </div>
         </div>
       </div>
