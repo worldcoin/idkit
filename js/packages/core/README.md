@@ -106,7 +106,7 @@ Pure JS subpath exports are available for server-side use without WASM initializ
 | Subpath    | Exports                                                          |
 | ---------- | ---------------------------------------------------------------- |
 | `/signing` | `signRequest`, `computeRpSignatureMessage`, `RpSignature` (type) |
-| `/hashing` | `hashSignal`, `hashToField`                                      |
+| `/hashing` | `hashSignal`                                                     |
 
 ```typescript
 import { signRequest } from "@worldcoin/idkit-core/signing";

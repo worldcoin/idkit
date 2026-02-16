@@ -15,7 +15,7 @@ import type {
   CredentialRequestType,
 } from "./types/result";
 import { IDKitErrorCodes } from "./types/result";
-import { WasmModule, initIDKit, initIDKitServer } from "./lib/wasm";
+import { WasmModule, initIDKit } from "./lib/wasm";
 import {
   isInWorldApp,
   createNativeRequest,
@@ -609,8 +609,6 @@ function proveSession(
 export const IDKit = {
   /** Initialize WASM for browser environments (not needed in World App) */
   init: initIDKit,
-  /** Initialize WASM for Node.js/server environments */
-  initServer: initIDKitServer,
   /** Create a new verification request */
   request: createRequest,
   /** Create a new session (no action, no existing session_id) */
