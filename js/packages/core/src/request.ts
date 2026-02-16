@@ -607,8 +607,6 @@ function proveSession(
  * ```
  */
 export const IDKit = {
-  /** Initialize WASM for browser environments (not needed in World App) */
-  init: initIDKit,
   /** Create a new verification request */
   request: createRequest,
   /** Create a new session (no action, no existing session_id) */

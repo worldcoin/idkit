@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  IDKit,
-  IDKitErrorCodes,
-  type IDKitRequest,
-} from "@worldcoin/idkit-core";
+import { IDKitErrorCodes, type IDKitRequest } from "@worldcoin/idkit-core";
 import type { FlowConfig, IDKitHookResult } from "../types";
 import {
   createInitialHookState,
@@ -76,9 +72,6 @@ export function useIDKitFlow<TResult>(
 
     void (async () => {
       try {
-        await IDKit.init();
-        ensureNotAborted(controller.signal);
-
         const request = await createFlowHandleRef.current();
         ensureNotAborted(controller.signal);
 

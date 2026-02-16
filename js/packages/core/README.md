@@ -36,8 +36,6 @@ For common verification scenarios with World ID 3.0 backward compatibility:
 ```typescript
 import { IDKit, orbLegacy } from "@worldcoin/idkit-core";
 
-await IDKit.init();
-
 // Fetch signature from your backend
 const rpSig = await fetch("/api/rp-signature").then((r) => r.json());
 

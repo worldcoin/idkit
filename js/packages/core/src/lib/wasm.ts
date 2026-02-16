@@ -36,13 +36,6 @@ export async function initIDKit(): Promise<void> {
 }
 
 /**
- * Checks if WASM has been initialized
- */
-export function isInitialized(): boolean {
-  return wasmInitialized;
-}
-
-/**
  * Re-exports WASM module for direct access
  */
 export { WasmModule };
