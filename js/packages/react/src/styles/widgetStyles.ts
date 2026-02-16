@@ -292,6 +292,22 @@ export const WIDGET_STYLES = `
   color: var(--idkit-text-secondary);
 }
 
+/* Simulator callout (staging only) */
+.idkit-simulator-callout {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: var(--idkit-text-secondary);
+  text-align: center;
+}
+.idkit-simulator-callout a {
+  color: var(--idkit-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.idkit-simulator-callout a:hover {
+  color: var(--idkit-text);
+}
+
 /* Mobile deep-link button */
 .idkit-deeplink-btn {
   display: flex;
