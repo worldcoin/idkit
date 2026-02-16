@@ -62,11 +62,12 @@ let _activeNativeRequest: NativeIDKitRequest | null = null;
 /**
  * Create an IDKitRequest that communicates via World App postMessage.
  *
- * Only one native request can be in flight at a time. If a previous request
- * is still pending, it is cancelled before the new one starts. This prevents
- * two listeners from consuming the same World App response (World App does
- * not echo a correlation ID, so there is no way to match responses to
- * requests).
+ * Only one native request should be in flight at a time.
+ *
+ * If another request is created while one is still pending, we reuse the
+ * active request instead of cancelling it. This avoids a race where the first
+ * request removes its listener and resolves as `cancelled` even though World
+ * App later posts a successful response.
  *
  * @param wasmPayload - Pre-built payload from the WASM module (same format as bridge)
  * @param config - Builder config (used for response normalization)
@@ -75,8 +76,11 @@ export function createNativeRequest(
   wasmPayload: unknown,
   config: BuilderConfig,
 ): IDKitRequest {
-  if (_activeNativeRequest) {
-    _activeNativeRequest.cancel();
+  if (_activeNativeRequest?.isPending()) {
+    console.warn(
+      "IDKit native request already in flight. Reusing active request.",
+    );
+    return _activeNativeRequest;
   }
   const request = new NativeIDKitRequest(wasmPayload, config);
   _activeNativeRequest = request;
@@ -89,6 +93,7 @@ class NativeIDKitRequest implements IDKitRequest {
   private resultPromise: Promise<IDKitResult>;
   private resolved = false;
   private cancelled = false;
+  private settled = false;
   private resolvedResult: IDKitResult | null = null;
   private messageHandler: ((event: MessageEvent) => void) | null = null;
   private rejectFn: ((reason: Error) => void) | null = null;
@@ -148,6 +153,7 @@ class NativeIDKitRequest implements IDKitRequest {
     this.resultPromise
       .catch(() => {})
       .finally(() => {
+        this.settled = true;
         this.cleanup();
         if (_activeNativeRequest === this) {
           _activeNativeRequest = null;
@@ -174,6 +180,10 @@ class NativeIDKitRequest implements IDKitRequest {
       window.removeEventListener("message", this.messageHandler);
       this.messageHandler = null;
     }
+  }
+
+  isPending(): boolean {
+    return !this.settled && !this.cancelled;
   }
 
   async pollOnce(): Promise<Status> {
