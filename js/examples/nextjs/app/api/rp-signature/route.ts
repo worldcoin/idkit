@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { signRequest, IDKit } from "@worldcoin/idkit-core";
+import { signRequest } from "@worldcoin/idkit/signing";
 
 // export const runtime = "nodejs";
 
@@ -11,7 +11,6 @@ export async function POST(request: Request): Promise<Response> {
     };
 
     const signingKey = process.env.RP_SIGNING_KEY;
-    await IDKit.initServer();
     const { sig, nonce, createdAt, expiresAt } = signRequest(
       body.action!,
       signingKey!,
@@ -28,8 +27,8 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({
       sig: sig,
       nonce: nonce,
-      created_at: Number(createdAt),
-      expires_at: Number(expiresAt),
+      created_at: createdAt,
+      expires_at: expiresAt,
     });
   } catch (error) {
     console.error("Error generating RP signature:", error);

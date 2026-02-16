@@ -78,6 +78,7 @@ coverage/
 /.claude/
 /.cursor/
 .planning/
+.codex/
 
 # Backup files
 *.bak

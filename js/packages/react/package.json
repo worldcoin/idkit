@@ -11,6 +11,16 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./signing": {
+      "types": "./dist/signing.d.ts",
+      "import": "./dist/signing.js",
+      "require": "./dist/signing.cjs"
+    },
+    "./hashing": {
+      "types": "./dist/hashing.d.ts",
+      "import": "./dist/hashing.js",
+      "require": "./dist/hashing.cjs"
     }
   },
   "files": [

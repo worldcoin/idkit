@@ -11,6 +11,16 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./signing": {
+      "types": "./dist/signing.d.ts",
+      "import": "./dist/signing.js",
+      "require": "./dist/signing.cjs"
+    },
+    "./hashing": {
+      "types": "./dist/hashing.d.ts",
+      "import": "./dist/hashing.js",
+      "require": "./dist/hashing.cjs"
     }
   },
   "files": [
@@ -39,6 +49,10 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/worldcoin/idkit"
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.7.2",
+    "@noble/secp256k1": "^2.2.3"
   },
   "devDependencies": {
     "@types/node": "^20.19.30",

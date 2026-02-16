@@ -59,8 +59,8 @@ export type { IDKitErrorCode } from "./types/result";
 export { isReactNative, isWeb, isNode } from "./lib/platform";
 
 // RP Request Signing (server-side only)
-export { signRequest } from "./lib/rp-signature";
-export type { RpSignature } from "./lib/rp-signature";
+export { signRequest } from "./lib/signing";
+export type { RpSignature } from "./lib/signing";
 
 // Hashing utilities
 export { hashSignal } from "./lib/hashing";
