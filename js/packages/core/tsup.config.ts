@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  entry: ["src/index.ts"],
+  entry: ["src/index.ts", "src/signing.ts", "src/hashing.ts"],
   format: ["esm", "cjs"],
   dts: true,
   splitting: false,

@@ -10,12 +10,10 @@ npm install @worldcoin/idkit-core
 
 ## Backend: Generate RP Signature
 
-The RP signature authenticates your verification requests. Generate it server-side:
+The RP signature authenticates your verification requests. Generate it server-side using the `/signing` subpath (pure JS, no WASM init needed):
 
 ```typescript
-import { IDKit, signRequest } from "@worldcoin/idkit-core";
-
-await IDKit.initServer();
+import { signRequest } from "@worldcoin/idkit-core/signing";
 
 // Never expose RP_SIGNING_KEY to clients
 const sig = signRequest("my-action", process.env.RP_SIGNING_KEY);
@@ -24,8 +22,8 @@ const sig = signRequest("my-action", process.env.RP_SIGNING_KEY);
 res.json({
   sig: sig.sig,
   nonce: sig.nonce,
-  created_at: Number(sig.createdAt),
-  expires_at: Number(sig.expiresAt),
+  created_at: sig.createdAt,
+  expires_at: sig.expiresAt,
 });
 ```
 
@@ -99,4 +97,18 @@ const response = await fetch(
 );
 
 const { success } = await response.json();
+```
+
+## Subpath Exports
+
+Pure JS subpath exports are available for server-side use without WASM initialization:
+
+| Subpath    | Exports                                                          |
+| ---------- | ---------------------------------------------------------------- |
+| `/signing` | `signRequest`, `computeRpSignatureMessage`, `RpSignature` (type) |
+| `/hashing` | `hashSignal`, `hashToField`                                      |
+
+```typescript
+import { signRequest } from "@worldcoin/idkit-core/signing";
+import { hashSignal } from "@worldcoin/idkit-core/hashing";
 ```

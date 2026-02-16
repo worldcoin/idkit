@@ -45,9 +45,6 @@ importers:
       '@worldcoin/idkit':
         specifier: workspace:*
         version: link:../../packages/react
-      '@worldcoin/idkit-core':
-        specifier: workspace:*
-        version: link:../../packages/core
       next:
         specifier: ^15.4.0
         version: 15.5.12(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -69,6 +66,13 @@ importers:
         version: 5.9.3
 
   js/packages/core:
+    dependencies:
+      '@noble/hashes':
+        specifier: ^1.7.2
+        version: 1.8.0
+      '@noble/secp256k1':
+        specifier: ^2.2.3
+        version: 2.3.0
     devDependencies:
       '@types/node':
         specifier: ^20.19.30
@@ -525,6 +529,13 @@ packages:
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
+
+  '@noble/hashes@1.8.0':
+    resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
+    engines: {node: ^14.21.3 || >=16}
+
+  '@noble/secp256k1@2.3.0':
+    resolution: {integrity: sha512-0TQed2gcBbIrh7Ccyw+y/uZQvbJwm7Ao4scBUxqpBCcsOlZG0O4KGfjtNAy/li4W8n1xt3dxrwJ0beZ2h2G6Kw==}
 
   '@rollup/rollup-android-arm-eabi@4.57.0':
     resolution: {integrity: sha512-tPgXB6cDTndIe1ah7u6amCI1T0SsnlOuKgg10Xh3uizJk4e5M1JGaUMk7J4ciuAUcFpbOiNhm2XIjP9ON0dUqA==}
@@ -1951,6 +1962,10 @@ snapshots:
 
   '@next/swc-win32-x64-msvc@15.5.12':
     optional: true
+
+  '@noble/hashes@1.8.0': {}
+
+  '@noble/secp256k1@2.3.0': {}
 
   '@rollup/rollup-android-arm-eabi@4.57.0':
     optional: true

@@ -28,6 +28,7 @@ export {
   documentLegacy,
   secureDocumentLegacy,
   IDKitErrorCodes,
+  signRequest,
 } from "@worldcoin/idkit-core";
 
 export type {
