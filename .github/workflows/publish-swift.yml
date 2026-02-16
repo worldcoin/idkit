@@ -17,6 +17,10 @@ permissions:
 
 jobs:
   prepare:
+    # Dev releases (workflow_dispatch) are only allowed from main
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -72,6 +76,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.config.outputs.ref }}
+          fetch-depth: 0
+
+      - name: Validate commit exists on main
+        if: steps.config.outputs.should_publish == 'true' && github.event_name == 'workflow_dispatch'
+        env:
+          TARGET_REF: ${{ steps.config.outputs.ref }}
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$TARGET_REF" origin/main; then
+            echo "::error::Commit $TARGET_REF is not on the main branch. Dev releases can only be published from merged code."
+            exit 1
+          fi
 
       - name: Get version
         if: steps.config.outputs.should_publish == 'true'
