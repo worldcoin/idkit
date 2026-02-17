@@ -1,6 +1,6 @@
 {
   "name": "@worldcoin/idkit",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "React SDK for World ID built on @worldcoin/idkit-core",
   "type": "module",
   "main": "./dist/index.cjs",
