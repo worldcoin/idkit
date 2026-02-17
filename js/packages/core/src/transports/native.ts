@@ -24,6 +24,13 @@ import type {
 import type { IDKitResult } from "../types/result";
 import { IDKitErrorCodes } from "../types/result";
 
+const MINIAPP_VERIFY_ACTION = "miniapp-verify-action";
+
+type MiniKitBridge = {
+  subscribe?: (event: string, handler: (payload: any) => void) => void;
+  unsubscribe?: (event: string) => void;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Environment detection
 // ─────────────────────────────────────────────────────────────────────────────
@@ -96,6 +103,7 @@ class NativeIDKitRequest implements IDKitRequest {
   private settled = false;
   private resolvedResult: IDKitResult | null = null;
   private messageHandler: ((event: MessageEvent) => void) | null = null;
+  private miniKitHandler: ((payload: any) => void) | null = null;
   private rejectFn: ((reason: Error) => void) | null = null;
 
   constructor(wasmPayload: unknown, config: BuilderConfig) {
@@ -105,31 +113,52 @@ class NativeIDKitRequest implements IDKitRequest {
     this.resultPromise = new Promise<IDKitResult>((resolve, reject) => {
       this.rejectFn = reject;
 
+      const handleIncomingPayload = (responsePayload: any) => {
+        if (this.cancelled || this.resolved || this.settled) return;
+
+        if (responsePayload?.status === "error") {
+          this.cleanup();
+          reject(
+            new NativeVerifyError(
+              responsePayload.error_code ?? IDKitErrorCodes.GenericError,
+            ),
+          );
+          return;
+        }
+
+        this.resolved = true;
+        const result = nativeResultToIDKitResult(responsePayload, config);
+        this.resolvedResult = result;
+        this.cleanup();
+        resolve(result);
+      };
+
       const handler = (event: MessageEvent) => {
-        if (this.cancelled) return;
         const data = event.data;
         if (
-          data?.type === "miniapp-verify-action" ||
-          data?.command === "miniapp-verify-action"
+          data?.type === MINIAPP_VERIFY_ACTION ||
+          data?.command === MINIAPP_VERIFY_ACTION
         ) {
-          this.cleanup();
-          const responsePayload = data.payload ?? data;
-          if (responsePayload.status === "error") {
-            reject(
-              new NativeVerifyError(
-                responsePayload.error_code ?? IDKitErrorCodes.GenericError,
-              ),
-            );
-          } else {
-            this.resolved = true;
-            const result = nativeResultToIDKitResult(responsePayload, config);
-            this.resolvedResult = result;
-            resolve(result);
-          }
+          handleIncomingPayload(data.payload ?? data);
         }
       };
       this.messageHandler = handler;
       window.addEventListener("message", handler);
+
+      // Some World App environments route responses via MiniKit.trigger(...)
+      // instead of window.postMessage. Subscribe as a compatibility channel.
+      try {
+        const miniKit = (window as any).MiniKit as MiniKitBridge | undefined;
+        if (typeof miniKit?.subscribe === "function") {
+          const miniKitHandler = (payload: any) => {
+            handleIncomingPayload(payload?.payload ?? payload);
+          };
+          this.miniKitHandler = miniKitHandler;
+          miniKit.subscribe(MINIAPP_VERIFY_ACTION, miniKitHandler);
+        }
+      } catch {
+        // Ignore MiniKit subscription failures and rely on postMessage path.
+      }
 
       // Wrap the WASM-built payload in the postMessage envelope
       const sendPayload = {
@@ -179,6 +208,16 @@ class NativeIDKitRequest implements IDKitRequest {
     if (this.messageHandler) {
       window.removeEventListener("message", this.messageHandler);
       this.messageHandler = null;
+    }
+
+    if (this.miniKitHandler) {
+      try {
+        const miniKit = (window as any).MiniKit as MiniKitBridge | undefined;
+        miniKit?.unsubscribe?.(MINIAPP_VERIFY_ACTION);
+      } catch {
+        // no-op
+      }
+      this.miniKitHandler = null;
     }
   }
 
