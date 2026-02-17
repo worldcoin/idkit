@@ -197,28 +197,53 @@ class NativeIDKitRequest implements IDKitRequest {
     options?: WaitOptions,
   ): Promise<IDKitCompletionResult> {
     const timeout = options?.timeout ?? 300000;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let abortHandler: (() => void) | null = null;
+    let waiterTerminationCode:
+      | IDKitErrorCodes.Timeout
+      | IDKitErrorCodes.Cancelled
+      | null = null;
 
     try {
       const result = await Promise.race([
         this.resultPromise,
         new Promise<never>((_, reject) => {
           if (options?.signal) {
-            options.signal.addEventListener("abort", () =>
-              reject(new NativeVerifyError(IDKitErrorCodes.Cancelled)),
-            );
+            abortHandler = () => {
+              waiterTerminationCode = IDKitErrorCodes.Cancelled;
+              reject(new NativeVerifyError(IDKitErrorCodes.Cancelled));
+            };
+            if (options.signal.aborted) {
+              abortHandler();
+              return;
+            }
+            options.signal.addEventListener("abort", abortHandler, {
+              once: true,
+            });
           }
-          setTimeout(
-            () => reject(new NativeVerifyError(IDKitErrorCodes.Timeout)),
-            timeout,
-          );
+          timeoutId = setTimeout(() => {
+            waiterTerminationCode = IDKitErrorCodes.Timeout;
+            reject(new NativeVerifyError(IDKitErrorCodes.Timeout));
+          }, timeout);
         }),
       ]);
       return { success: true, result };
     } catch (error) {
       if (error instanceof NativeVerifyError) {
+        if (waiterTerminationCode === error.code && this.isPending()) {
+          // Ensure timeout/abort does not leave a stale active request.
+          this.cancel();
+        }
         return { success: false, error: error.code };
       }
       return { success: false, error: IDKitErrorCodes.GenericError };
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (options?.signal && abortHandler) {
+        options.signal.removeEventListener("abort", abortHandler);
+      }
     }
   }
 }

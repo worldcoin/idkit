@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { IDKitErrorCodes } from "../types/result";
 import type { BuilderConfig } from "./native";
 import { createNativeRequest } from "./native";
 
@@ -36,6 +37,7 @@ describe("native transport request lifecycle", () => {
 
   afterEach(() => {
     activeRequest?.cancel?.();
+    vi.useRealTimers();
     vi.restoreAllMocks();
     delete (globalThis as any).window;
   });
@@ -68,5 +70,46 @@ describe("native transport request lifecycle", () => {
 
     const completion = await completionPromise;
     expect(completion.success).toBe(true);
+  });
+
+  it("allows creating a fresh request after timeout", async () => {
+    vi.useFakeTimers();
+
+    const req1 = createNativeRequest({ payload: 1 }, baseConfig);
+    activeRequest = req1;
+
+    const completionPromise = req1.pollUntilCompletion({ timeout: 1000 });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await expect(completionPromise).resolves.toEqual({
+      success: false,
+      error: IDKitErrorCodes.Timeout,
+    });
+
+    const req2 = createNativeRequest({ payload: 2 }, baseConfig);
+    expect(req2).not.toBe(req1);
+    activeRequest = req2;
+  });
+
+  it("allows creating a fresh request after abort", async () => {
+    const req1 = createNativeRequest({ payload: 1 }, baseConfig);
+    activeRequest = req1;
+
+    const controller = new AbortController();
+    const completionPromise = req1.pollUntilCompletion({
+      timeout: 1000,
+      signal: controller.signal,
+    });
+
+    controller.abort();
+
+    await expect(completionPromise).resolves.toEqual({
+      success: false,
+      error: IDKitErrorCodes.Cancelled,
+    });
+
+    const req2 = createNativeRequest({ payload: 2 }, baseConfig);
+    expect(req2).not.toBe(req1);
+    activeRequest = req2;
   });
 });
