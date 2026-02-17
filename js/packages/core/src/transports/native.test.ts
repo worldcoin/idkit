@@ -17,9 +17,11 @@ describe("native transport request lifecycle", () => {
     activeRequest = null;
 
     (globalThis as any).window = {
-      addEventListener: vi.fn((type: string, handler: (e: MessageEvent) => void) => {
-        if (type === "message") listeners.push(handler);
-      }),
+      addEventListener: vi.fn(
+        (type: string, handler: (e: MessageEvent) => void) => {
+          if (type === "message") listeners.push(handler);
+        },
+      ),
       removeEventListener: vi.fn(
         (type: string, handler: (e: MessageEvent) => void) => {
           if (type !== "message") return;
