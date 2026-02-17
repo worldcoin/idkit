@@ -11,10 +11,12 @@ const baseConfig: BuilderConfig = {
 
 describe("native transport request lifecycle", () => {
   let listeners: Array<(event: MessageEvent) => void> = [];
+  let miniKitHandlers: Record<string, (payload: any) => void> = {};
   let activeRequest: any;
 
   beforeEach(() => {
     listeners = [];
+    miniKitHandlers = {};
     activeRequest = null;
 
     (globalThis as any).window = {
@@ -31,6 +33,14 @@ describe("native transport request lifecycle", () => {
       ),
       Android: {
         postMessage: vi.fn(),
+      },
+      MiniKit: {
+        subscribe: vi.fn((event: string, handler: (payload: any) => void) => {
+          miniKitHandlers[event] = handler;
+        }),
+        unsubscribe: vi.fn((event: string) => {
+          delete miniKitHandlers[event];
+        }),
       },
     };
   });
@@ -70,6 +80,33 @@ describe("native transport request lifecycle", () => {
 
     const completion = await completionPromise;
     expect(completion.success).toBe(true);
+  });
+
+  it("resolves from MiniKit event channel when postMessage is not used", async () => {
+    const req = createNativeRequest({ payload: 1 }, baseConfig);
+    activeRequest = req;
+
+    expect((window as any).MiniKit.subscribe).toHaveBeenCalledWith(
+      "miniapp-verify-action",
+      expect.any(Function),
+    );
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      protocol_version: "3.0",
+      verification_level: "orb",
+      proof: "0x01",
+      merkle_root: "0x02",
+      nullifier_hash: "0x03",
+    });
+
+    const completion = await completionPromise;
+    expect(completion.success).toBe(true);
+    expect((window as any).MiniKit.unsubscribe).toHaveBeenCalledWith(
+      "miniapp-verify-action",
+    );
   });
 
   it("allows creating a fresh request after timeout", async () => {
