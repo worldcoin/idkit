@@ -300,6 +300,22 @@ public func allOf(nodes: [ConstraintNode]) -> ConstraintNode {
     ConstraintNode.all(nodes: nodes)
 }
 
+public func enumerateOf(_ items: CredentialRequest...) -> ConstraintNode {
+    ConstraintNode.enumerate(nodes: items.map { ConstraintNode.item(request: $0) })
+}
+
+public func enumerateOf(_ items: [CredentialRequest]) -> ConstraintNode {
+    ConstraintNode.enumerate(nodes: items.map { ConstraintNode.item(request: $0) })
+}
+
+public func enumerateOf(nodes: ConstraintNode...) -> ConstraintNode {
+    ConstraintNode.enumerate(nodes: nodes)
+}
+
+public func enumerateOf(nodes: [ConstraintNode]) -> ConstraintNode {
+    ConstraintNode.enumerate(nodes: nodes)
+}
+
 public func orbLegacy(signal: String? = nil) -> Preset {
     .orbLegacy(signal: signal)
 }

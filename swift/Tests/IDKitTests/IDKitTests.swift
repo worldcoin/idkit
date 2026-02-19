@@ -224,3 +224,13 @@ func legacyPresetHelpers() {
         Issue.record("Expected documentLegacy preset")
     }
 }
+
+@Test("enumerateOf helper serializes canonical enumerate constraint")
+func enumerateConstraintHelperSerialization() throws {
+    let secureDocument = CredentialRequest.create(.secureDocument)
+    let document = CredentialRequest.create(.document)
+    let constraint = enumerateOf(secureDocument, document)
+
+    let json = try constraint.toJson()
+    #expect(json.contains("\"enumerate\""))
+}

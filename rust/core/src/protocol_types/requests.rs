@@ -73,7 +73,7 @@ pub struct ProofRequest {
     /// Specific credential requests
     #[serde(rename = "proof_requests")]
     pub requests: Vec<CredentialRequest>,
-    /// Constraint expression (all/any) optional
+    /// Constraint expression (all/any/enumerate) optional
     #[serde(skip_serializing_if = "Option::is_none")]
     pub constraints: Option<ConstraintExpr<'static>>,
     /// Whether to accept legacy (v3) proofs as fallback.

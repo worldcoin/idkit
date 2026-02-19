@@ -194,6 +194,28 @@ export function all(...nodes: ConstraintNode[]): { all: ConstraintNode[] } {
   return { all: nodes };
 }
 
+/**
+ * Creates an enumerate constraint - all satisfiable children should be selected
+ *
+ * `enumerate` is satisfied when at least one child is satisfied.
+ *
+ * @param nodes - Constraint nodes (CredentialRequests or nested constraints)
+ * @returns An "enumerate" constraint node
+ *
+ * @example
+ * ```typescript
+ * const constraint = enumerate(
+ *   CredentialRequest('secure_document'),
+ *   CredentialRequest('document'),
+ * )
+ * ```
+ */
+export function enumerate(
+  ...nodes: ConstraintNode[]
+): { enumerate: ConstraintNode[] } {
+  return { enumerate: nodes };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Preset helpers - re-export types from WASM, provide JS convenience functions
 // ─────────────────────────────────────────────────────────────────────────────
@@ -351,7 +373,7 @@ class IDKitBuilder {
   /**
    * Creates an IDKit request with the given constraints
    *
-   * @param constraints - Constraint tree (CredentialRequest or any/all combinators)
+   * @param constraints - Constraint tree (CredentialRequest or any/all/enumerate combinators)
    * @returns A new IDKitRequest instance
    *
    * @example
@@ -424,7 +446,7 @@ class IDKitBuilder {
  *
  * @example
  * ```typescript
- * import { IDKit, CredentialRequest, any, orbLegacy } from '@worldcoin/idkit-core'
+ * import { IDKit, CredentialRequest, any, enumerate, orbLegacy } from '@worldcoin/idkit-core'
  *
  * // With preset (legacy support)
  * const request = await IDKit.request({
@@ -440,7 +462,7 @@ class IDKitBuilder {
  *   action: 'my-action',
  *   rp_context: { ... },
  *   allow_legacy_proofs: false,
- * }).constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
+ * }).constraints(enumerate(CredentialRequest('orb'), CredentialRequest('face')));
  *
  * // In World App: connectorURI is empty, result comes via postMessage
  * // On web: connectorURI is the QR URL to display
@@ -590,7 +612,7 @@ function proveSession(
  *
  * @example
  * ```typescript
- * import { IDKit, CredentialRequest, any, orbLegacy } from '@worldcoin/idkit-core'
+ * import { IDKit, CredentialRequest, any, enumerate, orbLegacy } from '@worldcoin/idkit-core'
  *
  * // Create a verification request
  * const request = await IDKit.request({
@@ -619,6 +641,8 @@ export const IDKit = {
   any,
   /** Create an AND constraint - all children must be satisfied */
   all,
+  /** Create an enumerate constraint - all satisfiable children should be selected */
+  enumerate,
   /** Create an OrbLegacy preset for World ID 3.0 legacy support */
   orbLegacy,
   /** Create a SecureDocumentLegacy preset for World ID 3.0 legacy support */

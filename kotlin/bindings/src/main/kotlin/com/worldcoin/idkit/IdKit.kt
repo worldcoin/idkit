@@ -113,6 +113,35 @@ object IdKit {
         ConstraintNode.all(nodes)
 
     /**
+     * Build an enumerate constraint - all satisfiable children should be selected.
+     *
+     * Example:
+     * ```kotlin
+     * val constraint = IdKit.enumerateOf(secureDocument, document)
+     * ```
+     */
+    fun enumerateOf(vararg items: CredentialRequest): ConstraintNode =
+        ConstraintNode.enumerate(items.map { ConstraintNode.item(it) })
+
+    /**
+     * Build an enumerate constraint from a list of items.
+     */
+    fun enumerateOf(items: List<CredentialRequest>): ConstraintNode =
+        ConstraintNode.enumerate(items.map { ConstraintNode.item(it) })
+
+    /**
+     * Build an enumerate constraint from constraint nodes.
+     */
+    fun enumerateOfNodes(vararg nodes: ConstraintNode): ConstraintNode =
+        ConstraintNode.enumerate(nodes.toList())
+
+    /**
+     * Build an enumerate constraint from a list of constraint nodes.
+     */
+    fun enumerateOfNodes(nodes: List<ConstraintNode>): ConstraintNode =
+        ConstraintNode.enumerate(nodes)
+
+    /**
      * Create an RP context for request creation.
      *
      * In production, the rp_context should be generated and signed by your backend.
@@ -279,6 +308,17 @@ fun anyOf(vararg items: CredentialRequest): ConstraintNode =
  */
 fun allOf(vararg items: CredentialRequest): ConstraintNode =
     IdKit.allOf(*items)
+
+/**
+ * Build an enumerate constraint - all satisfiable children should be selected.
+ *
+ * Example:
+ * ```kotlin
+ * val constraint = enumerateOf(secureDocument, document)
+ * ```
+ */
+fun enumerateOf(vararg items: CredentialRequest): ConstraintNode =
+    IdKit.enumerateOf(*items)
 
 /**
  * Create an OrbLegacy preset for World ID 3.0 legacy support.

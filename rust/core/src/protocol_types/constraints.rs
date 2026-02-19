@@ -9,7 +9,7 @@ use std::borrow::Cow;
 /// Upper bound on total constraint AST nodes (expr + type nodes).
 pub const MAX_CONSTRAINT_NODES: usize = 12;
 
-/// Constraint expression tree: either a list of types/expressions under `all` or `any`.
+/// Constraint expression tree: either a list of types/expressions under `all`, `any`, or `enumerate`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[serde(untagged)]
@@ -23,6 +23,11 @@ pub enum ConstraintExpr<'a> {
     Any {
         /// Children nodes where any one must be satisfied
         any: Vec<ConstraintNode<'a>>,
+    },
+    /// All satisfiable children should be selected
+    Enumerate {
+        /// Children nodes to evaluate and collect if satisfiable
+        enumerate: Vec<ConstraintNode<'a>>,
     },
 }
 
@@ -46,6 +51,9 @@ impl ConstraintExpr<'_> {
         match self {
             ConstraintExpr::All { all } => all.iter().all(|n| n.evaluate(has_type)),
             ConstraintExpr::Any { any } => any.iter().any(|n| n.evaluate(has_type)),
+            ConstraintExpr::Enumerate { enumerate } => {
+                enumerate.iter().any(|n| n.evaluate(has_type))
+            }
         }
     }
 
@@ -62,6 +70,9 @@ impl ConstraintExpr<'_> {
                 }
                 ConstraintExpr::Any { any } => {
                     any.iter().all(|n| validate_node(n, depth, max_depth))
+                }
+                ConstraintExpr::Enumerate { enumerate } => {
+                    enumerate.iter().all(|n| validate_node(n, depth, max_depth))
                 }
             }
         }
@@ -93,6 +104,14 @@ impl ConstraintExpr<'_> {
                 }
                 ConstraintExpr::Any { any } => {
                     for n in any {
+                        if !count_node(n, count, max_nodes) {
+                            return false;
+                        }
+                    }
+                    true
+                }
+                ConstraintExpr::Enumerate { enumerate } => {
+                    for n in enumerate {
                         if !count_node(n, count, max_nodes) {
                             return false;
                         }
@@ -165,12 +184,12 @@ mod tests {
 
     #[test]
     fn test_nested_constraint() {
-        // all: [orb, any: [document, device]]
+        // all: [orb, enumerate: [document, device]]
         let expr = ConstraintExpr::All {
             all: vec![
                 ConstraintNode::Type("orb".into()),
-                ConstraintNode::Expr(ConstraintExpr::Any {
-                    any: vec![
+                ConstraintNode::Expr(ConstraintExpr::Enumerate {
+                    enumerate: vec![
                         ConstraintNode::Type("document".into()),
                         ConstraintNode::Type("device".into()),
                     ],
@@ -187,9 +206,24 @@ mod tests {
     }
 
     #[test]
+    fn test_enumerate_constraint() {
+        let expr = ConstraintExpr::Enumerate {
+            enumerate: vec![
+                ConstraintNode::Type("passport".into()),
+                ConstraintNode::Type("national_id".into()),
+            ],
+        };
+
+        // One present
+        assert!(expr.evaluate(&|t| t == "passport"));
+        // None present
+        assert!(!expr.evaluate(&|_| false));
+    }
+
+    #[test]
     fn test_json_roundtrip() {
-        let expr = ConstraintExpr::All {
-            all: vec![
+        let expr = ConstraintExpr::Enumerate {
+            enumerate: vec![
                 ConstraintNode::Type("orb".into()),
                 ConstraintNode::Expr(ConstraintExpr::Any {
                     any: vec![ConstraintNode::Type("document".into())],
