@@ -210,9 +210,9 @@ export function all(...nodes: ConstraintNode[]): { all: ConstraintNode[] } {
  * )
  * ```
  */
-export function enumerate(
-  ...nodes: ConstraintNode[]
-): { enumerate: ConstraintNode[] } {
+export function enumerate(...nodes: ConstraintNode[]): {
+  enumerate: ConstraintNode[];
+} {
   return { enumerate: nodes };
 }
 
