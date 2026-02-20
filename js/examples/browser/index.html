@@ -115,6 +115,40 @@
         background-color: #ef4444;
         color: white;
       }
+
+      .config-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .config-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .config-row > label {
+        min-width: 100px;
+        opacity: 0.7;
+        font-size: 14px;
+      }
+
+      .config-row input[type="text"],
+      .config-row select {
+        flex: 1;
+        font-family: monospace;
+        font-size: 14px;
+        padding: 6px 10px;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        background: var(--button-bg);
+        color: var(--text-color);
+      }
+
+      .config-row input[type="text"][readonly] {
+        opacity: 0.5;
+      }
     </style>
   </head>
   <body>
@@ -128,6 +162,28 @@
     <p>
       Minimal example showing World ID verification using @worldcoin/idkit-core
     </p>
+
+    <section class="config-panel">
+      <div class="config-row">
+        <label for="cfgAppId">App ID</label>
+        <input type="text" id="cfgAppId" readonly />
+      </div>
+      <div class="config-row">
+        <label for="cfgRpId">RP ID</label>
+        <input type="text" id="cfgRpId" readonly />
+      </div>
+      <div class="config-row">
+        <label for="cfgAction">Action</label>
+        <input type="text" id="cfgAction" value="test-action" />
+      </div>
+      <div class="config-row">
+        <label for="cfgEnv">Environment</label>
+        <select id="cfgEnv">
+          <option value="production">Production</option>
+          <option value="staging">Staging</option>
+        </select>
+      </div>
+    </section>
 
     <div>
       <button id="verifyOrb">Verify with Orb</button>
@@ -231,7 +287,21 @@
       // Replace with your actual app ID and RP ID from the World App dashboard
       const APP_ID = "app_982a2852d071269417befc64ab3981c2"; // Replace with your actual app ID
       const RP_ID = "rp_45a9b5d97996bb9a";
-      const ACTION = "test-action";
+
+      // Populate readonly config inputs
+      document.getElementById("cfgAppId").value = APP_ID;
+      document.getElementById("cfgRpId").value = RP_ID;
+
+      // Config helpers
+      function getAction() {
+        return (
+          document.getElementById("cfgAction").value.trim() || "test-action"
+        );
+      }
+
+      function getEnvironment() {
+        return document.getElementById("cfgEnv").value;
+      }
 
       // UI elements
       const qrDiv = document.getElementById("qr");
@@ -276,7 +346,7 @@
           statusText.textContent = "Fetching RP signature...";
 
           // Fetch RP signature from the backend
-          const rpSig = await fetchRpSignature(ACTION);
+          const rpSig = await fetchRpSignature(getAction());
           console.log("RP signature response:", rpSig);
           const rpContext = {
             rp_id: RP_ID,
@@ -292,10 +362,10 @@
           // Create a new request using the builder pattern
           const request = await IDKit.request({
             app_id: APP_ID,
-            action: ACTION,
+            action: getAction(),
             rp_context: rpContext,
             allow_legacy_proofs: true,
-            environment: "staging",
+            environment: getEnvironment(),
           }).preset(preset);
 
           // Get the connector URL from the request

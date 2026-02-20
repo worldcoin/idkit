@@ -7,9 +7,13 @@ import { WorldcoinIcon } from "../Icons/WorldIcon";
 
 type QRStateProps = {
   qrData: string | null;
+  showSimulatorCallout?: boolean;
 };
 
-export function QRState({ qrData }: QRStateProps): ReactElement {
+export function QRState({
+  qrData,
+  showSimulatorCallout,
+}: QRStateProps): ReactElement {
   const media = useMedia();
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -63,6 +67,18 @@ export function QRState({ qrData }: QRStateProps): ReactElement {
             )}
           </div>
         </div>
+        {showSimulatorCallout && qrData && (
+          <p className="idkit-simulator-callout">
+            Testing in staging?{" "}
+            <a
+              href={`http://localhost:3000?connect_url=${encodeURIComponent(qrData)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Use the simulator
+            </a>
+          </p>
+        )}
       </div>
     </>
   );

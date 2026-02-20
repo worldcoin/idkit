@@ -84,6 +84,7 @@ export function IDKitSessionWidget({
   }, [flow.isSuccess, autoClose, onOpenChange]);
 
   const stage = getVisualStage(flow.isSuccess, flow.isError);
+  const showSimulatorCallout = config.environment === "staging";
 
   return (
     <IDKitModal open={open} onOpenChange={onOpenChange}>
@@ -91,6 +92,7 @@ export function IDKitSessionWidget({
         <WorldIDState
           connectorURI={flow.connectorURI}
           isAwaitingUserConfirmation={flow.isAwaitingUserConfirmation}
+          showSimulatorCallout={showSimulatorCallout}
         />
       )}
       {stage === "success" && <SuccessState />}

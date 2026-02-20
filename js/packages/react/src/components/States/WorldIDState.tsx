@@ -8,11 +8,13 @@ import { QRState } from "./QRState";
 type WorldIDStateProps = {
   connectorURI: string | null;
   isAwaitingUserConfirmation: boolean;
+  showSimulatorCallout?: boolean;
 };
 
 export function WorldIDState({
   connectorURI,
   isAwaitingUserConfirmation,
+  showSimulatorCallout,
 }: WorldIDStateProps): ReactElement {
   const media = useMedia();
 
@@ -60,7 +62,10 @@ export function WorldIDState({
           className={`idkit-qr-blur ${isAwaitingUserConfirmation ? "blurred" : ""}`}
         >
           <div style={{ display: "flex", justifyContent: "center" }}>
-            <QRState qrData={connectorURI} />
+            <QRState
+              qrData={connectorURI}
+              showSimulatorCallout={showSimulatorCallout}
+            />
           </div>
         </div>
       </div>
