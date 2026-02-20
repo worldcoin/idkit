@@ -12,6 +12,7 @@ export {
   CredentialRequest,
   any,
   all,
+  enumerate,
   // Preset helpers
   orbLegacy,
   secureDocumentLegacy,

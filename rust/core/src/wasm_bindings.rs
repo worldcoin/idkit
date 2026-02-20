@@ -977,7 +977,8 @@ export interface CredentialRequestType {
 export type ConstraintNode =
     | CredentialRequestType
     | { any: ConstraintNode[] }
-    | { all: ConstraintNode[] };
+    | { all: ConstraintNode[] }
+    | { enumerate: ConstraintNode[] };
 
 /**
  * Hashes a Signal (string or Uint8Array) to a signal hash.

@@ -244,6 +244,20 @@ fun allOfNodes(vararg nodes: ConstraintNode): ConstraintNode =
 fun allOfNodes(nodes: List<ConstraintNode>): ConstraintNode =
     ConstraintNode.all(nodes)
 
+fun enumerateOf(vararg items: CredentialRequest): ConstraintNode =
+    enumerateOfNodes(items.map { ConstraintNode.item(it) })
+
+fun enumerateOf(items: List<CredentialRequest>): ConstraintNode =
+    enumerateOfNodes(items.map { ConstraintNode.item(it) })
+
+fun enumerateOfNodes(vararg nodes: ConstraintNode): ConstraintNode =
+    enumerateOfNodes(nodes.toList())
+
+fun enumerateOfNodes(nodes: List<ConstraintNode>): ConstraintNode {
+    val nodesJson = nodes.joinToString(separator = ",") { it.toJson() }
+    return ConstraintNode.fromJson("""{"enumerate":[${nodesJson}]}""")
+}
+
 fun orbLegacy(signal: String? = null): Preset = Preset.OrbLegacy(signal = signal)
 
 fun secureDocumentLegacy(signal: String? = null): Preset =
