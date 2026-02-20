@@ -56,9 +56,7 @@ declare -a TARGETS=(
 if [[ "${SKIP_ANDROID:-0}" == "1" ]]; then
   echo "⚠️  SKIP_ANDROID=1 set; skipping Android cross builds."
 else
-  if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
-    echo "⚠️  Docker unavailable; skipping Android cross builds. Set SKIP_ANDROID=1 to silence."
-  else
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
     if ! command -v cross >/dev/null 2>&1; then
       echo "⏳ Installing cross (for Android targets)"
       cargo install cross --git https://github.com/cross-rs/cross --locked
@@ -76,6 +74,18 @@ else
         docker system prune -f >/dev/null 2>&1 || true
       fi
     done
+  elif command -v cargo-ndk >/dev/null 2>&1; then
+    echo "⚠️  Docker unavailable; falling back to local cargo-ndk Android builds."
+    cargo ndk \
+      -t arm64-v8a \
+      -t armeabi-v7a \
+      -t x86 \
+      -t x86_64 \
+      -o "$JNI_DIR" \
+      --manifest-path "$PROJECT_ROOT/rust/core/Cargo.toml" \
+      build --release --features uniffi-bindings
+  else
+    echo "⚠️  Docker and cargo-ndk are unavailable; skipping Android cross builds. Set SKIP_ANDROID=1 to silence."
   fi
 fi
 

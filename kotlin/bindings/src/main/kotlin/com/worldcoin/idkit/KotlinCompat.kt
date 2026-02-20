@@ -5,14 +5,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import uniffi.idkit_core.IdKitRequestWrapper
 import uniffi.idkit_core.Signal
-import uniffi.idkit_core.StatusWrapper
-import uniffi.idkit_core.IdKitResult
-
-// Type aliases for public API consistency - UniFFI 0.30 generates IdKit* names
-typealias IDKitRequestWrapper = IdKitRequestWrapper
-typealias IDKitResult = IdKitResult
 
 val Signal.data: ByteArray
     get() = this.asBytes()
@@ -21,16 +14,16 @@ val Signal.string: String?
     get() = this.asString()
 
 // ─────────────────────────────────────────────────────────────────────────────
-// StatusWrapper Extensions
+// Canonical Status Extensions
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Flow-based status helper for IDKitRequestWrapper.
+ * Flow-based status helper for IDKitRequest.
  *
  * @param pollInterval How long to wait between polls.
  */
-fun IDKitRequestWrapper.statusFlow(pollInterval: Duration = 3.seconds): Flow<StatusWrapper> = flow {
-    var last: StatusWrapper? = null
+fun IDKitRequest.statusFlow(pollInterval: Duration = 3.seconds): Flow<IDKitStatus> = flow {
+    var last: IDKitStatus? = null
 
     while (true) {
         val current = pollStatusOnce()
@@ -40,10 +33,10 @@ fun IDKitRequestWrapper.statusFlow(pollInterval: Duration = 3.seconds): Flow<Sta
         }
 
         when (current) {
-            is StatusWrapper.Confirmed,
-            is StatusWrapper.Failed -> return@flow
-            StatusWrapper.AwaitingConfirmation,
-            StatusWrapper.WaitingForConnection -> {
+            is IDKitStatus.Confirmed,
+            is IDKitStatus.Failed -> return@flow
+            IDKitStatus.AwaitingConfirmation,
+            IDKitStatus.WaitingForConnection -> {
                 delay(pollInterval)
             }
         }
@@ -53,5 +46,5 @@ fun IDKitRequestWrapper.statusFlow(pollInterval: Duration = 3.seconds): Flow<Sta
 /**
  * Convenience accessor for the IDKitResult when status is Confirmed.
  */
-val StatusWrapper.Confirmed.idkitResult: IDKitResult
+val IDKitStatus.Confirmed.idkitResult: IDKitResult
     get() = this.result

@@ -1,40 +1,41 @@
 import SwiftUI
 import IDKit
 
+enum SampleEnvironment: String, CaseIterable, Identifiable {
+    case production
+    case staging
+
+    var id: String { rawValue }
+}
+
 struct ContentView: View {
     @StateObject private var model = SampleModel()
 
     var body: some View {
         NavigationView {
             Form {
-                Section("Backend") {
-                    TextField("RP signature endpoint", text: $model.signatureEndpoint)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)
-                    TextField("Verify proof endpoint", text: $model.verifyEndpoint)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)
-                }
-
                 Section("Request") {
                     TextField("App ID", text: $model.appId)
                         .textInputAutocapitalization(.never)
                         .disableAutocorrection(true)
+                        .disabled(true)
                     TextField("RP ID", text: $model.rpId)
                         .textInputAutocapitalization(.never)
                         .disableAutocorrection(true)
+                        .disabled(true)
                     TextField("Action", text: $model.action)
                         .textInputAutocapitalization(.never)
                         .disableAutocorrection(true)
                     TextField("Signal", text: $model.signal)
                         .textInputAutocapitalization(.never)
                         .disableAutocorrection(true)
-                    TextField("Return to URL", text: $model.returnToURL)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)
+
+                    Picker("Environment", selection: $model.environment) {
+                        ForEach(SampleEnvironment.allCases) { env in
+                            Text(env.rawValue).tag(env)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                 }
 
                 Section {
@@ -79,22 +80,24 @@ struct ContentView: View {
 
 @MainActor
 final class SampleModel: ObservableObject {
-    // **Note**: Update this to an ngrok/hosted backend server
-    // For an example backend implementation, see: js/examples/browser/src/server.ts
-    @Published var signatureEndpoint = "http://localhost:3000/api/rp-signature"
-    @Published var verifyEndpoint = "http://localhost:3000/api/verify-proof"
     @Published var appId = "app_982a2852d071269417befc64ab3981c2"
     @Published var rpId = "rp_45a9b5d97996bb9a"
     @Published var action = "test-action"
     @Published var signal = "signal"
-    @Published var returnToURL = "idkitsample://callback" // Deeplink to redirect back to your app
+    @Published var environment: SampleEnvironment = .production
     @Published var connectorURL: URL?
     @Published var logs = ""
     @Published var isLoading = false
 
+    private let signatureEndpoint = "https://tfh-takis.ngrok.dev/api/rp-signature"
+    private let verifyEndpoint = "https://tfh-takis.ngrok.dev/api/verify-proof"
+    private let returnToURL = "idkitsample://callback"
+
     private let session = URLSession.shared
     private var pendingRequest: IDKitRequest?
     private var completionTask: Task<Void, Never>?
+    private var pollingRequestID: UUID?
+    private var deepLinkReceivedForPendingRequest = false
 
     func generateRequestURL() async {
         isLoading = true
@@ -120,22 +123,26 @@ final class SampleModel: ObservableObject {
                 bridgeUrl: nil,
                 allowLegacyProofs: false,
                 overrideConnectBaseUrl: nil,
-                // Use production to use with World App
-                // or staging to use with simulator.world.org
-                environment: .production
+                environment: {
+                    switch environment {
+                    case .production: return .production
+                    case .staging: return .staging
+                    }
+                }()
             )
 
             let request = try IDKit.request(config: config).preset(orbLegacy(signal: signal))
+
+            completionTask?.cancel()
             let connectorURLWithReturnTo = try addReturnTo(to: request.connectorURL)
             connectorURL = connectorURLWithReturnTo
             pendingRequest = request
+            deepLinkReceivedForPendingRequest = false
 
-            // Explicitly print to console so local Xcode runs can quickly validate setup.
             print("IDKit connector URL: \(connectorURLWithReturnTo.absoluteString)")
             log("Generated request ID: \(request.requestID.uuidString)")
             log("Added return_to callback: \(returnToURL)")
-            log("Waiting for deep link callback before polling for completion.")
-            log("Connector URL printed to Xcode console.")
+            startPollingForRequest(request: request, reason: "request generation")
         } catch {
             log("Error: \(error.localizedDescription)")
         }
@@ -145,9 +152,103 @@ final class SampleModel: ObservableObject {
         print("IDKit deep link callback: \(url.absoluteString)")
         log("Received deep link callback: \(url.absoluteString)")
 
+        guard let request = pendingRequest else {
+            log("No pending request found. Generate a connector URL first.")
+            return
+        }
+
+        deepLinkReceivedForPendingRequest = true
+
+        if pollingRequestID == request.requestID {
+            log("Polling already running for request \(request.requestID.uuidString).")
+            return
+        }
+
+        startPollingForRequest(request: request, reason: "deep link callback")
+    }
+
+    private func startPollingForRequest(request: IDKitRequest, reason: String) {
+        if pollingRequestID == request.requestID {
+            return
+        }
+
         completionTask?.cancel()
-        completionTask = Task { [weak self] in
-            await self?.pollAndVerifyPendingRequest()
+        pollingRequestID = request.requestID
+        log("Started polling for request \(request.requestID.uuidString) (trigger: \(reason)).")
+
+        completionTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if pollingRequestID == request.requestID {
+                    pollingRequestID = nil
+                }
+            }
+
+            let pollIntervalNs: UInt64 = 2_000_000_000
+            let timeoutNs: UInt64 = 180_000_000_000
+            let startedAt = DispatchTime.now().uptimeNanoseconds
+
+            do {
+                while true {
+                    if Task.isCancelled {
+                        return
+                    }
+
+                    if pollingRequestID != request.requestID {
+                        return
+                    }
+
+                    let elapsedNs = DispatchTime.now().uptimeNanoseconds - startedAt
+                    if elapsedNs >= timeoutNs {
+                        log("Proof completion failed: timeout")
+                        return
+                    }
+
+                    let status = await request.pollStatusOnce()
+
+                    switch status {
+                    case .confirmed(let result):
+                        if pollingRequestID != request.requestID {
+                            return
+                        }
+
+                        pendingRequest = nil
+                        deepLinkReceivedForPendingRequest = false
+
+                        do {
+                            log("Proof confirmed. Calling verify endpoint: \(verifyEndpoint)")
+                            let verifyResponse = try await verifyProof(result: result)
+                            print("IDKit verify result: \(verifyResponse)")
+                            log("Verify response: \(verifyResponse)")
+                        } catch {
+                            log("Verify request failed: \(error.localizedDescription)")
+                        }
+                        return
+
+                    case .failed(let error):
+                        let shouldRetryConnectionFailure =
+                            error == .connectionFailed &&
+                            !deepLinkReceivedForPendingRequest &&
+                            pendingRequest?.requestID == request.requestID
+
+                        if shouldRetryConnectionFailure {
+                            log("Bridge not ready yet (connection_failed). Retrying...")
+                            try await Task.sleep(nanoseconds: pollIntervalNs)
+                            continue
+                        }
+
+                        log("Proof completion failed: \(error.rawValue)")
+                        return
+
+                    case .awaitingConfirmation, .waitingForConnection:
+                        try await Task.sleep(nanoseconds: pollIntervalNs)
+                    }
+                }
+            } catch {
+                if pollingRequestID == request.requestID, !Task.isCancelled {
+                    log("Polling error: \(error.localizedDescription)")
+                }
+            }
         }
     }
 
@@ -169,38 +270,6 @@ final class SampleModel: ObservableObject {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return try decoder.decode(SignaturePayload.self, from: data)
-    }
-
-    private func log(_ message: String) {
-        let timestamp = ISO8601DateFormatter().string(from: Date())
-        logs += "[\(timestamp)] \(message)\n"
-    }
-
-    private func pollAndVerifyPendingRequest() async {
-        guard let request = pendingRequest else {
-            log("No pending request found. Generate a connector URL first.")
-            return
-        }
-
-        log("Polling for completion...")
-        let completion = await request.pollUntilCompletion(
-            options: .init(pollIntervalMs: 2_000, timeoutMs: 180_000)
-        )
-
-        switch completion {
-        case .success(let result):
-            do {
-                log("Proof confirmed. Calling verify endpoint: \(verifyEndpoint)")
-                let verifyResponse = try await verifyProof(result: result)
-                print("IDKit verify result: \(verifyResponse)")
-                log("Verify response: \(verifyResponse)")
-            } catch {
-                log("Verify request failed: \(error.localizedDescription)")
-            }
-
-        case .failure(let error):
-            log("Proof completion failed: \(error.rawValue)")
-        }
     }
 
     private func verifyProof(result: IDKitResult) async throws -> String {
@@ -269,6 +338,11 @@ final class SampleModel: ObservableObject {
         }
 
         return finalURL
+    }
+
+    private func log(_ message: String) {
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        logs += "[\(timestamp)] \(message)\n"
     }
 }
 

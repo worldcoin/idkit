@@ -301,19 +301,24 @@ public func allOf(nodes: [ConstraintNode]) -> ConstraintNode {
 }
 
 public func enumerateOf(_ items: CredentialRequest...) -> ConstraintNode {
-    ConstraintNode.enumerate(nodes: items.map { ConstraintNode.item(request: $0) })
+    enumerateOf(nodes: items.map { ConstraintNode.item(request: $0) })
 }
 
 public func enumerateOf(_ items: [CredentialRequest]) -> ConstraintNode {
-    ConstraintNode.enumerate(nodes: items.map { ConstraintNode.item(request: $0) })
+    enumerateOf(nodes: items.map { ConstraintNode.item(request: $0) })
 }
 
 public func enumerateOf(nodes: ConstraintNode...) -> ConstraintNode {
-    ConstraintNode.enumerate(nodes: nodes)
+    enumerateOf(nodes: nodes)
 }
 
 public func enumerateOf(nodes: [ConstraintNode]) -> ConstraintNode {
-    ConstraintNode.enumerate(nodes: nodes)
+    do {
+        let nodesJson = try nodes.map { try $0.toJson() }.joined(separator: ",")
+        return try ConstraintNode.fromJson(json: #"{"enumerate":[\#(nodesJson)]}"#)
+    } catch {
+        preconditionFailure("Failed to build enumerate constraint: \(error)")
+    }
 }
 
 public func orbLegacy(signal: String? = nil) -> Preset {
