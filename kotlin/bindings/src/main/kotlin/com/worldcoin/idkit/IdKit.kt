@@ -1,341 +1,258 @@
 package com.worldcoin.idkit
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlin.coroutines.coroutineContext
+import uniffi.idkit_core.AppError
 import uniffi.idkit_core.ConstraintNode
 import uniffi.idkit_core.CredentialRequest
-import uniffi.idkit_core.RpContext
-import uniffi.idkit_core.Signal
 import uniffi.idkit_core.CredentialType
 import uniffi.idkit_core.IdKitBuilder
 import uniffi.idkit_core.IdKitRequestConfig
-import uniffi.idkit_core.request
+import uniffi.idkit_core.IdKitRequestWrapper
+import uniffi.idkit_core.IdKitResult
+import uniffi.idkit_core.IdKitSessionConfig
 import uniffi.idkit_core.Preset
-import uniffi.idkit_core.Environment
+import uniffi.idkit_core.Signal
+import uniffi.idkit_core.StatusWrapper
+import uniffi.idkit_core.createSession as nativeCreateSession
+import uniffi.idkit_core.credentialToString
+import uniffi.idkit_core.hashSignalFfi
+import uniffi.idkit_core.idkitResultFromJson as nativeIdkitResultFromJson
+import uniffi.idkit_core.idkitResultToJson as nativeIdkitResultToJson
+import uniffi.idkit_core.proveSession as nativeProveSession
+import uniffi.idkit_core.request as nativeRequest
 
-// Type aliases for public API consistency - UniFFI 0.30 generates IdKit* names
-typealias IDKitRequestBuilder = IdKitBuilder
 typealias IDKitRequestConfig = IdKitRequestConfig
+typealias IDKitSessionConfig = IdKitSessionConfig
+typealias IDKitResult = IdKitResult
 
-/**
- * Lightweight Kotlin conveniences mirroring the Swift helpers and adding
- * simple factories for common flows.
- *
- * These wrap the UniFFI-generated types but keep everything in Kotlin land.
- */
-object IdKit {
-    /**
-     * Create a CredentialRequest from a credential type and optional signal string.
-     *
-     * Example:
-     * ```kotlin
-     * val orb = IdKit.credentialRequest(CredentialType.ORB, signal = "user-123")
-     * val face = IdKit.credentialRequest(CredentialType.FACE)
-     * ```
-     */
-    fun credentialRequest(
-        credentialType: CredentialType,
-        signal: String? = null,
-    ): CredentialRequest = CredentialRequest(credentialType, signal?.let { Signal.fromString(it) })
+class IDKitClientError(message: String) : IllegalArgumentException(message)
 
-    /**
-     * Create a CredentialRequest from raw signal bytes.
-     */
-    fun credentialRequestBytes(
-        credentialType: CredentialType,
-        signalBytes: ByteArray,
-    ): CredentialRequest = CredentialRequest(credentialType, Signal.fromBytes(signalBytes))
+enum class IDKitErrorCode(val rawValue: String) {
+    USER_REJECTED("user_rejected"),
+    VERIFICATION_REJECTED("verification_rejected"),
+    CREDENTIAL_UNAVAILABLE("credential_unavailable"),
+    MALFORMED_REQUEST("malformed_request"),
+    INVALID_NETWORK("invalid_network"),
+    INCLUSION_PROOF_PENDING("inclusion_proof_pending"),
+    INCLUSION_PROOF_FAILED("inclusion_proof_failed"),
+    UNEXPECTED_RESPONSE("unexpected_response"),
+    CONNECTION_FAILED("connection_failed"),
+    MAX_VERIFICATIONS_REACHED("max_verifications_reached"),
+    FAILED_BY_HOST_APP("failed_by_host_app"),
+    GENERIC_ERROR("generic_error"),
+    TIMEOUT("timeout"),
+    CANCELLED("cancelled");
 
-    /**
-     * Build an OR constraint - at least one item must be satisfied.
-     *
-     * Example:
-     * ```kotlin
-     * val constraint = IdKit.anyOf(orb, face)
-     * ```
-     */
-    fun anyOf(vararg items: CredentialRequest): ConstraintNode =
-        ConstraintNode.any(items.map { ConstraintNode.item(it) })
-
-    /**
-     * Build an OR constraint from a list of items.
-     */
-    fun anyOf(items: List<CredentialRequest>): ConstraintNode =
-        ConstraintNode.any(items.map { ConstraintNode.item(it) })
-
-    /**
-     * Build an OR constraint from constraint nodes.
-     *
-     * Example:
-     * ```kotlin
-     * val constraint = IdKit.anyOfNodes(orbNode, anyOf(document, secureDocument))
-     * ```
-     */
-    fun anyOfNodes(vararg nodes: ConstraintNode): ConstraintNode =
-        ConstraintNode.any(nodes.toList())
-
-    /**
-     * Build an OR constraint from a list of constraint nodes.
-     */
-    fun anyOfNodes(nodes: List<ConstraintNode>): ConstraintNode =
-        ConstraintNode.any(nodes)
-
-    /**
-     * Build an AND constraint - all items must be satisfied.
-     *
-     * Example:
-     * ```kotlin
-     * val constraint = IdKit.allOf(orb, document)
-     * ```
-     */
-    fun allOf(vararg items: CredentialRequest): ConstraintNode =
-        ConstraintNode.all(items.map { ConstraintNode.item(it) })
-
-    /**
-     * Build an AND constraint from a list of items.
-     */
-    fun allOf(items: List<CredentialRequest>): ConstraintNode =
-        ConstraintNode.all(items.map { ConstraintNode.item(it) })
-
-    /**
-     * Build an AND constraint from constraint nodes.
-     *
-     * Example:
-     * ```kotlin
-     * val constraint = IdKit.allOfNodes(orbNode, anyOf(document, secureDocument))
-     * ```
-     */
-    fun allOfNodes(vararg nodes: ConstraintNode): ConstraintNode =
-        ConstraintNode.all(nodes.toList())
-
-    /**
-     * Build an AND constraint from a list of constraint nodes.
-     */
-    fun allOfNodes(nodes: List<ConstraintNode>): ConstraintNode =
-        ConstraintNode.all(nodes)
-
-    /**
-     * Create an RP context for request creation.
-     *
-     * In production, the rp_context should be generated and signed by your backend.
-     *
-     * @param rpId The registered RP ID (e.g., "rp_123456789abcdef0")
-     * @param nonce Unique nonce for this proof request
-     * @param createdAt Unix timestamp (seconds since epoch) when created
-     * @param expiresAt Unix timestamp (seconds since epoch) when expires
-     * @param signature The RP's ECDSA signature of the nonce and created_at timestamp
-     */
-    fun rpContext(
-        rpId: String,
-        nonce: String,
-        createdAt: ULong,
-        expiresAt: ULong,
-        signature: String,
-    ): RpContext = RpContext(rpId, nonce, createdAt, expiresAt, signature)
-
-    /**
-     * Create an IDKitRequestConfig for building verification requests.
-     *
-     * @param appId Application ID from the Developer Portal
-     * @param action Action identifier
-     * @param rpContext RP context for protocol-level proof requests (required)
-     * @param actionDescription Optional action description shown to users
-     * @param bridgeUrl Optional custom bridge URL
-     */
-    fun requestConfig(
-        appId: String,
-        action: String,
-        rpContext: RpContext,
-        actionDescription: String? = null,
-        bridgeUrl: String? = null,
-        allowLegacyProofs: Boolean = false,
-        overrideConnectBaseUrl: String? = null,
-        environment: Environment? = null,
-    ): IDKitRequestConfig = IDKitRequestConfig(
-        appId = appId,
-        action = action,
-        rpContext = rpContext,
-        actionDescription = actionDescription,
-        bridgeUrl = bridgeUrl,
-        allowLegacyProofs = allowLegacyProofs,
-        overrideConnectBaseUrl = overrideConnectBaseUrl,
-        environment = environment,
-    )
-
-    /**
-     * Create an IDKit request builder.
-     *
-     * This is the main entry point for creating World ID verification requests.
-     * Use the builder pattern with constraints to specify which credentials to accept.
-     *
-     * @param config Request configuration
-     * @return An IDKitRequestBuilder instance
-     *
-     * Example:
-     * ```kotlin
-     * val idkitRequest = IdKit.request(config).constraints(anyOf(orb, face))
-     * val connectUrl = idkitRequest.connectUrl()
-     * val status = idkitRequest.pollStatus(pollIntervalMs = 2000u, timeoutMs = 300000u)
-     * ```
-     */
-    fun request(config: IDKitRequestConfig): IDKitRequestBuilder =
-        uniffi.idkit_core.request(config)
-
-    /**
-     * Create an OrbLegacy preset for World ID 3.0 legacy support.
-     *
-     * This preset creates a request compatible with both World ID 4.0 and 3.0 protocols.
-     * Use this when you need backward compatibility with older World App versions.
-     *
-     * @param signal Optional signal string
-     * @return An OrbLegacy preset
-     *
-     * Example:
-     * ```kotlin
-     * val request = IdKit.request(config).preset(orbLegacy(signal = "user-123"))
-     * ```
-     */
-    fun orbLegacy(signal: String? = null): Preset =
-        Preset.OrbLegacy(signal = signal)
-
-    /**
-     * Create a SecureDocumentLegacy preset for World ID 3.0 legacy support.
-     *
-     * This preset creates a request compatible with both World ID 4.0 and 3.0 protocols.
-     * Use this when you need backward compatibility with older World App versions.
-     *
-     * @param signal Optional signal string
-     * @return A SecureDocumentLegacy preset
-     *
-     * Example:
-     * ```kotlin
-     * val request = IdKit.request(config).preset(secureDocumentLegacy(signal = "user-123"))
-     * ```
-     */
-    fun secureDocumentLegacy(signal: String? = null): Preset =
-        Preset.SecureDocumentLegacy(signal = signal)
-
-    /**
-     * Create a DocumentLegacy preset for World ID 3.0 legacy support.
-     *
-     * This preset creates a request compatible with both World ID 4.0 and 3.0 protocols.
-     * Use this when you need backward compatibility with older World App versions.
-     *
-     * @param signal Optional signal string
-     * @return A DocumentLegacy preset
-     *
-     * Example:
-     * ```kotlin
-     * val request = IdKit.request(config).preset(documentLegacy(signal = "user-123"))
-     * ```
-     */
-    fun documentLegacy(signal: String? = null): Preset =
-        Preset.DocumentLegacy(signal = signal)
-
-    /**
-     * Hash a Signal to its hash representation.
-     * This is the same hashing used internally when constructing proof requests.
-     * Returns a 0x-prefixed hex string.
-     */
-    fun hashSignal(signal: Signal): String = uniffi.idkit_core.hashSignalFfi(signal)
+    internal companion object {
+        fun from(error: AppError): IDKitErrorCode = when (error) {
+            AppError.USER_REJECTED -> USER_REJECTED
+            AppError.VERIFICATION_REJECTED -> VERIFICATION_REJECTED
+            AppError.CREDENTIAL_UNAVAILABLE -> CREDENTIAL_UNAVAILABLE
+            AppError.MALFORMED_REQUEST -> MALFORMED_REQUEST
+            AppError.INVALID_NETWORK -> INVALID_NETWORK
+            AppError.INCLUSION_PROOF_PENDING -> INCLUSION_PROOF_PENDING
+            AppError.INCLUSION_PROOF_FAILED -> INCLUSION_PROOF_FAILED
+            AppError.UNEXPECTED_RESPONSE -> UNEXPECTED_RESPONSE
+            AppError.CONNECTION_FAILED -> CONNECTION_FAILED
+            AppError.MAX_VERIFICATIONS_REACHED -> MAX_VERIFICATIONS_REACHED
+            AppError.FAILED_BY_HOST_APP -> FAILED_BY_HOST_APP
+            AppError.GENERIC_ERROR -> GENERIC_ERROR
+        }
+    }
 }
 
-// Top-level convenience functions for more idiomatic Kotlin usage
+sealed interface IDKitStatus {
+    data object WaitingForConnection : IDKitStatus
+    data object AwaitingConfirmation : IDKitStatus
+    data class Confirmed(val result: IDKitResult) : IDKitStatus
+    data class Failed(val error: IDKitErrorCode) : IDKitStatus
+}
 
-/**
- * Create a CredentialRequest for a credential type.
- *
- * Example:
- * ```kotlin
- * val orb = CredentialRequest(CredentialType.ORB, signal = "user-123")
- * val face = CredentialRequest(CredentialType.FACE)
- * ```
- */
+sealed interface IDKitCompletionResult {
+    data class Success(val result: IDKitResult) : IDKitCompletionResult
+    data class Failure(val error: IDKitErrorCode) : IDKitCompletionResult
+}
+
+data class IDKitPollOptions(
+    val pollIntervalMs: ULong = 1_000u,
+    val timeoutMs: ULong = 300_000u,
+)
+
+data class CredentialRequestOptions(
+    val signal: String? = null,
+    val genesisIssuedAtMin: ULong? = null,
+    val expiresAtMin: ULong? = null,
+)
+
+class IDKitBuilder internal constructor(
+    private val inner: IdKitBuilder,
+) {
+    fun constraints(constraints: ConstraintNode): IDKitRequest =
+        IDKitRequest(inner.constraints(constraints))
+
+    fun preset(preset: Preset): IDKitRequest =
+        IDKitRequest(inner.preset(preset))
+}
+
+class IDKitRequest internal constructor(
+    private val connectorUriValue: String,
+    private val requestIdValue: String,
+    private val pollStatusProvider: suspend () -> IDKitStatus,
+) {
+    internal constructor(inner: IdKitRequestWrapper) : this(
+        connectorUriValue = inner.connectUrl(),
+        requestIdValue = inner.requestId(),
+        pollStatusProvider = { mapStatus(inner.pollStatusOnce()) },
+    )
+
+    val connectorURI: String
+        get() = connectorUriValue
+
+    val requestId: String
+        get() = requestIdValue
+
+    suspend fun pollStatusOnce(): IDKitStatus = pollStatusProvider()
+
+    suspend fun pollUntilCompletion(
+        options: IDKitPollOptions = IDKitPollOptions(),
+    ): IDKitCompletionResult {
+        val pollIntervalMs = options.pollIntervalMs.coerceAtLeast(1u)
+        val startedAt = System.currentTimeMillis()
+
+        try {
+            while (true) {
+                coroutineContext.ensureActive()
+
+                if (System.currentTimeMillis() - startedAt >= options.timeoutMs.toLong()) {
+                    return IDKitCompletionResult.Failure(IDKitErrorCode.TIMEOUT)
+                }
+
+                when (val status = pollStatusOnce()) {
+                    is IDKitStatus.Confirmed -> return IDKitCompletionResult.Success(status.result)
+                    is IDKitStatus.Failed -> return IDKitCompletionResult.Failure(status.error)
+                    IDKitStatus.AwaitingConfirmation,
+                    IDKitStatus.WaitingForConnection -> delay(pollIntervalMs.toLong())
+                }
+            }
+        } catch (_: CancellationException) {
+            return IDKitCompletionResult.Failure(IDKitErrorCode.CANCELLED)
+        }
+    }
+
+    internal companion object {
+        internal fun forTesting(
+            connectorURI: String,
+            requestId: String,
+            pollStatusProvider: suspend () -> IDKitStatus,
+        ): IDKitRequest = IDKitRequest(connectorURI, requestId, pollStatusProvider)
+
+        internal fun mapStatus(status: StatusWrapper): IDKitStatus = when (status) {
+            StatusWrapper.WaitingForConnection -> IDKitStatus.WaitingForConnection
+            StatusWrapper.AwaitingConfirmation -> IDKitStatus.AwaitingConfirmation
+            is StatusWrapper.Confirmed -> IDKitStatus.Confirmed(status.result)
+            is StatusWrapper.Failed -> IDKitStatus.Failed(IDKitErrorCode.from(status.error))
+        }
+    }
+}
+
+object IDKit {
+    const val version: String = "4.0.0"
+
+    fun request(config: IDKitRequestConfig): IDKitBuilder {
+        require(config.appId.isNotBlank()) { "app_id is required" }
+        require(config.action.isNotBlank()) { "action is required" }
+        return IDKitBuilder(nativeRequest(config))
+    }
+
+    fun createSession(config: IDKitSessionConfig): IDKitBuilder {
+        require(config.appId.isNotBlank()) { "app_id is required" }
+        return IDKitBuilder(nativeCreateSession(config))
+    }
+
+    fun proveSession(sessionId: String, config: IDKitSessionConfig): IDKitBuilder {
+        require(sessionId.isNotBlank()) { "session_id is required" }
+        require(config.appId.isNotBlank()) { "app_id is required" }
+        return IDKitBuilder(nativeProveSession(sessionId, config))
+    }
+
+    fun hashSignal(signal: String): String = hashSignalFfi(Signal.fromString(signal))
+
+    fun hashSignal(signal: ByteArray): String = hashSignalFfi(Signal.fromBytes(signal))
+}
+
+private fun credentialRequestFromOptions(
+    type: CredentialType,
+    options: CredentialRequestOptions,
+): CredentialRequest {
+    val payload = buildJsonObject {
+        put("type", JsonPrimitive(credentialToString(type)))
+        options.signal?.let { put("signal", JsonPrimitive(it)) }
+        options.genesisIssuedAtMin?.let { put("genesis_issued_at_min", JsonPrimitive(it.toLong())) }
+        options.expiresAtMin?.let { put("expires_at_min", JsonPrimitive(it.toLong())) }
+    }
+    return CredentialRequest.fromJson(payload.toString())
+}
+
 fun CredentialRequest(type: CredentialType, signal: String? = null): CredentialRequest =
-    IdKit.credentialRequest(type, signal)
+    CredentialRequest.withStringSignal(type, signal)
 
-/**
- * Create a CredentialRequest for a credential type from ABI-encoded signal bytes.
- */
 fun CredentialRequest(type: CredentialType, abiEncodedSignal: ByteArray): CredentialRequest =
-    IdKit.credentialRequestBytes(type, abiEncodedSignal)
+    CredentialRequest(type, Signal.fromBytes(abiEncodedSignal))
 
-/**
- * Build an OR constraint - at least one item must be satisfied.
- *
- * Example:
- * ```kotlin
- * val constraint = anyOf(orb, face)
- * ```
- */
+fun CredentialRequest(type: CredentialType, options: CredentialRequestOptions): CredentialRequest {
+    if (options.genesisIssuedAtMin == null && options.expiresAtMin == null) {
+        return CredentialRequest.withStringSignal(type, options.signal)
+    }
+
+    if (options.expiresAtMin == null) {
+        return CredentialRequest.withGenesisMin(type, options.signal?.let { Signal.fromString(it) }, options.genesisIssuedAtMin!!)
+    }
+
+    if (options.genesisIssuedAtMin == null) {
+        return CredentialRequest.withExpiresAtMin(type, options.signal?.let { Signal.fromString(it) }, options.expiresAtMin)
+    }
+
+    return credentialRequestFromOptions(type, options)
+}
+
 fun anyOf(vararg items: CredentialRequest): ConstraintNode =
-    IdKit.anyOf(*items)
+    ConstraintNode.any(items.map { ConstraintNode.item(it) })
 
-/**
- * Build an AND constraint - all items must be satisfied.
- *
- * Example:
- * ```kotlin
- * val constraint = allOf(orb, document)
- * ```
- */
+fun anyOf(items: List<CredentialRequest>): ConstraintNode =
+    ConstraintNode.any(items.map { ConstraintNode.item(it) })
+
+fun anyOfNodes(vararg nodes: ConstraintNode): ConstraintNode =
+    ConstraintNode.any(nodes.toList())
+
+fun anyOfNodes(nodes: List<ConstraintNode>): ConstraintNode =
+    ConstraintNode.any(nodes)
+
 fun allOf(vararg items: CredentialRequest): ConstraintNode =
-    IdKit.allOf(*items)
+    ConstraintNode.all(items.map { ConstraintNode.item(it) })
 
-/**
- * Create an OrbLegacy preset for World ID 3.0 legacy support.
- *
- * Example:
- * ```kotlin
- * val request = IdKit.request(config).preset(orbLegacy(signal = "user-123"))
- * ```
- */
-fun orbLegacy(signal: String? = null): Preset =
-    IdKit.orbLegacy(signal)
+fun allOf(items: List<CredentialRequest>): ConstraintNode =
+    ConstraintNode.all(items.map { ConstraintNode.item(it) })
 
-/**
- * Create a SecureDocumentLegacy preset for World ID 3.0 legacy support.
- *
- * Example:
- * ```kotlin
- * val request = IdKit.request(config).preset(secureDocumentLegacy(signal = "user-123"))
- * ```
- */
+fun allOfNodes(vararg nodes: ConstraintNode): ConstraintNode =
+    ConstraintNode.all(nodes.toList())
+
+fun allOfNodes(nodes: List<ConstraintNode>): ConstraintNode =
+    ConstraintNode.all(nodes)
+
+fun orbLegacy(signal: String? = null): Preset = Preset.OrbLegacy(signal = signal)
+
 fun secureDocumentLegacy(signal: String? = null): Preset =
-    IdKit.secureDocumentLegacy(signal)
+    Preset.SecureDocumentLegacy(signal = signal)
 
-/**
- * Create a DocumentLegacy preset for World ID 3.0 legacy support.
- *
- * Example:
- * ```kotlin
- * val request = IdKit.request(config).preset(documentLegacy(signal = "user-123"))
- * ```
- */
-fun documentLegacy(signal: String? = null): Preset =
-    IdKit.documentLegacy(signal)
+fun documentLegacy(signal: String? = null): Preset = Preset.DocumentLegacy(signal = signal)
 
+fun idkitResultToJson(result: IDKitResult): String = nativeIdkitResultToJson(result)
 
-/**
- * Hash a Signal to its hash representation.
- * This is the same hashing used internally when constructing proof requests.
- * Returns a 0x-prefixed hex string.
- */
-fun hashSignal(signal: Signal): String = IdKit.hashSignal(signal)
+fun idkitResultFromJson(json: String): IDKitResult = nativeIdkitResultFromJson(json)
 
-// Usage example - Explicit constraints:
-//
-// val orb = CredentialRequest(CredentialType.ORB, signal = "user-123")
-// val face = CredentialRequest(CredentialType.FACE)
-//
-// val config = IdKit.requestConfig(
-//     appId = "app_staging_xxxxx",
-//     action = "my-action",
-//     rpContext = rpContext,
-// )
-//
-// val request = IdKit.request(config).constraints(anyOf(orb, face))
-// val connectUrl = request.connectUrl()
-// val status = request.pollStatus(pollIntervalMs = 2000u, timeoutMs = 300000u)
-//
-// Usage example - Preset (World ID 3.0 legacy support):
-//
-// val request = IdKit.request(config).preset(orbLegacy(signal = "user-123"))
+fun hashSignal(signal: Signal): String = hashSignalFfi(signal)

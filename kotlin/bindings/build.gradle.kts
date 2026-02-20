@@ -22,6 +22,7 @@ java {
 dependencies {
     implementation("net.java.dev.jna:jna:5.14.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
     implementation(kotlin("stdlib"))
     testImplementation(kotlin("test"))
 }
