@@ -24,6 +24,7 @@ export {
   CredentialRequest,
   any,
   all,
+  enumerate,
   orbLegacy,
   documentLegacy,
   secureDocumentLegacy,

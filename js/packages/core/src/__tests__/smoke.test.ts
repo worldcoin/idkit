@@ -8,6 +8,7 @@ import {
   IDKit,
   CredentialRequest,
   any,
+  enumerate,
   orbLegacy,
   isNode,
   IDKitErrorCodes,
@@ -31,6 +32,7 @@ describe("IDKitRequest API", () => {
   it("should export CredentialRequest and constraint helpers", () => {
     expect(typeof CredentialRequest).toBe("function");
     expect(typeof any).toBe("function");
+    expect(typeof enumerate).toBe("function");
     expect(typeof orbLegacy).toBe("function");
   });
 
@@ -46,6 +48,14 @@ describe("IDKitRequest API", () => {
     const constraint = any(orb, face);
     expect(constraint).toHaveProperty("any");
     expect(constraint.any).toHaveLength(2);
+  });
+
+  it("should create enumerate() constraint correctly", () => {
+    const secureDocument = CredentialRequest("secure_document");
+    const document = CredentialRequest("document");
+    const constraint = enumerate(secureDocument, document);
+    expect(constraint).toHaveProperty("enumerate");
+    expect(constraint.enumerate).toHaveLength(2);
   });
 
   it("should create orbLegacy preset correctly", () => {
