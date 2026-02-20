@@ -818,18 +818,6 @@ impl RpContext {
             signature: signature.into(),
         })
     }
-
-    /// Returns true if the context is expired
-    #[must_use]
-    pub const fn is_expired(&self, now: u64) -> bool {
-        now > self.expires_at
-    }
-
-    /// Returns the RP ID
-    #[must_use]
-    pub fn rp_id(&self) -> &RpId {
-        &self.rp_id
-    }
 }
 
 // UniFFI exports for RpContext
@@ -1058,7 +1046,6 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(ctx.rp_id().to_string(), "rp_123456789abcdef0");
         assert_eq!(ctx.nonce, "unique-nonce-123");
         assert_eq!(ctx.created_at, 1000);
         assert_eq!(ctx.expires_at, 2000);
@@ -1072,15 +1059,6 @@ mod tests {
 
         let err = result.unwrap_err();
         assert!(err.to_string().contains("Invalid RP ID"));
-    }
-
-    #[test]
-    fn test_rp_context_expiration() {
-        let ctx = RpContext::new("rp_0000000000000001", "nonce", 1000, 2000, "sig").unwrap();
-
-        assert!(!ctx.is_expired(1500)); // Within validity
-        assert!(!ctx.is_expired(2000)); // At expiry (not expired yet)
-        assert!(ctx.is_expired(2001)); // After expiry
     }
 
     #[test]
