@@ -4,12 +4,11 @@
 //! Relying Parties (RPs) and Authenticators.
 
 use alloy_primitives::Signature;
-use serde::{de::Error as _, Deserialize, Serialize};
-use std::collections::HashSet;
+use serde::{Deserialize, Serialize};
 use world_id_primitives::rp::RpId;
 use world_id_primitives::{FieldElement, ZeroKnowledgeProof};
 
-use super::constraints::{ConstraintExpr, MAX_CONSTRAINT_NODES};
+use super::constraints::ConstraintExpr;
 
 /// Protocol schema version for proof requests and responses.
 #[repr(u8)]
@@ -190,45 +189,6 @@ pub struct ResponseItem {
     pub expires_at_min: u64,
 }
 
-impl ProofResponse {
-    /// Determine if constraints are satisfied given a constraint expression.
-    #[must_use]
-    pub fn constraints_satisfied(&self, constraints: &ConstraintExpr<'_>) -> bool {
-        let provided: HashSet<&str> = self
-            .responses
-            .iter()
-            .map(|item| item.identifier.as_str())
-            .collect();
-
-        constraints.evaluate(&|t| provided.contains(t))
-    }
-
-    /// Return the list of credential identifiers.
-    #[must_use]
-    pub fn credential_identifiers(&self) -> Vec<&str> {
-        self.responses
-            .iter()
-            .map(|r| r.identifier.as_str())
-            .collect()
-    }
-
-    /// Parse from JSON.
-    ///
-    /// # Errors
-    /// Returns an error if the JSON is invalid.
-    pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
-        serde_json::from_str(json)
-    }
-
-    /// Serialize to JSON.
-    ///
-    /// # Errors
-    /// Returns an error if serialization fails.
-    pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(self)
-    }
-}
-
 /// Validation errors when checking a response against a request.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum ValidationError {
@@ -250,84 +210,6 @@ pub enum ValidationError {
     /// The constraints expression exceeds the maximum allowed size
     #[error("Constraints exceed maximum allowed size")]
     ConstraintTooLarge,
-}
-
-impl ProofRequest {
-    /// Validate that a response satisfies this request.
-    ///
-    /// # Errors
-    /// Returns a `ValidationError` if the response doesn't match or satisfy constraints.
-    pub fn validate_response(&self, response: &ProofResponse) -> Result<(), ValidationError> {
-        if self.id != response.id {
-            return Err(ValidationError::RequestIdMismatch);
-        }
-        if self.version != response.version {
-            return Err(ValidationError::VersionMismatch);
-        }
-
-        let provided: HashSet<&str> = response
-            .responses
-            .iter()
-            .map(|r| r.identifier.as_str())
-            .collect();
-
-        match &self.constraints {
-            None => {
-                for req in &self.requests {
-                    if !provided.contains(req.identifier.as_str()) {
-                        return Err(ValidationError::MissingCredential(req.identifier.clone()));
-                    }
-                }
-                Ok(())
-            }
-            Some(expr) => {
-                if !expr.validate_max_depth(2) {
-                    return Err(ValidationError::ConstraintTooDeep);
-                }
-                if !expr.validate_max_nodes(MAX_CONSTRAINT_NODES) {
-                    return Err(ValidationError::ConstraintTooLarge);
-                }
-                if expr.evaluate(&|t| provided.contains(t)) {
-                    Ok(())
-                } else {
-                    Err(ValidationError::ConstraintNotSatisfied)
-                }
-            }
-        }
-    }
-
-    /// Returns true if the request is expired.
-    #[must_use]
-    pub const fn is_expired(&self, now: u64) -> bool {
-        now > self.expires_at
-    }
-
-    /// Parse from JSON.
-    ///
-    /// # Errors
-    /// Returns an error if the JSON is invalid or contains duplicates.
-    pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
-        let v: Self = serde_json::from_str(json)?;
-        // Enforce unique issuer schema ids
-        let mut seen: HashSet<String> = HashSet::new();
-        for r in &v.requests {
-            let t = r.issuer_schema_id.to_string();
-            if !seen.insert(t.clone()) {
-                return Err(serde_json::Error::custom(format!(
-                    "duplicate issuer schema id: {t}"
-                )));
-            }
-        }
-        Ok(v)
-    }
-
-    /// Serialize to JSON.
-    ///
-    /// # Errors
-    /// Returns an error if serialization fails.
-    pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(self)
-    }
 }
 
 #[cfg(test)]
@@ -372,33 +254,5 @@ mod tests {
         let json = serde_json::to_string(&item).unwrap();
         let parsed: ResponseItem = serde_json::from_str(&json).unwrap();
         assert_eq!(item, parsed);
-    }
-
-    #[test]
-    fn test_proof_response_credential_identifiers() {
-        let response = ProofResponse {
-            id: "req_1".to_string(),
-            version: RequestVersion::V1,
-            session_id: None,
-            responses: vec![
-                ResponseItem {
-                    identifier: "orb".to_string(),
-                    issuer_schema_id: FieldElement::from(1_u64),
-                    proof: ZeroKnowledgeProof::default(),
-                    nullifier: FieldElement::from(1_u64),
-                    expires_at_min: 1_700_000_000,
-                },
-                ResponseItem {
-                    identifier: "document".to_string(),
-                    issuer_schema_id: FieldElement::from(2_u64),
-                    proof: ZeroKnowledgeProof::default(),
-                    nullifier: FieldElement::from(2_u64),
-                    expires_at_min: 1_700_000_000,
-                },
-            ],
-        };
-
-        let identifiers = response.credential_identifiers();
-        assert_eq!(identifiers, vec!["orb", "document"]);
     }
 }
