@@ -53,18 +53,20 @@ func idkitEntrypoints() throws {
         environment: nil
     )
 
-    let sessionConfig = IDKitSessionConfig(
-        appId: "app_staging_1234567890abcdef",
-        rpContext: try sampleRpContext(),
-        actionDescription: nil,
-        bridgeUrl: nil,
-        overrideConnectBaseUrl: nil,
-        environment: nil
-    )
+    // TODO: Re-enable when World ID 4.0 is live
+    // let sessionConfig = IDKitSessionConfig(
+    //     appId: "app_staging_1234567890abcdef",
+    //     rpContext: try sampleRpContext(),
+    //     actionDescription: nil,
+    //     bridgeUrl: nil,
+    //     overrideConnectBaseUrl: nil,
+    //     environment: nil
+    // )
 
     _ = IDKit.request(config: requestConfig)
-    _ = IDKit.createSession(config: sessionConfig)
-    _ = IDKit.proveSession(sessionId: "0x01", config: sessionConfig)
+    // TODO: Re-enable when World ID 4.0 is live
+    // _ = IDKit.createSession(config: sessionConfig)
+    // _ = IDKit.proveSession(sessionId: "0x01", config: sessionConfig)
 
     #expect(Bool(true))
 }
@@ -149,53 +151,54 @@ func hashSignalOverloads() {
     #expect(!hashFromString.isEmpty)
 }
 
-@Test("CredentialRequest.create signal-only options")
-func credentialRequestOptionsSignalOnly() throws {
-    let request = try CredentialRequest.create(
-        .orb,
-        options: .init(signal: "user-123")
-    )
+// TODO: Re-enable when World ID 4.0 is live
+// @Test("CredentialRequest.create signal-only options")
+// func credentialRequestOptionsSignalOnly() throws {
+//     let request = try CredentialRequest.create(
+//         .orb,
+//         options: .init(signal: "user-123")
+//     )
+//
+//     #expect(request.credentialType() == .orb)
+//     #expect(String(data: request.getSignalBytes()!, encoding: .utf8) == "user-123")
+//     #expect(request.genesisIssuedAtMin() == nil)
+//     #expect(request.expiresAtMin() == nil)
+// }
 
-    #expect(request.credentialType() == .orb)
-    #expect(String(data: request.getSignalBytes()!, encoding: .utf8) == "user-123")
-    #expect(request.genesisIssuedAtMin() == nil)
-    #expect(request.expiresAtMin() == nil)
-}
+// @Test("CredentialRequest.create genesis-only options")
+// func credentialRequestOptionsGenesisOnly() throws {
+//     let request = try CredentialRequest.create(
+//         .orb,
+//         options: .init(genesisIssuedAtMin: 1_700_000_000)
+//     )
+//
+//     #expect(request.genesisIssuedAtMin() == 1_700_000_000)
+//     #expect(request.expiresAtMin() == nil)
+// }
 
-@Test("CredentialRequest.create genesis-only options")
-func credentialRequestOptionsGenesisOnly() throws {
-    let request = try CredentialRequest.create(
-        .orb,
-        options: .init(genesisIssuedAtMin: 1_700_000_000)
-    )
+// @Test("CredentialRequest.create expiry-only options")
+// func credentialRequestOptionsExpiryOnly() throws {
+//     let request = try CredentialRequest.create(
+//         .orb,
+//         options: .init(expiresAtMin: 1_800_000_000)
+//     )
+//
+//     #expect(request.genesisIssuedAtMin() == nil)
+//     #expect(request.expiresAtMin() == 1_800_000_000)
+// }
 
-    #expect(request.genesisIssuedAtMin() == 1_700_000_000)
-    #expect(request.expiresAtMin() == nil)
-}
-
-@Test("CredentialRequest.create expiry-only options")
-func credentialRequestOptionsExpiryOnly() throws {
-    let request = try CredentialRequest.create(
-        .orb,
-        options: .init(expiresAtMin: 1_800_000_000)
-    )
-
-    #expect(request.genesisIssuedAtMin() == nil)
-    #expect(request.expiresAtMin() == 1_800_000_000)
-}
-
-@Test("CredentialRequest.create combined options")
-func credentialRequestOptionsCombined() throws {
-    let request = try CredentialRequest.create(
-        .orb,
-        options: .init(signal: "user-123", genesisIssuedAtMin: 1_700_000_000, expiresAtMin: 1_800_000_000)
-    )
-
-    #expect(request.credentialType() == .orb)
-    #expect(String(data: request.getSignalBytes()!, encoding: .utf8) == "user-123")
-    #expect(request.genesisIssuedAtMin() == 1_700_000_000)
-    #expect(request.expiresAtMin() == 1_800_000_000)
-}
+// @Test("CredentialRequest.create combined options")
+// func credentialRequestOptionsCombined() throws {
+//     let request = try CredentialRequest.create(
+//         .orb,
+//         options: .init(signal: "user-123", genesisIssuedAtMin: 1_700_000_000, expiresAtMin: 1_800_000_000)
+//     )
+//
+//     #expect(request.credentialType() == .orb)
+//     #expect(String(data: request.getSignalBytes()!, encoding: .utf8) == "user-123")
+//     #expect(request.genesisIssuedAtMin() == 1_700_000_000)
+//     #expect(request.expiresAtMin() == 1_800_000_000)
+// }
 
 @Test("Legacy preset helpers remain available")
 func legacyPresetHelpers() {
@@ -225,12 +228,13 @@ func legacyPresetHelpers() {
     }
 }
 
-@Test("enumerateOf helper serializes canonical enumerate constraint")
-func enumerateConstraintHelperSerialization() throws {
-    let secureDocument = CredentialRequest.create(.secureDocument)
-    let document = CredentialRequest.create(.document)
-    let constraint = enumerateOf(secureDocument, document)
-
-    let json = try constraint.toJson()
-    #expect(json.contains("\"enumerate\""))
-}
+// TODO: Re-enable when World ID 4.0 is live
+// @Test("enumerateOf helper serializes canonical enumerate constraint")
+// func enumerateConstraintHelperSerialization() throws {
+//     let secureDocument = CredentialRequest.create(.secureDocument)
+//     let document = CredentialRequest.create(.document)
+//     let constraint = enumerateOf(secureDocument, document)
+//
+//     let json = try constraint.toJson()
+//     #expect(json.contains("\"enumerate\""))
+// }

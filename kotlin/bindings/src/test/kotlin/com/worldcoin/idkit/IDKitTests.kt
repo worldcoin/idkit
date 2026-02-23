@@ -7,7 +7,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 import uniffi.idkit_core.AppError
-import uniffi.idkit_core.CredentialType
+// TODO: Re-enable when World ID 4.0 is live
+// import uniffi.idkit_core.CredentialType
 import uniffi.idkit_core.Environment
 import uniffi.idkit_core.Preset
 import uniffi.idkit_core.ResponseItem
@@ -50,18 +51,20 @@ class IDKitTests {
             environment = Environment.STAGING,
         )
 
-        val sessionConfig = IDKitSessionConfig(
-            appId = "app_staging_1234567890abcdef",
-            rpContext = sampleRpContext(),
-            actionDescription = null,
-            bridgeUrl = null,
-            overrideConnectBaseUrl = null,
-            environment = Environment.STAGING,
-        )
+        // TODO: Re-enable when World ID 4.0 is live
+        // val sessionConfig = IDKitSessionConfig(
+        //     appId = "app_staging_1234567890abcdef",
+        //     rpContext = sampleRpContext(),
+        //     actionDescription = null,
+        //     bridgeUrl = null,
+        //     overrideConnectBaseUrl = null,
+        //     environment = Environment.STAGING,
+        // )
 
         IDKit.request(requestConfig)
-        IDKit.createSession(sessionConfig)
-        IDKit.proveSession("0x01", sessionConfig)
+        // TODO: Re-enable when World ID 4.0 is live
+        // IDKit.createSession(sessionConfig)
+        // IDKit.proveSession("0x01", sessionConfig)
     }
 
     @Test
@@ -157,57 +160,58 @@ class IDKitTests {
         assertTrue(hashFromString.isNotEmpty())
     }
 
-    @Test
-    fun `CredentialRequest signal-only options`() {
-        val request = CredentialRequest(
-            CredentialType.ORB,
-            options = CredentialRequestOptions(signal = "user-123"),
-        )
+    // TODO: Re-enable when World ID 4.0 is live
+    // @Test
+    // fun `CredentialRequest signal-only options`() {
+    //     val request = CredentialRequest(
+    //         CredentialType.ORB,
+    //         options = CredentialRequestOptions(signal = "user-123"),
+    //     )
+    //
+    //     assertEquals(CredentialType.ORB, request.credentialType())
+    //     assertEquals("user-123", request.getSignalBytes()!!.toString(Charsets.UTF_8))
+    //     assertEquals(null, request.genesisIssuedAtMin())
+    //     assertEquals(null, request.expiresAtMin())
+    // }
 
-        assertEquals(CredentialType.ORB, request.credentialType())
-        assertEquals("user-123", request.getSignalBytes()!!.toString(Charsets.UTF_8))
-        assertEquals(null, request.genesisIssuedAtMin())
-        assertEquals(null, request.expiresAtMin())
-    }
+    // @Test
+    // fun `CredentialRequest genesis-only options`() {
+    //     val request = CredentialRequest(
+    //         CredentialType.ORB,
+    //         options = CredentialRequestOptions(genesisIssuedAtMin = 1_700_000_000u),
+    //     )
+    //
+    //     assertEquals(1_700_000_000u, request.genesisIssuedAtMin())
+    //     assertEquals(null, request.expiresAtMin())
+    // }
 
-    @Test
-    fun `CredentialRequest genesis-only options`() {
-        val request = CredentialRequest(
-            CredentialType.ORB,
-            options = CredentialRequestOptions(genesisIssuedAtMin = 1_700_000_000u),
-        )
+    // @Test
+    // fun `CredentialRequest expiry-only options`() {
+    //     val request = CredentialRequest(
+    //         CredentialType.ORB,
+    //         options = CredentialRequestOptions(expiresAtMin = 1_800_000_000u),
+    //     )
+    //
+    //     assertEquals(null, request.genesisIssuedAtMin())
+    //     assertEquals(1_800_000_000u, request.expiresAtMin())
+    // }
 
-        assertEquals(1_700_000_000u, request.genesisIssuedAtMin())
-        assertEquals(null, request.expiresAtMin())
-    }
-
-    @Test
-    fun `CredentialRequest expiry-only options`() {
-        val request = CredentialRequest(
-            CredentialType.ORB,
-            options = CredentialRequestOptions(expiresAtMin = 1_800_000_000u),
-        )
-
-        assertEquals(null, request.genesisIssuedAtMin())
-        assertEquals(1_800_000_000u, request.expiresAtMin())
-    }
-
-    @Test
-    fun `CredentialRequest combined options`() {
-        val request = CredentialRequest(
-            CredentialType.ORB,
-            options = CredentialRequestOptions(
-                signal = "user-123",
-                genesisIssuedAtMin = 1_700_000_000u,
-                expiresAtMin = 1_800_000_000u,
-            ),
-        )
-
-        assertEquals(CredentialType.ORB, request.credentialType())
-        assertEquals("user-123", request.getSignalBytes()!!.toString(Charsets.UTF_8))
-        assertEquals(1_700_000_000u, request.genesisIssuedAtMin())
-        assertEquals(1_800_000_000u, request.expiresAtMin())
-    }
+    // @Test
+    // fun `CredentialRequest combined options`() {
+    //     val request = CredentialRequest(
+    //         CredentialType.ORB,
+    //         options = CredentialRequestOptions(
+    //             signal = "user-123",
+    //             genesisIssuedAtMin = 1_700_000_000u,
+    //             expiresAtMin = 1_800_000_000u,
+    //         ),
+    //     )
+    //
+    //     assertEquals(CredentialType.ORB, request.credentialType())
+    //     assertEquals("user-123", request.getSignalBytes()!!.toString(Charsets.UTF_8))
+    //     assertEquals(1_700_000_000u, request.genesisIssuedAtMin())
+    //     assertEquals(1_800_000_000u, request.expiresAtMin())
+    // }
 
     @Test
     fun `legacy preset helpers remain available`() {

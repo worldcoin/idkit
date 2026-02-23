@@ -8,11 +8,11 @@
 export {
   // IDKit namespace (main entry point)
   IDKit,
-  // Constraint helpers (also available on IDKit namespace)
-  CredentialRequest,
-  any,
-  all,
-  enumerate,
+  // TODO: Re-enable when World ID 4.0 is live
+  // CredentialRequest,
+  // any,
+  // all,
+  // enumerate,
   // Preset helpers
   orbLegacy,
   secureDocumentLegacy,

@@ -3,31 +3,37 @@ package com.worldcoin.idkit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
+// TODO: Re-enable when World ID 4.0 is live
+// import kotlinx.serialization.json.JsonPrimitive
+// import kotlinx.serialization.json.buildJsonObject
 import kotlin.coroutines.coroutineContext
 import uniffi.idkit_core.AppError
-import uniffi.idkit_core.ConstraintNode
-import uniffi.idkit_core.CredentialRequest
-import uniffi.idkit_core.CredentialType
+// TODO: Re-enable when World ID 4.0 is live
+// import uniffi.idkit_core.ConstraintNode
+// import uniffi.idkit_core.CredentialRequest
+// import uniffi.idkit_core.CredentialType
 import uniffi.idkit_core.IdKitBuilder
 import uniffi.idkit_core.IdKitRequestConfig
 import uniffi.idkit_core.IdKitRequestWrapper
 import uniffi.idkit_core.IdKitResult
-import uniffi.idkit_core.IdKitSessionConfig
+// TODO: Re-enable when World ID 4.0 is live
+// import uniffi.idkit_core.IdKitSessionConfig
 import uniffi.idkit_core.Preset
 import uniffi.idkit_core.Signal
 import uniffi.idkit_core.StatusWrapper
-import uniffi.idkit_core.createSession as nativeCreateSession
-import uniffi.idkit_core.credentialToString
+// TODO: Re-enable when World ID 4.0 is live
+// import uniffi.idkit_core.createSession as nativeCreateSession
+// import uniffi.idkit_core.credentialToString
 import uniffi.idkit_core.hashSignalFfi
 import uniffi.idkit_core.idkitResultFromJson as nativeIdkitResultFromJson
 import uniffi.idkit_core.idkitResultToJson as nativeIdkitResultToJson
-import uniffi.idkit_core.proveSession as nativeProveSession
+// TODO: Re-enable when World ID 4.0 is live
+// import uniffi.idkit_core.proveSession as nativeProveSession
 import uniffi.idkit_core.request as nativeRequest
 
 typealias IDKitRequestConfig = IdKitRequestConfig
-typealias IDKitSessionConfig = IdKitSessionConfig
+// TODO: Re-enable when World ID 4.0 is live
+// typealias IDKitSessionConfig = IdKitSessionConfig
 typealias IDKitResult = IdKitResult
 
 class IDKitClientError(message: String) : IllegalArgumentException(message)
@@ -83,17 +89,19 @@ data class IDKitPollOptions(
     val timeoutMs: ULong = 300_000u,
 )
 
-data class CredentialRequestOptions(
-    val signal: String? = null,
-    val genesisIssuedAtMin: ULong? = null,
-    val expiresAtMin: ULong? = null,
-)
+// TODO: Re-enable when World ID 4.0 is live
+// data class CredentialRequestOptions(
+//     val signal: String? = null,
+//     val genesisIssuedAtMin: ULong? = null,
+//     val expiresAtMin: ULong? = null,
+// )
 
 class IDKitBuilder internal constructor(
     private val inner: IdKitBuilder,
 ) {
-    fun constraints(constraints: ConstraintNode): IDKitRequest =
-        IDKitRequest(inner.constraints(constraints))
+    // TODO: Re-enable when World ID 4.0 is live
+    // fun constraints(constraints: ConstraintNode): IDKitRequest =
+    //     IDKitRequest(inner.constraints(constraints))
 
     fun preset(preset: Preset): IDKitRequest =
         IDKitRequest(inner.preset(preset))
@@ -169,94 +177,96 @@ object IDKit {
         return IDKitBuilder(nativeRequest(config))
     }
 
-    fun createSession(config: IDKitSessionConfig): IDKitBuilder {
-        require(config.appId.isNotBlank()) { "app_id is required" }
-        return IDKitBuilder(nativeCreateSession(config))
-    }
+    // TODO: Re-enable when World ID 4.0 is live
+    // fun createSession(config: IDKitSessionConfig): IDKitBuilder {
+    //     require(config.appId.isNotBlank()) { "app_id is required" }
+    //     return IDKitBuilder(nativeCreateSession(config))
+    // }
 
-    fun proveSession(sessionId: String, config: IDKitSessionConfig): IDKitBuilder {
-        require(sessionId.isNotBlank()) { "session_id is required" }
-        require(config.appId.isNotBlank()) { "app_id is required" }
-        return IDKitBuilder(nativeProveSession(sessionId, config))
-    }
+    // fun proveSession(sessionId: String, config: IDKitSessionConfig): IDKitBuilder {
+    //     require(sessionId.isNotBlank()) { "session_id is required" }
+    //     require(config.appId.isNotBlank()) { "app_id is required" }
+    //     return IDKitBuilder(nativeProveSession(sessionId, config))
+    // }
 
     fun hashSignal(signal: String): String = hashSignalFfi(Signal.fromString(signal))
 
     fun hashSignal(signal: ByteArray): String = hashSignalFfi(Signal.fromBytes(signal))
 }
 
-private fun credentialRequestFromOptions(
-    type: CredentialType,
-    options: CredentialRequestOptions,
-): CredentialRequest {
-    val payload = buildJsonObject {
-        put("type", JsonPrimitive(credentialToString(type)))
-        options.signal?.let { put("signal", JsonPrimitive(it)) }
-        options.genesisIssuedAtMin?.let { put("genesis_issued_at_min", JsonPrimitive(it.toLong())) }
-        options.expiresAtMin?.let { put("expires_at_min", JsonPrimitive(it.toLong())) }
-    }
-    return CredentialRequest.fromJson(payload.toString())
-}
+// TODO: Re-enable when World ID 4.0 is live
+// private fun credentialRequestFromOptions(
+//     type: CredentialType,
+//     options: CredentialRequestOptions,
+// ): CredentialRequest {
+//     val payload = buildJsonObject {
+//         put("type", JsonPrimitive(credentialToString(type)))
+//         options.signal?.let { put("signal", JsonPrimitive(it)) }
+//         options.genesisIssuedAtMin?.let { put("genesis_issued_at_min", JsonPrimitive(it.toLong())) }
+//         options.expiresAtMin?.let { put("expires_at_min", JsonPrimitive(it.toLong())) }
+//     }
+//     return CredentialRequest.fromJson(payload.toString())
+// }
 
-fun CredentialRequest(type: CredentialType, signal: String? = null): CredentialRequest =
-    CredentialRequest.withStringSignal(type, signal)
+// fun CredentialRequest(type: CredentialType, signal: String? = null): CredentialRequest =
+//     CredentialRequest.withStringSignal(type, signal)
 
-fun CredentialRequest(type: CredentialType, abiEncodedSignal: ByteArray): CredentialRequest =
-    CredentialRequest(type, Signal.fromBytes(abiEncodedSignal))
+// fun CredentialRequest(type: CredentialType, abiEncodedSignal: ByteArray): CredentialRequest =
+//     CredentialRequest(type, Signal.fromBytes(abiEncodedSignal))
 
-fun CredentialRequest(type: CredentialType, options: CredentialRequestOptions): CredentialRequest {
-    if (options.genesisIssuedAtMin == null && options.expiresAtMin == null) {
-        return CredentialRequest.withStringSignal(type, options.signal)
-    }
+// fun CredentialRequest(type: CredentialType, options: CredentialRequestOptions): CredentialRequest {
+//     if (options.genesisIssuedAtMin == null && options.expiresAtMin == null) {
+//         return CredentialRequest.withStringSignal(type, options.signal)
+//     }
+//
+//     if (options.expiresAtMin == null) {
+//         return CredentialRequest.withGenesisMin(type, options.signal?.let { Signal.fromString(it) }, options.genesisIssuedAtMin!!)
+//     }
+//
+//     if (options.genesisIssuedAtMin == null) {
+//         return CredentialRequest.withExpiresAtMin(type, options.signal?.let { Signal.fromString(it) }, options.expiresAtMin)
+//     }
+//
+//     return credentialRequestFromOptions(type, options)
+// }
 
-    if (options.expiresAtMin == null) {
-        return CredentialRequest.withGenesisMin(type, options.signal?.let { Signal.fromString(it) }, options.genesisIssuedAtMin!!)
-    }
+// fun anyOf(vararg items: CredentialRequest): ConstraintNode =
+//     ConstraintNode.any(items.map { ConstraintNode.item(it) })
 
-    if (options.genesisIssuedAtMin == null) {
-        return CredentialRequest.withExpiresAtMin(type, options.signal?.let { Signal.fromString(it) }, options.expiresAtMin)
-    }
+// fun anyOf(items: List<CredentialRequest>): ConstraintNode =
+//     ConstraintNode.any(items.map { ConstraintNode.item(it) })
 
-    return credentialRequestFromOptions(type, options)
-}
+// fun anyOfNodes(vararg nodes: ConstraintNode): ConstraintNode =
+//     ConstraintNode.any(nodes.toList())
 
-fun anyOf(vararg items: CredentialRequest): ConstraintNode =
-    ConstraintNode.any(items.map { ConstraintNode.item(it) })
+// fun anyOfNodes(nodes: List<ConstraintNode>): ConstraintNode =
+//     ConstraintNode.any(nodes)
 
-fun anyOf(items: List<CredentialRequest>): ConstraintNode =
-    ConstraintNode.any(items.map { ConstraintNode.item(it) })
+// fun allOf(vararg items: CredentialRequest): ConstraintNode =
+//     ConstraintNode.all(items.map { ConstraintNode.item(it) })
 
-fun anyOfNodes(vararg nodes: ConstraintNode): ConstraintNode =
-    ConstraintNode.any(nodes.toList())
+// fun allOf(items: List<CredentialRequest>): ConstraintNode =
+//     ConstraintNode.all(items.map { ConstraintNode.item(it) })
 
-fun anyOfNodes(nodes: List<ConstraintNode>): ConstraintNode =
-    ConstraintNode.any(nodes)
+// fun allOfNodes(vararg nodes: ConstraintNode): ConstraintNode =
+//     ConstraintNode.all(nodes.toList())
 
-fun allOf(vararg items: CredentialRequest): ConstraintNode =
-    ConstraintNode.all(items.map { ConstraintNode.item(it) })
+// fun allOfNodes(nodes: List<ConstraintNode>): ConstraintNode =
+//     ConstraintNode.all(nodes)
 
-fun allOf(items: List<CredentialRequest>): ConstraintNode =
-    ConstraintNode.all(items.map { ConstraintNode.item(it) })
+// fun enumerateOf(vararg items: CredentialRequest): ConstraintNode =
+//     enumerateOfNodes(items.map { ConstraintNode.item(it) })
 
-fun allOfNodes(vararg nodes: ConstraintNode): ConstraintNode =
-    ConstraintNode.all(nodes.toList())
+// fun enumerateOf(items: List<CredentialRequest>): ConstraintNode =
+//     enumerateOfNodes(items.map { ConstraintNode.item(it) })
 
-fun allOfNodes(nodes: List<ConstraintNode>): ConstraintNode =
-    ConstraintNode.all(nodes)
+// fun enumerateOfNodes(vararg nodes: ConstraintNode): ConstraintNode =
+//     enumerateOfNodes(nodes.toList())
 
-fun enumerateOf(vararg items: CredentialRequest): ConstraintNode =
-    enumerateOfNodes(items.map { ConstraintNode.item(it) })
-
-fun enumerateOf(items: List<CredentialRequest>): ConstraintNode =
-    enumerateOfNodes(items.map { ConstraintNode.item(it) })
-
-fun enumerateOfNodes(vararg nodes: ConstraintNode): ConstraintNode =
-    enumerateOfNodes(nodes.toList())
-
-fun enumerateOfNodes(nodes: List<ConstraintNode>): ConstraintNode {
-    val nodesJson = nodes.joinToString(separator = ",") { it.toJson() }
-    return ConstraintNode.fromJson("""{"enumerate":[${nodesJson}]}""")
-}
+// fun enumerateOfNodes(nodes: List<ConstraintNode>): ConstraintNode {
+//     val nodesJson = nodes.joinToString(separator = ",") { it.toJson() }
+//     return ConstraintNode.fromJson("""{"enumerate":[${nodesJson}]}""")
+// }
 
 fun orbLegacy(signal: String? = null): Preset = Preset.OrbLegacy(signal = signal)
 
