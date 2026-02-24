@@ -727,9 +727,26 @@ impl IDKitBuilderWasm {
             .map_err(|e| JsValue::from_str(&format!("Failed to build payload: {e}")))?;
 
         let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
-        payload
+        let payload_js = payload
             .serialize(&serializer)
-            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
+            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
+
+        let signal_hashes_js = params
+            .signal_hashes
+            .serialize(&serializer)
+            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
+
+        let result = js_sys::Object::new();
+        js_sys::Reflect::set(&result, &JsValue::from_str("payload"), &payload_js)
+            .map_err(|e| JsValue::from_str(&format!("Failed to set payload: {e:?}")))?;
+        js_sys::Reflect::set(
+            &result,
+            &JsValue::from_str("signal_hashes"),
+            &signal_hashes_js,
+        )
+        .map_err(|e| JsValue::from_str(&format!("Failed to set signal_hashes: {e:?}")))?;
+
+        Ok(result.into())
     }
 
     /// Builds the native payload from a preset (synchronous, no bridge connection).
@@ -751,9 +768,26 @@ impl IDKitBuilderWasm {
             .map_err(|e| JsValue::from_str(&format!("Failed to build payload: {e}")))?;
 
         let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
-        payload
+        let payload_js = payload
             .serialize(&serializer)
-            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
+            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
+
+        let signal_hashes_js = params
+            .signal_hashes
+            .serialize(&serializer)
+            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
+
+        let result = js_sys::Object::new();
+        js_sys::Reflect::set(&result, &JsValue::from_str("payload"), &payload_js)
+            .map_err(|e| JsValue::from_str(&format!("Failed to set payload: {e:?}")))?;
+        js_sys::Reflect::set(
+            &result,
+            &JsValue::from_str("signal_hashes"),
+            &signal_hashes_js,
+        )
+        .map_err(|e| JsValue::from_str(&format!("Failed to set signal_hashes: {e:?}")))?;
+
+        Ok(result.into())
     }
 
     /// Creates a `BridgeConnection` with the given constraints
@@ -1185,6 +1219,65 @@ export interface RpSignature {
 }
 
 export function signRequest(action: string, signingKeyHex: string, ttlSeconds?: number): RpSignature;
+"#;
+
+// Export native transport types (for strongly typing native postMessage responses)
+#[wasm_bindgen(typescript_custom_section)]
+const TS_NATIVE_TYPES: &str = r#"
+/** Return type of nativePayload / nativePayloadFromPreset */
+export interface NativePayloadResult {
+    payload: unknown;
+    signal_hashes: Record<string, string>;
+}
+
+/** V4 response item as sent by World App (no signal_hash — injected from signal_hashes map) */
+export interface NativeResponseItemV4 {
+    identifier: string;
+    proof: string[];
+    nullifier: string;
+    issuer_schema_id: number;
+    expires_at_min: number;
+}
+
+/** V4 response envelope from World App */
+export interface NativeResponseV4 {
+    responses: NativeResponseItemV4[];
+    protocol_version?: string;
+    nonce?: string;
+    action?: string;
+    action_description?: string;
+    session_id?: string;
+    environment?: string;
+}
+
+/** Legacy verification item (MiniKit v3 format) */
+export interface NativeLegacyVerification {
+    verification_level: string;
+    proof: string;
+    nullifier_hash: string;
+    merkle_root: string;
+    signal_hash?: string;
+}
+
+/** Legacy multi-verification response */
+export interface NativeLegacyMultiResponse {
+    verifications: NativeLegacyVerification[];
+}
+
+/** Legacy single-proof response (oldest format) */
+export interface NativeLegacySingleResponse {
+    verification_level: string;
+    proof: string;
+    merkle_root: string;
+    nullifier_hash: string;
+    signal_hash?: string;
+}
+
+/** Discriminated union of all native response formats */
+export type NativeResponse =
+    | NativeResponseV4
+    | NativeLegacyMultiResponse
+    | NativeLegacySingleResponse;
 "#;
 
 // Export session function types
