@@ -15,6 +15,7 @@ import type {
   CredentialRequestType,
 } from "./types/result";
 import { IDKitErrorCodes } from "./types/result";
+import type { NativePayloadResult } from "./lib/wasm";
 import { WasmModule, initIDKit } from "./lib/wasm";
 import {
   isInWorldApp,
@@ -387,7 +388,8 @@ class IDKitBuilder {
     const wasmBuilder = createWasmBuilderFromConfig(this.config);
 
     if (isInWorldApp()) {
-      const wasmResult = wasmBuilder.nativePayload(constraints);
+      const wasmResult: NativePayloadResult =
+        wasmBuilder.nativePayload(constraints);
       return createNativeRequest(
         wasmResult.payload,
         this.config,
@@ -422,7 +424,8 @@ class IDKitBuilder {
     const wasmBuilder = createWasmBuilderFromConfig(this.config);
 
     if (isInWorldApp()) {
-      const wasmResult = wasmBuilder.nativePayloadFromPreset(preset);
+      const wasmResult: NativePayloadResult =
+        wasmBuilder.nativePayloadFromPreset(preset);
       return createNativeRequest(
         wasmResult.payload,
         this.config,

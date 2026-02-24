@@ -1215,6 +1215,65 @@ export interface RpSignature {
 export function signRequest(action: string, signingKeyHex: string, ttlSeconds?: number): RpSignature;
 "#;
 
+// Export native transport types (for strongly typing native postMessage responses)
+#[wasm_bindgen(typescript_custom_section)]
+const TS_NATIVE_TYPES: &str = r#"
+/** Return type of nativePayload / nativePayloadFromPreset */
+export interface NativePayloadResult {
+    payload: unknown;
+    signal_hashes: Record<string, string>;
+}
+
+/** V4 response item as sent by World App (no signal_hash — injected from signal_hashes map) */
+export interface NativeResponseItemV4 {
+    identifier: string;
+    proof: string[];
+    nullifier: string;
+    issuer_schema_id: number;
+    expires_at_min: number;
+}
+
+/** V4 response envelope from World App */
+export interface NativeResponseV4 {
+    responses: NativeResponseItemV4[];
+    protocol_version?: string;
+    nonce?: string;
+    action?: string;
+    action_description?: string;
+    session_id?: string;
+    environment?: string;
+}
+
+/** Legacy verification item (MiniKit v3 format) */
+export interface NativeLegacyVerification {
+    verification_level: string;
+    proof: string;
+    nullifier_hash: string;
+    merkle_root: string;
+    signal_hash?: string;
+}
+
+/** Legacy multi-verification response */
+export interface NativeLegacyMultiResponse {
+    verifications: NativeLegacyVerification[];
+}
+
+/** Legacy single-proof response (oldest format) */
+export interface NativeLegacySingleResponse {
+    verification_level: string;
+    proof: string;
+    merkle_root: string;
+    nullifier_hash: string;
+    signal_hash?: string;
+}
+
+/** Discriminated union of all native response formats */
+export type NativeResponse =
+    | NativeResponseV4
+    | NativeLegacyMultiResponse
+    | NativeLegacySingleResponse;
+"#;
+
 // Export session function types
 #[wasm_bindgen(typescript_custom_section)]
 const TS_SESSION: &str = r#"

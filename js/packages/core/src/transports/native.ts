@@ -23,6 +23,12 @@ import type {
 } from "../request";
 import type { IDKitResult } from "../types/result";
 import { IDKitErrorCodes } from "../types/result";
+import type {
+  NativeResponse,
+  NativeResponseV4,
+  NativeLegacyMultiResponse,
+  NativeLegacySingleResponse,
+} from "../lib/wasm";
 
 const MINIAPP_VERIFY_ACTION = "miniapp-verify-action";
 
@@ -310,36 +316,41 @@ class NativeVerifyError extends Error {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function nativeResultToIDKitResult(
-  payload: any,
+  payload: NativeResponse,
   config: BuilderConfig,
   signalHashes: Record<string, string>,
 ): IDKitResult {
   const rpNonce = config.rp_context?.nonce ?? "";
 
-  // v4 response — World App returns `responses` array directly
-  if ("responses" in payload && Array.isArray(payload.responses)) {
+  // V4 response — World App returns `responses` array directly.
+  // signal_hash is NOT on the raw V4 response; it's injected from the
+  // pre-computed signal_hashes map (same pattern as the bridge path).
+  if ("responses" in payload) {
+    const v4 = payload as NativeResponseV4;
     return {
-      protocol_version: payload.protocol_version ?? "4.0",
-      nonce: payload.nonce ?? rpNonce,
-      action: payload.action ?? config.action ?? "",
-      action_description: payload.action_description,
-      session_id: payload.session_id,
-      responses: payload.responses.map((item: any) => ({
+      protocol_version: v4.protocol_version ?? "4.0",
+      nonce: v4.nonce ?? rpNonce,
+      action: v4.action ?? config.action ?? "",
+      action_description: v4.action_description,
+      session_id: v4.session_id,
+      responses: v4.responses.map((item) => ({
         ...item,
-        signal_hash:
-          item.signal_hash ?? signalHashes[item.identifier],
+        signal_hash: signalHashes[item.identifier],
       })),
-      environment: payload.environment ?? config.environment ?? "production",
+      environment: v4.environment ?? config.environment ?? "production",
     } as unknown as IDKitResult;
   }
 
-  // Legacy multi-verification response (MiniKit v3 format)
+  // Legacy multi-verification response (MiniKit v3 format).
+  // Older World App versions may include signal_hash on the item; fall back
+  // to the pre-computed map when absent.
   if ("verifications" in payload) {
+    const multi = payload as NativeLegacyMultiResponse;
     return {
       protocol_version: "4.0",
       nonce: rpNonce,
       action: config.action ?? "",
-      responses: payload.verifications.map((v: any) => ({
+      responses: multi.verifications.map((v) => ({
         identifier: v.verification_level,
         signal_hash:
           v.signal_hash ?? signalHashes[v.verification_level],
@@ -353,19 +364,20 @@ function nativeResultToIDKitResult(
     } as unknown as IDKitResult;
   }
 
-  // Legacy single verification response (v3 format from World App)
+  // Legacy single verification response (v3 format from World App).
+  const single = payload as NativeLegacySingleResponse;
   return {
     protocol_version: "3.0",
     nonce: rpNonce,
     action: config.action ?? "",
     responses: [
       {
-        identifier: payload.verification_level,
+        identifier: single.verification_level,
         signal_hash:
-          payload.signal_hash ?? signalHashes[payload.verification_level],
-        proof: payload.proof,
-        merkle_root: payload.merkle_root,
-        nullifier: payload.nullifier_hash,
+          single.signal_hash ?? signalHashes[single.verification_level],
+        proof: single.proof,
+        merkle_root: single.merkle_root,
+        nullifier: single.nullifier_hash,
       },
     ],
     environment: "production",
