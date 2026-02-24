@@ -1,30 +1,35 @@
 export { useIDKitRequest } from "./hooks/useIDKitRequest";
-export { useIDKitSession } from "./hooks/useIDKitSession";
+// TODO: Re-enable when World ID 4.0 is live
+// export { useIDKitSession } from "./hooks/useIDKitSession";
 
 export { IDKitRequestWidget } from "./widget/IDKitRequestWidget";
-export { IDKitSessionWidget } from "./widget/IDKitSessionWidget";
+// TODO: Re-enable when World ID 4.0 is live
+// export { IDKitSessionWidget } from "./widget/IDKitSessionWidget";
 export type { IDKitHookResult, PollingConfig } from "./types/common";
 export type {
   IDKitRequestHookConfig,
   UseIDKitRequestHookResult,
 } from "./types/request";
-export type {
-  IDKitSessionHookConfig,
-  UseIDKitSessionHookResult,
-} from "./types/session";
+// TODO: Re-enable when World ID 4.0 is live
+// export type {
+//   IDKitSessionHookConfig,
+//   UseIDKitSessionHookResult,
+// } from "./types/session";
 export type {
   IDKitRequestWidgetProps,
-  IDKitSessionWidgetProps,
+  // TODO: Re-enable when World ID 4.0 is live
+  // IDKitSessionWidgetProps,
 } from "./types/widget";
 
 export type { SupportedLanguage } from "./lang/types";
 
 export {
   IDKit,
-  CredentialRequest,
-  any,
-  all,
-  enumerate,
+  // TODO: Re-enable when World ID 4.0 is live
+  // CredentialRequest,
+  // any,
+  // all,
+  // enumerate,
   orbLegacy,
   documentLegacy,
   secureDocumentLegacy,
@@ -37,13 +42,17 @@ export type {
   Preset,
   ConstraintNode,
   IDKitResult,
-  IDKitResultSession,
+  // TODO: Re-enable when World ID 4.0 is live
+  // IDKitResultSession,
   IDKitRequestConfig,
-  IDKitSessionConfig,
+  // TODO: Re-enable when World ID 4.0 is live
+  // IDKitSessionConfig,
   CredentialType,
-  CredentialRequestType,
+  // TODO: Re-enable when World ID 4.0 is live
+  // CredentialRequestType,
   ResponseItemV3,
   ResponseItemV4,
-  ResponseItemSession,
+  // TODO: Re-enable when World ID 4.0 is live
+  // ResponseItemSession,
   IDKitErrorCode,
 } from "@worldcoin/idkit-core";

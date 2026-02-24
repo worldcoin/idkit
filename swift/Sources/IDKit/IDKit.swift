@@ -13,15 +13,16 @@ public enum IDKit {
         IDKitBuilder(inner: IdKitBuilder.fromRequest(config: config))
     }
 
-    /// Creates a builder for creating a new session.
-    public static func createSession(config: IDKitSessionConfig) -> IDKitBuilder {
-        IDKitBuilder(inner: IdKitBuilder.fromCreateSession(config: config))
-    }
+    // TODO: Re-enable when World ID 4.0 is live
+    // /// Creates a builder for creating a new session.
+    // public static func createSession(config: IDKitSessionConfig) -> IDKitBuilder {
+    //     IDKitBuilder(inner: IdKitBuilder.fromCreateSession(config: config))
+    // }
 
-    /// Creates a builder for proving an existing session.
-    public static func proveSession(sessionId: String, config: IDKitSessionConfig) -> IDKitBuilder {
-        IDKitBuilder(inner: IdKitBuilder.fromProveSession(sessionId: sessionId, config: config))
-    }
+    // /// Creates a builder for proving an existing session.
+    // public static func proveSession(sessionId: String, config: IDKitSessionConfig) -> IDKitBuilder {
+    //     IDKitBuilder(inner: IdKitBuilder.fromProveSession(sessionId: sessionId, config: config))
+    // }
 
     /// Hashes a string signal to the canonical 0x-prefixed field element string.
     public static func hashSignal(_ signal: String) -> String {
@@ -42,10 +43,11 @@ public final class IDKitBuilder {
         self.inner = inner
     }
 
-    public func constraints(_ constraints: ConstraintNode) throws -> IDKitRequest {
-        let request = try inner.constraints(constraints: constraints)
-        return try IDKitRequest(inner: request)
-    }
+    // TODO: Re-enable when World ID 4.0 is live
+    // public func constraints(_ constraints: ConstraintNode) throws -> IDKitRequest {
+    //     let request = try inner.constraints(constraints: constraints)
+    //     return try IDKitRequest(inner: request)
+    // }
 
     public func preset(_ preset: Preset) throws -> IDKitRequest {
         let request = try inner.preset(preset: preset)
@@ -227,99 +229,100 @@ public final class IDKitRequest {
     }
 }
 
-public struct CredentialRequestOptions: Equatable {
-    public var signal: String?
-    public var genesisIssuedAtMin: UInt64?
-    public var expiresAtMin: UInt64?
+// TODO: Re-enable when World ID 4.0 is live
+// public struct CredentialRequestOptions: Equatable {
+//     public var signal: String?
+//     public var genesisIssuedAtMin: UInt64?
+//     public var expiresAtMin: UInt64?
+//
+//     public init(
+//         signal: String? = nil,
+//         genesisIssuedAtMin: UInt64? = nil,
+//         expiresAtMin: UInt64? = nil
+//     ) {
+//         self.signal = signal
+//         self.genesisIssuedAtMin = genesisIssuedAtMin
+//         self.expiresAtMin = expiresAtMin
+//     }
+// }
 
-    public init(
-        signal: String? = nil,
-        genesisIssuedAtMin: UInt64? = nil,
-        expiresAtMin: UInt64? = nil
-    ) {
-        self.signal = signal
-        self.genesisIssuedAtMin = genesisIssuedAtMin
-        self.expiresAtMin = expiresAtMin
-    }
-}
+// public extension CredentialRequest {
+//     /// Creates a `CredentialRequest` with optional string signal.
+//     static func create(_ type: CredentialType, signal: String? = nil) -> CredentialRequest {
+//         CredentialRequest.withStringSignal(credentialType: type, signal: signal)
+//     }
+//
+//     /// Creates a `CredentialRequest` with options parity with JS core:
+//     /// `signal`, `genesis_issued_at_min`, and `expires_at_min`.
+//     static func create(_ type: CredentialType, options: CredentialRequestOptions) throws -> CredentialRequest {
+//         if options.genesisIssuedAtMin == nil, options.expiresAtMin == nil {
+//             return CredentialRequest.withStringSignal(credentialType: type, signal: options.signal)
+//         }
+//
+//         let payload = CredentialRequestJSON(
+//             type: type.requestType,
+//             signal: options.signal,
+//             genesisIssuedAtMin: options.genesisIssuedAtMin,
+//             expiresAtMin: options.expiresAtMin
+//         )
+//         let encoded = try JSONEncoder().encode(payload)
+//         let json = String(decoding: encoded, as: UTF8.self)
+//         return try CredentialRequest.fromJson(json: json)
+//     }
+// }
 
-public extension CredentialRequest {
-    /// Creates a `CredentialRequest` with optional string signal.
-    static func create(_ type: CredentialType, signal: String? = nil) -> CredentialRequest {
-        CredentialRequest.withStringSignal(credentialType: type, signal: signal)
-    }
+// public func anyOf(_ items: CredentialRequest...) -> ConstraintNode {
+//     ConstraintNode.any(nodes: items.map { ConstraintNode.item(request: $0) })
+// }
 
-    /// Creates a `CredentialRequest` with options parity with JS core:
-    /// `signal`, `genesis_issued_at_min`, and `expires_at_min`.
-    static func create(_ type: CredentialType, options: CredentialRequestOptions) throws -> CredentialRequest {
-        if options.genesisIssuedAtMin == nil, options.expiresAtMin == nil {
-            return CredentialRequest.withStringSignal(credentialType: type, signal: options.signal)
-        }
+// public func anyOf(_ items: [CredentialRequest]) -> ConstraintNode {
+//     ConstraintNode.any(nodes: items.map { ConstraintNode.item(request: $0) })
+// }
 
-        let payload = CredentialRequestJSON(
-            type: type.requestType,
-            signal: options.signal,
-            genesisIssuedAtMin: options.genesisIssuedAtMin,
-            expiresAtMin: options.expiresAtMin
-        )
-        let encoded = try JSONEncoder().encode(payload)
-        let json = String(decoding: encoded, as: UTF8.self)
-        return try CredentialRequest.fromJson(json: json)
-    }
-}
+// public func anyOf(nodes: ConstraintNode...) -> ConstraintNode {
+//     ConstraintNode.any(nodes: nodes)
+// }
 
-public func anyOf(_ items: CredentialRequest...) -> ConstraintNode {
-    ConstraintNode.any(nodes: items.map { ConstraintNode.item(request: $0) })
-}
+// public func anyOf(nodes: [ConstraintNode]) -> ConstraintNode {
+//     ConstraintNode.any(nodes: nodes)
+// }
 
-public func anyOf(_ items: [CredentialRequest]) -> ConstraintNode {
-    ConstraintNode.any(nodes: items.map { ConstraintNode.item(request: $0) })
-}
+// public func allOf(_ items: CredentialRequest...) -> ConstraintNode {
+//     ConstraintNode.all(nodes: items.map { ConstraintNode.item(request: $0) })
+// }
 
-public func anyOf(nodes: ConstraintNode...) -> ConstraintNode {
-    ConstraintNode.any(nodes: nodes)
-}
+// public func allOf(_ items: [CredentialRequest]) -> ConstraintNode {
+//     ConstraintNode.all(nodes: items.map { ConstraintNode.item(request: $0) })
+// }
 
-public func anyOf(nodes: [ConstraintNode]) -> ConstraintNode {
-    ConstraintNode.any(nodes: nodes)
-}
+// public func allOf(nodes: ConstraintNode...) -> ConstraintNode {
+//     ConstraintNode.all(nodes: nodes)
+// }
 
-public func allOf(_ items: CredentialRequest...) -> ConstraintNode {
-    ConstraintNode.all(nodes: items.map { ConstraintNode.item(request: $0) })
-}
+// public func allOf(nodes: [ConstraintNode]) -> ConstraintNode {
+//     ConstraintNode.all(nodes: nodes)
+// }
 
-public func allOf(_ items: [CredentialRequest]) -> ConstraintNode {
-    ConstraintNode.all(nodes: items.map { ConstraintNode.item(request: $0) })
-}
+// public func enumerateOf(_ items: CredentialRequest...) -> ConstraintNode {
+//     enumerateOf(nodes: items.map { ConstraintNode.item(request: $0) })
+// }
 
-public func allOf(nodes: ConstraintNode...) -> ConstraintNode {
-    ConstraintNode.all(nodes: nodes)
-}
+// public func enumerateOf(_ items: [CredentialRequest]) -> ConstraintNode {
+//     enumerateOf(nodes: items.map { ConstraintNode.item(request: $0) })
+// }
 
-public func allOf(nodes: [ConstraintNode]) -> ConstraintNode {
-    ConstraintNode.all(nodes: nodes)
-}
+// public func enumerateOf(nodes: ConstraintNode...) -> ConstraintNode {
+//     enumerateOf(nodes: nodes)
+// }
 
-public func enumerateOf(_ items: CredentialRequest...) -> ConstraintNode {
-    enumerateOf(nodes: items.map { ConstraintNode.item(request: $0) })
-}
-
-public func enumerateOf(_ items: [CredentialRequest]) -> ConstraintNode {
-    enumerateOf(nodes: items.map { ConstraintNode.item(request: $0) })
-}
-
-public func enumerateOf(nodes: ConstraintNode...) -> ConstraintNode {
-    enumerateOf(nodes: nodes)
-}
-
-public func enumerateOf(nodes: [ConstraintNode]) -> ConstraintNode {
-    do {
-        let nodesJson = try nodes.map { try $0.toJson() }.joined(separator: ",")
-        return try ConstraintNode.fromJson(json: #"{"enumerate":[\#(nodesJson)]}"#)
-    } catch {
-        preconditionFailure("Failed to build enumerate constraint: \(error)")
-    }
-}
+// public func enumerateOf(nodes: [ConstraintNode]) -> ConstraintNode {
+//     do {
+//         let nodesJson = try nodes.map { try $0.toJson() }.joined(separator: ",")
+//         return try ConstraintNode.fromJson(json: #"{"enumerate":[\#(nodesJson)]}"#)
+//     } catch {
+//         preconditionFailure("Failed to build enumerate constraint: \(error)")
+//     }
+// }
 
 public func orbLegacy(signal: String? = nil) -> Preset {
     .orbLegacy(signal: signal)
@@ -333,36 +336,37 @@ public func documentLegacy(signal: String? = nil) -> Preset {
     .documentLegacy(signal: signal)
 }
 
-private struct CredentialRequestJSON: Encodable {
-    let type: String
-    let signal: String?
-    let genesisIssuedAtMin: UInt64?
-    let expiresAtMin: UInt64?
+// TODO: Re-enable when World ID 4.0 is live
+// private struct CredentialRequestJSON: Encodable {
+//     let type: String
+//     let signal: String?
+//     let genesisIssuedAtMin: UInt64?
+//     let expiresAtMin: UInt64?
+//
+//     enum CodingKeys: String, CodingKey {
+//         case type
+//         case signal
+//         case genesisIssuedAtMin = "genesis_issued_at_min"
+//         case expiresAtMin = "expires_at_min"
+//     }
+// }
 
-    enum CodingKeys: String, CodingKey {
-        case type
-        case signal
-        case genesisIssuedAtMin = "genesis_issued_at_min"
-        case expiresAtMin = "expires_at_min"
-    }
-}
-
-private extension CredentialType {
-    var requestType: String {
-        switch self {
-        case .orb:
-            return "orb"
-        case .face:
-            return "face"
-        case .secureDocument:
-            return "secure_document"
-        case .document:
-            return "document"
-        case .device:
-            return "device"
-        }
-    }
-}
+// private extension CredentialType {
+//     var requestType: String {
+//         switch self {
+//         case .orb:
+//             return "orb"
+//         case .face:
+//             return "face"
+//         case .secureDocument:
+//             return "secure_document"
+//         case .document:
+//             return "document"
+//         case .device:
+//             return "device"
+//         }
+//     }
+// }
 
 public extension Signal {
     var bytesData: Data {
