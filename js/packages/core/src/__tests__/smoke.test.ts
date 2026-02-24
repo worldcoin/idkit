@@ -11,6 +11,7 @@ import {
   // any,
   // enumerate,
   orbLegacy,
+  faceCheck,
   isNode,
   IDKitErrorCodes,
   signRequest,
@@ -36,6 +37,7 @@ describe("IDKitRequest API", () => {
   //   expect(typeof any).toBe("function");
   //   expect(typeof enumerate).toBe("function");
   //   expect(typeof orbLegacy).toBe("function");
+  //   expect(typeof faceCheck).toBe("function");
   // });
 
   // it("should create CredentialRequest correctly", () => {
@@ -64,6 +66,12 @@ describe("IDKitRequest API", () => {
     const preset = orbLegacy({ signal: "test-signal" });
     expect(preset).toHaveProperty("type", "OrbLegacy");
     expect(preset).toHaveProperty("signal", "test-signal");
+  });
+
+  it("should create faceCheck preset correctly", () => {
+    const preset = faceCheck({ signal: "face-signal" });
+    expect(preset).toHaveProperty("type", "FaceCheck");
+    expect(preset).toHaveProperty("signal", "face-signal");
   });
 
   it("should throw error when rp_context is missing", () => {

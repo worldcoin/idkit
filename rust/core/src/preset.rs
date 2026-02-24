@@ -43,6 +43,18 @@ pub enum Preset {
         /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
         signal: Option<String>,
     },
+    /// Face check verification
+    ///
+    /// Requests face credentials only, with optional signal.
+    /// The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
+    ///
+    /// This preset requests face credentials in v4 constraints and maps to
+    /// legacy `verification_level = face` for v3 compatibility fields.
+    FaceCheck {
+        /// Optional signal to include in the proof.
+        /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
+        signal: Option<String>,
+    },
 }
 
 impl Preset {
@@ -62,6 +74,12 @@ impl Preset {
     #[must_use]
     pub fn document_legacy(signal: Option<String>) -> Self {
         Self::DocumentLegacy { signal }
+    }
+
+    /// Creates a new `FaceCheck` preset with optional signal
+    #[must_use]
+    pub fn face_check(signal: Option<String>) -> Self {
+        Self::FaceCheck { signal }
     }
 
     /// Converts the preset to bridge session parameters
@@ -115,6 +133,54 @@ impl Preset {
 
                 (constraints, legacy_verification_level, legacy_signal)
             }
+            Self::FaceCheck { signal } => {
+                let signal_opt = signal.as_ref().map(|s| Signal::from_string(s.clone()));
+                let face = CredentialRequest::new(CredentialType::Face, signal_opt);
+                let constraints = ConstraintNode::Item(face);
+                let legacy_verification_level = VerificationLevel::Face;
+                let legacy_signal = signal.clone();
+
+                (constraints, legacy_verification_level, legacy_signal)
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn face_check_preset_builds_face_only_constraints_and_face_legacy_level() {
+        let preset = Preset::face_check(Some("face-signal".to_string()));
+        let (constraints, verification_level, legacy_signal) = preset.to_bridge_params();
+
+        assert_eq!(verification_level, VerificationLevel::Face);
+        assert_eq!(legacy_signal, Some("face-signal".to_string()));
+
+        match constraints {
+            ConstraintNode::Item(item) => {
+                assert_eq!(item.credential_type, CredentialType::Face);
+                assert_eq!(item.signal, Some(Signal::from_string("face-signal")));
+            }
+            _ => panic!("expected faceCheck constraints to be a single item"),
+        }
+    }
+
+    #[test]
+    fn face_check_preset_without_signal_preserves_empty_signal() {
+        let preset = Preset::face_check(None);
+        let (constraints, verification_level, legacy_signal) = preset.to_bridge_params();
+
+        assert_eq!(verification_level, VerificationLevel::Face);
+        assert_eq!(legacy_signal, None);
+
+        match constraints {
+            ConstraintNode::Item(item) => {
+                assert_eq!(item.credential_type, CredentialType::Face);
+                assert_eq!(item.signal, None);
+            }
+            _ => panic!("expected faceCheck constraints to be a single item"),
         }
     }
 }

@@ -57,6 +57,14 @@ case .failure(let error):
 }
 ```
 
+For face-check verification, use:
+
+```swift
+let request = try IDKit
+    .request(config: config)
+    .preset(faceCheck(signal: "user-123"))
+```
+
 ## Canonical Swift API
 
 - Entry points:

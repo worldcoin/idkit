@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 import {
   documentLegacy,
+  faceCheck,
   IDKitRequestWidget,
   orbLegacy,
   secureDocumentLegacy,
@@ -13,7 +14,7 @@ import {
 const APP_ID = process.env.NEXT_PUBLIC_APP_ID as `app_${string}` | undefined;
 const RP_ID = process.env.NEXT_PUBLIC_RP_ID;
 
-type PresetKind = "orb" | "secure_document" | "document";
+type PresetKind = "orb" | "secure_document" | "document" | "face";
 
 function createPreset(kind: PresetKind, signal: string) {
   switch (kind) {
@@ -23,6 +24,8 @@ function createPreset(kind: PresetKind, signal: string) {
       return secureDocumentLegacy({ signal });
     case "document":
       return documentLegacy({ signal });
+    case "face":
+      return faceCheck({ signal });
     default: {
       const exhaustive: never = kind;
       throw new Error(`Unsupported preset: ${String(exhaustive)}`);
@@ -193,6 +196,9 @@ export function DemoClient(): ReactElement {
         </button>
         <button onClick={() => startWidgetFlow("document")}>
           Verify with Document
+        </button>
+        <button onClick={() => startWidgetFlow("face_check")}>
+          Verify with Face Check
         </button>
       </div>
       {widgetError ? <p className="status">Error: {widgetError}</p> : null}

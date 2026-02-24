@@ -65,4 +65,5 @@ export type {
   OrbLegacyPreset,
   SecureDocumentLegacyPreset,
   DocumentLegacyPreset,
+  FaceCheckPreset,
 } from "../../wasm/idkit_wasm.js";

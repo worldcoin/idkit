@@ -336,6 +336,10 @@ public func documentLegacy(signal: String? = nil) -> Preset {
     .documentLegacy(signal: signal)
 }
 
+public func faceCheck(signal: String? = nil) -> Preset {
+    .faceCheck(signal: signal)
+}
+
 // TODO: Re-enable when World ID 4.0 is live
 // private struct CredentialRequestJSON: Encodable {
 //     let type: String

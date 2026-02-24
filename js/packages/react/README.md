@@ -18,7 +18,7 @@ npm install @worldcoin/idkit
 ## Basic usage
 
 ```tsx
-import { useIDKitRequest, orbLegacy } from "@worldcoin/idkit";
+import { useIDKitRequest, orbLegacy, faceCheck } from "@worldcoin/idkit";
 
 function Example() {
   const flow = useIDKitRequest({
@@ -38,6 +38,8 @@ function Example() {
   );
 }
 ```
+
+Use `faceCheck({ signal })` for face-check preset requests.
 
 ```tsx
 import type { IDKitRequestHookConfig } from "@worldcoin/idkit";

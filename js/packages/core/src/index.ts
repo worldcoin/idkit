@@ -17,6 +17,7 @@ export {
   orbLegacy,
   secureDocumentLegacy,
   documentLegacy,
+  faceCheck,
   // Types
   type IDKitRequest,
   type IDKitCompletionResult,
@@ -26,6 +27,7 @@ export {
   type OrbLegacyPreset,
   type SecureDocumentLegacyPreset,
   type DocumentLegacyPreset,
+  type FaceCheckPreset,
 } from "./request";
 
 // Config types

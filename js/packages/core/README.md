@@ -56,7 +56,20 @@ const request = await IDKit.request({
 const qrUrl = request.connectorURI;
 ```
 
-**Available presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`
+**Available presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `faceCheck`
+
+Face check preset example:
+
+```typescript
+import { IDKit, faceCheck } from "@worldcoin/idkit-core";
+
+const request = await IDKit.request({
+  app_id: "app_xxxxx",
+  action: "my-action",
+  rp_context: rpContext,
+  allow_legacy_proofs: false,
+}).preset(faceCheck({ signal: "user-123" }));
+```
 
 ## Handling the Result
 

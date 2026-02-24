@@ -1160,11 +1160,17 @@ export interface DocumentLegacyPreset {
     signal?: string;
 }
 
-export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLegacyPreset;
+export interface FaceCheckPreset {
+    type: "FaceCheck";
+    signal?: string;
+}
+
+export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLegacyPreset | FaceCheckPreset;
 
 export function orbLegacy(signal?: string): Preset;
 export function secureDocumentLegacy(signal?: string): Preset;
 export function documentLegacy(signal?: string): Preset;
+export function faceCheck(signal?: string): Preset;
 "#;
 
 // Export RP signature types

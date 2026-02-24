@@ -275,6 +275,8 @@ fun secureDocumentLegacy(signal: String? = null): Preset =
 
 fun documentLegacy(signal: String? = null): Preset = Preset.DocumentLegacy(signal = signal)
 
+fun faceCheck(signal: String? = null): Preset = Preset.FaceCheck(signal = signal)
+
 fun idkitResultToJson(result: IDKitResult): String = nativeIdkitResultToJson(result)
 
 fun idkitResultFromJson(json: String): IDKitResult = nativeIdkitResultFromJson(json)
