@@ -1195,6 +1195,7 @@ export interface DocumentLegacyPreset {
 }
 
 export interface FaceCheckPreset {
+    /** Preview: Face Check is currently in preview. Contact us if you need it enabled. */
     type: "FaceCheck";
     signal?: string;
 }
@@ -1204,6 +1205,7 @@ export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLega
 export function orbLegacy(signal?: string): Preset;
 export function secureDocumentLegacy(signal?: string): Preset;
 export function documentLegacy(signal?: string): Preset;
+/** Preview: Face Check is currently in preview. Contact us if you need it enabled. */
 export function faceCheck(signal?: string): Preset;
 "#;
 

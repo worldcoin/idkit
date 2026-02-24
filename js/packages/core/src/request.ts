@@ -303,6 +303,9 @@ export function documentLegacy(
 /**
  * Creates a FaceCheck preset for face verification
  *
+ * Preview: Face Check is currently in preview.
+ * Contact us if you need it enabled.
+ *
  * This preset requests face credentials in v4 constraints.
  * In legacy compatibility fields, it maps to verification level "face".
  *

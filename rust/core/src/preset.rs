@@ -50,6 +50,8 @@ pub enum Preset {
     ///
     /// This preset requests face credentials in v4 constraints and maps to
     /// legacy `verification_level = face` for v3 compatibility fields.
+    ///
+    /// Preview: Face Check is currently in preview. Contact us if you need it enabled.
     FaceCheck {
         /// Optional signal to include in the proof.
         /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
@@ -77,6 +79,8 @@ impl Preset {
     }
 
     /// Creates a new `FaceCheck` preset with optional signal
+    ///
+    /// Preview: Face Check is currently in preview. Contact us if you need it enabled.
     #[must_use]
     pub fn face_check(signal: Option<String>) -> Self {
         Self::FaceCheck { signal }

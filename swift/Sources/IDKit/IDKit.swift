@@ -336,6 +336,7 @@ public func documentLegacy(signal: String? = nil) -> Preset {
     .documentLegacy(signal: signal)
 }
 
+/// Preview: Face Check is currently in preview. Contact us if you need it enabled.
 public func faceCheck(signal: String? = nil) -> Preset {
     .faceCheck(signal: signal)
 }
