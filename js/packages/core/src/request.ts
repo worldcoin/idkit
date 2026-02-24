@@ -15,6 +15,7 @@ import type {
   CredentialRequestType,
 } from "./types/result";
 import { IDKitErrorCodes } from "./types/result";
+import type { NativePayloadResult } from "./lib/wasm";
 import { WasmModule, initIDKit } from "./lib/wasm";
 import {
   isInWorldApp,
@@ -387,8 +388,13 @@ class IDKitBuilder {
     const wasmBuilder = createWasmBuilderFromConfig(this.config);
 
     if (isInWorldApp()) {
-      const payload = wasmBuilder.nativePayload(constraints);
-      return createNativeRequest(payload, this.config);
+      const wasmResult: NativePayloadResult =
+        wasmBuilder.nativePayload(constraints);
+      return createNativeRequest(
+        wasmResult.payload,
+        this.config,
+        wasmResult.signal_hashes ?? {},
+      );
     }
 
     // Bridge path — WASM
@@ -418,8 +424,13 @@ class IDKitBuilder {
     const wasmBuilder = createWasmBuilderFromConfig(this.config);
 
     if (isInWorldApp()) {
-      const payload = wasmBuilder.nativePayloadFromPreset(preset);
-      return createNativeRequest(payload, this.config);
+      const wasmResult: NativePayloadResult =
+        wasmBuilder.nativePayloadFromPreset(preset);
+      return createNativeRequest(
+        wasmResult.payload,
+        this.config,
+        wasmResult.signal_hashes ?? {},
+      );
     }
 
     // Bridge path — WASM

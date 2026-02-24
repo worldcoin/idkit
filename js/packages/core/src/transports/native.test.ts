@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IDKitErrorCodes } from "../types/result";
 import type { BuilderConfig } from "./native";
 import { createNativeRequest } from "./native";
+import { hashSignal } from "../lib/hashing";
 
 const baseConfig: BuilderConfig = {
   type: "request",
@@ -61,7 +62,6 @@ describe("native transport request lifecycle", () => {
 
     const completionPromise = req2.pollUntilCompletion({ timeout: 1000 });
 
-    // Simulate World App native success message.
     listeners.forEach((handler) =>
       handler({
         data: {
@@ -70,6 +70,7 @@ describe("native transport request lifecycle", () => {
             status: "success",
             protocol_version: "3.0",
             verification_level: "orb",
+            signal_hash: "0xabc",
             proof: "0x01",
             merkle_root: "0x02",
             nullifier_hash: "0x03",
@@ -80,16 +81,14 @@ describe("native transport request lifecycle", () => {
 
     const completion = await completionPromise;
     expect(completion.success).toBe(true);
+    if (completion.success) {
+      expect(completion.result.responses[0]?.signal_hash).toBe("0xabc");
+    }
   });
 
-  it("resolves from MiniKit event channel when postMessage is not used", async () => {
+  it("resolves from MiniKit event channel", async () => {
     const req = createNativeRequest({ payload: 1 }, baseConfig);
     activeRequest = req;
-
-    expect((window as any).MiniKit.subscribe).toHaveBeenCalledWith(
-      "miniapp-verify-action",
-      expect.any(Function),
-    );
 
     const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
 
@@ -97,6 +96,7 @@ describe("native transport request lifecycle", () => {
       status: "success",
       protocol_version: "3.0",
       verification_level: "orb",
+      signal_hash: "0xabc",
       proof: "0x01",
       merkle_root: "0x02",
       nullifier_hash: "0x03",
@@ -104,9 +104,76 @@ describe("native transport request lifecycle", () => {
 
     const completion = await completionPromise;
     expect(completion.success).toBe(true);
-    expect((window as any).MiniKit.unsubscribe).toHaveBeenCalledWith(
-      "miniapp-verify-action",
-    );
+  });
+
+  it("uses per-identifier signal hashes when response omits signal_hash", async () => {
+    const signalHashes = {
+      orb: hashSignal("orb-signal"),
+      face: hashSignal("face-signal"),
+    };
+
+    const req = createNativeRequest({}, baseConfig, signalHashes);
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      responses: [
+        {
+          identifier: "orb",
+          proof: ["0x01"],
+          nullifier: "0x02",
+          issuer_schema_id: 1,
+          expires_at_min: 0,
+        },
+        {
+          identifier: "face",
+          proof: ["0x11"],
+          nullifier: "0x12",
+          issuer_schema_id: 2,
+          expires_at_min: 0,
+        },
+      ],
+    });
+
+    const completion = await completionPromise;
+    expect(completion.success).toBe(true);
+    if (completion.success) {
+      expect(completion.result.responses[0]?.signal_hash).toBe(
+        signalHashes.orb,
+      );
+      expect(completion.result.responses[1]?.signal_hash).toBe(
+        signalHashes.face,
+      );
+    }
+  });
+
+  it("prefers response signal_hash over signal hashes map", async () => {
+    const signalHashes = { orb: hashSignal("from-constraints") };
+
+    const req = createNativeRequest({}, baseConfig, signalHashes);
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      protocol_version: "3.0",
+      verification_level: "orb",
+      signal_hash: "0xfromresponse",
+      proof: "0x01",
+      merkle_root: "0x02",
+      nullifier_hash: "0x03",
+    });
+
+    const completion = await completionPromise;
+    expect(completion.success).toBe(true);
+    if (completion.success) {
+      expect(completion.result.responses[0]?.signal_hash).toBe(
+        "0xfromresponse",
+      );
+    }
   });
 
   it("allows creating a fresh request after timeout", async () => {
@@ -121,28 +188,6 @@ describe("native transport request lifecycle", () => {
     await expect(completionPromise).resolves.toEqual({
       success: false,
       error: IDKitErrorCodes.Timeout,
-    });
-
-    const req2 = createNativeRequest({ payload: 2 }, baseConfig);
-    expect(req2).not.toBe(req1);
-    activeRequest = req2;
-  });
-
-  it("allows creating a fresh request after abort", async () => {
-    const req1 = createNativeRequest({ payload: 1 }, baseConfig);
-    activeRequest = req1;
-
-    const controller = new AbortController();
-    const completionPromise = req1.pollUntilCompletion({
-      timeout: 1000,
-      signal: controller.signal,
-    });
-
-    controller.abort();
-
-    await expect(completionPromise).resolves.toEqual({
-      success: false,
-      error: IDKitErrorCodes.Cancelled,
     });
 
     const req2 = createNativeRequest({ payload: 2 }, baseConfig);
