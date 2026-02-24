@@ -1,16 +1,20 @@
 import { keccak_256 } from "@noble/hashes/sha3";
-import { bytesToHex } from "@noble/hashes/utils";
+import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
 import { hmac } from "@noble/hashes/hmac";
 import { sha256 } from "@noble/hashes/sha2";
 import { sign, etc } from "@noble/secp256k1";
 import { isServerEnvironment } from "./platform";
-import { hashToField } from "./hashing";
 
 // Configure @noble/secp256k1 with synchronous HMAC-SHA256 from @noble/hashes
 etc.hmacSha256Sync = (key: Uint8Array, ...msgs: Uint8Array[]) =>
   hmac(sha256, key, etc.concatBytes(...msgs));
 
 const DEFAULT_TTL_SEC = 300;
+
+export function hashToField(input: Uint8Array): Uint8Array {
+  const hash = BigInt("0x" + bytesToHex(keccak_256(input))) >> 8n;
+  return hexToBytes(hash.toString(16).padStart(64, "0"));
+}
 
 export interface RpSignature {
   sig: string; // 0x-prefixed, 65 bytes (r || s || v)

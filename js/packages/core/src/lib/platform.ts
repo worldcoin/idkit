@@ -38,25 +38,3 @@ export const isNode = (): boolean => {
     typeof process.versions.node !== "undefined"
   );
 };
-
-/**
- * Checks if the code is running in a server-side environment
- * Supports Node.js, Deno, Bun, and Cloudflare Workers
- * @returns true if running in a server environment, false otherwise
- */
-export const isServerEnvironment = (): boolean => {
-  // Node.js
-  if (typeof process !== "undefined" && process.versions?.node) {
-    return true;
-  }
-  // Deno
-  if (typeof (globalThis as any).Deno !== "undefined") {
-    return true;
-  }
-  // Bun
-  if (typeof (globalThis as any).Bun !== "undefined") {
-    return true;
-  }
-
-  return false;
-};
