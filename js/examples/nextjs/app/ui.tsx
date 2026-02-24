@@ -197,7 +197,7 @@ export function DemoClient(): ReactElement {
         <button onClick={() => startWidgetFlow("document")}>
           Verify with Document
         </button>
-        <button onClick={() => startWidgetFlow("face_check")}>
+        <button onClick={() => startWidgetFlow("face")}>
           Verify with Face Check
         </button>
       </div>
