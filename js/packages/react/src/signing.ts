@@ -1,1 +1,1 @@
-export { signRequest, type RpSignature } from "@worldcoin/idkit-core/signing";
+export { signRequest, type RpSignature } from "@worldcoin/idkit-server";

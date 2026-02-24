@@ -1,39 +1,34 @@
-/**
- * Smoke tests for pure JS hashing and signing implementations
- * Test vectors cross-verified with the Rust/WASM implementation
- */
-
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
-import { hashSignal } from "../hashing";
-import { hashToField } from "../lib/hashing";
-import { signRequest, computeRpSignatureMessage } from "../signing";
+import {
+  signRequest,
+  computeRpSignatureMessage,
+  hashToField,
+} from "../lib/signing";
 
-// Rust ref: rust/core/src/crypto.rs (hash_to_field)
-// Algorithm: keccak256(input) >> 8, returns 0x-prefixed 64-char hex
-describe("hashToField (pure JS)", () => {
-  it("should hash empty string bytes correctly", () => {
+describe("hashToField", () => {
+  it("should hash empty string bytes to expected field element", () => {
     const input = new TextEncoder().encode("");
     expect("0x" + bytesToHex(hashToField(input))).toBe(
       "0x00c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4",
     );
   });
 
-  it('should hash "test_signal" bytes correctly', () => {
+  it('should hash "test_signal" bytes to expected field element', () => {
     const input = new TextEncoder().encode("test_signal");
     expect("0x" + bytesToHex(hashToField(input))).toBe(
       "0x00c1636e0a961a3045054c4d61374422c31a95846b8442f0927ad2ff1d6112ed",
     );
   });
 
-  it("should hash raw [0x01, 0x02, 0x03] bytes correctly", () => {
+  it("should hash raw [0x01, 0x02, 0x03] bytes to expected field element", () => {
     const input = new Uint8Array([0x01, 0x02, 0x03]);
     expect("0x" + bytesToHex(hashToField(input))).toBe(
       "0x00f1885eda54b7a053318cd41e2093220dab15d65381b1157a3633a83bfd5c92",
     );
   });
 
-  it('should hash hex-decoded "0x68656c6c6f" bytes correctly', () => {
+  it('should hash hex-decoded "0x68656c6c6f" bytes to expected field element', () => {
     const input = hexToBytes("68656c6c6f");
     expect("0x" + bytesToHex(hashToField(input))).toBe(
       "0x001c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36dea",
@@ -41,40 +36,6 @@ describe("hashToField (pure JS)", () => {
   });
 });
 
-// Rust ref: rust/core/src/crypto.rs (hash_to_field)
-// Algorithm: keccak256(input) >> 8, returns 0x-prefixed 64-char hex
-describe("hashSignal (pure JS)", () => {
-  it("should hash empty string correctly", () => {
-    expect(hashSignal("")).toBe(
-      "0x00c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4",
-    );
-  });
-
-  it("should hash UTF-8 string correctly", () => {
-    expect(hashSignal("test_signal")).toBe(
-      "0x00c1636e0a961a3045054c4d61374422c31a95846b8442f0927ad2ff1d6112ed",
-    );
-  });
-
-  it("should hash raw bytes correctly", () => {
-    expect(hashSignal(new Uint8Array([1, 2, 3]))).toBe(
-      "0x00f1885eda54b7a053318cd41e2093220dab15d65381b1157a3633a83bfd5c92",
-    );
-  });
-
-  it("should decode 0x-prefixed hex strings to bytes before hashing", () => {
-    // "hello" in hex is 68656c6c6f
-    const fromHex = hashSignal("0x68656c6c6f");
-    const fromString = hashSignal("hello");
-    expect(fromHex).toBe(fromString);
-    expect(fromHex).toBe(
-      "0x001c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36dea",
-    );
-  });
-});
-
-// Rust ref: https://github.com/worldcoin/world-id-protocol/blob/0008eab1efe200e572f27258793f9be5cb32858b/crates/primitives/src/rp.rs#L95-L105
-// Message format: nonce(32) || createdAt_u64_be(8) || expiresAt_u64_be(8)
 describe("computeRpSignatureMessage", () => {
   it("should produce a 48-byte message", () => {
     const nonce = new Uint8Array(32).fill(0xaa);
@@ -110,13 +71,11 @@ describe("computeRpSignatureMessage", () => {
   });
 });
 
-// Rust ref: rust/core/src/rp_signature.rs (signRequest)
-// Nonce generation ref: https://github.com/worldcoin/world-id-protocol/blob/31405df8bcd5a2784e04ad9890cf095111dcac13/crates/primitives/src/lib.rs#L134-L149
-describe("signRequest (pure JS)", () => {
+describe("signRequest", () => {
   const TEST_KEY =
     "0xabababababababababababababababababababababababababababababababab";
   const TEST_ACTION = "test-action";
-  const FIXED_NOW_MS = 1700000000_000; // 2023-11-14T22:13:20Z
+  const FIXED_NOW_MS = 1700000000_000;
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -125,11 +84,9 @@ describe("signRequest (pure JS)", () => {
   it("should return correctly formatted signature", () => {
     const sig = signRequest(TEST_ACTION, TEST_KEY);
 
-    // 65 bytes = 0x + 130 hex chars
     expect(sig.sig).toMatch(/^0x[0-9a-f]{130}$/);
     expect(sig.sig.length).toBe(132);
 
-    // 32 bytes = 0x + 64 hex chars
     expect(sig.nonce).toMatch(/^0x[0-9a-f]{64}$/);
     expect(sig.nonce.length).toBe(66);
   });
@@ -160,7 +117,6 @@ describe("signRequest (pure JS)", () => {
 
   it("should produce v value of 27 or 28", () => {
     const sig = signRequest(TEST_ACTION, TEST_KEY);
-    // Last byte of 65-byte sig is v
     const vHex = sig.sig.slice(-2);
     const v = parseInt(vHex, 16);
     expect(v === 27 || v === 28).toBe(true);
@@ -168,7 +124,6 @@ describe("signRequest (pure JS)", () => {
 
   it("should have nonce with leading zero byte (field element)", () => {
     const sig = signRequest(TEST_ACTION, TEST_KEY);
-    // After 0x prefix, first two hex chars should be "00"
     expect(sig.nonce.slice(2, 4)).toBe("00");
   });
 
