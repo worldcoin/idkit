@@ -127,7 +127,11 @@ class NativeIDKitRequest implements IDKitRequest {
         }
 
         this.resolved = true;
-        const result = nativeResultToIDKitResult(responsePayload, config);
+        const result = nativeResultToIDKitResult(
+          responsePayload,
+          config,
+          getLegacySignalHashFromWasmPayload(wasmPayload),
+        );
         this.resolvedResult = result;
         this.cleanup();
         resolve(result);
@@ -287,6 +291,20 @@ class NativeIDKitRequest implements IDKitRequest {
   }
 }
 
+function getLegacySignalHashFromWasmPayload(
+  wasmPayload: unknown,
+): string | undefined {
+  if (
+    wasmPayload &&
+    typeof wasmPayload === "object" &&
+    "signal" in wasmPayload &&
+    typeof (wasmPayload as { signal?: unknown }).signal === "string"
+  ) {
+    return (wasmPayload as { signal: string }).signal;
+  }
+  return undefined;
+}
+
 class NativeVerifyError extends Error {
   code: IDKitErrorCodes;
   constructor(code: IDKitErrorCodes) {
@@ -302,6 +320,7 @@ class NativeVerifyError extends Error {
 function nativeResultToIDKitResult(
   payload: any,
   config: BuilderConfig,
+  legacySignalHash?: string,
 ): IDKitResult {
   const rpNonce = config.rp_context?.nonce ?? "";
 
@@ -326,6 +345,7 @@ function nativeResultToIDKitResult(
       action: config.action ?? "",
       responses: payload.verifications.map((v: any) => ({
         identifier: v.verification_level,
+        signal_hash: v.signal_hash ?? legacySignalHash,
         proof: [v.proof],
         nullifier: v.nullifier_hash,
         merkle_root: v.merkle_root,
@@ -344,6 +364,7 @@ function nativeResultToIDKitResult(
     responses: [
       {
         identifier: payload.verification_level,
+        signal_hash: payload.signal_hash ?? legacySignalHash,
         proof: payload.proof,
         merkle_root: payload.merkle_root,
         nullifier: payload.nullifier_hash,

@@ -70,6 +70,8 @@ describe("native transport request lifecycle", () => {
             status: "success",
             protocol_version: "3.0",
             verification_level: "orb",
+            signal_hash:
+              "0x00c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4",
             proof: "0x01",
             merkle_root: "0x02",
             nullifier_hash: "0x03",
@@ -80,6 +82,11 @@ describe("native transport request lifecycle", () => {
 
     const completion = await completionPromise;
     expect(completion.success).toBe(true);
+    if (completion.success) {
+      expect(completion.result.responses[0]?.signal_hash).toBe(
+        "0x00c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4",
+      );
+    }
   });
 
   it("resolves from MiniKit event channel when postMessage is not used", async () => {
@@ -97,6 +104,8 @@ describe("native transport request lifecycle", () => {
       status: "success",
       protocol_version: "3.0",
       verification_level: "orb",
+      signal_hash:
+        "0x00c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4",
       proof: "0x01",
       merkle_root: "0x02",
       nullifier_hash: "0x03",
@@ -104,9 +113,85 @@ describe("native transport request lifecycle", () => {
 
     const completion = await completionPromise;
     expect(completion.success).toBe(true);
+    if (completion.success) {
+      expect(completion.result.responses[0]?.signal_hash).toBe(
+        "0x00c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4",
+      );
+    }
     expect((window as any).MiniKit.unsubscribe).toHaveBeenCalledWith(
       "miniapp-verify-action",
     );
+  });
+
+  it("maps signal_hash for legacy multi-verification native payloads", async () => {
+    const req = createNativeRequest({ payload: 1 }, baseConfig);
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      verifications: [
+        {
+          verification_level: "orb",
+          signal_hash:
+            "0x00c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4",
+          proof: "0x01",
+          merkle_root: "0x02",
+          nullifier_hash: "0x03",
+        },
+        {
+          verification_level: "device",
+          signal_hash:
+            "0x0f7cfd8ad7f6f3793f6fca63ef9f998f6d1ee6125f68ff9c7a7fd0dfaca8757f",
+          proof: "0x11",
+          merkle_root: "0x12",
+          nullifier_hash: "0x13",
+        },
+      ],
+    });
+
+    const completion = await completionPromise;
+    expect(completion.success).toBe(true);
+    if (completion.success) {
+      expect(completion.result.protocol_version).toBe("4.0");
+      expect(completion.result.responses[0]?.signal_hash).toBe(
+        "0x00c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4",
+      );
+      expect(completion.result.responses[1]?.signal_hash).toBe(
+        "0x0f7cfd8ad7f6f3793f6fca63ef9f998f6d1ee6125f68ff9c7a7fd0dfaca8757f",
+      );
+    }
+  });
+
+  it("falls back to legacy payload signal hash when native response omits signal_hash", async () => {
+    const req = createNativeRequest(
+      {
+        signal:
+          "0x00c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4",
+      },
+      baseConfig,
+    );
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      protocol_version: "3.0",
+      verification_level: "orb",
+      proof: "0x01",
+      merkle_root: "0x02",
+      nullifier_hash: "0x03",
+    });
+
+    const completion = await completionPromise;
+    expect(completion.success).toBe(true);
+    if (completion.success) {
+      expect(completion.result.responses[0]?.signal_hash).toBe(
+        "0x00c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4",
+      );
+    }
   });
 
   it("allows creating a fresh request after timeout", async () => {
