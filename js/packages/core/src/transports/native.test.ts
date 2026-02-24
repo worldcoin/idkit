@@ -120,16 +120,32 @@ describe("native transport request lifecycle", () => {
     miniKitHandlers["miniapp-verify-action"]?.({
       status: "success",
       responses: [
-        { identifier: "orb", proof: ["0x01"], nullifier: "0x02", issuer_schema_id: 1, expires_at_min: 0 },
-        { identifier: "face", proof: ["0x11"], nullifier: "0x12", issuer_schema_id: 2, expires_at_min: 0 },
+        {
+          identifier: "orb",
+          proof: ["0x01"],
+          nullifier: "0x02",
+          issuer_schema_id: 1,
+          expires_at_min: 0,
+        },
+        {
+          identifier: "face",
+          proof: ["0x11"],
+          nullifier: "0x12",
+          issuer_schema_id: 2,
+          expires_at_min: 0,
+        },
       ],
     });
 
     const completion = await completionPromise;
     expect(completion.success).toBe(true);
     if (completion.success) {
-      expect(completion.result.responses[0]?.signal_hash).toBe(signalHashes.orb);
-      expect(completion.result.responses[1]?.signal_hash).toBe(signalHashes.face);
+      expect(completion.result.responses[0]?.signal_hash).toBe(
+        signalHashes.orb,
+      );
+      expect(completion.result.responses[1]?.signal_hash).toBe(
+        signalHashes.face,
+      );
     }
   });
 
@@ -154,7 +170,9 @@ describe("native transport request lifecycle", () => {
     const completion = await completionPromise;
     expect(completion.success).toBe(true);
     if (completion.success) {
-      expect(completion.result.responses[0]?.signal_hash).toBe("0xfromresponse");
+      expect(completion.result.responses[0]?.signal_hash).toBe(
+        "0xfromresponse",
+      );
     }
   });
 
@@ -177,4 +195,3 @@ describe("native transport request lifecycle", () => {
     activeRequest = req2;
   });
 });
-

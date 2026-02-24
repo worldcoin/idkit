@@ -352,8 +352,7 @@ function nativeResultToIDKitResult(
       action: config.action ?? "",
       responses: multi.verifications.map((v) => ({
         identifier: v.verification_level,
-        signal_hash:
-          v.signal_hash ?? signalHashes[v.verification_level],
+        signal_hash: v.signal_hash ?? signalHashes[v.verification_level],
         proof: [v.proof],
         nullifier: v.nullifier_hash,
         merkle_root: v.merkle_root,
