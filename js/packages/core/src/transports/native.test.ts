@@ -1,11 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IDKitErrorCodes } from "../types/result";
 import type { BuilderConfig } from "./native";
-import {
-  createNativeRequest,
-  computeSignalHashes,
-  computeSignalHashesFromPreset,
-} from "./native";
+import { createNativeRequest } from "./native";
 import { hashSignal } from "../lib/hashing";
 
 const baseConfig: BuilderConfig = {
@@ -182,46 +178,3 @@ describe("native transport request lifecycle", () => {
   });
 });
 
-describe("computeSignalHashes", () => {
-  it("builds map from constraint tree", () => {
-    const result = computeSignalHashes({
-      any: [
-        { type: "orb" as const, signal: "orb-signal" },
-        { type: "face" as const },
-      ],
-    });
-
-    expect(result).toEqual({ orb: hashSignal("orb-signal") });
-    expect(result.face).toBeUndefined();
-  });
-
-  it("handles nested and single-leaf constraints", () => {
-    expect(computeSignalHashes({ type: "orb" as const, signal: "s" })).toEqual({
-      orb: hashSignal("s"),
-    });
-
-    expect(
-      computeSignalHashes({
-        all: [
-          { type: "orb" as const, signal: "a" },
-          { any: [{ type: "face" as const, signal: "b" }] },
-        ],
-      }),
-    ).toEqual({ orb: hashSignal("a"), face: hashSignal("b") });
-  });
-});
-
-describe("computeSignalHashesFromPreset", () => {
-  it.each([
-    ["OrbLegacy", "orb"],
-    ["SecureDocumentLegacy", "secure_document"],
-    ["DocumentLegacy", "document"],
-  ] as const)("%s -> %s", (presetType, expectedKey) => {
-    const result = computeSignalHashesFromPreset({ type: presetType, signal: "test" });
-    expect(result).toEqual({ [expectedKey]: hashSignal("test") });
-  });
-
-  it("returns empty map when preset has no signal", () => {
-    expect(computeSignalHashesFromPreset({ type: "OrbLegacy" })).toEqual({});
-  });
-});

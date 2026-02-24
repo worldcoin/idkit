@@ -21,14 +21,8 @@ import type {
   WaitOptions,
   Status,
 } from "../request";
-import type {
-  IDKitResult,
-  ConstraintNode,
-  CredentialRequestType,
-} from "../types/result";
+import type { IDKitResult } from "../types/result";
 import { IDKitErrorCodes } from "../types/result";
-import type { Preset } from "../lib/wasm";
-import { hashSignal } from "../lib/hashing";
 
 const MINIAPP_VERIFY_ACTION = "miniapp-verify-action";
 
@@ -46,62 +40,6 @@ type MiniKitBridge = {
  */
 export function isInWorldApp(): boolean {
   return typeof window !== "undefined" && Boolean((window as any).WorldApp);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Signal hash computation (mirrors Rust compute_signal_hashes in bridge.rs)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Recursively collects leaf CredentialRequest items from a constraint tree.
- */
-function collectItems(node: ConstraintNode): CredentialRequestType[] {
-  if ("type" in node) return [node];
-  const children =
-    (node as { any?: ConstraintNode[] }).any ??
-    (node as { all?: ConstraintNode[] }).all;
-  if (Array.isArray(children)) {
-    return children.flatMap(collectItems);
-  }
-  return [];
-}
-
-/**
- * Computes signal hashes from constraints, keyed by credential type identifier.
- *
- * Mirrors Rust `compute_signal_hashes` in bridge.rs — walks the constraint
- * tree, hashes each item's signal, and returns a map from identifier to hash.
- */
-export function computeSignalHashes(
-  constraints: ConstraintNode,
-): Record<string, string> {
-  const map: Record<string, string> = {};
-  for (const item of collectItems(constraints)) {
-    if (item.signal != null) {
-      map[item.type] = hashSignal(item.signal);
-    }
-  }
-  return map;
-}
-
-const PRESET_TYPE_TO_IDENTIFIER: Record<string, string> = {
-  OrbLegacy: "orb",
-  SecureDocumentLegacy: "secure_document",
-  DocumentLegacy: "document",
-};
-
-/**
- * Computes signal hashes from a preset.
- */
-export function computeSignalHashesFromPreset(
-  preset: Preset,
-): Record<string, string> {
-  const map: Record<string, string> = {};
-  if (preset.signal != null) {
-    const identifier = PRESET_TYPE_TO_IDENTIFIER[preset.type] ?? preset.type;
-    map[identifier] = hashSignal(preset.signal);
-  }
-  return map;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

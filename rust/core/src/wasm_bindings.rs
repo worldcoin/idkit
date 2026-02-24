@@ -727,9 +727,26 @@ impl IDKitBuilderWasm {
             .map_err(|e| JsValue::from_str(&format!("Failed to build payload: {e}")))?;
 
         let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
-        payload
+        let payload_js = payload
             .serialize(&serializer)
-            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
+            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
+
+        let signal_hashes_js = params
+            .signal_hashes
+            .serialize(&serializer)
+            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
+
+        let result = js_sys::Object::new();
+        js_sys::Reflect::set(&result, &JsValue::from_str("payload"), &payload_js)
+            .map_err(|e| JsValue::from_str(&format!("Failed to set payload: {e:?}")))?;
+        js_sys::Reflect::set(
+            &result,
+            &JsValue::from_str("signal_hashes"),
+            &signal_hashes_js,
+        )
+        .map_err(|e| JsValue::from_str(&format!("Failed to set signal_hashes: {e:?}")))?;
+
+        Ok(result.into())
     }
 
     /// Builds the native payload from a preset (synchronous, no bridge connection).
@@ -751,9 +768,26 @@ impl IDKitBuilderWasm {
             .map_err(|e| JsValue::from_str(&format!("Failed to build payload: {e}")))?;
 
         let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
-        payload
+        let payload_js = payload
             .serialize(&serializer)
-            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
+            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
+
+        let signal_hashes_js = params
+            .signal_hashes
+            .serialize(&serializer)
+            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
+
+        let result = js_sys::Object::new();
+        js_sys::Reflect::set(&result, &JsValue::from_str("payload"), &payload_js)
+            .map_err(|e| JsValue::from_str(&format!("Failed to set payload: {e:?}")))?;
+        js_sys::Reflect::set(
+            &result,
+            &JsValue::from_str("signal_hashes"),
+            &signal_hashes_js,
+        )
+        .map_err(|e| JsValue::from_str(&format!("Failed to set signal_hashes: {e:?}")))?;
+
+        Ok(result.into())
     }
 
     /// Creates a `BridgeConnection` with the given constraints

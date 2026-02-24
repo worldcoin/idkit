@@ -19,8 +19,6 @@ import { WasmModule, initIDKit } from "./lib/wasm";
 import {
   isInWorldApp,
   createNativeRequest,
-  computeSignalHashes,
-  computeSignalHashesFromPreset,
   type BuilderConfig,
 } from "./transports/native";
 
@@ -389,9 +387,12 @@ class IDKitBuilder {
     const wasmBuilder = createWasmBuilderFromConfig(this.config);
 
     if (isInWorldApp()) {
-      const payload = wasmBuilder.nativePayload(constraints);
-      const signalHashes = computeSignalHashes(constraints);
-      return createNativeRequest(payload, this.config, signalHashes);
+      const wasmResult = wasmBuilder.nativePayload(constraints);
+      return createNativeRequest(
+        wasmResult.payload,
+        this.config,
+        wasmResult.signal_hashes ?? {},
+      );
     }
 
     // Bridge path — WASM
@@ -421,9 +422,12 @@ class IDKitBuilder {
     const wasmBuilder = createWasmBuilderFromConfig(this.config);
 
     if (isInWorldApp()) {
-      const payload = wasmBuilder.nativePayloadFromPreset(preset);
-      const signalHashes = computeSignalHashesFromPreset(preset);
-      return createNativeRequest(payload, this.config, signalHashes);
+      const wasmResult = wasmBuilder.nativePayloadFromPreset(preset);
+      return createNativeRequest(
+        wasmResult.payload,
+        this.config,
+        wasmResult.signal_hashes ?? {},
+      );
     }
 
     // Bridge path — WASM
