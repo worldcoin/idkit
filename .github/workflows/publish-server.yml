@@ -1,4 +1,4 @@
-name: Publish JS Release
+name: Publish JS Server Release
 
 on:
   workflow_dispatch:
@@ -26,7 +26,6 @@ jobs:
       group: arc-public-large-amd64-runner
     outputs:
       version: ${{ steps.version.outputs.version }}
-      server_version: ${{ steps.version.outputs.server_version }}
       npm_tag: ${{ steps.config.outputs.npm_tag }}
       ref: ${{ steps.config.outputs.ref }}
       should_publish: ${{ steps.config.outputs.should_publish }}
@@ -49,7 +48,7 @@ jobs:
             echo "ref=${INPUT_COMMIT_SHA:-$GITHUB_SHA}" >> $GITHUB_OUTPUT
           elif [ "$PR_MERGED" = "true" ] && \
                echo "$PR_LABELS" | grep -q '"release"' && \
-               echo "$PR_BODY" | grep -q "<!-- release_target:js-core -->"; then
+               echo "$PR_BODY" | grep -q "<!-- release_target:js-server -->"; then
             echo "npm_tag=latest" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
             echo "ref=$GITHUB_SHA" >> $GITHUB_OUTPUT
@@ -79,11 +78,10 @@ jobs:
         id: version
         run: |
           # Get base version from package.json
-          BASE_VERSION=$(node -p "require('./js/packages/core/package.json').version")
-          SERVER_VERSION=$(node -p "require('./js/packages/server/package.json').version")
+          BASE_VERSION=$(node -p "require('./js/packages/server/package.json').version")
 
-          if [ -z "$BASE_VERSION" ] || [ -z "$SERVER_VERSION" ]; then
-            echo "Error: Failed to resolve core/server versions from package manifests"
+          if [ -z "$BASE_VERSION" ]; then
+            echo "Error: Failed to resolve server version from package manifest"
             exit 1
           fi
 
@@ -100,15 +98,13 @@ jobs:
             echo "Production version: $BASE_VERSION"
           fi
 
-          echo "server_version=$SERVER_VERSION" >> $GITHUB_OUTPUT
-
       - name: Validate version against npm
         if: steps.config.outputs.should_publish == 'true' && steps.config.outputs.npm_tag == 'latest'
         run: |
           NEW_VERSION="${{ steps.version.outputs.version }}"
 
           # Check npm for latest version
-          LATEST_RELEASE=$(npm view @worldcoin/idkit-core version 2>/dev/null || echo "0.0.0")
+          LATEST_RELEASE=$(npm view @worldcoin/idkit-server version 2>/dev/null || echo "0.0.0")
 
           echo "Latest release on npm: $LATEST_RELEASE"
           echo "New version: $NEW_VERSION"
@@ -123,18 +119,6 @@ jobs:
           fi
 
           echo "Version check passed: $NEW_VERSION > $LATEST_RELEASE"
-
-      - name: Validate server dependency exists on npm (production only)
-        if: steps.config.outputs.should_publish == 'true' && steps.config.outputs.npm_tag == 'latest'
-        env:
-          SERVER_VERSION: ${{ steps.version.outputs.server_version }}
-        run: |
-          if ! npm view "@worldcoin/idkit-server@$SERVER_VERSION" version >/dev/null 2>&1; then
-            echo "Error: Required dependency @worldcoin/idkit-server@$SERVER_VERSION is not published on npm"
-            exit 1
-          fi
-
-          echo "Server dependency check passed: @worldcoin/idkit-server@$SERVER_VERSION"
 
   publish:
     needs: prepare
@@ -169,14 +153,8 @@ jobs:
           npm install -g npm@latest
           echo "Updated npm version: $(npm --version)"
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install wasm-pack
-        run: cargo install wasm-pack --locked
-
       - name: Set package version
-        working-directory: js/packages/core
+        working-directory: js/packages/server
         env:
           PKG_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
@@ -187,59 +165,15 @@ jobs:
         working-directory: js
         run: pnpm install
 
-      - name: Build packages
-        working-directory: js
-        run: pnpm -r build
+      - name: Build package
+        working-directory: js/packages/server
+        run: pnpm build
 
-      - name: Rewrite server dependency to published version
-        working-directory: js/packages/core
-        env:
-          SERVER_VERSION: ${{ needs.prepare.outputs.server_version }}
-        run: |
-          node -e "
-            const fs = require('fs');
-            const pkgPath = 'package.json';
-            const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-            pkg.dependencies = pkg.dependencies || {};
-            pkg.dependencies['@worldcoin/idkit-server'] = process.env.SERVER_VERSION;
-            fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
-          "
-
-          echo "Updated @worldcoin/idkit-server dependency to ${SERVER_VERSION}"
-
-      - name: Verify packaged manifest does not contain workspace protocol
-        working-directory: js/packages/core
-        env:
-          SERVER_VERSION: ${{ needs.prepare.outputs.server_version }}
-          NPM_TAG: ${{ needs.prepare.outputs.npm_tag }}
-        run: |
-          PACK_OUTPUT=$(npm pack --pack-destination /tmp --json)
-          TARBALL=$(echo "$PACK_OUTPUT" | jq -r '.[0].filename')
-          PACKAGE_JSON=$(tar -xOf "/tmp/$TARBALL" package/package.json)
-
-          if echo "$PACKAGE_JSON" | jq -e '.dependencies["@worldcoin/idkit-server"] == "workspace:*"' >/dev/null; then
-            echo "Error: packaged dependency still uses workspace:*"
-            exit 1
-          fi
-
-          if ! echo "$PACKAGE_JSON" | jq -e --arg server "$SERVER_VERSION" '.dependencies["@worldcoin/idkit-server"] == $server' >/dev/null; then
-            echo "Error: packaged dependency does not match expected server version $SERVER_VERSION"
-            exit 1
-          fi
-
-          if [ "$NPM_TAG" = "latest" ]; then
-            TMP_DIR=$(mktemp -d)
-            cd "$TMP_DIR"
-            npm init -y >/dev/null 2>&1
-            npm install "/tmp/$TARBALL" --ignore-scripts --no-audit --no-fund
-            echo "Tarball install check passed for production release"
-          fi
-
-      - name: Publish @worldcoin/idkit-core
-        working-directory: js/packages/core
+      - name: Publish @worldcoin/idkit-server
+        working-directory: js/packages/server
         env:
           PKG_VERSION: ${{ needs.prepare.outputs.version }}
           NPM_TAG: ${{ needs.prepare.outputs.npm_tag }}
         run: |
-          echo "Publishing @worldcoin/idkit-core@$PKG_VERSION with tag '$NPM_TAG'"
+          echo "Publishing @worldcoin/idkit-server@$PKG_VERSION with tag '$NPM_TAG'"
           npm publish --access public --provenance --tag "$NPM_TAG"
