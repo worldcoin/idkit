@@ -164,29 +164,15 @@ class NativeIDKitRequest implements IDKitRequest {
       // instead of window.postMessage. Subscribe as a compatibility channel.
       try {
         const miniKit = (window as any).MiniKit as MiniKitBridge | undefined;
-        console.log("[IDKit] MiniKit subscribe debug:", {
-          hasMiniKit: !!miniKit,
-          subscribeType: typeof miniKit?.subscribe,
-          unsubscribeType: typeof miniKit?.unsubscribe,
-          triggerType: typeof (miniKit as any)?.trigger,
-          miniKitKeys: miniKit ? Object.getOwnPropertyNames(miniKit) : [],
-          protoKeys: miniKit
-            ? Object.getOwnPropertyNames(Object.getPrototypeOf(miniKit) ?? {})
-            : [],
-        });
         if (typeof miniKit?.subscribe === "function") {
           const miniKitHandler = (payload: any) => {
-            console.log("[IDKit] MiniKit handler invoked", payload);
             handleIncomingPayload(payload?.payload ?? payload);
           };
           this.miniKitHandler = miniKitHandler;
           miniKit.subscribe(MINIAPP_VERIFY_ACTION, miniKitHandler);
-          console.log("[IDKit] MiniKit.subscribe() called for", MINIAPP_VERIFY_ACTION);
-        } else {
-          console.warn("[IDKit] MiniKit.subscribe not available, skipping");
         }
-      } catch (err) {
-        console.error("[IDKit] MiniKit subscribe failed:", err);
+      } catch {
+        // Ignore MiniKit subscription failures and rely on postMessage path.
       }
 
       // Wrap the WASM-built payload in the postMessage envelope
