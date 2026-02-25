@@ -233,8 +233,8 @@ private enum class SampleEnvironment {
 private class SampleModel {
     var signatureEndpoint by mutableStateOf("http://localhost:3001/api/rp-signature")
     var verifyEndpoint by mutableStateOf("http://localhost:3001/api/verify-proof")
-    var appId by mutableStateOf("app_982a2852d071269417befc64ab3981c2")
-    var rpId by mutableStateOf("rp_45a9b5d97996bb9a")
+    var appId by mutableStateOf("app_d8bbd5341f16fb97a61e644b7e169c0e")
+    var rpId by mutableStateOf("rp_7b4f23dd5fb2a826")
     var action by mutableStateOf("test-action")
     var signal by mutableStateOf("signal")
     var environment by mutableStateOf(SampleEnvironment.PRODUCTION)
