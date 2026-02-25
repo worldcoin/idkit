@@ -336,6 +336,11 @@ public func documentLegacy(signal: String? = nil) -> Preset {
     .documentLegacy(signal: signal)
 }
 
+/// Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
+public func selfieCheck(signal: String? = nil) -> Preset {
+    .selfieCheck(signal: signal)
+}
+
 // TODO: Re-enable when World ID 4.0 is live
 // private struct CredentialRequestJSON: Encodable {
 //     let type: String

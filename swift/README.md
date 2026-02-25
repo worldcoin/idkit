@@ -57,6 +57,14 @@ case .failure(let error):
 }
 ```
 
+For selfie-check verification, use:
+
+```swift
+let request = try IDKit
+    .request(config: config)
+    .preset(selfieCheck(signal: "user-123"))
+```
+
 ## Canonical Swift API
 
 - Entry points:

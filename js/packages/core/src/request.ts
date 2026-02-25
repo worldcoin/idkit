@@ -227,6 +227,7 @@ export type {
   OrbLegacyPreset,
   SecureDocumentLegacyPreset,
   DocumentLegacyPreset,
+  SelfieCheckPreset,
 } from "./lib/wasm";
 
 // Import WASM preset type for function return types
@@ -235,6 +236,7 @@ import type {
   OrbLegacyPreset,
   SecureDocumentLegacyPreset,
   DocumentLegacyPreset,
+  SelfieCheckPreset,
 } from "./lib/wasm";
 
 /**
@@ -296,6 +298,28 @@ export function documentLegacy(
   opts: { signal?: string } = {},
 ): DocumentLegacyPreset {
   return { type: "DocumentLegacy", signal: opts.signal };
+}
+
+/**
+ * Creates a SelfieCheck preset for face verification
+ *
+ * Preview: Selfie Check is currently in preview.
+ * Contact us if you need it enabled.
+ *
+ * This preset requests face credentials in v4 constraints.
+ * In legacy compatibility fields, it maps to verification level "face".
+ *
+ * @param opts - Optional configuration with signal
+ * @returns A SelfieCheck preset
+ *
+ * @example
+ * ```typescript
+ * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: false })
+ *   .preset(selfieCheck({ signal: 'user-123' }))
+ * ```
+ */
+export function selfieCheck(opts: { signal?: string } = {}): SelfieCheckPreset {
+  return { type: "SelfieCheck", signal: opts.signal };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -410,7 +434,7 @@ class IDKitBuilder {
    * Presets provide a simplified way to create requests with predefined
    * credential configurations.
    *
-   * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), or documentLegacy()
+   * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), documentLegacy(), or selfieCheck()
    * @returns A new IDKitRequest instance
    *
    * @example
@@ -661,4 +685,6 @@ export const IDKit = {
   secureDocumentLegacy,
   /** Create a DocumentLegacy preset for World ID 3.0 legacy support */
   documentLegacy,
+  /** Create a SelfieCheck preset for face verification */
+  selfieCheck,
 };

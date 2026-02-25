@@ -277,6 +277,9 @@ fun secureDocumentLegacy(signal: String? = null): Preset =
 
 fun documentLegacy(signal: String? = null): Preset = Preset.DocumentLegacy(signal = signal)
 
+/** Preview: Selfie Check is currently in preview. Contact us if you need it enabled. */
+fun selfieCheck(signal: String? = null): Preset = Preset.SelfieCheck(signal = signal)
+
 fun idkitResultToJson(result: IDKitResult): String = nativeIdkitResultToJson(result)
 
 fun idkitResultFromJson(json: String): IDKitResult = nativeIdkitResultFromJson(json)

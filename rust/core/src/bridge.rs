@@ -1238,6 +1238,43 @@ mod tests {
     }
 
     #[test]
+    fn test_selfie_check_preset_serializes_face_verification_level() {
+        let preset = crate::preset::Preset::selfie_check(Some("face-signal".to_string()));
+        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+
+        let app_id = AppId::new("app_test").unwrap();
+        let signature = "0x".to_string() + &"00".repeat(64) + "1b";
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &signature,
+        )
+        .unwrap();
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::Uniqueness {
+                action: "test-action".to_string(),
+            },
+            constraints: constraints.clone(),
+            rp_context,
+            action_description: Some("Selfie check".to_string()),
+            legacy_verification_level,
+            legacy_signal: legacy_signal.unwrap_or_default(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            signal_hashes: compute_signal_hashes(&constraints),
+            override_connect_base_url: None,
+            environment: Some(Environment::Production),
+        };
+
+        let payload = build_request_payload(&params).unwrap();
+        assert_eq!(payload["verification_level"], serde_json::json!("face"));
+    }
+
+    #[test]
     fn test_parse_issuer_schema_id() {
         assert_eq!(
             parse_issuer_schema_id("0x1").and_then(CredentialType::from_issuer_schema_id),

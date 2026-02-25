@@ -63,6 +63,7 @@ import com.worldcoin.idkit.IDKit
 import com.worldcoin.idkit.IDKitPollOptions
 import com.worldcoin.idkit.IDKitRequestConfig
 import com.worldcoin.idkit.IDKitCompletionResult
+import com.worldcoin.idkit.selfieCheck
 import com.worldcoin.idkit.orbLegacy
 import uniffi.idkit_core.Environment
 import uniffi.idkit_core.RpContext
@@ -96,6 +97,14 @@ when (val completion = request.pollUntilCompletion(IDKitPollOptions())) {
     is IDKitCompletionResult.Success -> println("Verified: ${completion.result.protocolVersion}")
     is IDKitCompletionResult.Failure -> println("Failed: ${completion.error.rawValue}")
 }
+```
+
+For selfie-check verification, use:
+
+```kotlin
+val request = IDKit
+    .request(config)
+    .preset(selfieCheck(signal = "user-123"))
 ```
 
 ## Credential request options parity

@@ -205,26 +205,34 @@ func legacyPresetHelpers() {
     let orb = orbLegacy(signal: "x")
     let secureDoc = secureDocumentLegacy(signal: "y")
     let doc = documentLegacy(signal: "z")
+    let face = selfieCheck(signal: "f")
 
     switch orb {
     case .orbLegacy(let signal):
         #expect(signal == "x")
-    case .secureDocumentLegacy, .documentLegacy:
+    case .secureDocumentLegacy, .documentLegacy, .selfieCheck:
         Issue.record("Expected orbLegacy preset")
     }
 
     switch secureDoc {
     case .secureDocumentLegacy(let signal):
         #expect(signal == "y")
-    case .orbLegacy, .documentLegacy:
+    case .orbLegacy, .documentLegacy, .selfieCheck:
         Issue.record("Expected secureDocumentLegacy preset")
     }
 
     switch doc {
     case .documentLegacy(let signal):
         #expect(signal == "z")
-    case .orbLegacy, .secureDocumentLegacy:
+    case .orbLegacy, .secureDocumentLegacy, .selfieCheck:
         Issue.record("Expected documentLegacy preset")
+    }
+
+    switch face {
+    case .selfieCheck(let signal):
+        #expect(signal == "f")
+    case .orbLegacy, .secureDocumentLegacy, .documentLegacy:
+        Issue.record("Expected selfieCheck preset")
     }
 }
 

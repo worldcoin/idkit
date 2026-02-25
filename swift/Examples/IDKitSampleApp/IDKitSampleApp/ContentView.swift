@@ -131,7 +131,7 @@ final class SampleModel: ObservableObject {
                 }()
             )
 
-            let request = try IDKit.request(config: config).preset(orbLegacy(signal: signal))
+            let request = try IDKit.request(config: config).preset(selfieCheck(signal: signal))
 
             completionTask?.cancel()
             let connectorURLWithReturnTo = try addReturnTo(to: request.connectorURL)
