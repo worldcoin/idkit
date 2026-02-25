@@ -35,6 +35,8 @@ typealias IDKitRequestConfig = IdKitRequestConfig
 // TODO: Re-enable when World ID 4.0 is live
 // typealias IDKitSessionConfig = IdKitSessionConfig
 typealias IDKitResult = IdKitResult
+typealias RpContext = uniffi.idkit_core.RpContext
+typealias Environment = uniffi.idkit_core.Environment
 
 class IDKitClientError(message: String) : IllegalArgumentException(message)
 
