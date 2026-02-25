@@ -1,10 +1,54 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, it, expect, vi, afterEach, beforeAll } from "vitest";
+import initWasm, {
+  hashSignal as wasmHashSignal,
+} from "../../../core/wasm/idkit_wasm.js";
 import {
   signRequest,
   computeRpSignatureMessage,
   hashToField,
 } from "../lib/signing";
+
+const bytesToHex = (input: Uint8Array): string =>
+  Buffer.from(input).toString("hex");
+const hexToBytes = (input: string): Uint8Array =>
+  new Uint8Array(Buffer.from(input, "hex"));
+
+beforeAll(async () => {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const wasmPath = join(__dirname, "../../../core/wasm/idkit_wasm_bg.wasm");
+  const wasmBuffer = await readFile(wasmPath);
+  await initWasm({ module_or_path: wasmBuffer });
+});
+
+describe("hashToField parity (server JS vs Rust WASM)", () => {
+  it("should match for fixed vectors", () => {
+    const inputs = [
+      new TextEncoder().encode(""),
+      new TextEncoder().encode("test_signal"),
+      new Uint8Array([0x01, 0x02, 0x03]),
+      hexToBytes("68656c6c6f"),
+    ];
+
+    for (const input of inputs) {
+      expect("0x" + bytesToHex(hashToField(input))).toBe(wasmHashSignal(input));
+    }
+  });
+
+  it("should match for deterministic generated inputs", () => {
+    for (let len = 0; len <= 512; len += 1) {
+      const input = new Uint8Array(len);
+      for (let i = 0; i < len; i += 1) {
+        input[i] = (i * 31 + len * 17) % 256;
+      }
+
+      expect("0x" + bytesToHex(hashToField(input))).toBe(wasmHashSignal(input));
+    }
+  });
+});
 
 describe("hashToField", () => {
   it("should hash empty string bytes to expected field element", () => {
