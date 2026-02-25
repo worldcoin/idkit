@@ -67,10 +67,4 @@ export type {
   DocumentLegacyPreset,
   // Native transport types
   NativePayloadResult,
-  NativeResponseItemV4,
-  NativeResponseV4,
-  NativeLegacyVerification,
-  NativeLegacyMultiResponse,
-  NativeLegacySingleResponse,
-  NativeResponse,
 } from "../../wasm/idkit_wasm.js";

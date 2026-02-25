@@ -24,10 +24,9 @@ import type {
 import type { IDKitResult } from "../types/result";
 import { IDKitErrorCodes } from "../types/result";
 import type {
-  NativeResponse,
-  NativeResponseV4,
-  NativeLegacyMultiResponse,
-  NativeLegacySingleResponse,
+  IDKitResultV3,
+  IDKitResultV4,
+  IDKitResultSession,
 } from "../lib/wasm";
 
 const MINIAPP_VERIFY_ACTION = "miniapp-verify-action";
@@ -165,15 +164,29 @@ class NativeIDKitRequest implements IDKitRequest {
       // instead of window.postMessage. Subscribe as a compatibility channel.
       try {
         const miniKit = (window as any).MiniKit as MiniKitBridge | undefined;
+        console.log("[IDKit] MiniKit subscribe debug:", {
+          hasMiniKit: !!miniKit,
+          subscribeType: typeof miniKit?.subscribe,
+          unsubscribeType: typeof miniKit?.unsubscribe,
+          triggerType: typeof (miniKit as any)?.trigger,
+          miniKitKeys: miniKit ? Object.getOwnPropertyNames(miniKit) : [],
+          protoKeys: miniKit
+            ? Object.getOwnPropertyNames(Object.getPrototypeOf(miniKit) ?? {})
+            : [],
+        });
         if (typeof miniKit?.subscribe === "function") {
           const miniKitHandler = (payload: any) => {
+            console.log("[IDKit] MiniKit handler invoked", payload);
             handleIncomingPayload(payload?.payload ?? payload);
           };
           this.miniKitHandler = miniKitHandler;
           miniKit.subscribe(MINIAPP_VERIFY_ACTION, miniKitHandler);
+          console.log("[IDKit] MiniKit.subscribe() called for", MINIAPP_VERIFY_ACTION);
+        } else {
+          console.warn("[IDKit] MiniKit.subscribe not available, skipping");
         }
-      } catch {
-        // Ignore MiniKit subscription failures and rely on postMessage path.
+      } catch (err) {
+        console.error("[IDKit] MiniKit subscribe failed:", err);
       }
 
       // Wrap the WASM-built payload in the postMessage envelope
@@ -316,69 +329,92 @@ class NativeVerifyError extends Error {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function nativeResultToIDKitResult(
-  payload: NativeResponse,
+  payload: unknown,
   config: BuilderConfig,
   signalHashes: Record<string, string>,
 ): IDKitResult {
+  const p = payload as Record<string, any>;
   const rpNonce = config.rp_context?.nonce ?? "";
 
   // V4 response — World App returns `responses` array directly.
   // signal_hash is NOT on the raw V4 response; it's injected from the
   // pre-computed signal_hashes map (same pattern as the bridge path).
-  if ("responses" in payload) {
-    const v4 = payload as NativeResponseV4;
+  if ("responses" in p && Array.isArray(p.responses)) {
+    const items = p.responses as Record<string, any>[];
+
+    // Session proof (has session_id, no action)
+    if (p.session_id) {
+      return {
+        protocol_version: "4.0" as const,
+        nonce: p.nonce ?? rpNonce,
+        action_description: p.action_description,
+        session_id: p.session_id,
+        responses: items.map((item) => ({
+          identifier: item.identifier,
+          signal_hash: signalHashes[item.identifier],
+          proof: item.proof,
+          session_nullifier: item.session_nullifier,
+          issuer_schema_id: item.issuer_schema_id,
+          expires_at_min: item.expires_at_min,
+        })),
+        environment: p.environment ?? config.environment ?? "production",
+      } satisfies IDKitResultSession;
+    }
+
+    // Uniqueness proof (has action, no session_id)
     return {
-      protocol_version: v4.protocol_version ?? "4.0",
-      nonce: v4.nonce ?? rpNonce,
-      action: v4.action ?? config.action ?? "",
-      action_description: v4.action_description,
-      session_id: v4.session_id,
-      responses: v4.responses.map((item) => ({
-        ...item,
+      protocol_version: "4.0" as const,
+      nonce: p.nonce ?? rpNonce,
+      action: p.action ?? config.action ?? "",
+      action_description: p.action_description,
+      responses: items.map((item) => ({
+        identifier: item.identifier,
         signal_hash: signalHashes[item.identifier],
+        proof: item.proof,
+        nullifier: item.nullifier,
+        issuer_schema_id: item.issuer_schema_id,
+        expires_at_min: item.expires_at_min,
       })),
-      environment: v4.environment ?? config.environment ?? "production",
-    } as unknown as IDKitResult;
+      environment: p.environment ?? config.environment ?? "production",
+    } satisfies IDKitResultV4;
   }
 
   // Legacy multi-verification response (MiniKit v3 format).
+  // Each verification is a V3 proof (string proof, merkle_root, nullifier_hash).
   // Older World App versions may include signal_hash on the item; fall back
   // to the pre-computed map when absent.
-  if ("verifications" in payload) {
-    const multi = payload as NativeLegacyMultiResponse;
+  if ("verifications" in p && Array.isArray(p.verifications)) {
+    const verifications = p.verifications as Record<string, any>[];
+
     return {
-      protocol_version: "4.0",
+      protocol_version: "3.0" as const,
       nonce: rpNonce,
       action: config.action ?? "",
-      responses: multi.verifications.map((v) => ({
+      responses: verifications.map((v) => ({
         identifier: v.verification_level,
         signal_hash: v.signal_hash ?? signalHashes[v.verification_level],
-        proof: [v.proof],
-        nullifier: v.nullifier_hash,
+        proof: v.proof,
         merkle_root: v.merkle_root,
-        issuer_schema_id: 0,
-        expires_at_min: 0,
+        nullifier: v.nullifier_hash,
       })),
       environment: "production",
-    } as unknown as IDKitResult;
+    } satisfies IDKitResultV3;
   }
 
   // Legacy single verification response (v3 format from World App).
-  const single = payload as NativeLegacySingleResponse;
   return {
-    protocol_version: "3.0",
+    protocol_version: "3.0" as const,
     nonce: rpNonce,
     action: config.action ?? "",
     responses: [
       {
-        identifier: single.verification_level,
-        signal_hash:
-          single.signal_hash ?? signalHashes[single.verification_level],
-        proof: single.proof,
-        merkle_root: single.merkle_root,
-        nullifier: single.nullifier_hash,
+        identifier: p.verification_level,
+        signal_hash: p.signal_hash ?? signalHashes[p.verification_level],
+        proof: p.proof,
+        merkle_root: p.merkle_root,
+        nullifier: p.nullifier_hash,
       },
     ],
     environment: "production",
-  } as unknown as IDKitResult;
+  } satisfies IDKitResultV3;
 }
