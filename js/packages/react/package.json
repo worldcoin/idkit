@@ -53,7 +53,6 @@
   },
   "dependencies": {
     "@worldcoin/idkit-core": "workspace:*",
-    "@worldcoin/idkit-server": "workspace:*",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
