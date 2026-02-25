@@ -70,9 +70,9 @@ importers:
       '@noble/hashes':
         specifier: ^1.7.2
         version: 1.8.0
-      '@noble/secp256k1':
-        specifier: ^2.2.3
-        version: 2.3.0
+      '@worldcoin/idkit-server':
+        specifier: workspace:*
+        version: link:../server
     devDependencies:
       '@types/node':
         specifier: ^20.19.30
@@ -126,6 +126,31 @@ importers:
       react-dom:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
+      tsup:
+        specifier: ^8.5.1
+        version: 8.5.1(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@types/node@20.19.30)(happy-dom@20.0.0)(tsx@4.21.0)
+
+  js/packages/server:
+    dependencies:
+      '@noble/hashes':
+        specifier: ^1.7.2
+        version: 1.8.0
+      '@noble/secp256k1':
+        specifier: ^2.2.3
+        version: 2.3.0
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.30
+        version: 20.19.30
+      '@vitest/coverage-v8':
+        specifier: ^4.0.18
+        version: 4.0.18(vitest@4.0.18(@types/node@20.19.30)(happy-dom@20.0.0)(tsx@4.21.0))
       tsup:
         specifier: ^8.5.1
         version: 8.5.1(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)

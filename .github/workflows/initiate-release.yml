@@ -17,6 +17,7 @@ on:
         type: choice
         options:
           - js-core
+          - js-server
           - react
           - kotlin
           - swift
@@ -53,6 +54,11 @@ jobs:
               CURRENT_VERSION=$(node -p "require('./js/packages/core/package.json').version")
               TARGET_FILE="js/packages/core/package.json"
               TARGET_NAME="JS Core"
+              ;;
+            "js-server")
+              CURRENT_VERSION=$(node -p "require('./js/packages/server/package.json').version")
+              TARGET_FILE="js/packages/server/package.json"
+              TARGET_NAME="JS Server"
               ;;
             "react")
               CURRENT_VERSION=$(node -p "require('./js/packages/react/package.json').version")
@@ -126,6 +132,17 @@ jobs:
               "
               grep -q "\"version\": \"$NEW_VERSION\"" js/packages/core/package.json || { echo "❌ Failed to update js/packages/core/package.json"; exit 1; }
               echo "✅ Updated js/packages/core/package.json"
+              ;;
+            "js-server")
+              node -e "
+                const fs = require('fs');
+                const pkgPath = 'js/packages/server/package.json';
+                const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+                pkg.version = '$NEW_VERSION';
+                fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+              "
+              grep -q "\"version\": \"$NEW_VERSION\"" js/packages/server/package.json || { echo "❌ Failed to update js/packages/server/package.json"; exit 1; }
+              echo "✅ Updated js/packages/server/package.json"
               ;;
             "react")
               node -e "

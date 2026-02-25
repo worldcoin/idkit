@@ -1,7 +1,7 @@
 {
-  "name": "@worldcoin/idkit-core",
-  "version": "4.0.4",
-  "description": "Core IDKit SDK for World ID - Pure TypeScript, no dependencies",
+  "name": "@worldcoin/idkit-server",
+  "version": "1.0.0",
+  "description": "Server-side IDKit SDK for World ID - RP signing utilities",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -11,25 +11,13 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    },
-    "./signing": {
-      "types": "./dist/signing.d.ts",
-      "import": "./dist/signing.js",
-      "require": "./dist/signing.cjs"
-    },
-    "./hashing": {
-      "types": "./dist/hashing.d.ts",
-      "import": "./dist/hashing.js",
-      "require": "./dist/hashing.cjs"
     }
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build:wasm": "cd ../../../ && ./scripts/build-wasm.sh",
-    "build:ts": "tsup",
-    "build": "npm run build:wasm && npm run build:ts",
+    "build": "tsup",
     "dev": "tsup --watch",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
@@ -42,7 +30,8 @@
     "idkit",
     "identity",
     "proof-of-personhood",
-    "zero-knowledge"
+    "zero-knowledge",
+    "server"
   ],
   "author": "Tools for Humanity",
   "license": "MIT",
@@ -50,9 +39,12 @@
     "type": "git",
     "url": "https://github.com/worldcoin/idkit"
   },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "@noble/hashes": "^1.7.2",
-    "@worldcoin/idkit-server": "workspace:*"
+    "@noble/secp256k1": "^2.2.3"
   },
   "devDependencies": {
     "@types/node": "^20.19.30",
