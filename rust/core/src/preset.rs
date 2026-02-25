@@ -43,7 +43,7 @@ pub enum Preset {
         /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
         signal: Option<String>,
     },
-    /// Face check verification
+    /// Selfie check verification
     ///
     /// Requests face credentials only, with optional signal.
     /// The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
@@ -51,8 +51,8 @@ pub enum Preset {
     /// This preset requests face credentials in v4 constraints and maps to
     /// legacy `verification_level = face` for v3 compatibility fields.
     ///
-    /// Preview: Face Check is currently in preview. Contact us if you need it enabled.
-    FaceCheck {
+    /// Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
+    SelfieCheck {
         /// Optional signal to include in the proof.
         /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
         signal: Option<String>,
@@ -78,12 +78,12 @@ impl Preset {
         Self::DocumentLegacy { signal }
     }
 
-    /// Creates a new `FaceCheck` preset with optional signal
+    /// Creates a new `SelfieCheck` preset with optional signal
     ///
-    /// Preview: Face Check is currently in preview. Contact us if you need it enabled.
+    /// Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
     #[must_use]
-    pub fn face_check(signal: Option<String>) -> Self {
-        Self::FaceCheck { signal }
+    pub fn selfie_check(signal: Option<String>) -> Self {
+        Self::SelfieCheck { signal }
     }
 
     /// Converts the preset to bridge session parameters
@@ -137,7 +137,7 @@ impl Preset {
 
                 (constraints, legacy_verification_level, legacy_signal)
             }
-            Self::FaceCheck { signal } => {
+            Self::SelfieCheck { signal } => {
                 let signal_opt = signal.as_ref().map(|s| Signal::from_string(s.clone()));
                 let face = CredentialRequest::new(CredentialType::Face, signal_opt);
                 let constraints = ConstraintNode::Item(face);
@@ -155,8 +155,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn face_check_preset_builds_face_only_constraints_and_face_legacy_level() {
-        let preset = Preset::face_check(Some("face-signal".to_string()));
+    fn selfie_check_preset_builds_face_only_constraints_and_face_legacy_level() {
+        let preset = Preset::selfie_check(Some("face-signal".to_string()));
         let (constraints, verification_level, legacy_signal) = preset.to_bridge_params();
 
         assert_eq!(verification_level, VerificationLevel::Face);
@@ -167,13 +167,13 @@ mod tests {
                 assert_eq!(item.credential_type, CredentialType::Face);
                 assert_eq!(item.signal, Some(Signal::from_string("face-signal")));
             }
-            _ => panic!("expected faceCheck constraints to be a single item"),
+            _ => panic!("expected selfieCheck constraints to be a single item"),
         }
     }
 
     #[test]
-    fn face_check_preset_without_signal_preserves_empty_signal() {
-        let preset = Preset::face_check(None);
+    fn selfie_check_preset_without_signal_preserves_empty_signal() {
+        let preset = Preset::selfie_check(None);
         let (constraints, verification_level, legacy_signal) = preset.to_bridge_params();
 
         assert_eq!(verification_level, VerificationLevel::Face);
@@ -184,7 +184,7 @@ mod tests {
                 assert_eq!(item.credential_type, CredentialType::Face);
                 assert_eq!(item.signal, None);
             }
-            _ => panic!("expected faceCheck constraints to be a single item"),
+            _ => panic!("expected selfieCheck constraints to be a single item"),
         }
     }
 }

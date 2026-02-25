@@ -33,7 +33,7 @@ export {
   orbLegacy,
   documentLegacy,
   secureDocumentLegacy,
-  faceCheck,
+  selfieCheck,
   IDKitErrorCodes,
   signRequest,
 } from "@worldcoin/idkit-core";

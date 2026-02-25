@@ -1238,8 +1238,8 @@ mod tests {
     }
 
     #[test]
-    fn test_face_check_preset_serializes_face_verification_level() {
-        let preset = crate::preset::Preset::face_check(Some("face-signal".to_string()));
+    fn test_selfie_check_preset_serializes_face_verification_level() {
+        let preset = crate::preset::Preset::selfie_check(Some("face-signal".to_string()));
         let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
 
         let app_id = AppId::new("app_test").unwrap();
@@ -1260,7 +1260,7 @@ mod tests {
             },
             constraints: constraints.clone(),
             rp_context,
-            action_description: Some("Face check".to_string()),
+            action_description: Some("Selfie check".to_string()),
             legacy_verification_level,
             legacy_signal: legacy_signal.unwrap_or_default(),
             bridge_url: None,

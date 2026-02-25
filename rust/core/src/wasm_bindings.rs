@@ -1194,19 +1194,19 @@ export interface DocumentLegacyPreset {
     signal?: string;
 }
 
-export interface FaceCheckPreset {
-    /** Preview: Face Check is currently in preview. Contact us if you need it enabled. */
-    type: "FaceCheck";
+export interface SelfieCheckPreset {
+    /** Preview: Selfie Check is currently in preview. Contact us if you need it enabled. */
+    type: "SelfieCheck";
     signal?: string;
 }
 
-export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLegacyPreset | FaceCheckPreset;
+export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLegacyPreset | SelfieCheckPreset;
 
 export function orbLegacy(signal?: string): Preset;
 export function secureDocumentLegacy(signal?: string): Preset;
 export function documentLegacy(signal?: string): Preset;
-/** Preview: Face Check is currently in preview. Contact us if you need it enabled. */
-export function faceCheck(signal?: string): Preset;
+/** Preview: Selfie Check is currently in preview. Contact us if you need it enabled. */
+export function selfieCheck(signal?: string): Preset;
 "#;
 
 // Export RP signature types

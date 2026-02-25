@@ -11,7 +11,7 @@ import {
   // any,
   // enumerate,
   orbLegacy,
-  faceCheck,
+  selfieCheck,
   isNode,
   IDKitErrorCodes,
   signRequest,
@@ -37,7 +37,7 @@ describe("IDKitRequest API", () => {
   //   expect(typeof any).toBe("function");
   //   expect(typeof enumerate).toBe("function");
   //   expect(typeof orbLegacy).toBe("function");
-  //   expect(typeof faceCheck).toBe("function");
+  //   expect(typeof selfieCheck).toBe("function");
   // });
 
   // it("should create CredentialRequest correctly", () => {
@@ -68,9 +68,9 @@ describe("IDKitRequest API", () => {
     expect(preset).toHaveProperty("signal", "test-signal");
   });
 
-  it("should create faceCheck preset correctly", () => {
-    const preset = faceCheck({ signal: "face-signal" });
-    expect(preset).toHaveProperty("type", "FaceCheck");
+  it("should create selfieCheck preset correctly", () => {
+    const preset = selfieCheck({ signal: "face-signal" });
+    expect(preset).toHaveProperty("type", "SelfieCheck");
     expect(preset).toHaveProperty("signal", "face-signal");
   });
 
