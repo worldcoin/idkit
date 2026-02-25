@@ -20,6 +20,7 @@ export interface TranslationStrings {
   "Use phone camera to scan the QR code": string;
   "Connecting...": string;
   "Please continue in app": string;
+  "Transmitting verification to host app. Please wait...": string;
   "You will be redirected to the app, please return to this page once you're done": string;
   "Terms & Privacy": string;
 }

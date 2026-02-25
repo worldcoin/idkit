@@ -212,16 +212,12 @@ export function DemoClient(): ReactElement {
           rp_context={widgetRpContext}
           allow_legacy_proofs={true}
           preset={widgetPreset}
-          onSuccess={async (result) => {
-            // try {
+          onSuccess={() => {
+            setWidgetError(null);
+          }}
+          handleVerify={async (result) => {
             const verified = await verifyProof(result);
             setWidgetVerifyResult(verified);
-            // } catch (error) {
-            //   setWidgetError(
-            //     "Failed to verify proof: " +
-            //       (error instanceof Error ? error.message : "Unknown error"),
-            //   );
-            // }
           }}
           onError={(errorCode) => {
             setWidgetError(`Verification failed: ${errorCode}`);

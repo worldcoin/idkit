@@ -53,6 +53,45 @@ const config: IDKitRequestHookConfig = {
 };
 ```
 
+## Widget usage
+
+```tsx
+import { IDKitRequestWidget, orbLegacy } from "@worldcoin/idkit";
+
+function WidgetExample() {
+  return (
+    <IDKitRequestWidget
+      open={open}
+      onOpenChange={setOpen}
+      app_id="app_xxxxx"
+      action="my-action"
+      rp_context={rpContext}
+      allow_legacy_proofs={false}
+      preset={orbLegacy({ signal: "user-123" })}
+      onSuccess={(result) => {
+        // required: runs after verification succeeds
+        console.log(result);
+      }}
+      handleVerify={async (result) => {
+        // optional: run host app verification before success screen/callback
+        const response = await fetch("/api/verify-proof", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(result),
+        });
+
+        if (!response.ok) {
+          throw new Error("Proof verification failed");
+        }
+      }}
+      onError={(errorCode) => {
+        console.error(errorCode);
+      }}
+    />
+  );
+}
+```
+
 ## Subpath Exports
 
 Pure JS subpath exports for server-side use (no WASM or React required):

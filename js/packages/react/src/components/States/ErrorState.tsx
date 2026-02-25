@@ -14,7 +14,6 @@ type ErrorVariant = "cancelled" | "connection" | "generic";
 const errorCodeVariants: Partial<Record<IDKitErrorCodes, ErrorVariant>> = {
   [IDKitErrorCodes.UserRejected]: "cancelled",
   [IDKitErrorCodes.VerificationRejected]: "cancelled",
-  [IDKitErrorCodes.FailedByHostApp]: "cancelled",
   [IDKitErrorCodes.Cancelled]: "cancelled",
   [IDKitErrorCodes.ConnectionFailed]: "connection",
 };
