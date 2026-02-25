@@ -343,7 +343,7 @@ function nativeResultToIDKitResult(
           issuer_schema_id: item.issuer_schema_id,
           expires_at_min: item.expires_at_min,
         })),
-        environment: p.environment ?? config.environment ?? "production",
+        environment: config.environment ?? "production",
       } satisfies IDKitResultSession;
     }
 
@@ -361,7 +361,7 @@ function nativeResultToIDKitResult(
         issuer_schema_id: item.issuer_schema_id,
         expires_at_min: item.expires_at_min,
       })),
-      environment: p.environment ?? config.environment ?? "production",
+      environment: config.environment ?? "production",
     } satisfies IDKitResultV4;
   }
 
@@ -383,7 +383,7 @@ function nativeResultToIDKitResult(
         merkle_root: v.merkle_root,
         nullifier: v.nullifier_hash,
       })),
-      environment: "production",
+      environment: config.environment ?? "production",
     } satisfies IDKitResultV3;
   }
 
@@ -401,6 +401,6 @@ function nativeResultToIDKitResult(
         nullifier: p.nullifier_hash,
       },
     ],
-    environment: "production",
+    environment: config.environment ?? "production",
   } satisfies IDKitResultV3;
 }
