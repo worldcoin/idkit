@@ -1,0 +1,19 @@
+[target.aarch64-linux-android.env]
+passthrough = [
+  "RUSTFLAGS=-C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wl,-z,common-page-size=4096",
+]
+
+[target.armv7-linux-androideabi.env]
+passthrough = [
+  "RUSTFLAGS=-C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wl,-z,common-page-size=4096",
+]
+
+[target.x86_64-linux-android.env]
+passthrough = [
+  "RUSTFLAGS=-C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wl,-z,common-page-size=4096",
+]
+
+[target.i686-linux-android.env]
+passthrough = [
+  "RUSTFLAGS=-C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wl,-z,common-page-size=4096",
+]
