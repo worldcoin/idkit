@@ -10,6 +10,9 @@ export const en: TranslationStrings = {
   "Connection lost": "Connection lost",
   "Please check your connection and try again.":
     "Please check your connection and try again.",
+  "Verification declined": "Verification declined",
+  "Failed to verify your credential proof. Please contact the website owner.":
+    "Failed to verify your credential proof. Please contact the website owner.",
   "We couldn't complete your request. Please try again.":
     "We couldn't complete your request. Please try again.",
   "Try Again": "Try Again",

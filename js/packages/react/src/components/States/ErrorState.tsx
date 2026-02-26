@@ -9,13 +9,14 @@ type ErrorStateProps = {
   onRetry: () => void;
 };
 
-type ErrorVariant = "cancelled" | "connection" | "generic";
+type ErrorVariant = "cancelled" | "connection" | "host_verification" | "generic";
 
 const errorCodeVariants: Partial<Record<IDKitErrorCodes, ErrorVariant>> = {
   [IDKitErrorCodes.UserRejected]: "cancelled",
   [IDKitErrorCodes.VerificationRejected]: "cancelled",
   [IDKitErrorCodes.Cancelled]: "cancelled",
   [IDKitErrorCodes.ConnectionFailed]: "connection",
+  [IDKitErrorCodes.FailedByHostApp]: "host_verification",
 };
 
 const variantConfig = {
@@ -28,6 +29,12 @@ const variantConfig = {
     title: "Connection lost" as const,
     message: "Please check your connection and try again." as const,
     Icon: ErrorIcon, // placeholder — swap for WifiOffIcon later
+  },
+  host_verification: {
+    title: "Verification declined" as const,
+    message:
+      "Failed to verify your credential proof. Please contact the website owner." as const,
+    Icon: ErrorIcon,
   },
   generic: {
     title: "Something went wrong" as const,

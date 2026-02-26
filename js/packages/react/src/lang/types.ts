@@ -12,6 +12,8 @@ export interface TranslationStrings {
   "You've cancelled the request in World App.": string;
   "Connection lost": string;
   "Please check your connection and try again.": string;
+  "Verification declined": string;
+  "Failed to verify your credential proof. Please contact the website owner.": string;
   "We couldn't complete your request. Please try again.": string;
   "Try Again": string;
   "Open World App": string;

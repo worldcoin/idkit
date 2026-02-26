@@ -212,7 +212,7 @@ describe("widgets", () => {
     expect(screen.getByText("All set!")).toBeDefined();
   });
 
-  it("request widget shows generic error and emits FailedByHostApp when handleVerify rejects", async () => {
+  it("request widget shows host verification error and emits FailedByHostApp when handleVerify rejects", async () => {
     const flow = createFlow({
       isSuccess: true,
       result: { proof: "ok" },
@@ -254,7 +254,7 @@ describe("widgets", () => {
       expect(onError).toHaveBeenCalledWith(IDKitErrorCodes.FailedByHostApp);
     });
     expect(onSuccess).not.toHaveBeenCalled();
-    expect(screen.getByText("Something went wrong")).toBeDefined();
+    expect(screen.getByText("Verification declined")).toBeDefined();
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
