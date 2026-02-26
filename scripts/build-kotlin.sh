@@ -47,12 +47,43 @@ declare -a TARGETS=(
 ANDROID_RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wl,-z,common-page-size=4096"
 
 DOCKER_READY=0
-if command -v docker >/dev/null 2>&1; then
-  if command -v timeout >/dev/null 2>&1 && timeout 10 docker info >/dev/null 2>&1; then
-    DOCKER_READY=1
-  elif command -v gtimeout >/dev/null 2>&1 && gtimeout 10 docker info >/dev/null 2>&1; then
-    DOCKER_READY=1
+check_docker_ready() {
+  if ! command -v docker >/dev/null 2>&1; then
+    return 1
   fi
+
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 10 docker info >/dev/null 2>&1
+    return $?
+  fi
+
+  if command -v gtimeout >/dev/null 2>&1; then
+    gtimeout 10 docker info >/dev/null 2>&1
+    return $?
+  fi
+
+  # Fallback when timeout utilities are unavailable.
+  docker info >/dev/null 2>&1 &
+  local docker_pid=$!
+  local waited=0
+  local max_wait=10
+
+  while kill -0 "$docker_pid" >/dev/null 2>&1; do
+    if [ "$waited" -ge "$max_wait" ]; then
+      kill "$docker_pid" >/dev/null 2>&1 || true
+      wait "$docker_pid" 2>/dev/null || true
+      return 1
+    fi
+
+    sleep 1
+    waited=$((waited + 1))
+  done
+
+  wait "$docker_pid"
+}
+
+if check_docker_ready; then
+  DOCKER_READY=1
 fi
 
 if [[ "${SKIP_ANDROID:-0}" == "1" ]]; then

@@ -161,7 +161,7 @@ jobs:
         with:
           name: kotlin-bindings-host
           path: |
-            kotlin/bindings/src/main/kotlin/
+            kotlin/bindings/src/main/
           retention-days: 1
 
   build-android:
