@@ -21,10 +21,7 @@ pub enum Preset {
     /// Requests orb-verified credentials only, with optional signal.
     /// The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
     ///
-    /// This preset returns only World ID 3.0 legacy proofs and uses
-    /// `verification_level = orb`.
-    /// Legacy verification levels return the maximum credential level, and this preset
-    /// only includes orb, so it always resolves to `orb`.
+    /// This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
     OrbLegacy {
         /// Optional signal to include in the proof.
         /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
@@ -35,10 +32,7 @@ pub enum Preset {
     /// Requests secure document-verified credentials only, with optional signal.
     /// The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
     ///
-    /// This preset returns only World ID 3.0 legacy proofs and uses
-    /// `verification_level = secure_document`.
-    /// Legacy verification levels return the maximum credential level, so this preset can
-    /// return either `secure_document` or `orb`.
+    /// This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
     SecureDocumentLegacy {
         /// Optional signal to include in the proof.
         /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
@@ -49,10 +43,7 @@ pub enum Preset {
     /// Requests document-verified credentials only, with optional signal.
     /// The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
     ///
-    /// This preset returns only World ID 3.0 legacy proofs and uses
-    /// `verification_level = document`.
-    /// Legacy verification levels return the maximum credential level, so this preset can
-    /// return `document`, `secure_document`, or `orb`.
+    /// This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
     DocumentLegacy {
         /// Optional signal to include in the proof.
         /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
@@ -63,9 +54,7 @@ pub enum Preset {
     /// Requests face credentials only, with optional signal.
     /// The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
     ///
-    /// This preset requests face credentials in v4 constraints and maps to
-    /// legacy `verification_level = face` for v3 compatibility fields.
-    /// This preset returns only World ID 3.0 legacy proofs.
+    /// This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
     ///
     /// Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
     SelfieCheckLegacy {
@@ -122,9 +111,6 @@ impl Preset {
             }
             Self::SecureDocumentLegacy { signal } => {
                 let signal_opt = signal.as_ref().map(|s| Signal::from_string(s.clone()));
-                // Legacy VerificationLevel::SecureDocument returns the maximum credential type.
-                // This preset can therefore return secure_document or orb.
-                // Constraints are encoded as any(orb, secure_document).
                 let orb = CredentialRequest::new(CredentialType::Orb, signal_opt.clone());
                 let secure_doc = CredentialRequest::new(CredentialType::SecureDocument, signal_opt);
                 let constraints = ConstraintNode::any(vec![
@@ -138,9 +124,6 @@ impl Preset {
             }
             Self::DocumentLegacy { signal } => {
                 let signal_opt = signal.as_ref().map(|s| Signal::from_string(s.clone()));
-                // Legacy VerificationLevel::Document returns the maximum credential type.
-                // This preset can therefore return document, secure_document, or orb.
-                // Constraints are encoded as any(orb, secure_document, document).
                 let orb = CredentialRequest::new(CredentialType::Orb, signal_opt.clone());
                 let secure_doc =
                     CredentialRequest::new(CredentialType::SecureDocument, signal_opt.clone());

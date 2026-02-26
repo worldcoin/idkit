@@ -242,10 +242,7 @@ import type {
 /**
  * Creates an OrbLegacy preset for World ID 3.0 legacy support
  *
- * This preset returns only World ID 3.0 legacy proofs.
- * Legacy responses use `verification_level = "orb"`.
- * Legacy verification returns the maximum available level, and this preset only includes
- * orb, so it always resolves to `orb`.
+ * This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
  *
  * @param opts - Optional configuration with signal
  * @returns An OrbLegacy preset
@@ -263,10 +260,7 @@ export function orbLegacy(opts: { signal?: string } = {}): OrbLegacyPreset {
 /**
  * Creates a SecureDocumentLegacy preset for World ID 3.0 legacy support
  *
- * This preset returns only World ID 3.0 legacy proofs.
- * Legacy responses use `verification_level = "secure_document"`.
- * Legacy verification levels return the maximum available level, so this preset can
- * return either `secure_document` or `orb`.
+ * This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
  *
  * @param opts - Optional configuration with signal
  * @returns A SecureDocumentLegacy preset
@@ -286,10 +280,7 @@ export function secureDocumentLegacy(
 /**
  * Creates a DocumentLegacy preset for World ID 3.0 legacy support
  *
- * This preset returns only World ID 3.0 legacy proofs.
- * Legacy responses use `verification_level = "document"`.
- * Legacy verification levels return the maximum available level, so this preset can
- * return `document`, `secure_document`, or `orb`.
+ * This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
  *
  * @param opts - Optional configuration with signal
  * @returns A DocumentLegacy preset
@@ -312,8 +303,7 @@ export function documentLegacy(
  * Preview: Selfie Check is currently in preview.
  * Contact us if you need it enabled.
  *
- * This preset returns only World ID 3.0 legacy proofs.
- * Legacy responses use `verification_level = "face"`.
+ * This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
  *
  * @param opts - Optional configuration with signal
  * @returns A SelfieCheckLegacy preset

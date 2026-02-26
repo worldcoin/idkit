@@ -273,18 +273,14 @@ object IDKit {
 /**
  * Returns the orb legacy preset.
  *
- * This preset returns only World ID 3.0 legacy proofs with `verification_level = "orb"`.
- * Legacy verification returns the maximum level, and this preset only includes orb,
- * so it always resolves to `orb`.
+ * This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
  */
 fun orbLegacy(signal: String? = null): Preset = Preset.OrbLegacy(signal = signal)
 
 /**
  * Returns the secure document legacy preset.
  *
- * This preset returns only World ID 3.0 legacy proofs with `verification_level = "secure_document"`.
- * Legacy verification returns the maximum level, so the proof can resolve to
- * `secure_document` or `orb`.
+ * This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
  */
 fun secureDocumentLegacy(signal: String? = null): Preset =
     Preset.SecureDocumentLegacy(signal = signal)
@@ -292,16 +288,14 @@ fun secureDocumentLegacy(signal: String? = null): Preset =
 /**
  * Returns the document legacy preset.
  *
- * This preset returns only World ID 3.0 legacy proofs with `verification_level = "document"`.
- * Legacy verification returns the maximum level, so the proof can resolve to
- * `document`, `secure_document`, or `orb`.
+ * This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
  */
 fun documentLegacy(signal: String? = null): Preset = Preset.DocumentLegacy(signal = signal)
 
 /**
  * Returns the selfie check legacy preset.
  *
- * This preset returns only World ID 3.0 legacy proofs with `verification_level = "face"`.
+ * This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
  * Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
  */
 fun selfieCheckLegacy(signal: String? = null): Preset = Preset.SelfieCheckLegacy(signal = signal)

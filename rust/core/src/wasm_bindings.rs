@@ -1180,28 +1180,25 @@ export type Status =
 #[wasm_bindgen(typescript_custom_section)]
 const TS_PRESET: &str = r#"
 export interface OrbLegacyPreset {
-    /** Returns only World ID 3.0 legacy proofs. Legacy responses use verification_level = "orb". */
-    /** Legacy verification returns the maximum level, and this preset only includes orb, so it always resolves to orb. */
+    /** This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions. */
     type: "OrbLegacy";
     signal?: string;
 }
 
 export interface SecureDocumentLegacyPreset {
-    /** Returns only World ID 3.0 legacy proofs. Legacy responses use verification_level = "secure_document". */
-    /** Legacy verification returns the maximum level, so this can resolve to secure_document or orb. */
+    /** This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions. */
     type: "SecureDocumentLegacy";
     signal?: string;
 }
 
 export interface DocumentLegacyPreset {
-    /** Returns only World ID 3.0 legacy proofs. Legacy responses use verification_level = "document". */
-    /** Legacy verification returns the maximum level, so this can resolve to document, secure_document, or orb. */
+    /** This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions. */
     type: "DocumentLegacy";
     signal?: string;
 }
 
 export interface SelfieCheckLegacyPreset {
-    /** Returns only World ID 3.0 legacy proofs. Legacy responses use verification_level = "face". */
+    /** This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions. */
     /** Preview: Selfie Check is currently in preview. Contact us if you need it enabled. */
     type: "SelfieCheckLegacy";
     signal?: string;
