@@ -273,7 +273,13 @@ jobs:
             abi=$(basename "$abi_dir" | sed 's/kotlin-bindings-android-//')
             echo "Processing $abi..."
             mkdir -p "kotlin/bindings/src/main/jniLibs/$abi"
-            cp "$abi_dir/$abi/"*.so "kotlin/bindings/src/main/jniLibs/$abi/" || true
+            so_count=$(find "$abi_dir" -maxdepth 1 -type f -name "*.so" | wc -l | tr -d '[:space:]')
+            if [ "$so_count" -eq 0 ]; then
+              echo "ERROR: expected at least one .so in $abi_dir"
+              ls -la "$abi_dir" || true
+              exit 1
+            fi
+            cp "$abi_dir/"*.so "kotlin/bindings/src/main/jniLibs/$abi/"
           done
 
           echo "Final jniLibs structure:"

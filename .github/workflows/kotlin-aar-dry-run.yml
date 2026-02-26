@@ -1,0 +1,195 @@
+name: Kotlin AAR Dry Run
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-host:
+    name: Build Host Library & UniFFI Bindings
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build host library and generate UniFFI bindings
+        run: |
+          # Keep UniFFI metadata symbols so bindgen can introspect the shared library on Linux.
+          CARGO_PROFILE_RELEASE_STRIP=none cargo build --package idkit-core --release --locked --features uniffi-bindings
+
+          CARGO_PROFILE_RELEASE_STRIP=none cargo run -p uniffi-bindgen generate \
+            --library target/release/libidkit.so \
+            --crate idkit \
+            --language kotlin \
+            --no-format \
+            --out-dir kotlin/bindings/src/main/kotlin
+
+      - name: Verify UniFFI bindings were generated
+        run: |
+          GENERATED_COUNT=$(find kotlin/bindings/src/main/kotlin/uniffi -type f -name "*.kt" 2>/dev/null | wc -l | tr -d '[:space:]')
+          echo "Generated UniFFI Kotlin source files found: $GENERATED_COUNT"
+          if [ "$GENERATED_COUNT" -eq 0 ]; then
+            echo "ERROR: expected generated UniFFI Kotlin bindings"
+            exit 1
+          fi
+
+      - name: Upload host artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kotlin-bindings-host
+          path: |
+            kotlin/bindings/src/main/
+          retention-days: 1
+
+  build-android:
+    name: Build Android ${{ matrix.abi }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-linux-android
+            abi: arm64-v8a
+          - target: armv7-linux-androideabi
+            abi: armeabi-v7a
+          - target: x86_64-linux-android
+            abi: x86_64
+          - target: i686-linux-android
+            abi: x86
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Free disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          sudo rm -rf /usr/local/lib/android \
+                      /opt/hostedtoolcache/CodeQL \
+                      /usr/share/dotnet \
+                      /opt/ghc \
+                      /usr/local/graalvm \
+                      /usr/local/.ghcup \
+                      /usr/local/share/powershell \
+                      /usr/local/share/chromium \
+                      /usr/local/lib/node_modules \
+                      /usr/local/share/boost || true
+          sudo apt-get autoremove -y || true
+          sudo apt-get clean || true
+          docker system prune -af || true
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: android-dry-run-${{ matrix.abi }}
+
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross --locked
+
+      - name: Build Android ${{ matrix.abi }}
+        run: |
+          echo "Building for ${{ matrix.target }} -> ${{ matrix.abi }}"
+          CARGO_HOME=/tmp RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wl,-z,common-page-size=4096" CROSS_NO_WARNINGS=1 cross build --package idkit-core --target ${{ matrix.target }} --profile android-release --locked --features uniffi-bindings
+
+          mkdir -p android-libs/${{ matrix.abi }}
+          cp target/${{ matrix.target }}/android-release/libidkit.so android-libs/${{ matrix.abi }}/
+
+      - name: Upload Android ${{ matrix.abi }} artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kotlin-bindings-android-${{ matrix.abi }}
+          path: android-libs/${{ matrix.abi }}/
+          retention-days: 1
+
+  verify-aar:
+    name: Verify AAR Assembly
+    runs-on: ubuntu-latest
+    needs: [build-host, build-android]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download host artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: kotlin-bindings-host
+          path: kotlin/bindings/src/main/
+
+      - name: Download Android artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: kotlin-bindings-android-*
+          path: android-libs-temp
+          merge-multiple: false
+
+      - name: Organize Android libraries
+        run: |
+          mkdir -p kotlin/bindings/src/main/jniLibs
+
+          for abi_dir in android-libs-temp/kotlin-bindings-android-*; do
+            abi=$(basename "$abi_dir" | sed 's/kotlin-bindings-android-//')
+            echo "Processing $abi..."
+            mkdir -p "kotlin/bindings/src/main/jniLibs/$abi"
+
+            so_count=$(find "$abi_dir" -maxdepth 1 -type f -name "*.so" | wc -l | tr -d '[:space:]')
+            if [ "$so_count" -eq 0 ]; then
+              echo "ERROR: expected at least one .so in $abi_dir"
+              ls -la "$abi_dir" || true
+              exit 1
+            fi
+
+            cp "$abi_dir/"*.so "kotlin/bindings/src/main/jniLibs/$abi/"
+          done
+
+          find kotlin/bindings/src/main/jniLibs -name "*.so" | sort
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Assemble bindings AAR
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: 8.9
+          arguments: -p kotlin bindings:assembleRelease
+
+      - name: Assemble Android sample app
+        run: ./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin/Examples/IDKitSampleApp :app:assembleDebug
+
+      - name: Verify AAR JNI contents
+        run: |
+          AAR_FILE=$(find kotlin/bindings/build/outputs/aar -maxdepth 1 -type f -name "*.aar" | head -n 1)
+          if [ -z "$AAR_FILE" ]; then
+            echo "ERROR: No AAR produced"
+            exit 1
+          fi
+
+          echo "Verifying $AAR_FILE"
+          jar tf "$AAR_FILE" | rg '^jni/.*/libidkit\.so$' | sort
+
+          for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+            if ! jar tf "$AAR_FILE" | rg -q "^jni/$abi/libidkit\.so$"; then
+              echo "ERROR: Missing jni/$abi/libidkit.so in AAR"
+              exit 1
+            fi
+          done
