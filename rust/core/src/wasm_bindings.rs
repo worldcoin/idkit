@@ -1180,33 +1180,37 @@ export type Status =
 #[wasm_bindgen(typescript_custom_section)]
 const TS_PRESET: &str = r#"
 export interface OrbLegacyPreset {
+    /** This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions. */
     type: "OrbLegacy";
     signal?: string;
 }
 
 export interface SecureDocumentLegacyPreset {
+    /** This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions. */
     type: "SecureDocumentLegacy";
     signal?: string;
 }
 
 export interface DocumentLegacyPreset {
+    /** This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions. */
     type: "DocumentLegacy";
     signal?: string;
 }
 
-export interface SelfieCheckPreset {
+export interface SelfieCheckLegacyPreset {
+    /** This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions. */
     /** Preview: Selfie Check is currently in preview. Contact us if you need it enabled. */
-    type: "SelfieCheck";
+    type: "SelfieCheckLegacy";
     signal?: string;
 }
 
-export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLegacyPreset | SelfieCheckPreset;
+export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLegacyPreset | SelfieCheckLegacyPreset;
 
 export function orbLegacy(signal?: string): Preset;
 export function secureDocumentLegacy(signal?: string): Preset;
 export function documentLegacy(signal?: string): Preset;
 /** Preview: Selfie Check is currently in preview. Contact us if you need it enabled. */
-export function selfieCheck(signal?: string): Preset;
+export function selfieCheckLegacy(signal?: string): Preset;
 "#;
 
 // Export RP signature types

@@ -56,19 +56,19 @@ const request = await IDKit.request({
 const qrUrl = request.connectorURI;
 ```
 
-**Available presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `selfieCheck`
+**Available presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `selfieCheckLegacy`
 
 Selfie check preset example:
 
 ```typescript
-import { IDKit, selfieCheck } from "@worldcoin/idkit-core";
+import { IDKit, selfieCheckLegacy } from "@worldcoin/idkit-core";
 
 const request = await IDKit.request({
   app_id: "app_xxxxx",
   action: "my-action",
   rp_context: rpContext,
   allow_legacy_proofs: false,
-}).preset(selfieCheck({ signal: "user-123" }));
+}).preset(selfieCheckLegacy({ signal: "user-123" }));
 ```
 
 ## Handling the Result

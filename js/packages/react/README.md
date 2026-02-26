@@ -18,7 +18,11 @@ npm install @worldcoin/idkit
 ## Basic usage
 
 ```tsx
-import { useIDKitRequest, orbLegacy, selfieCheck } from "@worldcoin/idkit";
+import {
+  useIDKitRequest,
+  orbLegacy,
+  selfieCheckLegacy,
+} from "@worldcoin/idkit";
 
 function Example() {
   const flow = useIDKitRequest({
@@ -39,7 +43,7 @@ function Example() {
 }
 ```
 
-Use `selfieCheck({ signal })` for selfie-check preset requests.
+Use `selfieCheckLegacy({ signal })` for selfie-check preset requests.
 
 ```tsx
 import type { IDKitRequestHookConfig } from "@worldcoin/idkit";

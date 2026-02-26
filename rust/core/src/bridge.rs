@@ -1238,8 +1238,8 @@ mod tests {
     }
 
     #[test]
-    fn test_selfie_check_preset_serializes_face_verification_level() {
-        let preset = crate::preset::Preset::selfie_check(Some("face-signal".to_string()));
+    fn test_selfie_check_legacy_preset_serializes_face_verification_level() {
+        let preset = crate::preset::Preset::selfie_check_legacy(Some("face-signal".to_string()));
         let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
 
         let app_id = AppId::new("app_test").unwrap();

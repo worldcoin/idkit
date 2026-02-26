@@ -270,15 +270,35 @@ object IDKit {
 //     return ConstraintNode.fromJson("""{"enumerate":[${nodesJson}]}""")
 // }
 
+/**
+ * Returns the orb legacy preset.
+ *
+ * This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
+ */
 fun orbLegacy(signal: String? = null): Preset = Preset.OrbLegacy(signal = signal)
 
+/**
+ * Returns the secure document legacy preset.
+ *
+ * This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
+ */
 fun secureDocumentLegacy(signal: String? = null): Preset =
     Preset.SecureDocumentLegacy(signal = signal)
 
+/**
+ * Returns the document legacy preset.
+ *
+ * This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
+ */
 fun documentLegacy(signal: String? = null): Preset = Preset.DocumentLegacy(signal = signal)
 
-/** Preview: Selfie Check is currently in preview. Contact us if you need it enabled. */
-fun selfieCheck(signal: String? = null): Preset = Preset.SelfieCheck(signal = signal)
+/**
+ * Returns the selfie check legacy preset.
+ *
+ * This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
+ * Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
+ */
+fun selfieCheckLegacy(signal: String? = null): Preset = Preset.SelfieCheckLegacy(signal = signal)
 
 fun idkitResultToJson(result: IDKitResult): String = nativeIdkitResultToJson(result)
 

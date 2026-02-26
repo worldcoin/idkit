@@ -324,21 +324,33 @@ public final class IDKitRequest {
 //     }
 // }
 
+/// Returns the orb legacy preset.
+///
+/// This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
 public func orbLegacy(signal: String? = nil) -> Preset {
     .orbLegacy(signal: signal)
 }
 
+/// Returns the secure document legacy preset.
+///
+/// This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
 public func secureDocumentLegacy(signal: String? = nil) -> Preset {
     .secureDocumentLegacy(signal: signal)
 }
 
+/// Returns the document legacy preset.
+///
+/// This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
 public func documentLegacy(signal: String? = nil) -> Preset {
     .documentLegacy(signal: signal)
 }
 
+/// Returns the selfie check legacy preset.
+///
+/// This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
 /// Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
-public func selfieCheck(signal: String? = nil) -> Preset {
-    .selfieCheck(signal: signal)
+public func selfieCheckLegacy(signal: String? = nil) -> Preset {
+    .selfieCheckLegacy(signal: signal)
 }
 
 // TODO: Re-enable when World ID 4.0 is live
