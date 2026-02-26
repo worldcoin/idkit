@@ -7,7 +7,7 @@
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::future_not_send)]
 
-use crate::preset::Preset;
+use crate::preset::{LegacyV1Params, Preset};
 use crate::{ConstraintNode, CredentialRequest, CredentialType, RpContext, Signal};
 use serde::Serialize;
 use std::cell::RefCell;
@@ -526,7 +526,9 @@ impl IDKitConfigWasm {
                     constraints,
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
-                    legacy_verification_level: crate::VerificationLevel::Deprecated,
+                    legacy_v1_params: LegacyV1Params::VerificationLevel(
+                        crate::VerificationLevel::Deprecated,
+                    ),
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: *allow_legacy_proofs,
@@ -560,7 +562,9 @@ impl IDKitConfigWasm {
                     constraints,
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
-                    legacy_verification_level: crate::VerificationLevel::Deprecated,
+                    legacy_v1_params: LegacyV1Params::VerificationLevel(
+                        crate::VerificationLevel::Deprecated,
+                    ),
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
@@ -597,7 +601,9 @@ impl IDKitConfigWasm {
                     constraints,
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
-                    legacy_verification_level: crate::VerificationLevel::Deprecated,
+                    legacy_v1_params: LegacyV1Params::VerificationLevel(
+                        crate::VerificationLevel::Deprecated,
+                    ),
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
@@ -616,9 +622,9 @@ impl IDKitConfigWasm {
         &self,
         preset: Preset,
     ) -> Result<crate::bridge::BridgeConnectionParams, JsValue> {
-        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+        let (constraints, legacy_v1_params, legacy_signal) = preset.to_bridge_params();
         let mut params = self.to_params(constraints)?;
-        params.legacy_verification_level = legacy_verification_level;
+        params.legacy_v1_params = legacy_v1_params;
         params.legacy_signal = legacy_signal.unwrap_or_default();
         Ok(params)
     }

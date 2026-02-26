@@ -210,28 +210,28 @@ func legacyPresetHelpers() {
     switch orb {
     case .orbLegacy(let signal):
         #expect(signal == "x")
-    case .secureDocumentLegacy, .documentLegacy, .selfieCheckLegacy:
+    case .secureDocumentLegacy, .documentLegacy, .selfieCheckLegacy, .credentialCategoriesLegacy:
         Issue.record("Expected orbLegacy preset")
     }
 
     switch secureDoc {
     case .secureDocumentLegacy(let signal):
         #expect(signal == "y")
-    case .orbLegacy, .documentLegacy, .selfieCheckLegacy:
+    case .orbLegacy, .documentLegacy, .selfieCheckLegacy, .credentialCategoriesLegacy:
         Issue.record("Expected secureDocumentLegacy preset")
     }
 
     switch doc {
     case .documentLegacy(let signal):
         #expect(signal == "z")
-    case .orbLegacy, .secureDocumentLegacy, .selfieCheckLegacy:
+    case .orbLegacy, .secureDocumentLegacy, .selfieCheckLegacy, .credentialCategoriesLegacy:
         Issue.record("Expected documentLegacy preset")
     }
 
     switch face {
     case .selfieCheckLegacy(let signal):
         #expect(signal == "f")
-    case .orbLegacy, .secureDocumentLegacy, .documentLegacy:
+    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .credentialCategoriesLegacy:
         Issue.record("Expected selfieCheckLegacy preset")
     }
 }

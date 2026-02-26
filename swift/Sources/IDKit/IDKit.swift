@@ -63,11 +63,7 @@ public enum IDKitStatus: Equatable {
     case failed(IDKitErrorCode)
 }
 
-/// Result returned by `IDKitRequest.pollUntilCompletion(options:)`.
-public enum IDKitCompletionResult: Equatable {
-    case success(IDKitResult)
-    case failure(IDKitErrorCode)
-}
+public typealias IDKitCompletionResult = Result<IdKitResult, IDKitErrorCode>
 
 /// Polling options for `pollUntilCompletion`.
 public struct IDKitPollOptions: Equatable {
@@ -84,7 +80,7 @@ public struct IDKitPollOptions: Equatable {
 ///
 /// World App errors mirror JS `IDKitErrorCodes` naming and values.
 /// `timeout` and `cancelled` are client-side errors.
-public enum IDKitErrorCode: String, Equatable {
+public enum IDKitErrorCode: String, Equatable, Error {
     case userRejected = "user_rejected"
     case verificationRejected = "verification_rejected"
     case credentialUnavailable = "credential_unavailable"
