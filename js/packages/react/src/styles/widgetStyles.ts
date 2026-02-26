@@ -341,6 +341,7 @@ export const WIDGET_STYLES = `
   animation: idkit-spin 1s linear infinite;
 }
 .idkit-spinner svg {
+  display: block;
   width: 24px;
   height: 24px;
 }

@@ -8,14 +8,24 @@ type Props = {
   onFail: () => void;
 };
 
-export function HostAppVerificationState({ onVerify, onPass, onFail }: Props): ReactElement {
+export function HostAppVerificationState({
+  onVerify,
+  onPass,
+  onFail,
+}: Props): ReactElement {
   useEffect(() => {
     let cancelled = false;
     void Promise.resolve(onVerify())
-      .then(() => { if (!cancelled) onPass(); })
-      .catch(() => { if (!cancelled) onFail(); });
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+      .then(() => {
+        if (!cancelled) onPass();
+      })
+      .catch(() => {
+        if (!cancelled) onFail();
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

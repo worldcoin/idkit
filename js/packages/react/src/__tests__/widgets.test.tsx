@@ -163,7 +163,9 @@ describe("widgets", () => {
     const onSuccess = vi.fn();
     const onError = vi.fn();
 
-    render(<IDKitRequestWidget {...createRequestProps({ onSuccess, onError })} />);
+    render(
+      <IDKitRequestWidget {...createRequestProps({ onSuccess, onError })} />,
+    );
 
     await waitFor(() => {
       expect(onError).toHaveBeenCalledWith(IDKitErrorCodes.ConnectionFailed);
@@ -360,7 +362,9 @@ describe("widgets", () => {
       expect(onSuccess).toHaveBeenCalledTimes(1);
     });
 
-    rerender(<IDKitRequestWidget {...baseProps} handleVerify={handleVerifyB} />);
+    rerender(
+      <IDKitRequestWidget {...baseProps} handleVerify={handleVerifyB} />,
+    );
 
     await act(async () => {
       await Promise.resolve();

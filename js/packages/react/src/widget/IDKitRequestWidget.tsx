@@ -11,7 +11,11 @@ import { setLocalizationConfig } from "../lang";
 
 type VisualStage = "worldid" | "host_verification" | "success" | "error";
 
-function getVisualStage(isSuccess: boolean, isError: boolean, isHostVerifying: boolean): VisualStage {
+function getVisualStage(
+  isSuccess: boolean,
+  isError: boolean,
+  isHostVerifying: boolean,
+): VisualStage {
   if (isError) return "error";
   if (isHostVerifying) return "host_verification";
   if (isSuccess) return "success";
@@ -35,7 +39,9 @@ export function IDKitRequestWidget({
   const flow = useIDKitRequest(config);
   const { open: openFlow, reset: resetFlow } = flow;
 
-  const [hostVerifyResult, setHostVerifyResult] = useState<"passed" | "failed" | null>(null);
+  const [hostVerifyResult, setHostVerifyResult] = useState<
+    "passed" | "failed" | null
+  >(null);
   const lastResultRef = useRef<IDKitResult | null>(null);
   const lastErrorCodeRef = useRef<IDKitErrorCodes | null>(null);
 
@@ -59,17 +65,17 @@ export function IDKitRequestWidget({
     resetFlow();
   }, [open, openFlow, resetFlow]);
 
-  const isSuccess = flow.isSuccess && (!handleVerify || hostVerifyResult === "passed");
+  const isSuccess =
+    flow.isSuccess && (!handleVerify || hostVerifyResult === "passed");
   const isError = flow.isError || hostVerifyResult === "failed";
-  const isHostVerifying = flow.isSuccess && Boolean(handleVerify) && hostVerifyResult === null;
-  const effectiveErrorCode = flow.errorCode ?? (hostVerifyResult === "failed" ? IDKitErrorCodes.FailedByHostApp : null);
+  const isHostVerifying =
+    flow.isSuccess && Boolean(handleVerify) && hostVerifyResult === null;
+  const effectiveErrorCode =
+    flow.errorCode ??
+    (hostVerifyResult === "failed" ? IDKitErrorCodes.FailedByHostApp : null);
 
   useEffect(() => {
-    if (
-      !isSuccess ||
-      !flow.result ||
-      flow.result === lastResultRef.current
-    ) {
+    if (!isSuccess || !flow.result || flow.result === lastResultRef.current) {
       return;
     }
 

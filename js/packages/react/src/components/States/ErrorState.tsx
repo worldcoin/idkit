@@ -9,7 +9,11 @@ type ErrorStateProps = {
   onRetry: () => void;
 };
 
-type ErrorVariant = "cancelled" | "connection" | "host_verification" | "generic";
+type ErrorVariant =
+  | "cancelled"
+  | "connection"
+  | "host_verification"
+  | "generic";
 
 const errorCodeVariants: Partial<Record<IDKitErrorCodes, ErrorVariant>> = {
   [IDKitErrorCodes.UserRejected]: "cancelled",
