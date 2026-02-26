@@ -45,13 +45,6 @@ function Example() {
 
 Use `selfieCheckLegacy({ signal })` for selfie-check preset requests.
 
-Legacy preset behavior:
-
-- `orbLegacy` returns only World ID 3.0 legacy proofs with `verification_level = "orb"`. Legacy verification returns the maximum level, and this preset only includes orb, so it always resolves to `orb`.
-- `secureDocumentLegacy` returns only World ID 3.0 legacy proofs with `verification_level = "secure_document"`. Legacy verification returns the maximum level, so the proof can resolve to `secure_document` or `orb`.
-- `documentLegacy` returns only World ID 3.0 legacy proofs with `verification_level = "document"`. Legacy verification returns the maximum level, so the proof can resolve to `document`, `secure_document`, or `orb`.
-- `selfieCheckLegacy` returns only World ID 3.0 legacy proofs with `verification_level = "face"`.
-
 ```tsx
 import type { IDKitRequestHookConfig } from "@worldcoin/idkit";
 
