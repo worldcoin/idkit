@@ -1,8 +1,23 @@
-import type { ReactElement } from "react";
+import { useEffect, type ReactElement } from "react";
 import { __ } from "../../lang";
 import { LoadingIcon } from "../Icons/LoadingIcon";
 
-export function HostAppVerificationState(): ReactElement {
+type Props = {
+  onVerify: () => Promise<void> | void;
+  onPass: () => void;
+  onFail: () => void;
+};
+
+export function HostAppVerificationState({ onVerify, onPass, onFail }: Props): ReactElement {
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.resolve(onVerify())
+      .then(() => { if (!cancelled) onPass(); })
+      .catch(() => { if (!cancelled) onFail(); });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div
       style={{

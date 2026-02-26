@@ -9,36 +9,12 @@ import { ErrorState } from "../components/States/ErrorState";
 import { HostAppVerificationState } from "../components/States/HostAppVerificationState";
 import { setLocalizationConfig } from "../lang";
 
-type HostVerificationState = "idle" | "pending" | "passed" | "failed";
 type VisualStage = "worldid" | "host_verification" | "success" | "error";
 
-function getVisualStage({
-  isFlowSuccess,
-  isFlowError,
-  hasHandleVerify,
-  hostVerificationState,
-}: {
-  isFlowSuccess: boolean;
-  isFlowError: boolean;
-  hasHandleVerify: boolean;
-  hostVerificationState: HostVerificationState;
-}): VisualStage {
-  if (isFlowError || hostVerificationState === "failed") {
-    return "error";
-  }
-
-  if (isFlowSuccess && !hasHandleVerify) {
-    return "success";
-  }
-
-  if (isFlowSuccess) {
-    if (hostVerificationState === "passed") {
-      return "success";
-    }
-
-    return "host_verification";
-  }
-
+function getVisualStage(isSuccess: boolean, isError: boolean, isHostVerifying: boolean): VisualStage {
+  if (isError) return "error";
+  if (isHostVerifying) return "host_verification";
+  if (isSuccess) return "success";
   return "worldid";
 }
 
@@ -59,17 +35,9 @@ export function IDKitRequestWidget({
   const flow = useIDKitRequest(config);
   const { open: openFlow, reset: resetFlow } = flow;
 
-  const [hostVerificationState, setHostVerificationState] =
-    useState<HostVerificationState>("idle");
-  const handleVerifyRef = useRef(handleVerify);
-  const verifyRunIdRef = useRef(0);
-  const lastVerifiedResultRef = useRef<IDKitResult | null>(null);
+  const [hostVerifyResult, setHostVerifyResult] = useState<"passed" | "failed" | null>(null);
   const lastResultRef = useRef<IDKitResult | null>(null);
   const lastErrorCodeRef = useRef<IDKitErrorCodes | null>(null);
-
-  useEffect(() => {
-    handleVerifyRef.current = handleVerify;
-  }, [handleVerify]);
 
   // Set language config
   useEffect(() => {
@@ -80,62 +48,25 @@ export function IDKitRequestWidget({
 
   useEffect(() => {
     if (open) {
+      setHostVerifyResult(null);
       openFlow();
       return;
     }
 
-    verifyRunIdRef.current += 1;
-    setHostVerificationState("idle");
-    lastVerifiedResultRef.current = null;
+    setHostVerifyResult(null);
     lastResultRef.current = null;
     lastErrorCodeRef.current = null;
     resetFlow();
   }, [open, openFlow, resetFlow]);
 
-  useEffect(() => {
-    if (!flow.result || flow.result === lastVerifiedResultRef.current) {
-      return;
-    }
-
-    lastVerifiedResultRef.current = flow.result;
-    const verifyCallback = handleVerifyRef.current;
-
-    if (!verifyCallback) {
-      setHostVerificationState("passed");
-      return;
-    }
-
-    const runId = ++verifyRunIdRef.current;
-    setHostVerificationState("pending");
-
-    void Promise.resolve(verifyCallback(flow.result))
-      .then(() => {
-        if (runId !== verifyRunIdRef.current) {
-          return;
-        }
-
-        setHostVerificationState("passed");
-      })
-      .catch(() => {
-        if (runId !== verifyRunIdRef.current) {
-          return;
-        }
-
-        setHostVerificationState("failed");
-      });
-  }, [flow.result]);
-
-  const effectiveErrorCode =
-    flow.errorCode ??
-    (hostVerificationState === "failed"
-      ? IDKitErrorCodes.FailedByHostApp
-      : null);
-  const isEffectiveSuccess =
-    flow.isSuccess && (!handleVerify || hostVerificationState === "passed");
+  const isSuccess = flow.isSuccess && (!handleVerify || hostVerifyResult === "passed");
+  const isError = flow.isError || hostVerifyResult === "failed";
+  const isHostVerifying = flow.isSuccess && Boolean(handleVerify) && hostVerifyResult === null;
+  const effectiveErrorCode = flow.errorCode ?? (hostVerifyResult === "failed" ? IDKitErrorCodes.FailedByHostApp : null);
 
   useEffect(() => {
     if (
-      !isEffectiveSuccess ||
+      !isSuccess ||
       !flow.result ||
       flow.result === lastResultRef.current
     ) {
@@ -146,7 +77,7 @@ export function IDKitRequestWidget({
     void Promise.resolve(onSuccess(flow.result)).catch(() => {
       // Swallow host callback errors to keep widget flow stable.
     });
-  }, [flow.result, isEffectiveSuccess, onSuccess]);
+  }, [flow.result, isSuccess, onSuccess]);
 
   useEffect(() => {
     if (
@@ -164,18 +95,13 @@ export function IDKitRequestWidget({
 
   // Auto-close on success
   useEffect(() => {
-    if (isEffectiveSuccess && autoClose) {
+    if (isSuccess && autoClose) {
       const timer = setTimeout(() => onOpenChange(false), 2500);
       return () => clearTimeout(timer);
     }
-  }, [isEffectiveSuccess, autoClose, onOpenChange]);
+  }, [isSuccess, autoClose, onOpenChange]);
 
-  const stage = getVisualStage({
-    isFlowSuccess: flow.isSuccess,
-    isFlowError: flow.isError,
-    hasHandleVerify: Boolean(handleVerify),
-    hostVerificationState,
-  });
+  const stage = getVisualStage(isSuccess, isError, isHostVerifying);
   const showSimulatorCallout = config.environment === "staging";
 
   return (
@@ -187,15 +113,19 @@ export function IDKitRequestWidget({
           showSimulatorCallout={showSimulatorCallout}
         />
       )}
-      {stage === "host_verification" && <HostAppVerificationState />}
+      {stage === "host_verification" && (
+        <HostAppVerificationState
+          onVerify={() => handleVerify!(flow.result!)}
+          onPass={() => setHostVerifyResult("passed")}
+          onFail={() => setHostVerifyResult("failed")}
+        />
+      )}
       {stage === "success" && <SuccessState />}
       {stage === "error" && (
         <ErrorState
           errorCode={effectiveErrorCode}
           onRetry={() => {
-            verifyRunIdRef.current += 1;
-            setHostVerificationState("idle");
-            lastVerifiedResultRef.current = null;
+            setHostVerifyResult(null);
             lastResultRef.current = null;
             lastErrorCodeRef.current = null;
             resetFlow();
