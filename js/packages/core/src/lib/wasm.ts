@@ -65,7 +65,7 @@ export type {
   OrbLegacyPreset,
   SecureDocumentLegacyPreset,
   DocumentLegacyPreset,
-  SelfieCheckPreset,
+  SelfieCheckLegacyPreset,
   // Native transport types
   NativePayloadResult,
 } from "../../wasm/idkit_wasm.js";

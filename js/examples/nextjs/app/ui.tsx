@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 import {
   documentLegacy,
-  selfieCheck,
+  selfieCheckLegacy,
   IDKitRequestWidget,
   orbLegacy,
   secureDocumentLegacy,
@@ -25,7 +25,7 @@ function createPreset(kind: PresetKind, signal: string) {
     case "document":
       return documentLegacy({ signal });
     case "selfie":
-      return selfieCheck({ signal });
+      return selfieCheckLegacy({ signal });
     default: {
       const exhaustive: never = kind;
       throw new Error(`Unsupported preset: ${String(exhaustive)}`);

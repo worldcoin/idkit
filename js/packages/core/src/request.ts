@@ -227,7 +227,7 @@ export type {
   OrbLegacyPreset,
   SecureDocumentLegacyPreset,
   DocumentLegacyPreset,
-  SelfieCheckPreset,
+  SelfieCheckLegacyPreset,
 } from "./lib/wasm";
 
 // Import WASM preset type for function return types
@@ -236,14 +236,16 @@ import type {
   OrbLegacyPreset,
   SecureDocumentLegacyPreset,
   DocumentLegacyPreset,
-  SelfieCheckPreset,
+  SelfieCheckLegacyPreset,
 } from "./lib/wasm";
 
 /**
  * Creates an OrbLegacy preset for World ID 3.0 legacy support
  *
- * This preset creates an IDKit request compatible with both World ID 4.0 and 3.0 protocols.
- * Use this when you need backward compatibility with older World App versions.
+ * This preset returns only World ID 3.0 legacy proofs.
+ * Legacy responses use `verification_level = "orb"`.
+ * Legacy verification returns the maximum available level, and this preset only includes
+ * orb, so it always resolves to `orb`.
  *
  * @param opts - Optional configuration with signal
  * @returns An OrbLegacy preset
@@ -261,8 +263,10 @@ export function orbLegacy(opts: { signal?: string } = {}): OrbLegacyPreset {
 /**
  * Creates a SecureDocumentLegacy preset for World ID 3.0 legacy support
  *
- * This preset creates an IDKit request compatible with both World ID 4.0 and 3.0 protocols.
- * Use this when you need backward compatibility with older World App versions.
+ * This preset returns only World ID 3.0 legacy proofs.
+ * Legacy responses use `verification_level = "secure_document"`.
+ * Legacy verification levels return the maximum available level, so this preset can
+ * return either `secure_document` or `orb`.
  *
  * @param opts - Optional configuration with signal
  * @returns A SecureDocumentLegacy preset
@@ -282,8 +286,10 @@ export function secureDocumentLegacy(
 /**
  * Creates a DocumentLegacy preset for World ID 3.0 legacy support
  *
- * This preset creates an IDKit request compatible with both World ID 4.0 and 3.0 protocols.
- * Use this when you need backward compatibility with older World App versions.
+ * This preset returns only World ID 3.0 legacy proofs.
+ * Legacy responses use `verification_level = "document"`.
+ * Legacy verification levels return the maximum available level, so this preset can
+ * return `document`, `secure_document`, or `orb`.
  *
  * @param opts - Optional configuration with signal
  * @returns A DocumentLegacy preset
@@ -301,25 +307,27 @@ export function documentLegacy(
 }
 
 /**
- * Creates a SelfieCheck preset for face verification
+ * Creates a SelfieCheckLegacy preset for face verification
  *
  * Preview: Selfie Check is currently in preview.
  * Contact us if you need it enabled.
  *
- * This preset requests face credentials in v4 constraints.
- * In legacy compatibility fields, it maps to verification level "face".
+ * This preset returns only World ID 3.0 legacy proofs.
+ * Legacy responses use `verification_level = "face"`.
  *
  * @param opts - Optional configuration with signal
- * @returns A SelfieCheck preset
+ * @returns A SelfieCheckLegacy preset
  *
  * @example
  * ```typescript
  * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: false })
- *   .preset(selfieCheck({ signal: 'user-123' }))
+ *   .preset(selfieCheckLegacy({ signal: 'user-123' }))
  * ```
  */
-export function selfieCheck(opts: { signal?: string } = {}): SelfieCheckPreset {
-  return { type: "SelfieCheck", signal: opts.signal };
+export function selfieCheckLegacy(
+  opts: { signal?: string } = {},
+): SelfieCheckLegacyPreset {
+  return { type: "SelfieCheckLegacy", signal: opts.signal };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -434,7 +442,7 @@ class IDKitBuilder {
    * Presets provide a simplified way to create requests with predefined
    * credential configurations.
    *
-   * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), documentLegacy(), or selfieCheck()
+   * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), documentLegacy(), or selfieCheckLegacy()
    * @returns A new IDKitRequest instance
    *
    * @example
@@ -685,6 +693,6 @@ export const IDKit = {
   secureDocumentLegacy,
   /** Create a DocumentLegacy preset for World ID 3.0 legacy support */
   documentLegacy,
-  /** Create a SelfieCheck preset for face verification */
-  selfieCheck,
+  /** Create a SelfieCheckLegacy preset for face verification */
+  selfieCheckLegacy,
 };

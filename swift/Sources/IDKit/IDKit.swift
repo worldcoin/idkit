@@ -324,21 +324,39 @@ public final class IDKitRequest {
 //     }
 // }
 
+/// Returns the orb legacy preset.
+///
+/// This preset returns only World ID 3.0 legacy proofs with `verification_level = "orb"`.
+/// Legacy verification returns the maximum level, and this preset only includes orb,
+/// so it always resolves to `orb`.
 public func orbLegacy(signal: String? = nil) -> Preset {
     .orbLegacy(signal: signal)
 }
 
+/// Returns the secure document legacy preset.
+///
+/// This preset returns only World ID 3.0 legacy proofs with `verification_level = "secure_document"`.
+/// Legacy verification returns the maximum level, so the proof can resolve to
+/// `secure_document` or `orb`.
 public func secureDocumentLegacy(signal: String? = nil) -> Preset {
     .secureDocumentLegacy(signal: signal)
 }
 
+/// Returns the document legacy preset.
+///
+/// This preset returns only World ID 3.0 legacy proofs with `verification_level = "document"`.
+/// Legacy verification returns the maximum level, so the proof can resolve to
+/// `document`, `secure_document`, or `orb`.
 public func documentLegacy(signal: String? = nil) -> Preset {
     .documentLegacy(signal: signal)
 }
 
+/// Returns the selfie check legacy preset.
+///
+/// This preset returns only World ID 3.0 legacy proofs with `verification_level = "face"`.
 /// Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
-public func selfieCheck(signal: String? = nil) -> Preset {
-    .selfieCheck(signal: signal)
+public func selfieCheckLegacy(signal: String? = nil) -> Preset {
+    .selfieCheckLegacy(signal: signal)
 }
 
 // TODO: Re-enable when World ID 4.0 is live

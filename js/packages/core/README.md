@@ -56,19 +56,25 @@ const request = await IDKit.request({
 const qrUrl = request.connectorURI;
 ```
 
-**Available presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `selfieCheck`
+**Available presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `selfieCheckLegacy`
+
+Legacy preset behavior:
+- `orbLegacy` returns only World ID 3.0 legacy proofs with `verification_level = "orb"`. Legacy verification returns the maximum level, and this preset only includes orb, so it always resolves to `orb`.
+- `secureDocumentLegacy` returns only World ID 3.0 legacy proofs with `verification_level = "secure_document"`. Legacy verification returns the maximum level, so the proof can resolve to `secure_document` or `orb`.
+- `documentLegacy` returns only World ID 3.0 legacy proofs with `verification_level = "document"`. Legacy verification returns the maximum level, so the proof can resolve to `document`, `secure_document`, or `orb`.
+- `selfieCheckLegacy` returns only World ID 3.0 legacy proofs with `verification_level = "face"`.
 
 Selfie check preset example:
 
 ```typescript
-import { IDKit, selfieCheck } from "@worldcoin/idkit-core";
+import { IDKit, selfieCheckLegacy } from "@worldcoin/idkit-core";
 
 const request = await IDKit.request({
   app_id: "app_xxxxx",
   action: "my-action",
   rp_context: rpContext,
   allow_legacy_proofs: false,
-}).preset(selfieCheck({ signal: "user-123" }));
+}).preset(selfieCheckLegacy({ signal: "user-123" }));
 ```
 
 ## Handling the Result

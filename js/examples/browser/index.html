@@ -189,7 +189,7 @@
       <button id="verifyOrb">Verify with Orb</button>
       <button id="verifySecureDocument">Verify with Secure Document</button>
       <button id="verifyDocument">Verify with Document</button>
-      <button id="verifySelfieCheck">Verify with Selfie Check</button>
+      <button id="verifySelfieCheckLegacy">Verify with Selfie Check</button>
     </div>
 
     <section id="qr" hidden>
@@ -240,7 +240,7 @@
         orbLegacy,
         secureDocumentLegacy,
         documentLegacy,
-        selfieCheck,
+        selfieCheckLegacy,
       } from "@worldcoin/idkit-core";
 
       // Format V4 verify response with visual indicators
@@ -440,9 +440,9 @@
           startVerification(documentLegacy({ signal: makeSignal() })),
         );
       document
-        .getElementById("verifySelfieCheck")
+        .getElementById("verifySelfieCheckLegacy")
         .addEventListener("click", () =>
-          startVerification(selfieCheck({ signal: makeSignal() })),
+          startVerification(selfieCheckLegacy({ signal: makeSignal() })),
         );
     </script>
   </body>

@@ -1180,33 +1180,40 @@ export type Status =
 #[wasm_bindgen(typescript_custom_section)]
 const TS_PRESET: &str = r#"
 export interface OrbLegacyPreset {
+    /** Returns only World ID 3.0 legacy proofs. Legacy responses use verification_level = "orb". */
+    /** Legacy verification returns the maximum level, and this preset only includes orb, so it always resolves to orb. */
     type: "OrbLegacy";
     signal?: string;
 }
 
 export interface SecureDocumentLegacyPreset {
+    /** Returns only World ID 3.0 legacy proofs. Legacy responses use verification_level = "secure_document". */
+    /** Legacy verification returns the maximum level, so this can resolve to secure_document or orb. */
     type: "SecureDocumentLegacy";
     signal?: string;
 }
 
 export interface DocumentLegacyPreset {
+    /** Returns only World ID 3.0 legacy proofs. Legacy responses use verification_level = "document". */
+    /** Legacy verification returns the maximum level, so this can resolve to document, secure_document, or orb. */
     type: "DocumentLegacy";
     signal?: string;
 }
 
-export interface SelfieCheckPreset {
+export interface SelfieCheckLegacyPreset {
+    /** Returns only World ID 3.0 legacy proofs. Legacy responses use verification_level = "face". */
     /** Preview: Selfie Check is currently in preview. Contact us if you need it enabled. */
-    type: "SelfieCheck";
+    type: "SelfieCheckLegacy";
     signal?: string;
 }
 
-export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLegacyPreset | SelfieCheckPreset;
+export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLegacyPreset | SelfieCheckLegacyPreset;
 
 export function orbLegacy(signal?: string): Preset;
 export function secureDocumentLegacy(signal?: string): Preset;
 export function documentLegacy(signal?: string): Preset;
 /** Preview: Selfie Check is currently in preview. Contact us if you need it enabled. */
-export function selfieCheck(signal?: string): Preset;
+export function selfieCheckLegacy(signal?: string): Preset;
 "#;
 
 // Export RP signature types
