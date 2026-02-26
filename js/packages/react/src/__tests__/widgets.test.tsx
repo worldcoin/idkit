@@ -336,6 +336,41 @@ describe("widgets", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
+  it("request widget does not re-run handleVerify when callback identity changes", async () => {
+    const flow = createFlow({
+      isSuccess: true,
+      result: { proof: "stable" },
+    });
+    useIDKitRequestMock.mockReturnValue(flow);
+
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+    const handleVerifyA = vi.fn().mockResolvedValue(undefined);
+    const handleVerifyB = vi.fn().mockResolvedValue(undefined);
+
+    const baseProps = createRequestProps({ onSuccess, onError });
+    const { rerender } = render(
+      <IDKitRequestWidget {...baseProps} handleVerify={handleVerifyA} />,
+    );
+
+    await waitFor(() => {
+      expect(handleVerifyA).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(onSuccess).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(<IDKitRequestWidget {...baseProps} handleVerify={handleVerifyB} />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(handleVerifyA).toHaveBeenCalledTimes(1);
+    expect(handleVerifyB).not.toHaveBeenCalled();
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+  });
+
   it("session widget waits for handleVerify before calling onSuccess", async () => {
     const flow = createFlow({
       isSuccess: true,

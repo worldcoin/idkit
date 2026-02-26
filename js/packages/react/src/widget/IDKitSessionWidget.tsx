@@ -64,9 +64,15 @@ export function IDKitSessionWidget({
 
   const [hostVerificationState, setHostVerificationState] =
     useState<HostVerificationState>("idle");
+  const handleVerifyRef = useRef(handleVerify);
   const verifyRunIdRef = useRef(0);
+  const lastVerifiedResultRef = useRef<IDKitResultSession | null>(null);
   const lastResultRef = useRef<IDKitResultSession | null>(null);
   const lastErrorCodeRef = useRef<IDKitErrorCodes | null>(null);
+
+  useEffect(() => {
+    handleVerifyRef.current = handleVerify;
+  }, [handleVerify]);
 
   // Set language config
   useEffect(() => {
@@ -83,17 +89,21 @@ export function IDKitSessionWidget({
 
     verifyRunIdRef.current += 1;
     setHostVerificationState("idle");
+    lastVerifiedResultRef.current = null;
     lastResultRef.current = null;
     lastErrorCodeRef.current = null;
     resetFlow();
   }, [open, openFlow, resetFlow]);
 
   useEffect(() => {
-    if (!flow.result) {
+    if (!flow.result || flow.result === lastVerifiedResultRef.current) {
       return;
     }
 
-    if (!handleVerify) {
+    lastVerifiedResultRef.current = flow.result;
+    const verifyCallback = handleVerifyRef.current;
+
+    if (!verifyCallback) {
       setHostVerificationState("passed");
       return;
     }
@@ -101,7 +111,7 @@ export function IDKitSessionWidget({
     const runId = ++verifyRunIdRef.current;
     setHostVerificationState("pending");
 
-    void Promise.resolve(handleVerify(flow.result))
+    void Promise.resolve(verifyCallback(flow.result))
       .then(() => {
         if (runId !== verifyRunIdRef.current) {
           return;
@@ -116,7 +126,7 @@ export function IDKitSessionWidget({
 
         setHostVerificationState("failed");
       });
-  }, [flow.result, handleVerify]);
+  }, [flow.result]);
 
   const effectiveErrorCode =
     flow.errorCode ??
@@ -188,6 +198,7 @@ export function IDKitSessionWidget({
           onRetry={() => {
             verifyRunIdRef.current += 1;
             setHostVerificationState("idle");
+            lastVerifiedResultRef.current = null;
             lastResultRef.current = null;
             lastErrorCodeRef.current = null;
             resetFlow();
