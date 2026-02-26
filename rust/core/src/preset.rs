@@ -21,7 +21,7 @@ pub enum Preset {
     /// Requests orb-verified credentials only, with optional signal.
     /// The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
     ///
-    /// This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
+    /// This preset only returns World ID 3.0 proofs. Use it for compatibility with older `IDKit` versions.
     OrbLegacy {
         /// Optional signal to include in the proof.
         /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
@@ -32,7 +32,7 @@ pub enum Preset {
     /// Requests secure document-verified credentials only, with optional signal.
     /// The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
     ///
-    /// This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
+    /// This preset only returns World ID 3.0 proofs. Use it for compatibility with older `IDKit` versions.
     SecureDocumentLegacy {
         /// Optional signal to include in the proof.
         /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
@@ -43,7 +43,7 @@ pub enum Preset {
     /// Requests document-verified credentials only, with optional signal.
     /// The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
     ///
-    /// This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
+    /// This preset only returns World ID 3.0 proofs. Use it for compatibility with older `IDKit` versions.
     DocumentLegacy {
         /// Optional signal to include in the proof.
         /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
@@ -54,7 +54,7 @@ pub enum Preset {
     /// Requests face credentials only, with optional signal.
     /// The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
     ///
-    /// This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
+    /// This preset only returns World ID 3.0 proofs. Use it for compatibility with older `IDKit` versions.
     ///
     /// Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
     SelfieCheckLegacy {
