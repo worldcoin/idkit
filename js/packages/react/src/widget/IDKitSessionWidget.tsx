@@ -1,40 +1,51 @@
-import { useEffect, useRef, type ReactElement } from "react";
-import type { IDKitErrorCodes } from "@worldcoin/idkit-core";
+import { useEffect, useRef, useState, type ReactElement } from "react";
+import {
+  IDKitErrorCodes,
+  type IDKitResultSession,
+} from "@worldcoin/idkit-core";
 import type { IDKitSessionWidgetProps } from "../types";
 import { useIDKitSession } from "../hooks/useIDKitSession";
 import { IDKitModal } from "./IDKitModal";
 import { WorldIDState } from "../components/States/WorldIDState";
 import { SuccessState } from "../components/States/SuccessState";
 import { ErrorState } from "../components/States/ErrorState";
+import { HostAppVerificationState } from "../components/States/HostAppVerificationState";
 import { setLocalizationConfig } from "../lang";
 
-type VisualStage = "worldid" | "success" | "error";
+type VisualStage = "worldid" | "host_verification" | "success" | "error";
 
-function getVisualStage(isSuccess: boolean, isError: boolean): VisualStage {
-  if (isSuccess) {
-    return "success";
-  }
-
-  if (isError) {
-    return "error";
-  }
-
+function getVisualStage(
+  isSuccess: boolean,
+  isError: boolean,
+  isHostVerifying: boolean,
+): VisualStage {
+  if (isError) return "error";
+  if (isHostVerifying) return "host_verification";
+  if (isSuccess) return "success";
   return "worldid";
 }
 
 export function IDKitSessionWidget({
   open,
   onOpenChange,
+  handleVerify,
   onSuccess,
   onError,
   autoClose = true,
   language,
   ...config
 }: IDKitSessionWidgetProps): ReactElement | null {
+  if (typeof onSuccess !== "function") {
+    throw new Error("IDKitSessionWidget requires an onSuccess callback.");
+  }
+
   const flow = useIDKitSession(config);
   const { open: openFlow, reset: resetFlow } = flow;
 
-  const lastResultRef = useRef<unknown>(null);
+  const [hostVerifyResult, setHostVerifyResult] = useState<
+    "passed" | "failed" | null
+  >(null);
+  const lastResultRef = useRef<IDKitResultSession | null>(null);
   const lastErrorCodeRef = useRef<IDKitErrorCodes | null>(null);
 
   // Set language config
@@ -46,44 +57,60 @@ export function IDKitSessionWidget({
 
   useEffect(() => {
     if (open) {
+      setHostVerifyResult(null);
       openFlow();
       return;
     }
 
+    setHostVerifyResult(null);
+    lastResultRef.current = null;
+    lastErrorCodeRef.current = null;
     resetFlow();
   }, [open, openFlow, resetFlow]);
 
+  const isSuccess =
+    flow.isSuccess && (!handleVerify || hostVerifyResult === "passed");
+  const isError = flow.isError || hostVerifyResult === "failed";
+  const isHostVerifying =
+    flow.isSuccess && Boolean(handleVerify) && hostVerifyResult === null;
+  const effectiveErrorCode =
+    flow.errorCode ??
+    (hostVerifyResult === "failed" ? IDKitErrorCodes.FailedByHostApp : null);
+
   useEffect(() => {
-    if (!flow.result || flow.result === lastResultRef.current) {
+    if (!isSuccess || !flow.result || flow.result === lastResultRef.current) {
       return;
     }
 
     lastResultRef.current = flow.result;
-    void Promise.resolve(onSuccess?.(flow.result)).catch(() => {
+    void Promise.resolve(onSuccess(flow.result)).catch(() => {
       // Swallow host callback errors to keep widget flow stable.
     });
-  }, [onSuccess, flow.result]);
+  }, [flow.result, isSuccess, onSuccess]);
 
   useEffect(() => {
-    if (!flow.errorCode || flow.errorCode === lastErrorCodeRef.current) {
+    if (
+      !effectiveErrorCode ||
+      effectiveErrorCode === lastErrorCodeRef.current
+    ) {
       return;
     }
 
-    lastErrorCodeRef.current = flow.errorCode;
-    void Promise.resolve(onError?.(flow.errorCode)).catch(() => {
+    lastErrorCodeRef.current = effectiveErrorCode;
+    void Promise.resolve(onError?.(effectiveErrorCode)).catch(() => {
       // Swallow host callback errors to keep widget flow stable.
     });
-  }, [flow.errorCode, onError]);
+  }, [effectiveErrorCode, onError]);
 
   // Auto-close on success
   useEffect(() => {
-    if (flow.isSuccess && autoClose) {
+    if (isSuccess && autoClose) {
       const timer = setTimeout(() => onOpenChange(false), 2500);
       return () => clearTimeout(timer);
     }
-  }, [flow.isSuccess, autoClose, onOpenChange]);
+  }, [isSuccess, autoClose, onOpenChange]);
 
-  const stage = getVisualStage(flow.isSuccess, flow.isError);
+  const stage = getVisualStage(isSuccess, isError, isHostVerifying);
   const showSimulatorCallout = config.environment === "staging";
 
   return (
@@ -95,11 +122,21 @@ export function IDKitSessionWidget({
           showSimulatorCallout={showSimulatorCallout}
         />
       )}
+      {stage === "host_verification" && (
+        <HostAppVerificationState
+          onVerify={() => handleVerify!(flow.result!)}
+          onPass={() => setHostVerifyResult("passed")}
+          onFail={() => setHostVerifyResult("failed")}
+        />
+      )}
       {stage === "success" && <SuccessState />}
       {stage === "error" && (
         <ErrorState
-          errorCode={flow.errorCode}
+          errorCode={effectiveErrorCode}
           onRetry={() => {
+            setHostVerifyResult(null);
+            lastResultRef.current = null;
+            lastErrorCodeRef.current = null;
             resetFlow();
             openFlow();
           }}

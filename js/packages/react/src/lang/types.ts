@@ -12,6 +12,8 @@ export interface TranslationStrings {
   "You've cancelled the request in World App.": string;
   "Connection lost": string;
   "Please check your connection and try again.": string;
+  "Verification declined": string;
+  "Failed to verify your credential proof. Please contact the website owner.": string;
   "We couldn't complete your request. Please try again.": string;
   "Try Again": string;
   "Open World App": string;
@@ -20,6 +22,7 @@ export interface TranslationStrings {
   "Use phone camera to scan the QR code": string;
   "Connecting...": string;
   "Please continue in app": string;
+  "Transmitting verification to host app. Please wait...": string;
   "You will be redirected to the app, please return to this page once you're done": string;
   "Terms & Privacy": string;
 }
