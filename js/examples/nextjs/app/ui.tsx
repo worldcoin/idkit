@@ -201,9 +201,9 @@ export function DemoClient(): ReactElement {
           Verify with Selfie Check
         </button>
       </div>
-      {widgetError ? <p className="status">Error: {widgetError}</p> : null}
+      {widgetError && <p className="status">Error: {widgetError}</p>}
 
-      {widgetRpContext ? (
+      {widgetRpContext && (
         <IDKitRequestWidget
           open={widgetOpen}
           onOpenChange={setWidgetOpen}
@@ -222,14 +222,14 @@ export function DemoClient(): ReactElement {
           }}
           environment={environment}
         />
-      ) : null}
+      )}
 
-      {widgetVerifyResult ? (
+      {widgetVerifyResult && (
         <>
           <h3>Verification response</h3>
           <pre>{JSON.stringify(widgetVerifyResult, null, 2)}</pre>
         </>
-      ) : null}
+      )}
     </>
   );
 }
