@@ -17,9 +17,5 @@ dependencyResolutionManagement {
 rootProject.name = "IDKitSampleApp"
 
 include(":app")
-
-includeBuild("../..") {
-    dependencySubstitution {
-        substitute(module("com.worldcoin:idkit")).using(project(":bindings"))
-    }
-}
+include(":bindings")
+project(":bindings").projectDir = file("../../bindings")
