@@ -185,10 +185,11 @@ jobs:
           fi
 
           echo "Verifying $AAR_FILE"
-          jar tf "$AAR_FILE" | rg '^jni/.*/libidkit\.so$' | sort
+          JNI_LIBS=$(jar tf "$AAR_FILE" | grep -E '^jni/.*/libidkit\.so$' | sort || true)
+          echo "$JNI_LIBS"
 
           for abi in arm64-v8a armeabi-v7a x86 x86_64; do
-            if ! jar tf "$AAR_FILE" | rg -q "^jni/$abi/libidkit\.so$"; then
+            if ! echo "$JNI_LIBS" | grep -q "^jni/$abi/libidkit\\.so$"; then
               echo "ERROR: Missing jni/$abi/libidkit.so in AAR"
               exit 1
             fi
