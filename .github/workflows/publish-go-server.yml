@@ -1,0 +1,172 @@
+name: Publish Go Server Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Commit SHA to publish as dev release (leave empty for HEAD)"
+        required: false
+        type: string
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    # Dev releases (workflow_dispatch) are only allowed from main
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on:
+      group: arc-public-large-amd64-runner
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.config.outputs.prerelease }}
+      ref: ${{ steps.config.outputs.ref }}
+      should_publish: ${{ steps.config.outputs.should_publish }}
+
+    steps:
+      - name: Determine release type
+        id: config
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+          GITHUB_SHA: ${{ github.sha }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+            echo "ref=${INPUT_COMMIT_SHA:-$GITHUB_SHA}" >> $GITHUB_OUTPUT
+          elif [ "$PR_MERGED" = "true" ] && \
+               echo "$PR_LABELS" | grep -q '"release"' && \
+               echo "$PR_BODY" | grep -q "<!-- release_target:go-server -->"; then
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+            echo "ref=$GITHUB_SHA" >> $GITHUB_OUTPUT
+          else
+            echo "should_publish=false" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/checkout@v6
+        if: steps.config.outputs.should_publish == 'true'
+        with:
+          ref: ${{ steps.config.outputs.ref }}
+          fetch-depth: 0
+
+      - name: Validate commit exists on main
+        if: steps.config.outputs.should_publish == 'true' && github.event_name == 'workflow_dispatch'
+        env:
+          TARGET_REF: ${{ steps.config.outputs.ref }}
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$TARGET_REF" origin/main; then
+            echo "::error::Commit $TARGET_REF is not on the main branch. Dev releases can only be published from merged code."
+            exit 1
+          fi
+
+      - name: Generate version
+        if: steps.config.outputs.should_publish == 'true'
+        id: version
+        run: |
+          BASE_VERSION=$(sed -n 's/^const Version = "\([^"]*\)".*/\1/p' go/idkit-server/version.go | head -n1)
+
+          if [ -z "$BASE_VERSION" ]; then
+            echo "Error: Failed to resolve Go server version from version.go"
+            exit 1
+          fi
+
+          if [ "${{ steps.config.outputs.prerelease }}" = "true" ]; then
+            BASE_VERSION=$(echo "$BASE_VERSION" | sed 's/-.*$//')
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            VERSION="${BASE_VERSION}-dev.${SHORT_SHA}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "Dev version: $VERSION"
+          else
+            echo "version=$BASE_VERSION" >> $GITHUB_OUTPUT
+            echo "Production version: $BASE_VERSION"
+          fi
+
+      - name: Validate production version against tags
+        if: steps.config.outputs.should_publish == 'true' && steps.config.outputs.prerelease == 'false'
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          LATEST_RELEASE=$(git tag -l 'go/idkit-server/v*' \
+            | sed 's#go/idkit-server/v##' \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -V \
+            | tail -n1)
+
+          if [ -z "$LATEST_RELEASE" ]; then
+            LATEST_RELEASE="0.0.0"
+          fi
+
+          echo "Latest Go server release tag: $LATEST_RELEASE"
+          echo "New version: $NEW_VERSION"
+
+          if [ "$LATEST_RELEASE" != "0.0.0" ]; then
+            if ! { [ "$(printf '%s\n' "$LATEST_RELEASE" "$NEW_VERSION" | sort -V | tail -n1)" = "$NEW_VERSION" ] && \
+                   [ "$NEW_VERSION" != "$LATEST_RELEASE" ]; }; then
+              echo "Error: New version ($NEW_VERSION) is not greater than latest release ($LATEST_RELEASE)"
+              exit 1
+            fi
+          fi
+
+  publish:
+    needs: prepare
+    if: needs.prepare.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go/idkit-server/go.mod
+
+      - name: Run Go tests
+        working-directory: go/idkit-server
+        run: go test ./...
+
+      - name: Create and push release tag
+        id: tag
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          TAG="go/idkit-server/v${VERSION}"
+
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Error: Tag already exists: $TAG"
+            exit 1
+          fi
+
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+          git tag -a "$TAG" -m "Go Server ${VERSION}"
+          git push origin "$TAG"
+
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Go Server ${{ needs.prepare.outputs.version }}
+          target_commitish: ${{ needs.prepare.outputs.ref }}
+          generate_release_notes: true
+          prerelease: ${{ needs.prepare.outputs.prerelease }}
