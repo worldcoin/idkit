@@ -3,6 +3,7 @@ package idkit
 import (
 	"encoding/hex"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 )
@@ -13,8 +14,23 @@ const (
 	fixedUnixNow    = uint64(1_700_000_000)
 )
 
-func newTestSigner(nowFn func() uint64, randomFn func([]byte) (int, error)) *Signer {
-	return &Signer{now: nowFn, random: randomFn}
+// readerFunc adapts a function into an io.Reader for test fakes.
+type readerFunc func([]byte) (int, error)
+
+func (f readerFunc) Read(p []byte) (int, error) { return f(p) }
+
+func newTestSigner(t *testing.T, key string, nowFn func() uint64, r io.Reader) *Signer {
+	t.Helper()
+
+	s, err := NewSigner(key)
+	if err != nil {
+		t.Fatalf("failed to create test signer: %v", err)
+	}
+
+	s.now = nowFn
+	s.random = r
+
+	return s
 }
 
 func TestHashToFieldParityVectors(t *testing.T) {
@@ -74,17 +90,17 @@ func TestComputeRpSignatureMessageVector(t *testing.T) {
 func TestSignRequestDeterministicParityVector(t *testing.T) {
 	t.Parallel()
 
-	signer := newTestSigner(
+	signer := newTestSigner(t, testKey,
 		func() uint64 { return fixedUnixNow },
-		func(dst []byte) (int, error) {
+		readerFunc(func(dst []byte) (int, error) {
 			for i := range dst {
 				dst[i] = byte(i)
 			}
 			return len(dst), nil
-		},
+		}),
 	)
 
-	sig, err := signer.SignRequestWithTTL(testKey, defaultTTLSeconds)
+	sig, err := signer.SignRequestWithTTL(defaultTTLSeconds)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -106,17 +122,17 @@ func TestSignRequestDeterministicParityVector(t *testing.T) {
 func TestSignRequestDefaultTTL(t *testing.T) {
 	t.Parallel()
 
-	signer := newTestSigner(
+	signer := newTestSigner(t, testKey,
 		func() uint64 { return fixedUnixNow },
-		func(dst []byte) (int, error) {
+		readerFunc(func(dst []byte) (int, error) {
 			for i := range dst {
 				dst[i] = byte(i + 10)
 			}
 			return len(dst), nil
-		},
+		}),
 	)
 
-	sig, err := signer.SignRequestWithTTL(testKey, defaultTTLSeconds)
+	sig, err := signer.SignRequestWithTTL(defaultTTLSeconds)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -129,17 +145,17 @@ func TestSignRequestDefaultTTL(t *testing.T) {
 func TestSignRequestCustomTTL(t *testing.T) {
 	t.Parallel()
 
-	signer := newTestSigner(
+	signer := newTestSigner(t, testKey,
 		func() uint64 { return fixedUnixNow },
-		func(dst []byte) (int, error) {
+		readerFunc(func(dst []byte) (int, error) {
 			for i := range dst {
 				dst[i] = byte(i + 20)
 			}
 			return len(dst), nil
-		},
+		}),
 	)
 
-	sig, err := signer.SignRequestWithTTL(testKey, 600)
+	sig, err := signer.SignRequestWithTTL(600)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -258,12 +274,12 @@ func TestSignRequestFailsWhenRandomReadFails(t *testing.T) {
 	t.Parallel()
 
 	randomErr := errors.New("entropy unavailable")
-	signer := newTestSigner(
+	signer := newTestSigner(t, testKey,
 		func() uint64 { return fixedUnixNow },
-		func(_ []byte) (int, error) { return 0, randomErr },
+		readerFunc(func(_ []byte) (int, error) { return 0, randomErr }),
 	)
 
-	_, err := signer.SignRequestWithTTL(testKey, defaultTTLSeconds)
+	_, err := signer.SignRequestWithTTL(defaultTTLSeconds)
 	if err == nil {
 		t.Fatal("expected random failure")
 	}

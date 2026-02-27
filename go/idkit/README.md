@@ -10,8 +10,9 @@ go get github.com/worldcoin/idkit/go/idkit@latest
 
 ## API
 
-- `SignRequest(signingKeyHex)` — signs with default TTL (300s)
-- `SignRequestWithTTL(signingKeyHex, ttl)` — signs with custom TTL
+- `NewSigner(signingKeyHex)` — creates a reusable signer (parses the key once)
+- `SignRequest(signingKeyHex)` — one-shot sign with default TTL (300s)
+- `SignRequestWithTTL(signingKeyHex, ttl)` — one-shot sign with custom TTL
 
 ## Example
 
@@ -22,13 +23,16 @@ import (
 	"fmt"
 	"log"
 
-	idkit "github.com/worldcoin/idkit/go/idkit"
+	"github.com/worldcoin/idkit/go/idkit"
 )
 
 func main() {
-	sig, err := idkit.SignRequest(
-		"0xabababababababababababababababababababababababababababababababab",
-	)
+	signer, err := idkit.NewSigner("0xabababababababababababababababababababababababababababababababab")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	sig, err := signer.SignRequestWithTTL(300)
 	if err != nil {
 		log.Fatal(err)
 	}
