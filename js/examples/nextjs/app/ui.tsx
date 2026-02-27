@@ -201,9 +201,9 @@ export function DemoClient(): ReactElement {
           Verify with Selfie Check
         </button>
       </div>
-      {widgetError ? <p className="status">Error: {widgetError}</p> : null}
+      {widgetError && <p className="status">Error: {widgetError}</p>}
 
-      {widgetRpContext ? (
+      {widgetRpContext && (
         <IDKitRequestWidget
           open={widgetOpen}
           onOpenChange={setWidgetOpen}
@@ -212,30 +212,24 @@ export function DemoClient(): ReactElement {
           rp_context={widgetRpContext}
           allow_legacy_proofs={true}
           preset={widgetPreset}
-          onSuccess={async (result) => {
-            // try {
+          onSuccess={() => {}}
+          handleVerify={async (result) => {
             const verified = await verifyProof(result);
             setWidgetVerifyResult(verified);
-            // } catch (error) {
-            //   setWidgetError(
-            //     "Failed to verify proof: " +
-            //       (error instanceof Error ? error.message : "Unknown error"),
-            //   );
-            // }
           }}
           onError={(errorCode) => {
             setWidgetError(`Verification failed: ${errorCode}`);
           }}
           environment={environment}
         />
-      ) : null}
+      )}
 
-      {widgetVerifyResult ? (
+      {widgetVerifyResult && (
         <>
           <h3>Verification response</h3>
           <pre>{JSON.stringify(widgetVerifyResult, null, 2)}</pre>
         </>
-      ) : null}
+      )}
     </>
   );
 }

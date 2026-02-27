@@ -10,6 +10,9 @@ export const en: TranslationStrings = {
   "Connection lost": "Connection lost",
   "Please check your connection and try again.":
     "Please check your connection and try again.",
+  "Verification declined": "Verification declined",
+  "Failed to verify your credential proof. Please contact the website owner.":
+    "Failed to verify your credential proof. Please contact the website owner.",
   "We couldn't complete your request. Please try again.":
     "We couldn't complete your request. Please try again.",
   "Try Again": "Try Again",
@@ -20,6 +23,8 @@ export const en: TranslationStrings = {
     "Use phone camera to scan the QR code",
   "Connecting...": "Connecting...",
   "Please continue in app": "Please continue in app",
+  "Transmitting verification to host app. Please wait...":
+    "Transmitting verification to host app. Please wait...",
   "You will be redirected to the app, please return to this page once you're done":
     "You will be redirected to the app, please return to this page once you're done",
   "Terms & Privacy": "Terms & Privacy",

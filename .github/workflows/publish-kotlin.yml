@@ -144,9 +144,6 @@ jobs:
             --no-format \
             --out-dir kotlin/bindings/src/main/kotlin
 
-          mkdir -p kotlin/bindings/src/main/resources
-          cp target/release/libidkit.so kotlin/bindings/src/main/resources/
-
       - name: Verify UniFFI bindings were generated
         run: |
           echo "Checking for generated UniFFI files..."
@@ -164,8 +161,7 @@ jobs:
         with:
           name: kotlin-bindings-host
           path: |
-            kotlin/bindings/src/main/kotlin/
-            kotlin/bindings/src/main/resources/
+            kotlin/bindings/src/main/
           retention-days: 1
 
   build-android:
@@ -226,10 +222,10 @@ jobs:
       - name: Build Android ${{ matrix.abi }}
         run: |
           echo "Building for ${{ matrix.target }} -> ${{ matrix.abi }}"
-          CARGO_HOME=/tmp CROSS_NO_WARNINGS=1 cross build --package idkit-core --target ${{ matrix.target }} --release --locked --features uniffi-bindings
+          CARGO_HOME=/tmp RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wl,-z,common-page-size=4096" CROSS_NO_WARNINGS=1 cross build --package idkit-core --target ${{ matrix.target }} --profile android-release --locked --features uniffi-bindings
 
           mkdir -p android-libs/${{ matrix.abi }}
-          cp target/${{ matrix.target }}/release/libidkit.so android-libs/${{ matrix.abi }}/
+          cp target/${{ matrix.target }}/android-release/libidkit.so android-libs/${{ matrix.abi }}/
 
           echo "Cleaning up Docker resources..."
           docker system prune -f || true
@@ -277,7 +273,13 @@ jobs:
             abi=$(basename "$abi_dir" | sed 's/kotlin-bindings-android-//')
             echo "Processing $abi..."
             mkdir -p "kotlin/bindings/src/main/jniLibs/$abi"
-            cp "$abi_dir/$abi/"*.so "kotlin/bindings/src/main/jniLibs/$abi/" || true
+            so_count=$(find "$abi_dir" -maxdepth 1 -type f -name "*.so" | wc -l | tr -d '[:space:]')
+            if [ "$so_count" -eq 0 ]; then
+              echo "ERROR: expected at least one .so in $abi_dir"
+              ls -la "$abi_dir" || true
+              exit 1
+            fi
+            cp "$abi_dir/"*.so "kotlin/bindings/src/main/jniLibs/$abi/"
           done
 
           echo "Final jniLibs structure:"
@@ -306,7 +308,7 @@ jobs:
         uses: gradle/gradle-build-action@v3
         with:
           gradle-version: 8.9
-          arguments: -p kotlin bindings:build
+          arguments: -p kotlin bindings:assembleRelease
         env:
           PKG_VERSION: ${{ needs.prepare.outputs.version }}
 

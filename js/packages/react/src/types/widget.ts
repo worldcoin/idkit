@@ -12,7 +12,8 @@ type MaybePromise<T> = Promise<T> | T;
 type WidgetSharedProps<TResult> = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess?: (result: TResult) => MaybePromise<void>;
+  handleVerify?: (result: TResult) => MaybePromise<void>;
+  onSuccess: (result: TResult) => MaybePromise<void>;
   onError?: (errorCode: IDKitErrorCodes) => MaybePromise<void>;
   autoClose?: boolean;
   language?: SupportedLanguage;
