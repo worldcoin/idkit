@@ -1,4 +1,4 @@
-module github.com/worldcoin/idkit/go/idkit-server
+module github.com/worldcoin/idkit/go/idkit
 
 go 1.23.0
 

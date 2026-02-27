@@ -1,4 +1,4 @@
-package idkitserver
+package idkit
 
 import (
 	"encoding/hex"
@@ -10,9 +10,12 @@ import (
 const (
 	testKeyNoPrefix = "abababababababababababababababababababababababababababababababab"
 	testKey         = "0x" + testKeyNoPrefix
-	testAction      = "test-action"
 	fixedUnixNow    = uint64(1_700_000_000)
 )
+
+func newTestSigner(nowFn func() uint64, randomFn func([]byte) (int, error)) *Signer {
+	return &Signer{now: nowFn, random: randomFn}
+}
 
 func TestHashToFieldParityVectors(t *testing.T) {
 	t.Parallel()
@@ -45,7 +48,6 @@ func TestHashToFieldParityVectors(t *testing.T) {
 	}
 
 	for _, vector := range vectors {
-		vector := vector
 		t.Run(vector.name, func(t *testing.T) {
 			t.Parallel()
 			got := "0x" + hex.EncodeToString(hashToField(vector.input))
@@ -72,16 +74,17 @@ func TestComputeRpSignatureMessageVector(t *testing.T) {
 func TestSignRequestDeterministicParityVector(t *testing.T) {
 	t.Parallel()
 
-	randomFn := func(dst []byte) (int, error) {
-		for i := range dst {
-			dst[i] = byte(i)
-		}
-		return len(dst), nil
-	}
+	signer := newTestSigner(
+		func() uint64 { return fixedUnixNow },
+		func(dst []byte) (int, error) {
+			for i := range dst {
+				dst[i] = byte(i)
+			}
+			return len(dst), nil
+		},
+	)
 
-	nowFn := func() uint64 { return fixedUnixNow }
-
-	sig, err := signRequestWithDeps(testAction, testKey, defaultTTLSeconds, nowFn, randomFn)
+	sig, err := signer.SignRequestWithTTL(testKey, defaultTTLSeconds)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -103,15 +106,17 @@ func TestSignRequestDeterministicParityVector(t *testing.T) {
 func TestSignRequestDefaultTTL(t *testing.T) {
 	t.Parallel()
 
-	nowFn := func() uint64 { return fixedUnixNow }
-	randomFn := func(dst []byte) (int, error) {
-		for i := range dst {
-			dst[i] = byte(i + 10)
-		}
-		return len(dst), nil
-	}
+	signer := newTestSigner(
+		func() uint64 { return fixedUnixNow },
+		func(dst []byte) (int, error) {
+			for i := range dst {
+				dst[i] = byte(i + 10)
+			}
+			return len(dst), nil
+		},
+	)
 
-	sig, err := signRequestWithDeps(testAction, testKey, defaultTTLSeconds, nowFn, randomFn)
+	sig, err := signer.SignRequestWithTTL(testKey, defaultTTLSeconds)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -124,15 +129,17 @@ func TestSignRequestDefaultTTL(t *testing.T) {
 func TestSignRequestCustomTTL(t *testing.T) {
 	t.Parallel()
 
-	nowFn := func() uint64 { return fixedUnixNow }
-	randomFn := func(dst []byte) (int, error) {
-		for i := range dst {
-			dst[i] = byte(i + 20)
-		}
-		return len(dst), nil
-	}
+	signer := newTestSigner(
+		func() uint64 { return fixedUnixNow },
+		func(dst []byte) (int, error) {
+			for i := range dst {
+				dst[i] = byte(i + 20)
+			}
+			return len(dst), nil
+		},
+	)
 
-	sig, err := signRequestWithDeps(testAction, testKey, 600, nowFn, randomFn)
+	sig, err := signer.SignRequestWithTTL(testKey, 600)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -145,7 +152,7 @@ func TestSignRequestCustomTTL(t *testing.T) {
 func TestSignRequestFormatting(t *testing.T) {
 	t.Parallel()
 
-	sig, err := SignRequest(testAction, testKey)
+	sig, err := SignRequest(testKey)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -167,11 +174,11 @@ func TestSignRequestFormatting(t *testing.T) {
 func TestSignRequestUniqueNonces(t *testing.T) {
 	t.Parallel()
 
-	sig1, err := SignRequest(testAction, testKey)
+	sig1, err := SignRequest(testKey)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	sig2, err := SignRequest(testAction, testKey)
+	sig2, err := SignRequest(testKey)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -184,7 +191,7 @@ func TestSignRequestUniqueNonces(t *testing.T) {
 func TestSignRequestVIs27Or28(t *testing.T) {
 	t.Parallel()
 
-	sig, err := SignRequest(testAction, testKey)
+	sig, err := SignRequest(testKey)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -199,7 +206,7 @@ func TestSignRequestVIs27Or28(t *testing.T) {
 func TestSignRequestNonceHasLeadingZeroByte(t *testing.T) {
 	t.Parallel()
 
-	sig, err := SignRequest(testAction, testKey)
+	sig, err := SignRequest(testKey)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -212,7 +219,7 @@ func TestSignRequestNonceHasLeadingZeroByte(t *testing.T) {
 func TestSignRequestAcceptsKeyWithoutPrefix(t *testing.T) {
 	t.Parallel()
 
-	sig, err := SignRequest(testAction, testKeyNoPrefix)
+	sig, err := SignRequest(testKeyNoPrefix)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -224,7 +231,7 @@ func TestSignRequestAcceptsKeyWithoutPrefix(t *testing.T) {
 func TestSignRequestRejectsShortKey(t *testing.T) {
 	t.Parallel()
 
-	_, err := SignRequest(testAction, "0xabcd")
+	_, err := SignRequest("0xabcd")
 	if err == nil {
 		t.Fatal("expected error for short key")
 	}
@@ -237,7 +244,6 @@ func TestSignRequestRejectsInvalidHex(t *testing.T) {
 	t.Parallel()
 
 	_, err := SignRequest(
-		testAction,
 		"0xZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ",
 	)
 	if err == nil {
@@ -251,27 +257,18 @@ func TestSignRequestRejectsInvalidHex(t *testing.T) {
 func TestSignRequestFailsWhenRandomReadFails(t *testing.T) {
 	t.Parallel()
 
-	nowFn := func() uint64 { return fixedUnixNow }
 	randomErr := errors.New("entropy unavailable")
-	randomFn := func(_ []byte) (int, error) {
-		return 0, randomErr
-	}
+	signer := newTestSigner(
+		func() uint64 { return fixedUnixNow },
+		func(_ []byte) (int, error) { return 0, randomErr },
+	)
 
-	_, err := signRequestWithDeps(testAction, testKey, defaultTTLSeconds, nowFn, randomFn)
+	_, err := signer.SignRequestWithTTL(testKey, defaultTTLSeconds)
 	if err == nil {
 		t.Fatal("expected random failure")
 	}
 	if !strings.Contains(err.Error(), randomErr.Error()) {
 		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestSignRequestRejectsMultipleTTLValues(t *testing.T) {
-	t.Parallel()
-
-	_, err := SignRequest(testAction, testKey, 1, 2)
-	if err == nil {
-		t.Fatal("expected error")
 	}
 }
 

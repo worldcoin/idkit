@@ -5,12 +5,13 @@ Go module for RP signature generation used by World ID server integrations.
 ## Install
 
 ```bash
-go get github.com/worldcoin/idkit/go/idkit-server@latest
+go get github.com/worldcoin/idkit/go/idkit@latest
 ```
 
 ## API
 
-- `SignRequest(action, signingKeyHex, ttl...)`
+- `SignRequest(signingKeyHex)` — signs with default TTL (300s)
+- `SignRequestWithTTL(signingKeyHex, ttl)` — signs with custom TTL
 
 ## Example
 
@@ -21,12 +22,11 @@ import (
 	"fmt"
 	"log"
 
-	idkitserver "github.com/worldcoin/idkit/go/idkit-server"
+	idkit "github.com/worldcoin/idkit/go/idkit"
 )
 
 func main() {
-	sig, err := idkitserver.SignRequest(
-		"login",
+	sig, err := idkit.SignRequest(
 		"0xabababababababababababababababababababababababababababababababab",
 	)
 	if err != nil {
@@ -35,8 +35,8 @@ func main() {
 
 	fmt.Println("sig:", sig.Sig)
 	fmt.Println("nonce:", sig.Nonce)
-	fmt.Println("createdAt:", sig.CreatedAt)
-	fmt.Println("expiresAt:", sig.ExpiresAt)
+	fmt.Println("created_at:", sig.CreatedAt)
+	fmt.Println("expires_at:", sig.ExpiresAt)
 }
 ```
 
@@ -44,4 +44,4 @@ func main() {
 
 This module lives in a subdirectory, so Go release tags must be:
 
-`go/idkit-server/vX.Y.Z`
+`go/idkit/vX.Y.Z`

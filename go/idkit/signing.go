@@ -1,4 +1,4 @@
-package idkitserver
+package idkit
 
 import (
 	"crypto/rand"
@@ -16,17 +16,26 @@ import (
 
 const defaultTTLSeconds uint64 = 300
 
-var (
-	nowUnix    = func() uint64 { return uint64(time.Now().Unix()) }
-	randomRead = rand.Read
-)
+// Signer produces RP signatures for World ID verification requests.
+type Signer struct {
+	now    func() uint64
+	random func([]byte) (int, error)
+}
+
+// NewSigner returns a Signer wired to the system clock and crypto/rand.
+func NewSigner() *Signer {
+	return &Signer{
+		now:    func() uint64 { return uint64(time.Now().Unix()) },
+		random: rand.Read,
+	}
+}
 
 // RpSignature contains all fields needed by the RP context verifier.
 type RpSignature struct {
 	Sig       string `json:"sig"`
 	Nonce     string `json:"nonce"`
-	CreatedAt uint64 `json:"createdAt"`
-	ExpiresAt uint64 `json:"expiresAt"`
+	CreatedAt uint64 `json:"created_at"`
+	ExpiresAt uint64 `json:"expires_at"`
 }
 
 // hashToField computes keccak256(input) and shifts it right by 8 bits.
@@ -35,7 +44,6 @@ func hashToField(input []byte) []byte {
 	hash := keccak256(input)
 
 	field := make([]byte, 32)
-	field[0] = 0
 	copy(field[1:], hash[:31])
 
 	return field
@@ -56,38 +64,30 @@ func computeRpSignatureMessage(
 	return message
 }
 
-// SignRequest computes the RP signature payload with defaults compatible with JS:
-// ttl defaults to 300 seconds if omitted.
-func SignRequest(action string, signingKeyHex string, ttl ...uint64) (RpSignature, error) {
-	if len(ttl) > 1 {
-		return RpSignature{}, errors.New("ttl accepts at most one value")
-	}
-
-	ttlSec := defaultTTLSeconds
-	if len(ttl) == 1 {
-		ttlSec = ttl[0]
-	}
-
-	return signRequestWithDeps(action, signingKeyHex, ttlSec, nowUnix, randomRead)
+// SignRequest computes the RP signature payload using the default TTL (300s).
+func SignRequest(signingKeyHex string) (RpSignature, error) {
+	return NewSigner().SignRequestWithTTL(signingKeyHex, defaultTTLSeconds)
 }
 
-func signRequestWithDeps(
-	_action string,
-	signingKeyHex string,
-	ttl uint64,
-	nowFn func() uint64,
-	randomFn func([]byte) (int, error),
-) (RpSignature, error) {
+// SignRequestWithTTL computes the RP signature payload with a custom TTL.
+func SignRequestWithTTL(signingKeyHex string, ttl uint64) (RpSignature, error) {
+	return NewSigner().SignRequestWithTTL(signingKeyHex, ttl)
+}
+
+// SignRequestWithTTL computes the RP signature payload with a custom TTL.
+func (s *Signer) SignRequestWithTTL(signingKeyHex string, ttl uint64) (RpSignature, error) {
 	privKey, err := parseSigningKey(signingKeyHex)
 	if err != nil {
 		return RpSignature{}, err
 	}
 
 	var randomBytes [32]byte
-	n, err := randomFn(randomBytes[:])
+
+	n, err := s.random(randomBytes[:])
 	if err != nil {
 		return RpSignature{}, fmt.Errorf("failed to generate random nonce: %w", err)
 	}
+
 	if n != len(randomBytes) {
 		return RpSignature{}, fmt.Errorf(
 			"failed to generate random nonce: expected %d bytes, got %d",
@@ -98,7 +98,7 @@ func signRequestWithDeps(
 
 	nonceBytes := hashToField(randomBytes[:])
 
-	createdAt := nowFn()
+	createdAt := s.now()
 	expiresAt := createdAt + ttl
 
 	message := computeRpSignatureMessage(nonceBytes, createdAt, expiresAt)

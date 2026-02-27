@@ -5,7 +5,7 @@ IDKit is the toolkit for anonymous proof of human. Integrate the [World ID Proto
 ## SDKs
 
 - JavaScript / TypeScript: [`@worldcoin/idkit-core`](./js/packages/core)
-- Go (server): [`go/idkit-server`](./go/idkit-server)
+- Go (server): [`go/idkit`](./go/idkit)
 - Swift: [`./swift`](./swift)
 - Kotlin: [`./kotlin`](./kotlin)
 

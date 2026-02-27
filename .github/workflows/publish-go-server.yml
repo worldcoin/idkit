@@ -75,7 +75,7 @@ jobs:
         if: steps.config.outputs.should_publish == 'true'
         id: version
         run: |
-          BASE_VERSION=$(sed -n 's/^const Version = "\([^"]*\)".*/\1/p' go/idkit-server/version.go | head -n1)
+          BASE_VERSION=$(sed -n 's/^const Version = "\([^"]*\)".*/\1/p' go/idkit/version.go | head -n1)
 
           if [ -z "$BASE_VERSION" ]; then
             echo "Error: Failed to resolve Go server version from version.go"
@@ -98,8 +98,8 @@ jobs:
         env:
           NEW_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          LATEST_RELEASE=$(git tag -l 'go/idkit-server/v*' \
-            | sed 's#go/idkit-server/v##' \
+          LATEST_RELEASE=$(git tag -l 'go/idkit/v*' \
+            | sed 's#go/idkit/v##' \
             | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
             | sort -V \
             | tail -n1)
@@ -136,10 +136,10 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go/idkit-server/go.mod
+          go-version-file: go/idkit/go.mod
 
       - name: Run Go tests
-        working-directory: go/idkit-server
+        working-directory: go/idkit
         run: go test ./...
 
       - name: Create and push release tag
@@ -147,7 +147,7 @@ jobs:
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          TAG="go/idkit-server/v${VERSION}"
+          TAG="go/idkit/v${VERSION}"
 
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
             echo "Error: Tag already exists: $TAG"
