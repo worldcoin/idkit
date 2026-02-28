@@ -16,6 +16,7 @@ on:
         required: true
         type: choice
         options:
+          - go-server
           - js-core
           - js-server
           - react
@@ -50,6 +51,11 @@ jobs:
           RELEASE_TARGET: ${{ github.event.inputs.release_target }}
         run: |
           case "$RELEASE_TARGET" in
+            "go-server")
+              CURRENT_VERSION=$(sed -n 's/^const Version = "\([^"]*\)".*/\1/p' go/idkit/version.go | head -n1)
+              TARGET_FILE="go/idkit/version.go"
+              TARGET_NAME="Go Server"
+              ;;
             "js-core")
               CURRENT_VERSION=$(node -p "require('./js/packages/core/package.json').version")
               TARGET_FILE="js/packages/core/package.json"
@@ -122,6 +128,11 @@ jobs:
           NEW_VERSION: ${{ steps.version.outputs.new_version }}
         run: |
           case "$RELEASE_TARGET" in
+            "go-server")
+              sed -i "s/^const Version = \".*\"/const Version = \"$NEW_VERSION\"/" go/idkit/version.go
+              grep -q "^const Version = \"$NEW_VERSION\"$" go/idkit/version.go || { echo "❌ Failed to update go/idkit/version.go"; exit 1; }
+              echo "✅ Updated go/idkit/version.go"
+              ;;
             "js-core")
               node -e "
                 const fs = require('fs');

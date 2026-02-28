@@ -36,6 +36,33 @@ jobs:
       - name: Run Rust tests
         run: cargo test --package idkit-core
 
+  go-server:
+    name: Go Server - Build & Test
+    runs-on:
+      group: arc-public-large-amd64-runner
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go/idkit/go.mod
+
+      - name: Check formatting
+        working-directory: go/idkit
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "Go files are not formatted. Run: gofmt -w ."
+            gofmt -l .
+            exit 1
+          fi
+
+      - name: Run Go tests
+        working-directory: go/idkit
+        run: go test ./...
+
   swift-bindings:
     name: Swift Bindings - Build & Test
     runs-on: ${{ matrix.os }}
