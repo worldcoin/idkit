@@ -426,6 +426,55 @@ pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_js
     serde_json::to_value(&payload).map_err(Into::into)
 }
 
+/// Builds a v1 (MiniKit legacy) native payload from `BridgeConnectionParams`.
+///
+/// This produces the payload format expected by older World App versions that
+/// only support verify command v1:
+///
+/// ```json
+/// {
+///   "verification_level": "orb",
+///   "action": "my-action",
+///   "signal": "0x..hashed..",
+///   "timestamp": "1709136000"
+/// }
+/// ```
+///
+/// # Errors
+///
+/// Returns an error if `legacy_verification_level` is `Deprecated` — this means
+/// the request uses v4-only constraints and cannot be represented as a v1 payload.
+pub fn build_native_v1_payload(params: &BridgeConnectionParams) -> Result<serde_json::Value> {
+    if params.legacy_verification_level == VerificationLevel::Deprecated {
+        return Err(Error::InvalidConfiguration(
+            "Cannot build v1 native payload: legacy_verification_level is Deprecated. \
+             Use a legacy preset (e.g. orbLegacy()) or update the World App."
+                .to_string(),
+        ));
+    }
+
+    let action = match &params.kind {
+        RequestKind::Uniqueness { action } => action.clone(),
+        _ => {
+            return Err(Error::InvalidConfiguration(
+                "v1 native payload only supports uniqueness proofs".to_string(),
+            ))
+        }
+    };
+
+    let signal_hash =
+        crate::crypto::hash_signal(&Signal::from_string(params.legacy_signal.clone()));
+
+    let payload = serde_json::json!({
+        "verification_level": params.legacy_verification_level,
+        "action": action,
+        "signal": signal_hash,
+        "timestamp": params.rp_context.created_at.to_string(),
+    });
+
+    Ok(payload)
+}
+
 impl BridgeConnection {
     /// Creates a new bridge connection
     ///

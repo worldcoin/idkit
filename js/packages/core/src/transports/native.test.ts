@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IDKitErrorCodes } from "../types/result";
 import type { BuilderConfig } from "./native";
-import { createNativeRequest } from "./native";
+import { createNativeRequest, getWorldAppVerifyVersion } from "./native";
 import { hashSignal } from "../lib/hashing";
 
 const baseConfig: BuilderConfig = {
@@ -193,5 +193,67 @@ describe("native transport request lifecycle", () => {
     const req2 = createNativeRequest({ payload: 2 }, baseConfig);
     expect(req2).not.toBe(req1);
     activeRequest = req2;
+  });
+
+  it("sends version in postMessage envelope", () => {
+    const req = createNativeRequest({ data: "test" }, baseConfig, {}, 1);
+    activeRequest = req;
+
+    const postMessageFn = (globalThis as any).window.Android.postMessage;
+    expect(postMessageFn).toHaveBeenCalledTimes(1);
+
+    const sent = JSON.parse(postMessageFn.mock.calls[0][0]);
+    expect(sent.version).toBe(1);
+    expect(sent.command).toBe("verify");
+  });
+});
+
+describe("getWorldAppVerifyVersion", () => {
+  afterEach(() => {
+    delete (globalThis as any).window;
+  });
+
+  it("returns 2 when verify v2 is listed in supported_commands", () => {
+    (globalThis as any).window = {
+      WorldApp: {
+        supported_commands: [{ name: "verify", supported_versions: [1, 2] }],
+      },
+    };
+
+    expect(getWorldAppVerifyVersion()).toBe(2);
+  });
+
+  it("returns 1 when verify only supports v1", () => {
+    (globalThis as any).window = {
+      WorldApp: {
+        supported_commands: [{ name: "verify", supported_versions: [1] }],
+      },
+    };
+
+    expect(getWorldAppVerifyVersion()).toBe(1);
+  });
+
+  it("returns 1 when WorldApp is missing", () => {
+    (globalThis as any).window = {};
+
+    expect(getWorldAppVerifyVersion()).toBe(1);
+  });
+
+  it("returns 1 when supported_commands is missing", () => {
+    (globalThis as any).window = {
+      WorldApp: {},
+    };
+
+    expect(getWorldAppVerifyVersion()).toBe(1);
+  });
+
+  it("returns 1 when supported_versions is missing on verify", () => {
+    (globalThis as any).window = {
+      WorldApp: {
+        supported_commands: [{ name: "verify" }],
+      },
+    };
+
+    expect(getWorldAppVerifyVersion()).toBe(1);
   });
 });

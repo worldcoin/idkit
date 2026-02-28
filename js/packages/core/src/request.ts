@@ -19,6 +19,7 @@ import type { NativePayloadResult } from "./lib/wasm";
 import { WasmModule, initIDKit } from "./lib/wasm";
 import {
   isInWorldApp,
+  getWorldAppVerifyVersion,
   createNativeRequest,
   type BuilderConfig,
 } from "./transports/native";
@@ -407,19 +408,31 @@ class IDKitBuilder {
    */
   async constraints(constraints: ConstraintNode): Promise<IDKitRequest> {
     await initIDKit();
-    const wasmBuilder = createWasmBuilderFromConfig(this.config);
 
     if (isInWorldApp()) {
+      const verifyVersion = getWorldAppVerifyVersion();
+
+      if (verifyVersion < 2) {
+        // Constraints require v2 — they can't be represented as v1 payloads.
+        throw new Error(
+          "verify v2 is not supported by this World App version. " +
+            "Use a legacy preset (e.g. orbLegacy()) or update the World App.",
+        );
+      }
+
+      const wasmBuilder = createWasmBuilderFromConfig(this.config);
       const wasmResult: NativePayloadResult =
         wasmBuilder.nativePayload(constraints);
       return createNativeRequest(
         wasmResult.payload,
         this.config,
         wasmResult.signal_hashes ?? {},
+        2,
       );
     }
 
     // Bridge path — WASM
+    const wasmBuilder = createWasmBuilderFromConfig(this.config);
     const wasmRequest = (await wasmBuilder.constraints(
       constraints,
     )) as unknown as WasmModule.IDKitRequest;
@@ -443,19 +456,43 @@ class IDKitBuilder {
    */
   async preset(preset: Preset): Promise<IDKitRequest> {
     await initIDKit();
-    const wasmBuilder = createWasmBuilderFromConfig(this.config);
 
     if (isInWorldApp()) {
-      const wasmResult: NativePayloadResult =
-        wasmBuilder.nativePayloadFromPreset(preset);
-      return createNativeRequest(
-        wasmResult.payload,
-        this.config,
-        wasmResult.signal_hashes ?? {},
-      );
+      const verifyVersion = getWorldAppVerifyVersion();
+
+      if (verifyVersion === 2) {
+        const wasmBuilder = createWasmBuilderFromConfig(this.config);
+        const wasmResult: NativePayloadResult =
+          wasmBuilder.nativePayloadFromPreset(preset);
+        return createNativeRequest(
+          wasmResult.payload,
+          this.config,
+          wasmResult.signal_hashes ?? {},
+          2,
+        );
+      }
+
+      // v1 — presets always have valid legacy fields, so this should succeed
+      try {
+        const wasmBuilder = createWasmBuilderFromConfig(this.config);
+        const wasmResult: NativePayloadResult =
+          wasmBuilder.nativePayloadV1FromPreset(preset);
+        return createNativeRequest(
+          wasmResult.payload,
+          this.config,
+          wasmResult.signal_hashes ?? {},
+          1,
+        );
+      } catch {
+        throw new Error(
+          "verify v2 is not supported by this World App version. " +
+            "Use a legacy preset (e.g. orbLegacy()) or update the World App.",
+        );
+      }
     }
 
     // Bridge path — WASM
+    const wasmBuilder = createWasmBuilderFromConfig(this.config);
     const wasmRequest = (await wasmBuilder.preset(
       preset,
     )) as unknown as WasmModule.IDKitRequest;
