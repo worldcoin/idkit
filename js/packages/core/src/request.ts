@@ -483,11 +483,19 @@ class IDKitBuilder {
           wasmResult.signal_hashes ?? {},
           1,
         );
-      } catch {
-        throw new Error(
-          "verify v2 is not supported by this World App version. " +
-            "Use a legacy preset (e.g. orbLegacy()) or update the World App.",
-        );
+      } catch (err) {
+        // Only wrap v1-incompatibility errors (from Deprecated verification level).
+        // Let other errors (bad rp_context, invalid preset, etc.) propagate as-is.
+        if (
+          err instanceof Error &&
+          String(err.message).includes("v1 payload")
+        ) {
+          throw new Error(
+            "verify v2 is not supported by this World App version. " +
+              "Use a legacy preset (e.g. orbLegacy()) or update the World App.",
+          );
+        }
+        throw err;
       }
     }
 

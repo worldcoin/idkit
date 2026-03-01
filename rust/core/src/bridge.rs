@@ -426,7 +426,7 @@ pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_js
     serde_json::to_value(&payload).map_err(Into::into)
 }
 
-/// Builds a v1 (MiniKit legacy) native payload from `BridgeConnectionParams`.
+/// Builds a v1 (`MiniKit` legacy) native payload from `BridgeConnectionParams`.
 ///
 /// This produces the payload format expected by older World App versions that
 /// only support verify command v1:
