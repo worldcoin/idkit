@@ -47,6 +47,20 @@ export function isInWorldApp(): boolean {
   return typeof window !== "undefined" && Boolean((window as any).WorldApp);
 }
 
+/**
+ * Detects the highest verify command version supported by the host World App.
+ *
+ * Reads `window.WorldApp.supported_commands` and looks for the "verify" entry.
+ * Returns `2` when the host explicitly lists version 2; defaults to `1`
+ * otherwise (safest for older Android builds that reject unknown versions).
+ */
+export function getWorldAppVerifyVersion(): 1 | 2 {
+  const cmds = (window as any).WorldApp?.supported_commands;
+  if (!Array.isArray(cmds)) return 1;
+  const verify = cmds.find((c: any) => c.name === "verify");
+  return verify?.supported_versions?.includes(2) ? 2 : 1;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Builder config types (shared with request.ts)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -84,11 +98,13 @@ let _activeNativeRequest: NativeIDKitRequest | null = null;
  * @param wasmPayload - Pre-built payload from the WASM module (same format as bridge)
  * @param config - Builder config (used for response normalization)
  * @param signalHashes - Pre-computed signal hashes keyed by identifier (credential type)
+ * @param version - Verify command version to send in the postMessage envelope (1 or 2, default 2)
  */
 export function createNativeRequest(
   wasmPayload: unknown,
   config: BuilderConfig,
   signalHashes: Record<string, string> = {},
+  version: 1 | 2,
 ): IDKitRequest {
   if (_activeNativeRequest?.isPending()) {
     console.warn(
@@ -96,7 +112,12 @@ export function createNativeRequest(
     );
     return _activeNativeRequest;
   }
-  const request = new NativeIDKitRequest(wasmPayload, config, signalHashes);
+  const request = new NativeIDKitRequest(
+    wasmPayload,
+    config,
+    signalHashes,
+    version,
+  );
   _activeNativeRequest = request;
   return request;
 }
@@ -117,6 +138,7 @@ class NativeIDKitRequest implements IDKitRequest {
     wasmPayload: unknown,
     config: BuilderConfig,
     signalHashes: Record<string, string> = {},
+    version: 1 | 2,
   ) {
     this.requestId =
       crypto.randomUUID?.() ?? `native-${Date.now()}-${++_requestCounter}`;
@@ -178,7 +200,7 @@ class NativeIDKitRequest implements IDKitRequest {
       // Wrap the WASM-built payload in the postMessage envelope
       const sendPayload = {
         command: "verify",
-        version: 2,
+        version,
         payload: wasmPayload,
       };
 

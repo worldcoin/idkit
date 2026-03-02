@@ -790,6 +790,48 @@ impl IDKitBuilderWasm {
         Ok(result.into())
     }
 
+    /// Builds a v1 (legacy) native payload from a preset (synchronous, no bridge connection).
+    ///
+    /// Used by the native transport when the World App only supports verify v1.
+    /// Only legacy presets produce valid v1 payloads (constraints always have
+    /// `Deprecated` verification level and will fail).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the preset is invalid or v1 payload construction fails.
+    #[wasm_bindgen(js_name = nativePayloadV1FromPreset)]
+    pub fn native_payload_v1_from_preset(self, preset_json: JsValue) -> Result<JsValue, JsValue> {
+        let preset: Preset = serde_wasm_bindgen::from_value(preset_json)
+            .map_err(|e| JsValue::from_str(&format!("Invalid preset: {e}")))?;
+
+        let params = self.config.to_params_from_preset(preset)?;
+
+        let payload = crate::bridge::build_native_v1_payload(&params)
+            .map_err(|e| JsValue::from_str(&format!("Failed to build v1 payload: {e}")))?;
+
+        let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+        let payload_js = payload
+            .serialize(&serializer)
+            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
+
+        let signal_hashes_js = params
+            .signal_hashes
+            .serialize(&serializer)
+            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
+
+        let result = js_sys::Object::new();
+        js_sys::Reflect::set(&result, &JsValue::from_str("payload"), &payload_js)
+            .map_err(|e| JsValue::from_str(&format!("Failed to set payload: {e:?}")))?;
+        js_sys::Reflect::set(
+            &result,
+            &JsValue::from_str("signal_hashes"),
+            &signal_hashes_js,
+        )
+        .map_err(|e| JsValue::from_str(&format!("Failed to set signal_hashes: {e:?}")))?;
+
+        Ok(result.into())
+    }
+
     /// Creates a `BridgeConnection` with the given constraints
     pub fn constraints(self, constraints_json: JsValue) -> js_sys::Promise {
         let config = self.config;
@@ -1234,6 +1276,14 @@ const TS_NATIVE_PAYLOAD: &str = r#"
 export interface NativePayloadResult {
     payload: unknown;
     signal_hashes: Record<string, string>;
+}
+
+/** V1 native payload sent to older World App versions (verify command v1) */
+export interface NativeV1Payload {
+    verification_level: string;
+    action: string;
+    signal: string;
+    timestamp: string;
 }
 "#;
 
