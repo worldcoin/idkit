@@ -189,6 +189,7 @@
       <button id="verifyOrb">Verify with Orb</button>
       <button id="verifySecureDocument">Verify with Secure Document</button>
       <button id="verifyDocument">Verify with Document</button>
+      <button id="verifyDeviceLegacy">Verify with Device</button>
       <button id="verifySelfieCheckLegacy">Verify with Selfie Check</button>
     </div>
 
@@ -240,6 +241,7 @@
         orbLegacy,
         secureDocumentLegacy,
         documentLegacy,
+        deviceLegacy,
         selfieCheckLegacy,
       } from "@worldcoin/idkit-core";
 
@@ -438,6 +440,11 @@
         .getElementById("verifyDocument")
         .addEventListener("click", () =>
           startVerification(documentLegacy({ signal: makeSignal() })),
+        );
+      document
+        .getElementById("verifyDeviceLegacy")
+        .addEventListener("click", () =>
+          startVerification(deviceLegacy({ signal: makeSignal() })),
         );
       document
         .getElementById("verifySelfieCheckLegacy")

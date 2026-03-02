@@ -33,6 +33,7 @@ export {
   orbLegacy,
   documentLegacy,
   secureDocumentLegacy,
+  deviceLegacy,
   selfieCheckLegacy,
   IDKitErrorCodes,
   signRequest,

@@ -11,6 +11,7 @@ import {
   // any,
   // enumerate,
   orbLegacy,
+  deviceLegacy,
   selfieCheckLegacy,
   isNode,
   IDKitErrorCodes,
@@ -72,6 +73,12 @@ describe("IDKitRequest API", () => {
     const preset = selfieCheckLegacy({ signal: "face-signal" });
     expect(preset).toHaveProperty("type", "SelfieCheckLegacy");
     expect(preset).toHaveProperty("signal", "face-signal");
+  });
+
+  it("should create deviceLegacy preset correctly", () => {
+    const preset = deviceLegacy({ signal: "device-signal" });
+    expect(preset).toHaveProperty("type", "DeviceLegacy");
+    expect(preset).toHaveProperty("signal", "device-signal");
   });
 
   it("should throw error when rp_context is missing", () => {

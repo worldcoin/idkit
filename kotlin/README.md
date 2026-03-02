@@ -65,6 +65,7 @@ import com.worldcoin.idkit.IDKitRequestConfig
 import com.worldcoin.idkit.IDKitCompletionResult
 import com.worldcoin.idkit.selfieCheckLegacy
 import com.worldcoin.idkit.orbLegacy
+import com.worldcoin.idkit.deviceLegacy
 import uniffi.idkit_core.Environment
 import uniffi.idkit_core.RpContext
 
@@ -97,6 +98,14 @@ when (val completion = request.pollUntilCompletion(IDKitPollOptions())) {
     is IDKitCompletionResult.Success -> println("Verified: ${completion.result.protocolVersion}")
     is IDKitCompletionResult.Failure -> println("Failed: ${completion.error.rawValue}")
 }
+```
+
+For orb-or-device legacy verification, use:
+
+```kotlin
+val request = IDKit
+    .request(config)
+    .preset(deviceLegacy(signal = "user-123"))
 ```
 
 For selfie-check verification, use:

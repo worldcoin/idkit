@@ -57,6 +57,14 @@ case .failure(let error):
 }
 ```
 
+For orb-or-device legacy verification, use:
+
+```swift
+let request = try IDKit
+    .request(config: config)
+    .preset(deviceLegacy(signal: "user-123"))
+```
+
 For selfie-check verification, use:
 
 ```swift

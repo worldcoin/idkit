@@ -65,6 +65,7 @@ export type {
   OrbLegacyPreset,
   SecureDocumentLegacyPreset,
   DocumentLegacyPreset,
+  DeviceLegacyPreset,
   SelfieCheckLegacyPreset,
   // Native transport types
   NativePayloadResult,
