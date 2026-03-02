@@ -465,7 +465,7 @@ pub fn build_native_v1_payload(params: &BridgeConnectionParams) -> Result<serde_
     let signal_hash =
         crate::crypto::hash_signal(&Signal::from_string(params.legacy_signal.clone()));
 
-    let timestamp = time::OffsetDateTime::from_unix_timestamp(params.rp_context.created_at as i64)
+    let timestamp = time::OffsetDateTime::from_unix_timestamp(params.rp_context.created_at.cast_signed())
         .map_err(|_| Error::InvalidConfiguration("Invalid timestamp".to_string()))?
         .format(&time::format_description::well_known::Rfc3339)
         .map_err(|_| Error::InvalidConfiguration("Failed to format timestamp".to_string()))?;
