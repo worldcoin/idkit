@@ -436,7 +436,7 @@ pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_js
 ///   "verification_level": "orb",
 ///   "action": "my-action",
 ///   "signal": "0x..hashed..",
-///   "timestamp": "1709136000"
+///   "timestamp": "2024-02-28T16:00:00Z"
 /// }
 /// ```
 ///
@@ -465,11 +465,16 @@ pub fn build_native_v1_payload(params: &BridgeConnectionParams) -> Result<serde_
     let signal_hash =
         crate::crypto::hash_signal(&Signal::from_string(params.legacy_signal.clone()));
 
+    let timestamp = time::OffsetDateTime::from_unix_timestamp(params.rp_context.created_at as i64)
+        .map_err(|_| Error::InvalidConfiguration("Invalid timestamp".to_string()))?
+        .format(&time::format_description::well_known::Rfc3339)
+        .map_err(|_| Error::InvalidConfiguration("Failed to format timestamp".to_string()))?;
+
     let payload = serde_json::json!({
         "verification_level": params.legacy_verification_level,
         "action": action,
         "signal": signal_hash,
-        "timestamp": params.rp_context.created_at.to_string(),
+        "timestamp": timestamp,
     });
 
     Ok(payload)
@@ -1353,5 +1358,46 @@ mod tests {
             parse_issuer_schema_id("0x99").and_then(CredentialType::from_issuer_schema_id),
             None
         );
+    }
+
+    #[test]
+    fn test_build_native_v1_payload() {
+        let app_id = AppId::new("app_test").unwrap();
+        let sig = "0x".to_string() + &"00".repeat(64) + "1b";
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &sig,
+        )
+        .unwrap();
+
+        let item = CredentialRequest::new(CredentialType::Orb, Some(Signal::from_string("test")));
+        let constraints = ConstraintNode::item(item);
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::Uniqueness {
+                action: "my-action".to_string(),
+            },
+            constraints: constraints.clone(),
+            rp_context,
+            action_description: None,
+            legacy_verification_level: VerificationLevel::Orb,
+            legacy_signal: "test-signal".to_string(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            signal_hashes: compute_signal_hashes(&constraints),
+            override_connect_base_url: None,
+            environment: None,
+        };
+
+        let payload = build_native_v1_payload(&params).unwrap();
+
+        assert_eq!(payload["verification_level"], "orb");
+        assert_eq!(payload["action"], "my-action");
+        assert_eq!(payload["timestamp"], "2023-11-14T22:13:20Z");
+        assert!(payload["signal"].as_str().unwrap().starts_with("0x"));
     }
 }
