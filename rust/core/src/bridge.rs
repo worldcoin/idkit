@@ -1,5 +1,6 @@
 //! `BridgeConnection` management for World ID verification with the [Wallet Bridge](https://github.com/worldcoin/wallet-bridge).
 
+use crate::preset::LegacyV1Params;
 #[cfg(feature = "ffi")]
 use crate::preset::Preset;
 use crate::{
@@ -7,7 +8,8 @@ use crate::{
     error::{AppError, Error, Result},
     protocol_types::ProofRequest,
     types::{
-        AppId, BridgeResponseV1, BridgeUrl, IDKitResult, ResponseItem, RpContext, VerificationLevel,
+        AppId, BridgeResponseV1, BridgeUrl, CredentialCategory, IDKitResult, ResponseItem,
+        RpContext, VerificationLevel,
     },
     ConstraintNode, Signal,
 };
@@ -85,7 +87,14 @@ struct BridgeRequestPayload {
     signal: String,
 
     /// Min verification level derived from requests (World App 3.0 compatibility)
-    verification_level: VerificationLevel,
+    /// Present when using standard presets; absent when `credential_categories` is set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    verification_level: Option<VerificationLevel>,
+
+    /// Credential categories for v1 legacy API compatibility.
+    /// Present only when using `CredentialCategoriesLegacy` preset.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    credential_categories: Option<Vec<CredentialCategory>>,
 
     // -----------------------------------------------
     // -- New Proof Request fields for World ID 4.0 --
@@ -269,6 +278,25 @@ fn parse_issuer_schema_id(issuer_schema_id: &str) -> Option<u64> {
 // Bridge Response Types
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Individual proof item inside a credential categories legacy response
+#[derive(Debug, Deserialize)]
+struct BridgeCredentialCategoriesProofItem {
+    proof: String,
+    merkle_root: String,
+    nullifier_hash: String,
+    verification_level: VerificationLevel,
+}
+
+/// V1 credential categories bridge response
+///
+/// Returned when using the `CredentialCategoriesLegacy` preset.
+/// Structurally distinct from `BridgeResponseV1` (array of proofs keyed by `response`)
+/// and from `BridgeResponseV2` (uses `responses`, plural).
+#[derive(Debug, Deserialize)]
+struct BridgeResponseCredentialCategories {
+    response: Vec<BridgeCredentialCategoriesProofItem>,
+}
+
 /// Decrypted response from the World App
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
@@ -278,6 +306,9 @@ enum BridgeResponse {
 
     /// V2 response with multi-credential support (World ID 4.0 uniqueness / session proofs)
     ResponseV2(BridgeResponseV2),
+
+    /// V1 credential categories legacy response
+    CredentialCategories(BridgeResponseCredentialCategories),
 
     /// V1 legacy success response with proof (World ID 3.0)
     ResponseV1(BridgeResponseV1),
@@ -324,7 +355,7 @@ pub struct BridgeConnectionParams {
     pub constraints: ConstraintNode,
     pub rp_context: RpContext,
     pub action_description: Option<String>,
-    pub legacy_verification_level: VerificationLevel,
+    pub legacy_v1_params: LegacyV1Params,
     pub legacy_signal: String,
     pub bridge_url: Option<BridgeUrl>,
     pub allow_legacy_proofs: bool,
@@ -358,6 +389,8 @@ pub struct BridgeConnection {
     override_connect_base_url: Option<String>,
     /// Resolved environment for this connection
     environment: Environment,
+    /// Value of the `t` query parameter in the connect URL ("wld" or "cred")
+    bridge_request_type: &'static str,
 }
 
 /// Builds a `BridgeRequestPayload` from params without connecting to the bridge.
@@ -411,13 +444,20 @@ pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_js
     let legacy_signal_hash =
         crate::crypto::hash_signal(&Signal::from_string(params.legacy_signal.clone()));
 
+    // Determine which legacy field to populate
+    let (verification_level, credential_categories) = match &params.legacy_v1_params {
+        LegacyV1Params::VerificationLevel(vl) => (Some(*vl), None),
+        LegacyV1Params::CredentialCategories(cats) => (None, Some(cats.clone())),
+    };
+
     // Prepare the payload
     let payload = BridgeRequestPayload {
         app_id: params.app_id.as_str().to_string(),
         action: action_str,
         action_description: params.action_description.clone(),
         proof_request,
-        verification_level: params.legacy_verification_level,
+        verification_level,
+        credential_categories,
         signal: legacy_signal_hash,
         allow_legacy_proofs: params.allow_legacy_proofs,
         environment: params.environment.unwrap_or_default(),
@@ -555,6 +595,11 @@ impl BridgeConnection {
             _ => None,
         };
 
+        let bridge_request_type = match &params.legacy_v1_params {
+            LegacyV1Params::CredentialCategories(_) => "cred",
+            LegacyV1Params::VerificationLevel(_) => "wld",
+        };
+
         Ok(Self {
             bridge_url,
             #[cfg(feature = "native-crypto")]
@@ -568,6 +613,7 @@ impl BridgeConnection {
             nonce: params.rp_context.nonce.clone(),
             override_connect_base_url: params.override_connect_base_url,
             environment: params.environment.unwrap_or_default(),
+            bridge_request_type,
         })
     }
 
@@ -587,12 +633,44 @@ impl BridgeConnection {
             .unwrap_or("https://world.org/verify");
 
         format!(
-            "{}?t=wld&i={}&k={}{}",
+            "{}?t={}&i={}&k={}{}",
             base_url,
+            self.bridge_request_type,
             self.request_id,
             urlencoding::encode(&key_b64),
             bridge_param
         )
+    }
+
+    fn handle_credential_categories_response(
+        &self,
+        response: BridgeResponseCredentialCategories,
+    ) -> Status {
+        let responses: Vec<ResponseItem> = response
+            .response
+            .into_iter()
+            .map(|item| {
+                let signal_hash = self
+                    .signal_hashes
+                    .get(item.verification_level.as_str())
+                    .cloned();
+                ResponseItem::V3 {
+                    identifier: item.verification_level.as_str().to_string(),
+                    signal_hash,
+                    proof: item.proof,
+                    merkle_root: item.merkle_root,
+                    nullifier: item.nullifier_hash,
+                }
+            })
+            .collect();
+        Status::Confirmed(IDKitResult::new(
+            "3.0",
+            self.nonce.clone(),
+            self.action.clone(),
+            self.action_description.clone(),
+            responses,
+            self.environment.as_str(),
+        ))
     }
 
     /// Polls the bridge for the current status (non-blocking)
@@ -680,6 +758,9 @@ impl BridgeConnection {
                                 )
                             },
                         ))
+                    }
+                    BridgeResponse::CredentialCategories(response) => {
+                        Ok(self.handle_credential_categories_response(response))
                     }
                     BridgeResponse::ResponseV1(response) => {
                         // V1 responses are always protocol 3.0
@@ -796,7 +877,9 @@ impl IDKitConfig {
                     constraints,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
-                    legacy_verification_level: VerificationLevel::Deprecated,
+                    legacy_v1_params: LegacyV1Params::VerificationLevel(
+                        VerificationLevel::Deprecated,
+                    ),
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: config.allow_legacy_proofs,
@@ -820,7 +903,9 @@ impl IDKitConfig {
                     constraints,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
-                    legacy_verification_level: VerificationLevel::Deprecated,
+                    legacy_v1_params: LegacyV1Params::VerificationLevel(
+                        VerificationLevel::Deprecated,
+                    ),
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
@@ -846,7 +931,9 @@ impl IDKitConfig {
                     constraints,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
-                    legacy_verification_level: VerificationLevel::Deprecated,
+                    legacy_v1_params: LegacyV1Params::VerificationLevel(
+                        VerificationLevel::Deprecated,
+                    ),
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
@@ -864,7 +951,7 @@ impl IDKitConfig {
         &self,
         preset: Preset,
     ) -> std::result::Result<BridgeConnectionParams, crate::error::IdkitError> {
-        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+        let (constraints, legacy_v1_params, legacy_signal) = preset.to_bridge_params();
         let signal_hashes = compute_signal_hashes(&constraints);
 
         match self {
@@ -884,7 +971,7 @@ impl IDKitConfig {
                     constraints,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
-                    legacy_verification_level,
+                    legacy_v1_params,
                     legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: config.allow_legacy_proofs,
@@ -907,7 +994,7 @@ impl IDKitConfig {
                     constraints,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
-                    legacy_verification_level,
+                    legacy_v1_params,
                     legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
@@ -932,7 +1019,7 @@ impl IDKitConfig {
                     constraints,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
-                    legacy_verification_level,
+                    legacy_v1_params,
                     legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
@@ -1203,7 +1290,8 @@ mod tests {
             action: Some("test-action".to_string()),
             action_description: Some("Test description".to_string()),
             signal: String::new(),
-            verification_level: VerificationLevel::Deprecated,
+            verification_level: Some(VerificationLevel::Deprecated),
+            credential_categories: None,
             proof_request,
             allow_legacy_proofs: false,
             environment: Environment::Production,
@@ -1295,7 +1383,7 @@ mod tests {
     #[test]
     fn test_selfie_check_legacy_preset_serializes_face_verification_level() {
         let preset = crate::preset::Preset::selfie_check_legacy(Some("face-signal".to_string()));
-        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+        let (constraints, legacy_v1_params, legacy_signal) = preset.to_bridge_params();
 
         let app_id = AppId::new("app_test").unwrap();
         let signature = "0x".to_string() + &"00".repeat(64) + "1b";
@@ -1316,7 +1404,7 @@ mod tests {
             constraints: constraints.clone(),
             rp_context,
             action_description: Some("Selfie check".to_string()),
-            legacy_verification_level,
+            legacy_v1_params,
             legacy_signal: legacy_signal.unwrap_or_default(),
             bridge_url: None,
             allow_legacy_proofs: false,

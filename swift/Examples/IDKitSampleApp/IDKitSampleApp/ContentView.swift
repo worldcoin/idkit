@@ -1,6 +1,23 @@
 import SwiftUI
 import IDKit
 
+enum SamplePreset: String, CaseIterable, Identifiable {
+    case orbLegacy = "Orb (Legacy)"
+    case secureDocumentLegacy = "Secure Document (Legacy)"
+    case documentLegacy = "Document (Legacy)"
+    case selfieCheckLegacy = "Selfie Check (Legacy)"
+    case credentialCategoriesLegacy = "Credential Categories (Legacy)"
+
+    var isLegacy: Bool {
+        switch self {
+        case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .credentialCategoriesLegacy, .selfieCheckLegacy:
+            return true
+        }
+    }
+
+    var id: String { rawValue }
+}
+
 enum SampleEnvironment: String, CaseIterable, Identifiable {
     case production
     case staging
@@ -30,12 +47,32 @@ struct ContentView: View {
                         .textInputAutocapitalization(.never)
                         .disableAutocorrection(true)
 
+                    Picker("Preset", selection: $model.selectedPreset) {
+                        ForEach(SamplePreset.allCases) { preset in
+                            Text(preset.rawValue).tag(preset)
+                        }
+                    }
+
                     Picker("Environment", selection: $model.environment) {
                         ForEach(SampleEnvironment.allCases) { env in
                             Text(env.rawValue).tag(env)
                         }
                     }
                     .pickerStyle(.segmented)
+                }
+
+                if model.selectedPreset == .credentialCategoriesLegacy {
+                    Section("Credential Categories") {
+                        ForEach([CredentialCategory.personhood, .secureDocument, .document], id: \.self) { cat in
+                            Toggle(cat.displayName, isOn: Binding(
+                                get: { model.selectedCredentialCategories.contains(cat) },
+                                set: { on in
+                                    if on { model.selectedCredentialCategories.insert(cat) }
+                                    else { model.selectedCredentialCategories.remove(cat) }
+                                }
+                            ))
+                        }
+                    }
                 }
 
                 Section {
@@ -58,6 +95,8 @@ struct ContentView: View {
                         Text(connectorURL.absoluteString)
                             .font(.footnote.monospaced())
                             .textSelection(.enabled)
+                        QRCodeView(url: connectorURL)
+                            .frame(maxWidth: .infinity)
                     }
                 }
 
@@ -84,6 +123,8 @@ final class SampleModel: ObservableObject {
     @Published var rpId = "rp_7b4f23dd5fb2a826"
     @Published var action = "test-action"
     @Published var signal = "signal"
+    @Published var selectedPreset: SamplePreset = .selfieCheckLegacy
+    @Published var selectedCredentialCategories: Set<CredentialCategory> = [.personhood, .document, .secureDocument]
     @Published var environment: SampleEnvironment = .production
     @Published var connectorURL: URL?
     @Published var logs = ""
@@ -99,21 +140,54 @@ final class SampleModel: ObservableObject {
     private var pollingRequestID: UUID?
     private var deepLinkReceivedForPendingRequest = false
 
+    func buildPreset() -> Preset {
+        switch selectedPreset {
+        case .orbLegacy:
+            return orbLegacy(signal: signal.isEmpty ? nil : signal)
+        case .secureDocumentLegacy:
+            return secureDocumentLegacy(signal: signal.isEmpty ? nil : signal)
+        case .documentLegacy:
+            return documentLegacy(signal: signal.isEmpty ? nil : signal)
+        case .selfieCheckLegacy:
+            return selfieCheckLegacy(signal: signal.isEmpty ? nil : signal)
+        case .credentialCategoriesLegacy:
+            let categories = [CredentialCategory.personhood, .secureDocument, .document]
+                .filter { selectedCredentialCategories.contains($0) }
+            return .credentialCategoriesLegacy(
+                credentialCategories: categories.isEmpty ? [.personhood] : categories,
+                signal: signal.isEmpty ? nil : signal
+            )
+        }
+    }
+
     func generateRequestURL() async {
         isLoading = true
         defer { isLoading = false }
 
         do {
-            log("Fetching RP signature from \(signatureEndpoint)")
-            let signaturePayload = try await fetchSignaturePayload()
+            let rpContext: RpContext
 
-            let rpContext = try RpContext(
-                rpId: rpId,
-                nonce: signaturePayload.nonce,
-                createdAt: signaturePayload.createdAt,
-                expiresAt: signaturePayload.expiresAt,
-                signature: signaturePayload.sig
-            )
+            if selectedPreset.isLegacy {
+                let signature = "0x" + String(repeating: "00", count: 64) + "1b"
+                rpContext = try RpContext(
+                    rpId: "rp_1234567890abcdef",
+                    nonce: "0x0000000000000000000000000000000000000000000000000000000000000001",
+                    createdAt: UInt64(Date().timeIntervalSince1970),
+                    expiresAt: UInt64(Date().timeIntervalSince1970) + 3600,
+                    signature: signature
+                )
+            } else {
+                log("Fetching RP signature from \(signatureEndpoint)")
+                let signaturePayload = try await fetchSignaturePayload()
+                
+                rpContext = try RpContext(
+                    rpId: rpId,
+                    nonce: signaturePayload.nonce,
+                    createdAt: signaturePayload.createdAt,
+                    expiresAt: signaturePayload.expiresAt,
+                    signature: signaturePayload.sig
+                )
+            }
 
             let config = IDKitRequestConfig(
                 appId: appId,
@@ -131,7 +205,7 @@ final class SampleModel: ObservableObject {
                 }()
             )
 
-            let request = try IDKit.request(config: config).preset(selfieCheckLegacy(signal: signal))
+            let request = try IDKit.request(config: config).preset(buildPreset())
 
             completionTask?.cancel()
             let connectorURLWithReturnTo = try addReturnTo(to: request.connectorURL)
@@ -356,6 +430,16 @@ private struct SignaturePayload: Decodable {
 private struct SignatureRequest: Encodable {
     let action: String
     let ttl: UInt64?
+}
+
+extension CredentialCategory {
+    var displayName: String {
+        switch self {
+        case .personhood: return "Personhood (Orb)"
+        case .secureDocument: return "Secure Document"
+        case .document: return "Document"
+        }
+    }
 }
 
 private enum SampleError: LocalizedError {

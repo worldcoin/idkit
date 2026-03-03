@@ -66,6 +66,22 @@ impl CredentialType {
     }
 }
 
+/// Credential categories for the legacy v1 credential categories API.
+///
+/// These are the string values World App expects in the `credential_categories` field.
+/// Distinct from `CredentialType` which is used for v4 constraint trees.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
+#[serde(rename_all = "snake_case")]
+pub enum CredentialCategory {
+    /// Credentials that prove personhood (e.g. iris/orb)
+    Personhood,
+    /// Secure NFC document with active or passive authentication
+    SecureDocument,
+    /// NFC document without authentication
+    Document,
+}
+
 /// A signal value that can be either a UTF-8 string or raw bytes
 ///
 /// Signals are used to create unique proofs. They can be:
@@ -898,6 +914,21 @@ pub enum VerificationLevel {
     /// When this is sent, older World App versions will reject the request
     /// with an error, ensuring only 4.0+ versions can process the request.
     Deprecated,
+}
+
+impl VerificationLevel {
+    /// Returns the `snake_case` string representation (matches serde serialization)
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Orb => "orb",
+            Self::Face => "face",
+            Self::Device => "device",
+            Self::Document => "document",
+            Self::SecureDocument => "secure_document",
+            Self::Deprecated => "deprecated",
+        }
+    }
 }
 
 // UniFFI helper function for CredentialType

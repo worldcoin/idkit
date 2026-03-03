@@ -3,22 +3,21 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		20FF754C1502FBD425302CBE /* IDKit in Frameworks */ = {isa = PBXBuildFile; productRef = 9FC918755DD3862117332843 /* IDKit */; };
-		5C2F9127E5FD5BF3D8750937 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 567C607FB3ED6487AF179C1A /* ContentView.swift */; };
-		B8BE8B9B746672EFE86B1A66 /* IDKitSampleAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9885A4A639E905313B261DA8 /* IDKitSampleAppApp.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		21CC998C2485105976E44313 /* swift */ = {isa = PBXFileReference; lastKnownFileType = folder; name = swift; path = ../..; sourceTree = SOURCE_ROOT; };
 		53BFB4D3CB298E6C4788D48D /* IDKitSampleApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = IDKitSampleApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		567C607FB3ED6487AF179C1A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		9885A4A639E905313B261DA8 /* IDKitSampleAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IDKitSampleAppApp.swift; sourceTree = "<group>"; };
-		AA1E2A511BCD73110F80F30A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		FF8440E42F4FD35D008A4725 /* IDKitSampleApp */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = IDKitSampleApp; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		1EAA772B583C61D78E1154A8 /* Frameworks */ = {
@@ -40,20 +39,10 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		1B75AA6CCA32391AC5A6FB9A /* IDKitSampleApp */ = {
-			isa = PBXGroup;
-			children = (
-				567C607FB3ED6487AF179C1A /* ContentView.swift */,
-				9885A4A639E905313B261DA8 /* IDKitSampleAppApp.swift */,
-				AA1E2A511BCD73110F80F30A /* Info.plist */,
-			);
-			path = IDKitSampleApp;
-			sourceTree = "<group>";
-		};
 		22691145137BD6291FEBCD9D = {
 			isa = PBXGroup;
 			children = (
-				1B75AA6CCA32391AC5A6FB9A /* IDKitSampleApp */,
+				FF8440E42F4FD35D008A4725 /* IDKitSampleApp */,
 				FE2358C194117E7CB84B8A46 /* Packages */,
 				13A85139F7458476C05801E0 /* Products */,
 			);
@@ -80,6 +69,9 @@
 			buildRules = (
 			);
 			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				FF8440E42F4FD35D008A4725 /* IDKitSampleApp */,
 			);
 			name = IDKitSampleApp;
 			packageProductDependencies = (
@@ -129,8 +121,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5C2F9127E5FD5BF3D8750937 /* ContentView.swift in Sources */,
-				B8BE8B9B746672EFE86B1A66 /* IDKitSampleAppApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
