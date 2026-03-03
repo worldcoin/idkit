@@ -1,6 +1,6 @@
 {
   "name": "@worldcoin/idkit-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Server-side IDKit SDK for World ID - RP signing utilities",
   "type": "module",
   "main": "./dist/index.cjs",
