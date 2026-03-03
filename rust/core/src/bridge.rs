@@ -1284,6 +1284,49 @@ mod tests {
         assert!(matches!(response, BridgeResponse::ResponseV1(_)));
     }
 
+    /// Android World App sends `credential_type` instead of `verification_level`
+    /// in legacy v1 bridge responses. The serde alias ensures both field names work.
+    #[test]
+    fn test_bridge_response_v1_android_credential_type_field() {
+        let json = r#"{
+            "proof": "0xproof",
+            "merkle_root": "0xroot",
+            "nullifier_hash": "0xnull",
+            "credential_type": "device"
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        match response {
+            BridgeResponse::ResponseV1(v1) => {
+                assert_eq!(v1.verification_level, CredentialType::Device);
+                assert_eq!(v1.proof, "0xproof");
+                assert_eq!(v1.merkle_root, "0xroot");
+                assert_eq!(v1.nullifier_hash, "0xnull");
+            }
+            other => panic!("Expected ResponseV1, got: {other:?}"),
+        }
+    }
+
+    /// iOS World App sends both `credential_type` and `verification_level`.
+    #[test]
+    fn test_bridge_response_v1_ios_both_fields() {
+        let json = r#"{
+            "proof": "0xproof",
+            "merkle_root": "0xroot",
+            "nullifier_hash": "0xnull",
+            "credential_type": "orb",
+            "verification_level": "orb"
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        match response {
+            BridgeResponse::ResponseV1(v1) => {
+                assert_eq!(v1.verification_level, CredentialType::Orb);
+            }
+            other => panic!("Expected ResponseV1, got: {other:?}"),
+        }
+    }
+
     #[test]
     fn test_bridge_response_error_deserialization() {
         let json = r#"{"error_code": "user_rejected"}"#;

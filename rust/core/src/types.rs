@@ -395,7 +395,7 @@ impl CredentialRequest {
 }
 
 /// Legacy bridge response (protocol v1 / World ID v3)
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct BridgeResponseV1 {
     /// The Zero-knowledge proof of the verification (hex string, ABI encoded)
@@ -409,6 +409,42 @@ pub struct BridgeResponseV1 {
 
     /// The verification level used to generate the proof
     pub verification_level: CredentialType,
+}
+
+/// For context android still sends `credential_type` in the response
+/// and iOS sends both `verification_level` and `credential_type` (with the same value).
+///
+/// To maintain compatibility with both platforms, we accept both fields as optional and require that at least one is present.
+impl<'de> Deserialize<'de> for BridgeResponseV1 {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        /// Helper struct that accepts both field names as separate optional fields.
+        #[derive(Deserialize)]
+        struct Helper {
+            proof: String,
+            merkle_root: String,
+            nullifier_hash: String,
+            verification_level: Option<CredentialType>,
+            credential_type: Option<CredentialType>,
+        }
+
+        let helper = Helper::deserialize(deserializer)?;
+        let verification_level = helper
+            .verification_level
+            .or(helper.credential_type)
+            .ok_or_else(|| {
+                serde::de::Error::missing_field("verification_level or credential_type")
+            })?;
+
+        Ok(BridgeResponseV1 {
+            proof: helper.proof,
+            merkle_root: helper.merkle_root,
+            nullifier_hash: helper.nullifier_hash,
+            verification_level,
+        })
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
