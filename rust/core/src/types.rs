@@ -438,7 +438,7 @@ impl<'de> Deserialize<'de> for BridgeResponseV1 {
                 serde::de::Error::missing_field("verification_level or credential_type")
             })?;
 
-        Ok(BridgeResponseV1 {
+        Ok(Self {
             proof: helper.proof,
             merkle_root: helper.merkle_root,
             nullifier_hash: helper.nullifier_hash,
