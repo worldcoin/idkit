@@ -218,15 +218,18 @@ class IDKitTests {
         val orb = orbLegacy(signal = "x")
         val secureDoc = secureDocumentLegacy(signal = "y")
         val doc = documentLegacy(signal = "z")
+        val device = deviceLegacy(signal = "d")
         val face = selfieCheckLegacy(signal = "f")
 
         assertTrue(orb is Preset.OrbLegacy)
         assertTrue(secureDoc is Preset.SecureDocumentLegacy)
         assertTrue(doc is Preset.DocumentLegacy)
+        assertTrue(device is Preset.DeviceLegacy)
         assertTrue(face is Preset.SelfieCheckLegacy)
         assertEquals("x", (orb as Preset.OrbLegacy).signal)
         assertEquals("y", (secureDoc as Preset.SecureDocumentLegacy).signal)
         assertEquals("z", (doc as Preset.DocumentLegacy).signal)
+        assertEquals("d", (device as Preset.DeviceLegacy).signal)
         assertEquals("f", (face as Preset.SelfieCheckLegacy).signal)
     }
 

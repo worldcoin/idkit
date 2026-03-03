@@ -293,6 +293,13 @@ fun secureDocumentLegacy(signal: String? = null): Preset =
 fun documentLegacy(signal: String? = null): Preset = Preset.DocumentLegacy(signal = signal)
 
 /**
+ * Returns the device legacy preset.
+ *
+ * This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
+ */
+fun deviceLegacy(signal: String? = null): Preset = Preset.DeviceLegacy(signal = signal)
+
+/**
  * Returns the selfie check legacy preset.
  *
  * This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.

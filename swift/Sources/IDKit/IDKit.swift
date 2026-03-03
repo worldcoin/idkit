@@ -345,6 +345,13 @@ public func documentLegacy(signal: String? = nil) -> Preset {
     .documentLegacy(signal: signal)
 }
 
+/// Returns the device legacy preset.
+///
+/// This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.
+public func deviceLegacy(signal: String? = nil) -> Preset {
+    .deviceLegacy(signal: signal)
+}
+
 /// Returns the selfie check legacy preset.
 ///
 /// This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions.

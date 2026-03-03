@@ -1246,13 +1246,20 @@ export interface SelfieCheckLegacyPreset {
     signal?: string;
 }
 
-export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLegacyPreset | SelfieCheckLegacyPreset;
+export interface DeviceLegacyPreset {
+    /** This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions. */
+    type: "DeviceLegacy";
+    signal?: string;
+}
+
+export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLegacyPreset | SelfieCheckLegacyPreset | DeviceLegacyPreset;
 
 export function orbLegacy(signal?: string): Preset;
 export function secureDocumentLegacy(signal?: string): Preset;
 export function documentLegacy(signal?: string): Preset;
 /** Preview: Selfie Check is currently in preview. Contact us if you need it enabled. */
 export function selfieCheckLegacy(signal?: string): Preset;
+export function deviceLegacy(signal?: string): Preset;
 "#;
 
 // Export RP signature types

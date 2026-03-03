@@ -62,6 +62,17 @@ pub enum Preset {
         /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
         signal: Option<String>,
     },
+    /// Device verification
+    ///
+    /// Requests orb or device credentials, with optional signal.
+    /// The signal can be either a plain string or a hex-encoded ABI value (with 0x prefix).
+    ///
+    /// This preset only returns World ID 3.0 proofs. Use it for compatibility with older `IDKit` versions.
+    DeviceLegacy {
+        /// Optional signal to include in the proof.
+        /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
+        signal: Option<String>,
+    },
 }
 
 impl Preset {
@@ -89,6 +100,12 @@ impl Preset {
     #[must_use]
     pub fn selfie_check_legacy(signal: Option<String>) -> Self {
         Self::SelfieCheckLegacy { signal }
+    }
+
+    /// Creates a new `DeviceLegacy` preset with optional signal
+    #[must_use]
+    pub fn device_legacy(signal: Option<String>) -> Self {
+        Self::DeviceLegacy { signal }
     }
 
     /// Converts the preset to bridge session parameters
@@ -147,6 +164,19 @@ impl Preset {
 
                 (constraints, legacy_verification_level, legacy_signal)
             }
+            Self::DeviceLegacy { signal } => {
+                let signal_opt = signal.as_ref().map(|s| Signal::from_string(s.clone()));
+                let orb = CredentialRequest::new(CredentialType::Orb, signal_opt.clone());
+                let device = CredentialRequest::new(CredentialType::Device, signal_opt);
+                let constraints = ConstraintNode::any(vec![
+                    ConstraintNode::Item(orb),
+                    ConstraintNode::Item(device),
+                ]);
+                let legacy_verification_level = VerificationLevel::Device;
+                let legacy_signal = signal.clone();
+
+                (constraints, legacy_verification_level, legacy_signal)
+            }
         }
     }
 }
@@ -186,6 +216,60 @@ mod tests {
                 assert_eq!(item.signal, None);
             }
             _ => panic!("expected selfieCheckLegacy constraints to be a single item"),
+        }
+    }
+
+    #[test]
+    fn device_legacy_preset_builds_orb_or_device_constraints_and_device_legacy_level() {
+        let preset = Preset::device_legacy(Some("device-signal".to_string()));
+        let (constraints, verification_level, legacy_signal) = preset.to_bridge_params();
+
+        assert_eq!(verification_level, VerificationLevel::Device);
+        assert_eq!(legacy_signal, Some("device-signal".to_string()));
+
+        match constraints {
+            ConstraintNode::Any { any } => {
+                assert_eq!(any.len(), 2);
+                match (&any[0], &any[1]) {
+                    (ConstraintNode::Item(orb), ConstraintNode::Item(device)) => {
+                        assert_eq!(orb.credential_type, CredentialType::Orb);
+                        assert_eq!(orb.signal, Some(Signal::from_string("device-signal")));
+                        assert_eq!(device.credential_type, CredentialType::Device);
+                        assert_eq!(device.signal, Some(Signal::from_string("device-signal")));
+                    }
+                    _ => {
+                        panic!("expected deviceLegacy constraints to contain orb and device items")
+                    }
+                }
+            }
+            _ => panic!("expected deviceLegacy constraints to be an any() node"),
+        }
+    }
+
+    #[test]
+    fn device_legacy_preset_without_signal_preserves_empty_signal() {
+        let preset = Preset::device_legacy(None);
+        let (constraints, verification_level, legacy_signal) = preset.to_bridge_params();
+
+        assert_eq!(verification_level, VerificationLevel::Device);
+        assert_eq!(legacy_signal, None);
+
+        match constraints {
+            ConstraintNode::Any { any } => {
+                assert_eq!(any.len(), 2);
+                match (&any[0], &any[1]) {
+                    (ConstraintNode::Item(orb), ConstraintNode::Item(device)) => {
+                        assert_eq!(orb.credential_type, CredentialType::Orb);
+                        assert_eq!(orb.signal, None);
+                        assert_eq!(device.credential_type, CredentialType::Device);
+                        assert_eq!(device.signal, None);
+                    }
+                    _ => {
+                        panic!("expected deviceLegacy constraints to contain orb and device items")
+                    }
+                }
+            }
+            _ => panic!("expected deviceLegacy constraints to be an any() node"),
         }
     }
 }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 import {
   documentLegacy,
+  deviceLegacy,
   selfieCheckLegacy,
   IDKitRequestWidget,
   orbLegacy,
@@ -14,7 +15,7 @@ import {
 const APP_ID = process.env.NEXT_PUBLIC_APP_ID as `app_${string}` | undefined;
 const RP_ID = process.env.NEXT_PUBLIC_RP_ID;
 
-type PresetKind = "orb" | "secure_document" | "document" | "selfie";
+type PresetKind = "orb" | "secure_document" | "document" | "device" | "selfie";
 
 function createPreset(kind: PresetKind, signal: string) {
   switch (kind) {
@@ -24,6 +25,8 @@ function createPreset(kind: PresetKind, signal: string) {
       return secureDocumentLegacy({ signal });
     case "document":
       return documentLegacy({ signal });
+    case "device":
+      return deviceLegacy({ signal });
     case "selfie":
       return selfieCheckLegacy({ signal });
     default: {
@@ -196,6 +199,9 @@ export function DemoClient(): ReactElement {
         </button>
         <button onClick={() => startWidgetFlow("document")}>
           Verify with Document
+        </button>
+        <button onClick={() => startWidgetFlow("device")}>
+          Verify with Device
         </button>
         <button onClick={() => startWidgetFlow("selfie")}>
           Verify with Selfie Check
