@@ -332,6 +332,8 @@ pub struct BridgeConnectionParams {
     pub signal_hashes: std::collections::HashMap<String, String>,
     /// Optional override for the connect base URL (e.g., for staging environments)
     pub override_connect_base_url: Option<String>,
+    /// Optional deep-link callback URL appended as `return_to` on the connector URL
+    pub return_to: Option<String>,
     /// Optional environment override (defaults to Production when not specified)
     pub environment: Option<Environment>,
 }
@@ -356,6 +358,8 @@ pub struct BridgeConnection {
     nonce: String,
     /// Optional override for the connect base URL
     override_connect_base_url: Option<String>,
+    /// Optional deep-link callback URL appended as `return_to` on the connector URL
+    return_to: Option<String>,
     /// Resolved environment for this connection
     environment: Environment,
 }
@@ -567,6 +571,7 @@ impl BridgeConnection {
             action_description: params.action_description,
             nonce: params.rp_context.nonce.clone(),
             override_connect_base_url: params.override_connect_base_url,
+            return_to: params.return_to,
             environment: params.environment.unwrap_or_default(),
         })
     }
@@ -580,6 +585,13 @@ impl BridgeConnection {
         } else {
             format!("&b={}", urlencoding::encode(self.bridge_url.as_str()))
         };
+        let return_to_param = self
+            .return_to
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| format!("&return_to={}", urlencoding::encode(value)))
+            .unwrap_or_default();
 
         let base_url = self
             .override_connect_base_url
@@ -587,10 +599,11 @@ impl BridgeConnection {
             .unwrap_or("https://world.org/verify");
 
         format!(
-            "{}?t=wld&i={}&k={}{}",
+            "{}?t=wld&i={}&k={}{}{}",
             base_url,
             self.request_id,
             urlencoding::encode(&key_b64),
+            return_to_param,
             bridge_param
         )
     }
@@ -735,6 +748,8 @@ pub struct IDKitRequestConfig {
     pub allow_legacy_proofs: bool,
     /// Optional override for the connect base URL (e.g., for staging environments)
     pub override_connect_base_url: Option<String>,
+    /// Optional deep-link callback URL appended as `return_to` on the connector URL
+    pub return_to: Option<String>,
     /// Optional environment override (defaults to Production)
     pub environment: Option<Environment>,
 }
@@ -755,6 +770,8 @@ pub struct IDKitSessionConfig {
     pub bridge_url: Option<String>,
     /// Optional override for the connect base URL (e.g., for staging environments)
     pub override_connect_base_url: Option<String>,
+    /// Optional deep-link callback URL appended as `return_to` on the connector URL
+    pub return_to: Option<String>,
     /// Optional environment override (defaults to Production)
     pub environment: Option<Environment>,
 }
@@ -802,6 +819,7 @@ impl IDKitConfig {
                     allow_legacy_proofs: config.allow_legacy_proofs,
                     signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
+                    return_to: config.return_to.clone(),
                     environment: config.environment,
                 })
             }
@@ -826,6 +844,7 @@ impl IDKitConfig {
                     allow_legacy_proofs: false,
                     signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
+                    return_to: config.return_to.clone(),
                     environment: config.environment,
                 })
             }
@@ -852,6 +871,7 @@ impl IDKitConfig {
                     allow_legacy_proofs: false,
                     signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
+                    return_to: config.return_to.clone(),
                     environment: config.environment,
                 })
             }
@@ -890,6 +910,7 @@ impl IDKitConfig {
                     allow_legacy_proofs: config.allow_legacy_proofs,
                     signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
+                    return_to: config.return_to.clone(),
                     environment: config.environment,
                 })
             }
@@ -913,6 +934,7 @@ impl IDKitConfig {
                     allow_legacy_proofs: false,
                     signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
+                    return_to: config.return_to.clone(),
                     environment: config.environment,
                 })
             }
@@ -938,6 +960,7 @@ impl IDKitConfig {
                     allow_legacy_proofs: false,
                     signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
+                    return_to: config.return_to.clone(),
                     environment: config.environment,
                 })
             }
@@ -1365,6 +1388,7 @@ mod tests {
             allow_legacy_proofs: false,
             signal_hashes: compute_signal_hashes(&constraints),
             override_connect_base_url: None,
+            return_to: None,
             environment: Some(Environment::Production),
         };
 
@@ -1402,6 +1426,7 @@ mod tests {
             allow_legacy_proofs: false,
             signal_hashes: compute_signal_hashes(&constraints),
             override_connect_base_url: None,
+            return_to: None,
             environment: Some(Environment::Production),
         };
 
@@ -1471,6 +1496,7 @@ mod tests {
             allow_legacy_proofs: false,
             signal_hashes: compute_signal_hashes(&constraints),
             override_connect_base_url: None,
+            return_to: None,
             environment: None,
         };
 
@@ -1480,5 +1506,39 @@ mod tests {
         assert_eq!(payload["action"], "my-action");
         assert_eq!(payload["timestamp"], "2023-11-14T22:13:20Z");
         assert!(payload["signal"].as_str().unwrap().starts_with("0x"));
+    }
+
+    fn sample_connection(return_to: Option<String>) -> BridgeConnection {
+        BridgeConnection {
+            bridge_url: BridgeUrl::default(),
+            #[cfg(feature = "native-crypto")]
+            key: crate::crypto::CryptoKey::new([0; 32], [0; 12]),
+            key_bytes: vec![1, 2, 3, 4],
+            request_id: Uuid::parse_str("64e0ec6b-b4ca-47cc-8f70-504a95189e26").unwrap(),
+            client: reqwest::Client::new(),
+            signal_hashes: std::collections::HashMap::new(),
+            action: Some("test-action".to_string()),
+            action_description: None,
+            nonce: "0x01".to_string(),
+            override_connect_base_url: None,
+            return_to,
+            environment: Environment::Production,
+        }
+    }
+
+    #[test]
+    fn test_connect_url_includes_return_to_when_provided() {
+        let connection = sample_connection(Some("idkitsample://callback?step=proof".to_string()));
+        let url = connection.connect_url();
+
+        assert!(url.contains("return_to=idkitsample%3A%2F%2Fcallback%3Fstep%3Dproof"));
+    }
+
+    #[test]
+    fn test_connect_url_omits_return_to_when_not_provided() {
+        let connection = sample_connection(None);
+        let url = connection.connect_url();
+
+        assert!(!url.contains("return_to="));
     }
 }

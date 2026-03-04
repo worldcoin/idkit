@@ -34,7 +34,7 @@ import com.worldcoin.idkit.IDKit
 import com.worldcoin.idkit.IDKitRequest
 import com.worldcoin.idkit.IDKitRequestConfig
 import com.worldcoin.idkit.idkitResultToJson
-import com.worldcoin.idkit.orbLegacy
+import com.worldcoin.idkit.deviceLegacy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -231,8 +231,8 @@ private enum class SampleEnvironment {
 }
 
 private class SampleModel {
-    var signatureEndpoint by mutableStateOf("http://localhost:3001/api/rp-signature")
-    var verifyEndpoint by mutableStateOf("http://localhost:3001/api/verify-proof")
+    var signatureEndpoint by mutableStateOf("https://idkit-js-example.vercel.app/api/rp-signature")
+    var verifyEndpoint by mutableStateOf("https://idkit-js-example.vercel.app/api/verify-proof")
     var appId by mutableStateOf("app_d8bbd5341f16fb97a61e644b7e169c0e")
     var rpId by mutableStateOf("rp_7b4f23dd5fb2a826")
     var action by mutableStateOf("test-action")
@@ -284,6 +284,7 @@ private class SampleModel {
                     bridgeUrl = null,
                     allowLegacyProofs = false,
                     overrideConnectBaseUrl = null,
+                    returnTo = returnToURL,
                     environment = when (environment) {
                         SampleEnvironment.PRODUCTION -> Environment.PRODUCTION
                         SampleEnvironment.STAGING -> Environment.STAGING
@@ -292,17 +293,16 @@ private class SampleModel {
 
                 val request = IDKit
                     .request(config)
-                    .preset(orbLegacy(signal = signal))
+                    .preset(deviceLegacy(signal = signal))
 
                 completionJob?.cancel()
-                val connectorWithReturnTo = addReturnTo(request.connectorURI)
-                connectorURI = connectorWithReturnTo
+                connectorURI = request.connectorURI
                 pendingRequest = request
                 deepLinkReceivedForPendingRequest = false
 
-                android.util.Log.i("IDKitSample", "IDKit connector URL: $connectorWithReturnTo")
+                android.util.Log.i("IDKitSample", "IDKit connector URL: ${request.connectorURI}")
                 log("Generated request ID: ${request.requestId}")
-                log("Added return_to callback: $returnToURL")
+                log("Configured return_to callback: $returnToURL")
                 startPollingForRequest(
                     request = request,
                     reason = "request generation",
@@ -471,35 +471,6 @@ private class SampleModel {
         }
     }
 
-    private fun addReturnTo(connectorUrl: String): String {
-        val trimmedReturnTo = returnToURL.trim()
-        if (trimmedReturnTo.isEmpty()) {
-            return connectorUrl
-        }
-
-        val parsedReturnTo = Uri.parse(trimmedReturnTo)
-        if (parsedReturnTo.scheme.isNullOrBlank()) {
-            throw SampleException.InvalidReturnToURL(trimmedReturnTo)
-        }
-
-        val connectorUri = Uri.parse(connectorUrl)
-        val existingQuery = mutableListOf<Pair<String, String?>>()
-        for (name in connectorUri.queryParameterNames) {
-            if (name == "return_to") continue
-            connectorUri.getQueryParameters(name).forEach { value ->
-                existingQuery += name to value
-            }
-        }
-
-        val builder = connectorUri.buildUpon().clearQuery()
-        existingQuery.forEach { (name, value) ->
-            builder.appendQueryParameter(name, value)
-        }
-        builder.appendQueryParameter("return_to", trimmedReturnTo)
-
-        return builder.build().toString()
-    }
-
     private fun prettifyJSON(raw: String): String {
         return runCatching { JSONObject(raw).toString(2) }
             .recoverCatching { JSONArray(raw).toString(2) }
@@ -520,7 +491,6 @@ private data class SignaturePayload(
 )
 
 private sealed class SampleException(message: String) : IllegalStateException(message) {
-    class InvalidReturnToURL(raw: String) : SampleException("Invalid return_to URL: $raw")
     class BadResponse(statusCode: Int, body: String) :
         SampleException("Backend request failed ($statusCode): $body")
 

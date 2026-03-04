@@ -50,6 +50,7 @@ func idkitEntrypoints() throws {
         bridgeUrl: nil,
         allowLegacyProofs: false,
         overrideConnectBaseUrl: nil,
+        returnTo: nil,
         environment: nil
     )
 
@@ -60,6 +61,7 @@ func idkitEntrypoints() throws {
     //     actionDescription: nil,
     //     bridgeUrl: nil,
     //     overrideConnectBaseUrl: nil,
+    //     returnTo: nil,
     //     environment: nil
     // )
 

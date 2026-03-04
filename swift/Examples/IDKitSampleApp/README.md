@@ -1,7 +1,7 @@
 # IDKitSampleApp (iOS)
 
 A minimal iOS app that uses the local `IDKit` Swift package, prints the generated connector URL in the Xcode console, and calls `/api/verify-proof` after proof completion.
-The sample also appends `return_to=idkitsample://callback` to the connector URL so World App can deep-link back.
+The sample sets `returnTo = "idkitsample://callback"` in `IDKitRequestConfig` so World App can deep-link back.
 
 ## Run in Xcode
 
