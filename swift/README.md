@@ -39,6 +39,7 @@ let config = IDKitRequestConfig(
     bridgeUrl: nil,
     allowLegacyProofs: false,
     overrideConnectBaseUrl: nil,
+    returnTo: nil,
     environment: .staging
 )
 

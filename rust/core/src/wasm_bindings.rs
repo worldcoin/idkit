@@ -532,6 +532,7 @@ impl IDKitConfigWasm {
                     allow_legacy_proofs: *allow_legacy_proofs,
                     signal_hashes,
                     override_connect_base_url: override_connect_base_url.clone(),
+                    return_to: None,
                     environment: environment.as_deref().map(|e| match e {
                         "staging" => crate::bridge::Environment::Staging,
                         _ => crate::bridge::Environment::Production,
@@ -566,6 +567,7 @@ impl IDKitConfigWasm {
                     allow_legacy_proofs: false,
                     signal_hashes,
                     override_connect_base_url: override_connect_base_url.clone(),
+                    return_to: None,
                     environment: environment.as_deref().map(|e| match e {
                         "staging" => crate::bridge::Environment::Staging,
                         _ => crate::bridge::Environment::Production,
@@ -603,6 +605,7 @@ impl IDKitConfigWasm {
                     allow_legacy_proofs: false,
                     signal_hashes,
                     override_connect_base_url: override_connect_base_url.clone(),
+                    return_to: None,
                     environment: environment.as_deref().map(|e| match e {
                         "staging" => crate::bridge::Environment::Staging,
                         _ => crate::bridge::Environment::Production,

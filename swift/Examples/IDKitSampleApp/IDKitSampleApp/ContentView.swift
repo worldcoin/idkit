@@ -89,8 +89,8 @@ final class SampleModel: ObservableObject {
     @Published var logs = ""
     @Published var isLoading = false
 
-    private let signatureEndpoint = "https://tfh-takis.ngrok.dev/api/rp-signature"
-    private let verifyEndpoint = "https://tfh-takis.ngrok.dev/api/verify-proof"
+    private let signatureEndpoint = "https://idkit-js-example.vercel.app/api/rp-signature"
+    private let verifyEndpoint = "https://idkit-js-example.vercel.app/api/verify-proof"
     private let returnToURL = "idkitsample://callback"
 
     private let session = URLSession.shared
@@ -123,6 +123,7 @@ final class SampleModel: ObservableObject {
                 bridgeUrl: nil,
                 allowLegacyProofs: false,
                 overrideConnectBaseUrl: nil,
+                returnTo: returnToURL,
                 environment: {
                     switch environment {
                     case .production: return .production
@@ -131,17 +132,16 @@ final class SampleModel: ObservableObject {
                 }()
             )
 
-            let request = try IDKit.request(config: config).preset(selfieCheckLegacy(signal: signal))
+            let request = try IDKit.request(config: config).preset(orbLegacy(signal: signal))
 
             completionTask?.cancel()
-            let connectorURLWithReturnTo = try addReturnTo(to: request.connectorURL)
-            connectorURL = connectorURLWithReturnTo
+            connectorURL = request.connectorURL
             pendingRequest = request
             deepLinkReceivedForPendingRequest = false
 
-            print("IDKit connector URL: \(connectorURLWithReturnTo.absoluteString)")
+            print("IDKit connector URL: \(request.connectorURL.absoluteString)")
             log("Generated request ID: \(request.requestID.uuidString)")
-            log("Added return_to callback: \(returnToURL)")
+            log("Configured return_to callback: \(returnToURL)")
             startPollingForRequest(request: request, reason: "request generation")
         } catch {
             log("Error: \(error.localizedDescription)")
@@ -314,32 +314,6 @@ final class SampleModel: ObservableObject {
         return string
     }
 
-    private func addReturnTo(to connectorURL: URL) throws -> URL {
-        let trimmedReturnTo = returnToURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedReturnTo.isEmpty else {
-            return connectorURL
-        }
-
-        guard URL(string: trimmedReturnTo) != nil else {
-            throw SampleError.invalidReturnToURL(trimmedReturnTo)
-        }
-
-        guard var components = URLComponents(url: connectorURL, resolvingAgainstBaseURL: false) else {
-            throw SampleError.invalidConnectorURL(connectorURL.absoluteString)
-        }
-
-        var queryItems = components.queryItems ?? []
-        queryItems.removeAll(where: { $0.name == "return_to" })
-        queryItems.append(URLQueryItem(name: "return_to", value: trimmedReturnTo))
-        components.queryItems = queryItems
-
-        guard let finalURL = components.url else {
-            throw SampleError.invalidConnectorURL(connectorURL.absoluteString)
-        }
-
-        return finalURL
-    }
-
     private func log(_ message: String) {
         let timestamp = ISO8601DateFormatter().string(from: Date())
         logs += "[\(timestamp)] \(message)\n"
@@ -360,8 +334,6 @@ private struct SignatureRequest: Encodable {
 
 private enum SampleError: LocalizedError {
     case invalidURL(String)
-    case invalidConnectorURL(String)
-    case invalidReturnToURL(String)
     case badResponse
     case verifyFailed(statusCode: Int, body: String)
 
@@ -369,10 +341,6 @@ private enum SampleError: LocalizedError {
         switch self {
         case .invalidURL(let raw):
             return "Invalid endpoint URL: \(raw)"
-        case .invalidConnectorURL(let raw):
-            return "Invalid connector URL: \(raw)"
-        case .invalidReturnToURL(let raw):
-            return "Invalid return_to URL: \(raw)"
         case .badResponse:
             return "Backend returned a non-2xx response"
         case .verifyFailed(let statusCode, let body):
