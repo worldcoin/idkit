@@ -100,6 +100,7 @@ export function DemoClient(): ReactElement {
   const [widgetPresetKind, setWidgetPresetKind] = useState<PresetKind>("orb");
   const [widgetSignal, setWidgetSignal] = useState("demo-signal-initial");
   const [action, setAction] = useState("test-action");
+  const [overrideBaseUrl, setOverrideBaseUrl] = useState("");
   const [environment, setEnvironment] = useState<"production" | "staging">(
     "production",
   );
@@ -190,6 +191,17 @@ export function DemoClient(): ReactElement {
             <option value="staging">Staging</option>
           </select>
         </div>
+
+        <div className="config-row">
+          <label htmlFor="cfgOverrideUrl">Override Url</label>
+          <input
+            type="text"
+            id="cfgOverrideUrl"
+            value={overrideBaseUrl}
+            placeholder="https://staging.world.org./verify"
+            onChange={(e) => setOverrideBaseUrl(e.target.value)}
+          />
+        </div>
       </section>
 
       <div className="stack">
@@ -227,6 +239,7 @@ export function DemoClient(): ReactElement {
             setWidgetError(`Verification failed: ${errorCode}`);
           }}
           environment={environment}
+          override_connect_base_url={overrideBaseUrl || undefined}
         />
       )}
 
