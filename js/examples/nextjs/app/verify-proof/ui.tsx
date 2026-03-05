@@ -113,7 +113,8 @@ function parseExpectedInput(raw: unknown): InputPayload {
     const proof = readString(item.proof);
     const nullifier = readString(item.nullifier);
     const expiresAtMin = readInteger(item.expires_at_min);
-    const signalHash = readString(item.signal_hash) ?? undefined;
+    // todo: the default should dev portal side
+    const signalHash = readString(item.signal_hash) ?? "0x0";
 
     if (!identifier) {
       throw new Error(`responses[${index}].identifier is required`);
