@@ -69,6 +69,11 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 button.secondary {
   border-color: var(--border-color);
   background: transparent;
@@ -135,4 +140,18 @@ pre {
 
 .config-row input[type="text"][readonly] {
   opacity: 0.5;
+}
+
+.json-input {
+  width: 100%;
+  min-height: 260px;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--button-bg);
+  color: var(--text-color);
+  resize: vertical;
 }
