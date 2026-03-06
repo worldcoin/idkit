@@ -2633,6 +2633,7 @@ name = "idkit-core"
 version = "4.0.0"
 dependencies = [
  "aes-gcm",
+ "alloy",
  "alloy-primitives 1.5.7",
  "alloy-sol-types 0.8.26",
  "base64",
@@ -2646,6 +2647,7 @@ dependencies = [
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
+ "taceo-oprf",
  "thiserror 1.0.69",
  "time",
  "tiny-keccak",

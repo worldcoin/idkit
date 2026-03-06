@@ -8,9 +8,8 @@
 //! The underlying protocol types use string identifiers and lifetimes,
 //! which allows them to be decoupled (potentially replaced by an external crate).
 
-use crate::protocol_types::{
-    ConstraintExpr as ProtocolExpr, ConstraintNode as ProtocolNode,
-    CredentialRequest as ProtocolCredentialRequest,
+use world_id_primitives::{
+    ConstraintExpr as ProtocolExpr, ConstraintNode as ProtocolNode, RequestItem,
 };
 use crate::types::{CredentialRequest, CredentialType};
 use serde::{Deserialize, Serialize};
@@ -256,10 +255,10 @@ impl ConstraintNode {
     /// Returns an error if any `CredentialRequest` cannot be converted to protocol format
     pub fn to_protocol(
         &self,
-    ) -> crate::Result<(Vec<ProtocolCredentialRequest>, ProtocolExpr<'static>)> {
+    ) -> crate::Result<(Vec<RequestItem>, ProtocolExpr<'static>)> {
         // Extract unique request items and convert to protocol
         let items = self.collect_items();
-        let protocol_items: Vec<ProtocolCredentialRequest> = items
+        let protocol_items: Vec<RequestItem> = items
             .iter()
             .map(|item| item.to_protocol_item())
             .collect::<crate::Result<Vec<_>>>()?;
@@ -297,12 +296,12 @@ impl ConstraintNode {
     pub fn to_protocol_top_level(
         &self,
     ) -> crate::Result<(
-        Vec<ProtocolCredentialRequest>,
+        Vec<RequestItem>,
         Option<ProtocolExpr<'static>>,
     )> {
         // Extract unique request items and convert to protocol
         let items = self.collect_items();
-        let protocol_items: Vec<ProtocolCredentialRequest> = items
+        let protocol_items: Vec<RequestItem> = items
             .iter()
             .map(|item| item.to_protocol_item())
             .collect::<crate::Result<Vec<_>>>()?;

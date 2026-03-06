@@ -262,12 +262,12 @@ impl CredentialRequest {
         self.signal.as_ref().map(Signal::to_bytes)
     }
 
-    /// Converts to a protocol `CredentialRequest`
+    /// Converts to a protocol `RequestItem`
     ///
     /// # Errors
     ///
     /// Returns an error if the credential type cannot be mapped to an issuer schema ID
-    pub fn to_protocol_item(&self) -> crate::Result<crate::protocol_types::CredentialRequest> {
+    pub fn to_protocol_item(&self) -> crate::Result<world_id_primitives::RequestItem> {
         use crate::issuer_schema::credential_to_issuer_schema_id;
 
         let identifier = self.credential_type.as_str().to_string();
@@ -278,7 +278,7 @@ impl CredentialRequest {
         // Hash signal if present
         let signal = self.signal.as_ref().map(crate::crypto::hash_signal);
 
-        Ok(crate::protocol_types::CredentialRequest::new(
+        Ok(world_id_primitives::RequestItem::new(
             identifier,
             issuer_schema_id,
             signal,

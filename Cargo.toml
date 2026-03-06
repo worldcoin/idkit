@@ -50,9 +50,13 @@ url = "2.5"
 urlencoding = "2.1"
 
 # Solidity ABI types
+alloy = { version = "1.7.3", default-features = false, features = ["signer-local", "sol-types"] }
 alloy-sol-types = "0.8.0"
-alloy-primitives = "1.5.2"
+alloy-primitives = "1.5.7"
 ruint = "1.11.1"
+
+# OPRF types
+taceo-oprf = { version = "0.7", default-features = false, features = ["types"] }
 
 # UniFFI
 uniffi = "0.30"
