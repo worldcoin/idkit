@@ -24,9 +24,11 @@ k256 = { version = "0.13", features = ["ecdsa"], optional = true }
 thiserror = { workspace = true }
 time = { workspace = true }
 url = { workspace = true }
+alloy = { workspace = true }
 alloy-sol-types = { workspace = true }
 alloy-primitives = { workspace = true }
 ruint = { workspace = true }
+taceo-oprf = { workspace = true }
 uniffi = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
 urlencoding = { workspace = true, optional = true }

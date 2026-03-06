@@ -1,9 +1,7 @@
 //! Issuer schema ID mapping for World ID 4.0 credentials.
 //!
 //! Maps between string credential identifiers (e.g., "orb", "face") and
-//! their corresponding `FieldElement` issuer schema IDs used in the protocol.
-
-use world_id_primitives::FieldElement;
+//! their corresponding `u64` issuer schema IDs used in the protocol.
 
 /// Maps credential identifier string to issuer schema ID.
 ///
@@ -11,16 +9,16 @@ use world_id_primitives::FieldElement;
 /// * `identifier` - Credential type string (e.g., "orb", "face", "device")
 ///
 /// # Returns
-/// * `Some(FieldElement)` - The issuer schema ID for known credentials
+/// * `Some(u64)` - The issuer schema ID for known credentials
 /// * `None` - For unknown credential identifiers
 #[must_use]
-pub fn credential_to_issuer_schema_id(identifier: &str) -> Option<FieldElement> {
+pub fn credential_to_issuer_schema_id(identifier: &str) -> Option<u64> {
     match identifier {
-        "orb" => Some(FieldElement::from(1_u64)),
-        "face" => Some(FieldElement::from(2_u64)),
-        "secure_document" => Some(FieldElement::from(3_u64)),
-        "document" => Some(FieldElement::from(4_u64)),
-        "device" => Some(FieldElement::from(5_u64)),
+        "orb" => Some(1),
+        "face" => Some(2),
+        "secure_document" => Some(3),
+        "document" => Some(4),
+        "device" => Some(5),
         _ => None,
     }
 }
@@ -28,26 +26,20 @@ pub fn credential_to_issuer_schema_id(identifier: &str) -> Option<FieldElement> 
 /// Maps issuer schema ID back to credential identifier.
 ///
 /// # Arguments
-/// * `id` - The `FieldElement` issuer schema ID
+/// * `id` - The `u64` issuer schema ID
 ///
 /// # Returns
 /// * `Some(&'static str)` - The credential identifier for known IDs
 /// * `None` - For unknown issuer schema IDs
 #[must_use]
-pub fn issuer_schema_id_to_credential(id: &FieldElement) -> Option<&'static str> {
-    // Compare directly against known values
-    if *id == FieldElement::from(1_u64) {
-        Some("orb")
-    } else if *id == FieldElement::from(2_u64) {
-        Some("face")
-    } else if *id == FieldElement::from(3_u64) {
-        Some("secure_document")
-    } else if *id == FieldElement::from(4_u64) {
-        Some("document")
-    } else if *id == FieldElement::from(5_u64) {
-        Some("device")
-    } else {
-        None
+pub fn issuer_schema_id_to_credential(id: u64) -> Option<&'static str> {
+    match id {
+        1 => Some("orb"),
+        2 => Some("face"),
+        3 => Some("secure_document"),
+        4 => Some("document"),
+        5 => Some("device"),
+        _ => None,
     }
 }
 
@@ -57,35 +49,26 @@ mod tests {
 
     #[test]
     fn test_credential_to_issuer_schema_id() {
-        assert!(credential_to_issuer_schema_id("orb").is_some());
-        assert!(credential_to_issuer_schema_id("face").is_some());
-        assert!(credential_to_issuer_schema_id("secure_document").is_some());
-        assert!(credential_to_issuer_schema_id("document").is_some());
-        assert!(credential_to_issuer_schema_id("device").is_some());
-        assert!(credential_to_issuer_schema_id("unknown").is_none());
+        assert_eq!(credential_to_issuer_schema_id("orb"), Some(1));
+        assert_eq!(credential_to_issuer_schema_id("face"), Some(2));
+        assert_eq!(credential_to_issuer_schema_id("secure_document"), Some(3));
+        assert_eq!(credential_to_issuer_schema_id("document"), Some(4));
+        assert_eq!(credential_to_issuer_schema_id("device"), Some(5));
+        assert_eq!(credential_to_issuer_schema_id("unknown"), None);
     }
 
     #[test]
     fn test_issuer_schema_id_to_credential() {
-        assert_eq!(
-            issuer_schema_id_to_credential(&FieldElement::from(1_u64)),
-            Some("orb")
-        );
-        assert_eq!(
-            issuer_schema_id_to_credential(&FieldElement::from(5_u64)),
-            Some("device")
-        );
-        assert_eq!(
-            issuer_schema_id_to_credential(&FieldElement::from(99_u64)),
-            None
-        );
+        assert_eq!(issuer_schema_id_to_credential(1), Some("orb"));
+        assert_eq!(issuer_schema_id_to_credential(5), Some("device"));
+        assert_eq!(issuer_schema_id_to_credential(99), None);
     }
 
     #[test]
     fn test_roundtrip() {
         for cred in ["orb", "face", "secure_document", "document", "device"] {
             let id = credential_to_issuer_schema_id(cred).unwrap();
-            assert_eq!(issuer_schema_id_to_credential(&id), Some(cred));
+            assert_eq!(issuer_schema_id_to_credential(id), Some(cred));
         }
     }
 }

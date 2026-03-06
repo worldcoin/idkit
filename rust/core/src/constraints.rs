@@ -8,14 +8,13 @@
 //! The underlying protocol types use string identifiers and lifetimes,
 //! which allows them to be decoupled (potentially replaced by an external crate).
 
-use crate::protocol_types::{
-    ConstraintExpr as ProtocolExpr, ConstraintNode as ProtocolNode,
-    CredentialRequest as ProtocolCredentialRequest,
-};
 use crate::types::{CredentialRequest, CredentialType};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashSet;
+use world_id_primitives::{
+    ConstraintExpr as ProtocolExpr, ConstraintNode as ProtocolNode, RequestItem,
+};
 
 #[cfg(feature = "ffi")]
 use std::sync::Arc;
@@ -254,12 +253,10 @@ impl ConstraintNode {
     /// # Errors
     ///
     /// Returns an error if any `CredentialRequest` cannot be converted to protocol format
-    pub fn to_protocol(
-        &self,
-    ) -> crate::Result<(Vec<ProtocolCredentialRequest>, ProtocolExpr<'static>)> {
+    pub fn to_protocol(&self) -> crate::Result<(Vec<RequestItem>, ProtocolExpr<'static>)> {
         // Extract unique request items and convert to protocol
         let items = self.collect_items();
-        let protocol_items: Vec<ProtocolCredentialRequest> = items
+        let protocol_items: Vec<RequestItem> = items
             .iter()
             .map(|item| item.to_protocol_item())
             .collect::<crate::Result<Vec<_>>>()?;
@@ -296,13 +293,10 @@ impl ConstraintNode {
     /// Returns an error if any `CredentialRequest` cannot be converted to protocol format
     pub fn to_protocol_top_level(
         &self,
-    ) -> crate::Result<(
-        Vec<ProtocolCredentialRequest>,
-        Option<ProtocolExpr<'static>>,
-    )> {
+    ) -> crate::Result<(Vec<RequestItem>, Option<ProtocolExpr<'static>>)> {
         // Extract unique request items and convert to protocol
         let items = self.collect_items();
-        let protocol_items: Vec<ProtocolCredentialRequest> = items
+        let protocol_items: Vec<RequestItem> = items
             .iter()
             .map(|item| item.to_protocol_item())
             .collect::<crate::Result<Vec<_>>>()?;
