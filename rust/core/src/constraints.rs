@@ -8,13 +8,13 @@
 //! The underlying protocol types use string identifiers and lifetimes,
 //! which allows them to be decoupled (potentially replaced by an external crate).
 
-use world_id_primitives::{
-    ConstraintExpr as ProtocolExpr, ConstraintNode as ProtocolNode, RequestItem,
-};
 use crate::types::{CredentialRequest, CredentialType};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashSet;
+use world_id_primitives::{
+    ConstraintExpr as ProtocolExpr, ConstraintNode as ProtocolNode, RequestItem,
+};
 
 #[cfg(feature = "ffi")]
 use std::sync::Arc;
@@ -253,9 +253,7 @@ impl ConstraintNode {
     /// # Errors
     ///
     /// Returns an error if any `CredentialRequest` cannot be converted to protocol format
-    pub fn to_protocol(
-        &self,
-    ) -> crate::Result<(Vec<RequestItem>, ProtocolExpr<'static>)> {
+    pub fn to_protocol(&self) -> crate::Result<(Vec<RequestItem>, ProtocolExpr<'static>)> {
         // Extract unique request items and convert to protocol
         let items = self.collect_items();
         let protocol_items: Vec<RequestItem> = items
@@ -295,10 +293,7 @@ impl ConstraintNode {
     /// Returns an error if any `CredentialRequest` cannot be converted to protocol format
     pub fn to_protocol_top_level(
         &self,
-    ) -> crate::Result<(
-        Vec<RequestItem>,
-        Option<ProtocolExpr<'static>>,
-    )> {
+    ) -> crate::Result<(Vec<RequestItem>, Option<ProtocolExpr<'static>>)> {
         // Extract unique request items and convert to protocol
         let items = self.collect_items();
         let protocol_items: Vec<RequestItem> = items
