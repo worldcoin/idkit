@@ -220,7 +220,10 @@ export function DemoClient(): ReactElement {
           preset={widgetPreset}
           onSuccess={() => {}}
           handleVerify={async (result) => {
+            setWidgetError(null);
+            setWidgetVerifyResult(null);
             const verified = await verifyProof(result);
+            setWidgetError(null);
             setWidgetVerifyResult(verified);
           }}
           onError={(errorCode) => {
