@@ -22,7 +22,9 @@ export async function POST(request: Request): Promise<Response> {
 
     const payload = await response.json();
 
-    return NextResponse.json(payload);
+    return NextResponse.json(payload, {
+      status: response.status,
+    });
   } catch (error) {
     return NextResponse.json(
       {
