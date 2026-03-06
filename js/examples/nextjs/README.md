@@ -27,3 +27,16 @@ pnpm dev
 ```
 
 Open `http://localhost:4001`.
+
+## Extra page: verify proof response
+
+For teams testing raw World ID 4.0 proof responses, open:
+
+- `http://localhost:4001/verify-proof`
+
+This page lets you:
+
+- paste a raw response JSON (`responses` required, `id` optional)
+- provide explicit `action` and `nonce` values in the form
+- parse compressed proof hex into the `proof: string[]` shape expected by Developer Portal
+- submit the mapped payload through the existing `/api/verify-proof` endpoint

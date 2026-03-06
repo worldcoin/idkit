@@ -8,11 +8,19 @@ export async function POST(request: Request): Promise<Response> {
       rp_id?: string;
       devPortalPayload?: unknown;
     };
+    const rpId = body.rp_id?.trim();
+
+    if (!rpId || !body.devPortalPayload) {
+      return NextResponse.json(
+        { error: "Missing required fields: rp_id, devPortalPayload" },
+        { status: 400 },
+      );
+    }
 
     const baseUrl =
       process.env.DEV_PORTAL_BASE_URL?.trim() || "https://developer.world.org";
 
-    const response = await fetch(`${baseUrl}/api/v4/verify/${body.rp_id}`, {
+    const response = await fetch(`${baseUrl}/api/v4/verify/${rpId}`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -22,7 +30,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const payload = await response.json();
 
-    return NextResponse.json(payload);
+    return NextResponse.json(payload, { status: response.status });
   } catch (error) {
     return NextResponse.json(
       {
