@@ -16,6 +16,7 @@ export function useIDKitFlow<TResult>(
   const [state, setState] = useState<HookState<TResult>>(
     createInitialHookState,
   );
+  const [runId, setRunId] = useState(0);
   // Mutable handle so event handlers (reset) can cancel the active polling loop.
   const abortRef = useRef<AbortController | null>(null);
   // Refs keep the effect stable (deps: [state.isOpen]) while always reading the latest values.
@@ -30,6 +31,7 @@ export function useIDKitFlow<TResult>(
     abortRef.current?.abort();
     abortRef.current = null;
     setState(createInitialHookState);
+    setRunId((id) => id + 1);
   }, []);
 
   const open = useCallback(() => {
@@ -142,7 +144,7 @@ export function useIDKitFlow<TResult>(
         abortRef.current = null;
       }
     };
-  }, [state.isOpen]);
+  }, [state.isOpen, runId]);
 
   return {
     open,
