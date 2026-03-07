@@ -14,6 +14,9 @@ import {
 
 const APP_ID = process.env.NEXT_PUBLIC_APP_ID as `app_${string}` | undefined;
 const RP_ID = process.env.NEXT_PUBLIC_RP_ID;
+const STAGING_CONNECT_BASE_URL = "https://staging.world.org/verify";
+const CONNECT_URL_OVERRIDE_TOOLTIP =
+  "Enable this to change the deeplink base URL to the staging verify endpoint. Useful when testing with a Staging iOS World App build that supports this override.";
 
 type PresetKind = "orb" | "secure_document" | "document" | "device" | "selfie";
 
@@ -103,11 +106,18 @@ export function DemoClient(): ReactElement {
   const [environment, setEnvironment] = useState<"production" | "staging">(
     "production",
   );
+  const [useStagingConnectBaseUrl, setUseStagingConnectBaseUrl] =
+    useState(false);
+  const [isConnectUrlTooltipOpen, setIsConnectUrlTooltipOpen] = useState(false);
 
   const widgetPreset = useMemo(
     () => createPreset(widgetPresetKind, widgetSignal),
     [widgetPresetKind, widgetSignal],
   );
+  const overrideConnectBaseUrl =
+    environment === "staging" && useStagingConnectBaseUrl
+      ? STAGING_CONNECT_BASE_URL
+      : undefined;
 
   useEffect(() => {
     document.documentElement.setAttribute(
@@ -115,6 +125,13 @@ export function DemoClient(): ReactElement {
       isLightTheme ? "light" : "dark",
     );
   }, [isLightTheme]);
+
+  useEffect(() => {
+    if (environment !== "staging") {
+      setUseStagingConnectBaseUrl(false);
+      setIsConnectUrlTooltipOpen(false);
+    }
+  }, [environment]);
 
   const startWidgetFlow = async (presetKind: PresetKind) => {
     setWidgetError(null);
@@ -190,6 +207,51 @@ export function DemoClient(): ReactElement {
             <option value="staging">Staging</option>
           </select>
         </div>
+        {environment === "staging" && (
+          <div className="config-row">
+            <label htmlFor="cfgOverrideConnectBaseUrl">
+              Connect URL override
+            </label>
+            <div
+              className="tooltip"
+              onMouseEnter={() => setIsConnectUrlTooltipOpen(true)}
+              onMouseLeave={() => setIsConnectUrlTooltipOpen(false)}
+            >
+              <button
+                type="button"
+                className="tooltip-trigger"
+                aria-label="Explain Connect URL override"
+                aria-describedby={
+                  isConnectUrlTooltipOpen
+                    ? "connect-url-override-tooltip"
+                    : undefined
+                }
+                aria-expanded={isConnectUrlTooltipOpen}
+                onFocus={() => setIsConnectUrlTooltipOpen(true)}
+                onBlur={() => setIsConnectUrlTooltipOpen(false)}
+                onClick={() => setIsConnectUrlTooltipOpen(true)}
+              >
+                ?
+              </button>
+              {isConnectUrlTooltipOpen && (
+                <span
+                  id="connect-url-override-tooltip"
+                  role="tooltip"
+                  className="tooltip-content"
+                >
+                  {CONNECT_URL_OVERRIDE_TOOLTIP}
+                </span>
+              )}
+            </div>
+            <input
+              type="checkbox"
+              id="cfgOverrideConnectBaseUrl"
+              checked={useStagingConnectBaseUrl}
+              onChange={(e) => setUseStagingConnectBaseUrl(e.target.checked)}
+            />
+            <span className="config-note">{STAGING_CONNECT_BASE_URL}</span>
+          </div>
+        )}
       </section>
 
       <div className="stack">
@@ -227,6 +289,7 @@ export function DemoClient(): ReactElement {
             setWidgetError(`Verification failed: ${errorCode}`);
           }}
           environment={environment}
+          override_connect_base_url={overrideConnectBaseUrl}
         />
       )}
 
