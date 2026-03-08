@@ -228,23 +228,6 @@ pub enum Status {
     Failed(AppError),
 }
 
-/// Computes signal hashes from constraints
-///
-/// Returns a map from identifier (credential type) to signal hash
-#[allow(dead_code)]
-fn compute_signal_hashes(
-    constraints: &ConstraintNode,
-) -> std::collections::HashMap<String, String> {
-    let mut map = std::collections::HashMap::new();
-    for item in constraints.collect_items() {
-        if let Some(ref signal) = item.signal {
-            let hash = crate::crypto::hash_signal(signal);
-            map.insert(item.credential_type.as_str().to_string(), hash);
-        }
-    }
-    map
-}
-
 /// Parameters for creating a `BridgeConnection`
 pub struct BridgeConnectionParams {
     pub app_id: AppId,
@@ -256,14 +239,42 @@ pub struct BridgeConnectionParams {
     pub legacy_signal: String,
     pub bridge_url: Option<BridgeUrl>,
     pub allow_legacy_proofs: bool,
-    /// Signal hashes computed from constraints, keyed by identifier
-    pub signal_hashes: std::collections::HashMap<String, String>,
     /// Optional override for the connect base URL (e.g., for staging environments)
     pub override_connect_base_url: Option<String>,
     /// Optional deep-link callback URL appended as `return_to` on the connector URL
     pub return_to: Option<String>,
     /// Optional environment override (defaults to Production when not specified)
     pub environment: Option<Environment>,
+}
+
+impl BridgeConnectionParams {
+    /// Computes signal hash map for response matching.
+    ///
+    /// Contains:
+    /// - credential_type → signal_hash (from constraints, for V4 response matching)
+    /// - legacy_verification_level → hashed legacy_signal (for V3 response matching)
+    #[must_use]
+    pub fn compute_signal_hashes(&self) -> std::collections::HashMap<String, String> {
+        let mut map = std::collections::HashMap::new();
+
+        // V4: credential_type → signal_hash from constraint items
+        for item in self.constraints.collect_items() {
+            if let Some(ref signal) = item.signal {
+                let hash = crate::crypto::hash_signal(signal);
+                map.insert(item.credential_type.as_str().to_string(), hash);
+            }
+        }
+
+        // Legacy V3: verification_level → hashed legacy_signal
+        if !self.legacy_signal.is_empty() {
+            let hash = crate::crypto::hash_signal(
+                &Signal::from_string(self.legacy_signal.clone()),
+            );
+            map.insert(self.legacy_verification_level.as_str().to_string(), hash);
+        }
+
+        map
+    }
 }
 
 /// A World ID verification connection to the bridge
@@ -443,6 +454,9 @@ impl BridgeConnection {
         let payload_value = build_request_payload(&params)?;
         let payload_json = serde_json::to_vec(&payload_value)?;
 
+        // Compute signal hashes before partial moves
+        let signal_hashes = params.compute_signal_hashes();
+
         // Extract bridge_url after the borrow is done
         let bridge_url = params.bridge_url.unwrap_or_default();
 
@@ -498,7 +512,7 @@ impl BridgeConnection {
             key_bytes: key_bytes.to_vec(),
             request_id: create_response.request_id,
             client,
-            signal_hashes: params.signal_hashes,
+            signal_hashes,
             action,
             action_description: params.action_description,
             nonce: params.rp_context.nonce.clone(),
@@ -749,7 +763,6 @@ impl IDKitConfig {
                     .as_ref()
                     .map(|url| BridgeUrl::new(url, &app_id))
                     .transpose()?;
-                let signal_hashes = compute_signal_hashes(&constraints);
 
                 Ok(BridgeConnectionParams {
                     app_id,
@@ -763,7 +776,6 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: config.allow_legacy_proofs,
-                    signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -776,7 +788,6 @@ impl IDKitConfig {
                     .as_ref()
                     .map(|url| BridgeUrl::new(url, &app_id))
                     .transpose()?;
-                let signal_hashes = compute_signal_hashes(&constraints);
 
                 Ok(BridgeConnectionParams {
                     app_id,
@@ -788,7 +799,6 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -801,7 +811,6 @@ impl IDKitConfig {
                     .as_ref()
                     .map(|url| BridgeUrl::new(url, &app_id))
                     .transpose()?;
-                let signal_hashes = compute_signal_hashes(&constraints);
 
                 Ok(BridgeConnectionParams {
                     app_id,
@@ -815,7 +824,6 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -831,7 +839,6 @@ impl IDKitConfig {
         preset: Preset,
     ) -> std::result::Result<BridgeConnectionParams, crate::error::IdkitError> {
         let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
-        let signal_hashes = compute_signal_hashes(&constraints);
 
         match self {
             Self::Request(config) => {
@@ -854,7 +861,6 @@ impl IDKitConfig {
                     legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: config.allow_legacy_proofs,
-                    signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -878,7 +884,6 @@ impl IDKitConfig {
                     legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -904,7 +909,6 @@ impl IDKitConfig {
                     legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -1336,7 +1340,7 @@ mod tests {
             legacy_signal: legacy_signal.unwrap_or_default(),
             bridge_url: None,
             allow_legacy_proofs: false,
-            signal_hashes: compute_signal_hashes(&constraints),
+
             override_connect_base_url: None,
             return_to: None,
             environment: Some(Environment::Production),
@@ -1374,7 +1378,7 @@ mod tests {
             legacy_signal: legacy_signal.unwrap_or_default(),
             bridge_url: None,
             allow_legacy_proofs: false,
-            signal_hashes: compute_signal_hashes(&constraints),
+
             override_connect_base_url: None,
             return_to: None,
             environment: Some(Environment::Production),
@@ -1436,7 +1440,7 @@ mod tests {
             legacy_signal: "test-signal".to_string(),
             bridge_url: None,
             allow_legacy_proofs: false,
-            signal_hashes: compute_signal_hashes(&constraints),
+
             override_connect_base_url: None,
             return_to: None,
             environment: None,

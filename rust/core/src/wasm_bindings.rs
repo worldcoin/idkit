@@ -478,28 +478,12 @@ enum IDKitConfigWasm {
     },
 }
 
-/// Computes signal hashes from constraints
-fn compute_signal_hashes(
-    constraints: &ConstraintNode,
-) -> std::collections::HashMap<String, String> {
-    let mut map = std::collections::HashMap::new();
-    for item in constraints.collect_items() {
-        if let Some(ref signal) = item.signal {
-            let hash = crate::crypto::hash_signal(signal);
-            map.insert(item.credential_type.as_str().to_string(), hash);
-        }
-    }
-    map
-}
-
 impl IDKitConfigWasm {
     #[allow(clippy::too_many_lines)]
     fn to_params(
         &self,
         constraints: ConstraintNode,
     ) -> Result<crate::bridge::BridgeConnectionParams, JsValue> {
-        let signal_hashes = compute_signal_hashes(&constraints);
-
         match self {
             Self::Request {
                 app_id,
@@ -531,7 +515,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: *allow_legacy_proofs,
-                    signal_hashes,
+
                     override_connect_base_url: override_connect_base_url.clone(),
                     return_to: None,
                     environment: environment.as_deref().map(|e| match e {
@@ -566,7 +550,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    signal_hashes,
+
                     override_connect_base_url: override_connect_base_url.clone(),
                     return_to: None,
                     environment: environment.as_deref().map(|e| match e {
@@ -604,7 +588,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    signal_hashes,
+
                     override_connect_base_url: override_connect_base_url.clone(),
                     return_to: None,
                     environment: environment.as_deref().map(|e| match e {
@@ -736,7 +720,7 @@ impl IDKitBuilderWasm {
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
         let signal_hashes_js = params
-            .signal_hashes
+            .compute_signal_hashes()
             .serialize(&serializer)
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
@@ -777,7 +761,7 @@ impl IDKitBuilderWasm {
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
         let signal_hashes_js = params
-            .signal_hashes
+            .compute_signal_hashes()
             .serialize(&serializer)
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
@@ -819,7 +803,7 @@ impl IDKitBuilderWasm {
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
         let signal_hashes_js = params
-            .signal_hashes
+            .compute_signal_hashes()
             .serialize(&serializer)
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
