@@ -1129,7 +1129,10 @@ mod tests {
 
     #[test]
     fn test_bridge_request_payload_serialization() {
-        let item = CredentialRequest::new(CredentialType::Orb, Some(Signal::from_string("test")));
+        let item = CredentialRequest::new(
+            CredentialType::ProofOfHuman,
+            Some(Signal::from_string("test")),
+        );
         let constraints = ConstraintNode::item(item);
 
         // Create a test RpContext with valid hex nonce and signature
@@ -1268,7 +1271,7 @@ mod tests {
         let response: BridgeResponse = serde_json::from_str(json).unwrap();
         match response {
             BridgeResponse::ResponseV1(v1) => {
-                assert_eq!(v1.verification_level, CredentialType::Device);
+                assert_eq!(v1.verification_level, VerificationLevel::Device);
                 assert_eq!(v1.proof, "0xproof");
                 assert_eq!(v1.merkle_root, "0xroot");
                 assert_eq!(v1.nullifier_hash, "0xnull");
@@ -1291,7 +1294,7 @@ mod tests {
         let response: BridgeResponse = serde_json::from_str(json).unwrap();
         match response {
             BridgeResponse::ResponseV1(v1) => {
-                assert_eq!(v1.verification_level, CredentialType::Orb);
+                assert_eq!(v1.verification_level, VerificationLevel::Orb);
             }
             other => panic!("Expected ResponseV1, got: {other:?}"),
         }
@@ -1385,23 +1388,19 @@ mod tests {
     fn test_issuer_schema_id_to_credential_type() {
         assert_eq!(
             CredentialType::from_issuer_schema_id(1),
-            Some(CredentialType::Orb)
+            Some(CredentialType::ProofOfHuman)
         );
         assert_eq!(
-            CredentialType::from_issuer_schema_id(2),
+            CredentialType::from_issuer_schema_id(11),
             Some(CredentialType::Face)
         );
         assert_eq!(
-            CredentialType::from_issuer_schema_id(3),
-            Some(CredentialType::SecureDocument)
+            CredentialType::from_issuer_schema_id(9303),
+            Some(CredentialType::Passport)
         );
         assert_eq!(
-            CredentialType::from_issuer_schema_id(4),
-            Some(CredentialType::Document)
-        );
-        assert_eq!(
-            CredentialType::from_issuer_schema_id(5),
-            Some(CredentialType::Device)
+            CredentialType::from_issuer_schema_id(9310),
+            Some(CredentialType::Mnc)
         );
         assert_eq!(CredentialType::from_issuer_schema_id(99), None);
     }
@@ -1419,7 +1418,10 @@ mod tests {
         )
         .unwrap();
 
-        let item = CredentialRequest::new(CredentialType::Orb, Some(Signal::from_string("test")));
+        let item = CredentialRequest::new(
+            CredentialType::ProofOfHuman,
+            Some(Signal::from_string("test")),
+        );
         let constraints = ConstraintNode::item(item);
 
         let params = BridgeConnectionParams {

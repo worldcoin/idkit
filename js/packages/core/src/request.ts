@@ -138,16 +138,16 @@ class IDKitRequestImpl implements IDKitRequest {
 /**
  * Creates a CredentialRequest for a credential type
  *
- * @param credential_type - The type of credential to request (e.g., 'orb', 'face')
+ * @param credential_type - The type of credential to request (e.g., 'proof_of_human', 'face')
  * @param options - Optional signal, genesis_issued_at_min, and expires_at_min
  * @returns A CredentialRequest object
  *
  * @example
  * ```typescript
- * const orb = CredentialRequest('orb', { signal: 'user-123' })
+ * const orb = CredentialRequest('proof_of_human', { signal: 'user-123' })
  * const face = CredentialRequest('face')
  * // Require credential to be valid for at least one year
- * const withExpiry = CredentialRequest('orb', { expires_at_min: Date.now() / 1000 + 60 * 60 * 60 * 24 * 365 })
+ * const withExpiry = CredentialRequest('proof_of_human', { expires_at_min: Date.now() / 1000 + 60 * 60 * 60 * 24 * 365 })
  * ```
  */
 export function CredentialRequest(
@@ -174,7 +174,7 @@ export function CredentialRequest(
  *
  * @example
  * ```typescript
- * const constraint = any(CredentialRequest('orb'), CredentialRequest('face'))
+ * const constraint = any(CredentialRequest('proof_of_human'), CredentialRequest('face'))
  * ```
  */
 export function any(...nodes: ConstraintNode[]): { any: ConstraintNode[] } {
@@ -189,7 +189,7 @@ export function any(...nodes: ConstraintNode[]): { any: ConstraintNode[] } {
  *
  * @example
  * ```typescript
- * const constraint = all(CredentialRequest('orb'), any(CredentialRequest('document'), CredentialRequest('secure_document')))
+ * const constraint = all(CredentialRequest('proof_of_human'), any(CredentialRequest('passport'), CredentialRequest('mnc')))
  * ```
  */
 export function all(...nodes: ConstraintNode[]): { all: ConstraintNode[] } {
@@ -207,8 +207,8 @@ export function all(...nodes: ConstraintNode[]): { all: ConstraintNode[] } {
  * @example
  * ```typescript
  * const constraint = enumerate(
- *   CredentialRequest('secure_document'),
- *   CredentialRequest('document'),
+ *   CredentialRequest('passport'),
+ *   CredentialRequest('mnc'),
  * )
  * ```
  */
@@ -425,7 +425,7 @@ class IDKitBuilder {
    * @example
    * ```typescript
    * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: false })
-   *   .constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
+   *   .constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('face')));
    * ```
    */
   async constraints(constraints: ConstraintNode): Promise<IDKitRequest> {
@@ -562,7 +562,7 @@ class IDKitBuilder {
  *   action: 'my-action',
  *   rp_context: { ... },
  *   allow_legacy_proofs: false,
- * }).constraints(enumerate(CredentialRequest('orb'), CredentialRequest('face')));
+ * }).constraints(enumerate(CredentialRequest('proof_of_human'), CredentialRequest('face')));
  *
  * // In World App: connectorURI is empty, result comes via postMessage
  * // On web: connectorURI is the QR URL to display
@@ -623,7 +623,7 @@ function createRequest(config: IDKitRequestConfig): IDKitBuilder {
  * const request = await IDKit.createSession({
  *   app_id: 'app_staging_xxxxx',
  *   rp_context: { ... },
- * }).constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
+ * }).constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('face')));
  *
  * // Display QR, wait for proof
  * const result = await request.pollUntilCompletion();
@@ -671,7 +671,7 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
  * const request = await IDKit.proveSession(savedSessionId, {
  *   app_id: 'app_staging_xxxxx',
  *   rp_context: { ... },
- * }).constraints(any(CredentialRequest('orb'), CredentialRequest('face')));
+ * }).constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('face')));
  *
  * const result = await request.pollUntilCompletion();
  * // result.session_id -> same session

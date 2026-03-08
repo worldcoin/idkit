@@ -114,12 +114,14 @@ impl Preset {
     /// - `ConstraintNode` - World ID 4.0 constraint tree
     /// - `VerificationLevel` - World ID 3.0 legacy verification level
     /// - `Option<String>` - Legacy signal string (if configured)
+    // TODO: This should be removed it was introduced to keep legacy preset compatible with proof_request
+    // TODO: but we decided to keep legacy presets only 3.0, will tackle separately
     #[must_use]
     pub fn to_bridge_params(&self) -> (ConstraintNode, VerificationLevel, Option<String>) {
         match self {
             Self::OrbLegacy { signal } => {
                 let signal_opt = signal.as_ref().map(|s| Signal::from_string(s.clone()));
-                let orb = CredentialRequest::new(CredentialType::Orb, signal_opt);
+                let orb = CredentialRequest::new(CredentialType::ProofOfHuman, signal_opt);
                 let constraints = ConstraintNode::Item(orb); // OrbLegacy doesn't need constraints
                 let legacy_verification_level = VerificationLevel::Orb;
                 let legacy_signal = signal.clone();
@@ -128,11 +130,11 @@ impl Preset {
             }
             Self::SecureDocumentLegacy { signal } => {
                 let signal_opt = signal.as_ref().map(|s| Signal::from_string(s.clone()));
-                let orb = CredentialRequest::new(CredentialType::Orb, signal_opt.clone());
-                let secure_doc = CredentialRequest::new(CredentialType::SecureDocument, signal_opt);
+                let orb = CredentialRequest::new(CredentialType::ProofOfHuman, signal_opt.clone());
+                let passport = CredentialRequest::new(CredentialType::Passport, signal_opt);
                 let constraints = ConstraintNode::any(vec![
                     ConstraintNode::Item(orb),
-                    ConstraintNode::Item(secure_doc),
+                    ConstraintNode::Item(passport),
                 ]);
                 let legacy_verification_level = VerificationLevel::SecureDocument;
                 let legacy_signal = signal.clone();
@@ -141,14 +143,11 @@ impl Preset {
             }
             Self::DocumentLegacy { signal } => {
                 let signal_opt = signal.as_ref().map(|s| Signal::from_string(s.clone()));
-                let orb = CredentialRequest::new(CredentialType::Orb, signal_opt.clone());
-                let secure_doc =
-                    CredentialRequest::new(CredentialType::SecureDocument, signal_opt.clone());
-                let doc = CredentialRequest::new(CredentialType::Document, signal_opt);
+                let orb = CredentialRequest::new(CredentialType::ProofOfHuman, signal_opt.clone());
+                let passport = CredentialRequest::new(CredentialType::Passport, signal_opt.clone());
                 let constraints = ConstraintNode::any(vec![
                     ConstraintNode::Item(orb),
-                    ConstraintNode::Item(secure_doc),
-                    ConstraintNode::Item(doc),
+                    ConstraintNode::Item(passport),
                 ]);
                 let legacy_verification_level = VerificationLevel::Document;
                 let legacy_signal = signal.clone();
@@ -166,12 +165,8 @@ impl Preset {
             }
             Self::DeviceLegacy { signal } => {
                 let signal_opt = signal.as_ref().map(|s| Signal::from_string(s.clone()));
-                let orb = CredentialRequest::new(CredentialType::Orb, signal_opt.clone());
-                let device = CredentialRequest::new(CredentialType::Device, signal_opt);
-                let constraints = ConstraintNode::any(vec![
-                    ConstraintNode::Item(orb),
-                    ConstraintNode::Item(device),
-                ]);
+                let orb = CredentialRequest::new(CredentialType::ProofOfHuman, signal_opt);
+                let constraints = ConstraintNode::Item(orb);
                 let legacy_verification_level = VerificationLevel::Device;
                 let legacy_signal = signal.clone();
 
@@ -220,7 +215,7 @@ mod tests {
     }
 
     #[test]
-    fn device_legacy_preset_builds_orb_or_device_constraints_and_device_legacy_level() {
+    fn device_legacy_preset_builds_orb_only_constraints_and_device_legacy_level() {
         let preset = Preset::device_legacy(Some("device-signal".to_string()));
         let (constraints, verification_level, legacy_signal) = preset.to_bridge_params();
 
@@ -228,21 +223,11 @@ mod tests {
         assert_eq!(legacy_signal, Some("device-signal".to_string()));
 
         match constraints {
-            ConstraintNode::Any { any } => {
-                assert_eq!(any.len(), 2);
-                match (&any[0], &any[1]) {
-                    (ConstraintNode::Item(orb), ConstraintNode::Item(device)) => {
-                        assert_eq!(orb.credential_type, CredentialType::Orb);
-                        assert_eq!(orb.signal, Some(Signal::from_string("device-signal")));
-                        assert_eq!(device.credential_type, CredentialType::Device);
-                        assert_eq!(device.signal, Some(Signal::from_string("device-signal")));
-                    }
-                    _ => {
-                        panic!("expected deviceLegacy constraints to contain orb and device items")
-                    }
-                }
+            ConstraintNode::Item(orb) => {
+                assert_eq!(orb.credential_type, CredentialType::ProofOfHuman);
+                assert_eq!(orb.signal, Some(Signal::from_string("device-signal")));
             }
-            _ => panic!("expected deviceLegacy constraints to be an any() node"),
+            _ => panic!("expected deviceLegacy constraints to be a single orb item"),
         }
     }
 
@@ -255,21 +240,11 @@ mod tests {
         assert_eq!(legacy_signal, None);
 
         match constraints {
-            ConstraintNode::Any { any } => {
-                assert_eq!(any.len(), 2);
-                match (&any[0], &any[1]) {
-                    (ConstraintNode::Item(orb), ConstraintNode::Item(device)) => {
-                        assert_eq!(orb.credential_type, CredentialType::Orb);
-                        assert_eq!(orb.signal, None);
-                        assert_eq!(device.credential_type, CredentialType::Device);
-                        assert_eq!(device.signal, None);
-                    }
-                    _ => {
-                        panic!("expected deviceLegacy constraints to contain orb and device items")
-                    }
-                }
+            ConstraintNode::Item(orb) => {
+                assert_eq!(orb.credential_type, CredentialType::ProofOfHuman);
+                assert_eq!(orb.signal, None);
             }
-            _ => panic!("expected deviceLegacy constraints to be an any() node"),
+            _ => panic!("expected deviceLegacy constraints to be a single orb item"),
         }
     }
 }

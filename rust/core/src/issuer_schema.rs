@@ -1,12 +1,12 @@
 //! Issuer schema ID mapping for World ID 4.0 credentials.
 //!
-//! Maps between string credential identifiers (e.g., "orb", "face") and
+//! Maps between string credential identifiers (e.g., "proof_of_human", "face") and
 //! their corresponding `u64` issuer schema IDs used in the protocol.
 
 /// Maps credential identifier string to issuer schema ID.
 ///
 /// # Arguments
-/// * `identifier` - Credential type string (e.g., "orb", "face", "device")
+/// * `identifier` - Credential type string (e.g., "proof_of_human", "face", "passport")
 ///
 /// # Returns
 /// * `Some(u64)` - The issuer schema ID for known credentials
@@ -14,11 +14,10 @@
 #[must_use]
 pub fn credential_to_issuer_schema_id(identifier: &str) -> Option<u64> {
     match identifier {
-        "orb" => Some(1),
-        "face" => Some(2),
-        "secure_document" => Some(3),
-        "document" => Some(4),
-        "device" => Some(5),
+        "proof_of_human" => Some(1),
+        "face" => Some(11),
+        "passport" => Some(9303),
+        "mnc" => Some(9310),
         _ => None,
     }
 }
@@ -34,11 +33,10 @@ pub fn credential_to_issuer_schema_id(identifier: &str) -> Option<u64> {
 #[must_use]
 pub fn issuer_schema_id_to_credential(id: u64) -> Option<&'static str> {
     match id {
-        1 => Some("orb"),
-        2 => Some("face"),
-        3 => Some("secure_document"),
-        4 => Some("document"),
-        5 => Some("device"),
+        1 => Some("proof_of_human"),
+        11 => Some("face"),
+        9303 => Some("passport"),
+        9310 => Some("mnc"),
         _ => None,
     }
 }
@@ -49,24 +47,23 @@ mod tests {
 
     #[test]
     fn test_credential_to_issuer_schema_id() {
-        assert_eq!(credential_to_issuer_schema_id("orb"), Some(1));
-        assert_eq!(credential_to_issuer_schema_id("face"), Some(2));
-        assert_eq!(credential_to_issuer_schema_id("secure_document"), Some(3));
-        assert_eq!(credential_to_issuer_schema_id("document"), Some(4));
-        assert_eq!(credential_to_issuer_schema_id("device"), Some(5));
+        assert_eq!(credential_to_issuer_schema_id("proof_of_human"), Some(1));
+        assert_eq!(credential_to_issuer_schema_id("face"), Some(11));
+        assert_eq!(credential_to_issuer_schema_id("passport"), Some(9303));
+        assert_eq!(credential_to_issuer_schema_id("mnc"), Some(9310));
         assert_eq!(credential_to_issuer_schema_id("unknown"), None);
     }
 
     #[test]
     fn test_issuer_schema_id_to_credential() {
-        assert_eq!(issuer_schema_id_to_credential(1), Some("orb"));
-        assert_eq!(issuer_schema_id_to_credential(5), Some("device"));
+        assert_eq!(issuer_schema_id_to_credential(1), Some("proof_of_human"));
+        assert_eq!(issuer_schema_id_to_credential(9310), Some("mnc"));
         assert_eq!(issuer_schema_id_to_credential(99), None);
     }
 
     #[test]
     fn test_roundtrip() {
-        for cred in ["orb", "face", "secure_document", "document", "device"] {
+        for cred in ["proof_of_human", "face", "passport", "mnc"] {
             let id = credential_to_issuer_schema_id(cred).unwrap();
             assert_eq!(issuer_schema_id_to_credential(id), Some(cred));
         }

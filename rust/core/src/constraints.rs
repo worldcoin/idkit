@@ -382,47 +382,43 @@ impl ConstraintNode {
 mod tests {
     use super::*;
 
-    fn orb_item() -> CredentialRequest {
-        CredentialRequest::new(CredentialType::Orb, None)
+    fn poh_item() -> CredentialRequest {
+        CredentialRequest::new(CredentialType::ProofOfHuman, None)
     }
 
     fn face_item() -> CredentialRequest {
         CredentialRequest::new(CredentialType::Face, None)
     }
 
-    fn device_item() -> CredentialRequest {
-        CredentialRequest::new(CredentialType::Device, None)
+    fn passport_item() -> CredentialRequest {
+        CredentialRequest::new(CredentialType::Passport, None)
     }
 
-    fn document_item() -> CredentialRequest {
-        CredentialRequest::new(CredentialType::Document, None)
-    }
-
-    fn secure_document_item() -> CredentialRequest {
-        CredentialRequest::new(CredentialType::SecureDocument, None)
+    fn mnc_item() -> CredentialRequest {
+        CredentialRequest::new(CredentialType::Mnc, None)
     }
 
     #[test]
     fn test_item_node() {
-        let node = ConstraintNode::item(orb_item());
+        let node = ConstraintNode::item(poh_item());
         let mut available = HashSet::new();
-        available.insert(CredentialType::Orb);
+        available.insert(CredentialType::ProofOfHuman);
 
         assert!(node.evaluate(&available));
-        assert_eq!(node.first_satisfying(&available), Some(CredentialType::Orb));
+        assert_eq!(node.first_satisfying(&available), Some(CredentialType::ProofOfHuman));
     }
 
     #[test]
     fn test_any_node() {
         let node = ConstraintNode::any(vec![
-            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(poh_item()),
             ConstraintNode::item(face_item()),
-            ConstraintNode::item(device_item()),
+            ConstraintNode::item(passport_item()),
         ]);
 
         let mut available = HashSet::new();
         available.insert(CredentialType::Face);
-        available.insert(CredentialType::Device);
+        available.insert(CredentialType::Passport);
 
         assert!(node.evaluate(&available));
         // Should return Face because it's first in priority order
@@ -434,29 +430,29 @@ mod tests {
 
     #[test]
     fn test_any_node_priority() {
-        // Orb has highest priority, Face second
+        // ProofOfHuman has highest priority, Face second
         let node = ConstraintNode::any(vec![
-            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(poh_item()),
             ConstraintNode::item(face_item()),
         ]);
 
         let mut available = HashSet::new();
         available.insert(CredentialType::Face);
-        available.insert(CredentialType::Orb);
+        available.insert(CredentialType::ProofOfHuman);
 
-        // Even though both are available, Orb should be selected (higher priority)
-        assert_eq!(node.first_satisfying(&available), Some(CredentialType::Orb));
+        // Even though both are available, ProofOfHuman should be selected (higher priority)
+        assert_eq!(node.first_satisfying(&available), Some(CredentialType::ProofOfHuman));
     }
 
     #[test]
     fn test_all_node() {
         let node = ConstraintNode::all(vec![
-            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(poh_item()),
             ConstraintNode::item(face_item()),
         ]);
 
         let mut available = HashSet::new();
-        available.insert(CredentialType::Orb);
+        available.insert(CredentialType::ProofOfHuman);
 
         // Only one is available, should fail
         assert!(!node.evaluate(&available));
@@ -472,17 +468,17 @@ mod tests {
     fn test_enumerate_node() {
         let node = ConstraintNode::enumerate(vec![
             ConstraintNode::item(face_item()),
-            ConstraintNode::item(device_item()),
+            ConstraintNode::item(passport_item()),
         ]);
 
         let mut available = HashSet::new();
-        available.insert(CredentialType::Device);
+        available.insert(CredentialType::Passport);
 
         // Enumerate is satisfied when at least one child is available.
         assert!(node.evaluate(&available));
         assert_eq!(
             node.first_satisfying(&available),
-            Some(CredentialType::Device)
+            Some(CredentialType::Passport)
         );
 
         available.clear();
@@ -491,29 +487,29 @@ mod tests {
 
     #[test]
     fn test_nested_constraints() {
-        // Orb OR (secure_document OR document)
+        // ProofOfHuman OR (passport OR mnc)
         let node = ConstraintNode::any(vec![
-            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(poh_item()),
             ConstraintNode::any(vec![
-                ConstraintNode::item(secure_document_item()),
-                ConstraintNode::item(document_item()),
+                ConstraintNode::item(passport_item()),
+                ConstraintNode::item(mnc_item()),
             ]),
         ]);
 
         let mut available = HashSet::new();
-        available.insert(CredentialType::Document);
+        available.insert(CredentialType::Mnc);
 
         assert!(node.evaluate(&available));
         assert_eq!(
             node.first_satisfying(&available),
-            Some(CredentialType::Document)
+            Some(CredentialType::Mnc)
         );
     }
 
     #[test]
     fn test_face_orb_example() {
         let node = ConstraintNode::any(vec![
-            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(poh_item()),
             ConstraintNode::item(face_item()),
         ]);
 
@@ -527,25 +523,25 @@ mod tests {
             Some(CredentialType::Face)
         );
 
-        // Both available - orb has priority
-        available.insert(CredentialType::Orb);
-        assert_eq!(node.first_satisfying(&available), Some(CredentialType::Orb));
+        // Both available - proof_of_human has priority
+        available.insert(CredentialType::ProofOfHuman);
+        assert_eq!(node.first_satisfying(&available), Some(CredentialType::ProofOfHuman));
     }
 
     #[test]
     fn test_credential_categories_example() {
-        // Example: Orb AND (secure_document OR document)
+        // Example: ProofOfHuman AND (passport OR mnc)
         let node = ConstraintNode::all(vec![
-            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(poh_item()),
             ConstraintNode::any(vec![
-                ConstraintNode::item(secure_document_item()),
-                ConstraintNode::item(document_item()),
+                ConstraintNode::item(passport_item()),
+                ConstraintNode::item(mnc_item()),
             ]),
         ]);
 
         let mut available = HashSet::new();
-        available.insert(CredentialType::Orb);
-        available.insert(CredentialType::Document);
+        available.insert(CredentialType::ProofOfHuman);
+        available.insert(CredentialType::Mnc);
 
         assert!(node.evaluate(&available));
     }
@@ -553,27 +549,27 @@ mod tests {
     #[test]
     fn test_collect_credential_types() {
         let node = ConstraintNode::any(vec![
-            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(poh_item()),
             ConstraintNode::all(vec![
                 ConstraintNode::item(face_item()),
-                ConstraintNode::item(device_item()),
+                ConstraintNode::item(passport_item()),
             ]),
         ]);
 
         let credentials = node.collect_credential_types();
         assert_eq!(credentials.len(), 3);
-        assert!(credentials.contains(&CredentialType::Orb));
+        assert!(credentials.contains(&CredentialType::ProofOfHuman));
         assert!(credentials.contains(&CredentialType::Face));
-        assert!(credentials.contains(&CredentialType::Device));
+        assert!(credentials.contains(&CredentialType::Passport));
     }
 
     #[test]
     fn test_collect_items() {
         let node = ConstraintNode::any(vec![
-            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(poh_item()),
             ConstraintNode::all(vec![
                 ConstraintNode::item(face_item()),
-                ConstraintNode::item(device_item()),
+                ConstraintNode::item(passport_item()),
             ]),
         ]);
 
@@ -583,7 +579,7 @@ mod tests {
 
     #[test]
     fn test_validation() {
-        let valid = ConstraintNode::any(vec![ConstraintNode::item(orb_item())]);
+        let valid = ConstraintNode::any(vec![ConstraintNode::item(poh_item())]);
         assert!(valid.validate().is_ok());
 
         let invalid = ConstraintNode::any(vec![]);
@@ -596,7 +592,7 @@ mod tests {
     #[test]
     fn test_serialization() {
         let node = ConstraintNode::any(vec![
-            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(poh_item()),
             ConstraintNode::item(face_item()),
         ]);
 
@@ -614,7 +610,7 @@ mod tests {
     fn test_to_protocol() {
         // Test any constraint
         let node = ConstraintNode::any(vec![
-            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(poh_item()),
             ConstraintNode::item(face_item()),
         ]);
         let (items, expr) = node.to_protocol().unwrap();
@@ -622,29 +618,29 @@ mod tests {
         assert_eq!(items.len(), 2);
         let json = serde_json::to_string(&expr).unwrap();
         assert!(json.contains("any"));
-        assert!(json.contains("orb"));
+        assert!(json.contains("proof_of_human"));
         assert!(json.contains("face"));
     }
 
     #[test]
     fn test_to_protocol_enumerate() {
         let node = ConstraintNode::enumerate(vec![
-            ConstraintNode::item(document_item()),
-            ConstraintNode::item(device_item()),
+            ConstraintNode::item(passport_item()),
+            ConstraintNode::item(mnc_item()),
         ]);
         let (items, expr) = node.to_protocol().unwrap();
 
         assert_eq!(items.len(), 2);
         let json = serde_json::to_string(&expr).unwrap();
         assert!(json.contains("enumerate"));
-        assert!(json.contains("document"));
-        assert!(json.contains("device"));
+        assert!(json.contains("passport"));
+        assert!(json.contains("mnc"));
     }
 
     #[test]
     fn test_to_protocol_top_level_single_item() {
         // Single item should not have constraint expression
-        let node = ConstraintNode::item(orb_item());
+        let node = ConstraintNode::item(poh_item());
         let (items, expr) = node.to_protocol_top_level().unwrap();
 
         assert_eq!(items.len(), 1);
@@ -655,7 +651,7 @@ mod tests {
     fn test_to_protocol_top_level_multiple() {
         // Multiple items should have constraint expression
         let node = ConstraintNode::any(vec![
-            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(poh_item()),
             ConstraintNode::item(face_item()),
         ]);
         let (items, expr) = node.to_protocol_top_level().unwrap();
@@ -666,12 +662,12 @@ mod tests {
 
     #[test]
     fn test_to_protocol_nested() {
-        // Test nested constraint: all(orb, enumerate(document, device))
+        // Test nested constraint: all(proof_of_human, enumerate(passport, mnc))
         let nested = ConstraintNode::all(vec![
-            ConstraintNode::item(orb_item()),
+            ConstraintNode::item(poh_item()),
             ConstraintNode::enumerate(vec![
-                ConstraintNode::item(document_item()),
-                ConstraintNode::item(device_item()),
+                ConstraintNode::item(passport_item()),
+                ConstraintNode::item(mnc_item()),
             ]),
         ]);
         let (items, expr) = nested.to_protocol().unwrap();
@@ -680,8 +676,8 @@ mod tests {
         let nested_json = serde_json::to_string(&expr).unwrap();
         assert!(nested_json.contains("all"));
         assert!(nested_json.contains("enumerate"));
-        assert!(nested_json.contains("orb"));
-        assert!(nested_json.contains("document"));
-        assert!(nested_json.contains("device"));
+        assert!(nested_json.contains("proof_of_human"));
+        assert!(nested_json.contains("passport"));
+        assert!(nested_json.contains("mnc"));
     }
 }
