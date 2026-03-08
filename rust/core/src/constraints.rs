@@ -231,7 +231,7 @@ impl ConstraintNode {
     fn to_protocol_node(&self) -> ProtocolNode<'static> {
         match self {
             Self::Item(item) => {
-                ProtocolNode::Type(Cow::Owned(item.credential_type.as_str().to_string()))
+                ProtocolNode::Type(Cow::Owned(item.credential_type.to_string()))
             }
             Self::Any { any } => ProtocolNode::Expr(ProtocolExpr::Any {
                 any: any.iter().map(Self::to_protocol_node).collect(),
@@ -266,7 +266,7 @@ impl ConstraintNode {
             // If a constraint tree is only one item, we convert it to any(item)
             Self::Item(item) => ProtocolExpr::Any {
                 any: vec![ProtocolNode::Type(Cow::Owned(
-                    item.credential_type.as_str().to_string(),
+                    item.credential_type.to_string(),
                 ))],
             },
             Self::Any { any } => ProtocolExpr::Any {

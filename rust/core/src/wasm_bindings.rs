@@ -147,8 +147,7 @@ impl IDKitProof {
         nullifier_hash: String,
         verification_level: JsValue,
     ) -> Result<Self, JsValue> {
-        let level: crate::VerificationLevel =
-            serde_wasm_bindgen::from_value(verification_level)?;
+        let level: crate::VerificationLevel = serde_wasm_bindgen::from_value(verification_level)?;
         Ok(Self(crate::BridgeResponseV1 {
             proof,
             merkle_root,

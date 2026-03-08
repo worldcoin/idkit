@@ -27,24 +27,25 @@ use std::sync::Arc;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Environment for the bridge request
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Default,
+    strum::AsRefStr,
+    strum::Display,
+)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum Environment {
     #[default]
     Production,
     Staging,
-}
-
-impl Environment {
-    /// Returns the environment as a string
-    #[must_use]
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Production => "production",
-            Self::Staging => "staging",
-        }
-    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,7 +137,7 @@ struct BridgePollResponse {
 impl BridgeResponseV1 {
     fn into_response_item(self, signal_hash: Option<String>) -> ResponseItem {
         ResponseItem::V3 {
-            identifier: self.verification_level.as_str().to_string(),
+            identifier: self.verification_level.to_string(),
             signal_hash,
             proof: self.proof,
             merkle_root: self.merkle_root,
@@ -261,14 +262,14 @@ impl BridgeConnectionParams {
         for item in self.constraints.collect_items() {
             if let Some(ref signal) = item.signal {
                 let hash = crate::crypto::hash_signal(signal);
-                map.insert(item.credential_type.as_str().to_string(), hash);
+                map.insert(item.credential_type.to_string(), hash);
             }
         }
 
         // Legacy V3: verification_level → hashed legacy_signal
         if !self.legacy_signal.is_empty() {
             let hash = crate::crypto::hash_signal(&Signal::from_string(self.legacy_signal.clone()));
-            map.insert(self.legacy_verification_level.as_str().to_string(), hash);
+            map.insert(self.legacy_verification_level.to_string(), hash);
         }
 
         map
@@ -617,7 +618,7 @@ impl BridgeConnection {
                                     session_id.to_string(),
                                     self.action_description.clone(),
                                     responses,
-                                    self.environment.as_str(),
+                                    self.environment.as_ref(),
                                 )
                             } else {
                                 IDKitResult::new(
@@ -626,7 +627,7 @@ impl BridgeConnection {
                                     self.action.clone(),
                                     self.action_description.clone(),
                                     responses,
-                                    self.environment.as_str(),
+                                    self.environment.as_ref(),
                                 )
                             },
                         ))
@@ -637,7 +638,7 @@ impl BridgeConnection {
                             .map(|item| {
                                 let signal_hash = self
                                     .signal_hashes
-                                    .get(item.verification_level.as_str())
+                                    .get(item.verification_level.as_ref())
                                     .cloned();
                                 item.into_response_item(signal_hash)
                             })
@@ -649,7 +650,7 @@ impl BridgeConnection {
                             self.action.clone(),
                             self.action_description.clone(),
                             responses,
-                            self.environment.as_str(),
+                            self.environment.as_ref(),
                         )))
                     }
                     BridgeResponse::ResponseV1(response) => {
@@ -657,7 +658,7 @@ impl BridgeConnection {
                         // For V1 we don't have identifier, use verification_level as key
                         let signal_hash = self
                             .signal_hashes
-                            .get(response.verification_level.as_str())
+                            .get(response.verification_level.as_ref())
                             .cloned();
                         let item = response.into_response_item(signal_hash);
                         Ok(Status::Confirmed(IDKitResult::new(
@@ -666,7 +667,7 @@ impl BridgeConnection {
                             self.action.clone(),
                             self.action_description.clone(),
                             vec![item],
-                            self.environment.as_str(),
+                            self.environment.as_ref(),
                         )))
                     }
                 }

@@ -10,8 +10,10 @@ use std::sync::Arc;
 
 /// Credential types that can be requested
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(strum::AsRefStr, strum::Display, strum::EnumString, strum::EnumIter)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum CredentialType {
     /// Proof of human credential
     ProofOfHuman,
@@ -24,20 +26,14 @@ pub enum CredentialType {
 }
 
 impl CredentialType {
-    /// Returns all credential types
+    /// Returns the issuer schema ID for this credential type
     #[must_use]
-    pub fn all() -> Vec<Self> {
-        vec![Self::ProofOfHuman, Self::Face, Self::Passport, Self::Mnc]
-    }
-
-    /// Returns the credential as a string
-    #[must_use]
-    pub const fn as_str(&self) -> &'static str {
+    pub const fn issuer_schema_id(&self) -> u64 {
         match self {
-            Self::ProofOfHuman => "proof_of_human",
-            Self::Face => "face",
-            Self::Passport => "passport",
-            Self::Mnc => "mnc",
+            Self::ProofOfHuman => 1,
+            Self::Face => 11,
+            Self::Passport => 9303,
+            Self::Mnc => 9310,
         }
     }
 
@@ -258,12 +254,8 @@ impl CredentialRequest {
     ///
     /// Returns an error if the credential type cannot be mapped to an issuer schema ID
     pub fn to_protocol_item(&self) -> crate::Result<world_id_primitives::RequestItem> {
-        use crate::issuer_schema::credential_to_issuer_schema_id;
-
-        let identifier = self.credential_type.as_str().to_string();
-        let issuer_schema_id = credential_to_issuer_schema_id(&identifier).ok_or_else(|| {
-            crate::Error::InvalidConfiguration(format!("Unknown credential type: {identifier}"))
-        })?;
+        let identifier = self.credential_type.to_string();
+        let issuer_schema_id = self.credential_type.issuer_schema_id();
 
         // Hash signal if present
         let signal = self.signal.as_ref().map(crate::crypto::hash_signal);
@@ -906,8 +898,10 @@ impl RpContext {
 
 /// Verification level (for backward compatibility)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(strum::AsRefStr, strum::Display)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum VerificationLevel {
     /// Orb-only verification
     Orb,
@@ -926,28 +920,13 @@ pub enum VerificationLevel {
     Deprecated,
 }
 
-impl VerificationLevel {
-    /// Returns the verification level as a string
-    #[must_use]
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Orb => "orb",
-            Self::Face => "face",
-            Self::Device => "device",
-            Self::Document => "document",
-            Self::SecureDocument => "secure_document",
-            Self::Deprecated => "deprecated",
-        }
-    }
-}
-
 // UniFFI helper function for CredentialType
 #[cfg(feature = "ffi")]
 /// Gets the string representation of a credential type
 #[must_use]
 #[uniffi::export]
 pub fn credential_to_string(credential: &CredentialType) -> String {
-    credential.as_str().to_string()
+    credential.to_string()
 }
 
 #[cfg(test)]
@@ -1147,6 +1126,14 @@ mod tests {
     }
 
     #[test]
+    fn test_credential_type_issuer_schema_id() {
+        assert_eq!(CredentialType::ProofOfHuman.issuer_schema_id(), 1);
+        assert_eq!(CredentialType::Face.issuer_schema_id(), 11);
+        assert_eq!(CredentialType::Passport.issuer_schema_id(), 9303);
+        assert_eq!(CredentialType::Mnc.issuer_schema_id(), 9310);
+    }
+
+    #[test]
     fn test_credential_type_from_issuer_schema_id() {
         assert_eq!(
             CredentialType::from_issuer_schema_id(1),
@@ -1166,6 +1153,15 @@ mod tests {
         );
         assert_eq!(CredentialType::from_issuer_schema_id(0), None);
         assert_eq!(CredentialType::from_issuer_schema_id(99), None);
+    }
+
+    #[test]
+    fn test_credential_type_issuer_schema_roundtrip() {
+        use strum::IntoEnumIterator;
+        for cred in CredentialType::iter() {
+            let id = cred.issuer_schema_id();
+            assert_eq!(CredentialType::from_issuer_schema_id(id), Some(cred));
+        }
     }
 
     // BridgeUrl validation tests
