@@ -37,7 +37,7 @@ impl CredentialRequestWasm {
     /// Creates a new request item
     ///
     /// # Arguments
-    /// * `credential_type` - The type of credential to request (e.g., "orb", "face")
+    /// * `credential_type` - The type of credential to request (e.g., `proof_of_human`, `face`)
     /// * `signal` - Optional signal string
     ///
     /// # Errors
@@ -147,12 +147,12 @@ impl IDKitProof {
         nullifier_hash: String,
         verification_level: JsValue,
     ) -> Result<Self, JsValue> {
-        let cred: CredentialType = serde_wasm_bindgen::from_value(verification_level)?;
+        let level: crate::VerificationLevel = serde_wasm_bindgen::from_value(verification_level)?;
         Ok(Self(crate::BridgeResponseV1 {
             proof,
             merkle_root,
             nullifier_hash,
-            verification_level: cred,
+            verification_level: level,
         }))
     }
 
@@ -477,28 +477,12 @@ enum IDKitConfigWasm {
     },
 }
 
-/// Computes signal hashes from constraints
-fn compute_signal_hashes(
-    constraints: &ConstraintNode,
-) -> std::collections::HashMap<String, String> {
-    let mut map = std::collections::HashMap::new();
-    for item in constraints.collect_items() {
-        if let Some(ref signal) = item.signal {
-            let hash = crate::crypto::hash_signal(signal);
-            map.insert(item.credential_type.as_str().to_string(), hash);
-        }
-    }
-    map
-}
-
 impl IDKitConfigWasm {
     #[allow(clippy::too_many_lines)]
     fn to_params(
         &self,
         constraints: ConstraintNode,
     ) -> Result<crate::bridge::BridgeConnectionParams, JsValue> {
-        let signal_hashes = compute_signal_hashes(&constraints);
-
         match self {
             Self::Request {
                 app_id,
@@ -530,7 +514,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: *allow_legacy_proofs,
-                    signal_hashes,
+
                     override_connect_base_url: override_connect_base_url.clone(),
                     return_to: None,
                     environment: environment.as_deref().map(|e| match e {
@@ -565,7 +549,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    signal_hashes,
+
                     override_connect_base_url: override_connect_base_url.clone(),
                     return_to: None,
                     environment: environment.as_deref().map(|e| match e {
@@ -603,7 +587,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    signal_hashes,
+
                     override_connect_base_url: override_connect_base_url.clone(),
                     return_to: None,
                     environment: environment.as_deref().map(|e| match e {
@@ -735,7 +719,7 @@ impl IDKitBuilderWasm {
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
         let signal_hashes_js = params
-            .signal_hashes
+            .compute_signal_hashes()
             .serialize(&serializer)
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
@@ -776,7 +760,7 @@ impl IDKitBuilderWasm {
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
         let signal_hashes_js = params
-            .signal_hashes
+            .compute_signal_hashes()
             .serialize(&serializer)
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
@@ -818,7 +802,7 @@ impl IDKitBuilderWasm {
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
         let signal_hashes_js = params
-            .signal_hashes
+            .compute_signal_hashes()
             .serialize(&serializer)
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
@@ -1043,7 +1027,7 @@ impl IDKitRequest {
 // TypeScript type definitions
 #[wasm_bindgen(typescript_custom_section)]
 const TS_TYPES: &str = r#"
-export type CredentialType = "orb" | "face" | "secure_document" | "document" | "device";
+export type CredentialType = "proof_of_human" | "face" | "passport" | "mnc";
 
 export interface CredentialRequestType {
     type: CredentialType;
@@ -1072,7 +1056,7 @@ export function hashSignal(signal: string | Uint8Array): string;
 const TS_IDKIT_RESULT: &str = r#"
 /** V4 response item for World ID v4 uniqueness proofs */
 export interface ResponseItemV4 {
-    /** Credential identifier (e.g., "orb", "face", "document") */
+    /** Credential identifier (e.g., "proof_of_human", "face", "passport", "mnc") */
     identifier: string;
     /** Signal hash (optional, included if signal was provided in request) */
     signal_hash?: string;
@@ -1080,7 +1064,7 @@ export interface ResponseItemV4 {
     proof: string[];
     /** RP-scoped nullifier (hex) */
     nullifier: string;
-    /** Credential issuer schema ID (1=orb, 2=face, 3=secure_document, 4=document, 5=device) */
+    /** Credential issuer schema ID (1=proof_of_human, 11=face, 9303=passport, 9310=mnc) */
     issuer_schema_id: number;
     /** Minimum expiration timestamp (unix seconds) */
     expires_at_min: number;
@@ -1088,7 +1072,7 @@ export interface ResponseItemV4 {
 
 /** V3 response item for World ID v3 (legacy format) */
 export interface ResponseItemV3 {
-    /** Credential identifier (e.g., "orb", "face") */
+    /** Credential identifier (e.g., "proof_of_human", "face") */
     identifier: string;
     /** Signal hash (optional, included if signal was provided in request) */
     signal_hash?: string;
@@ -1102,7 +1086,7 @@ export interface ResponseItemV3 {
 
 /** Session response item for World ID v4 session proofs */
 export interface ResponseItemSession {
-    /** Credential identifier (e.g., "orb", "face", "document") */
+    /** Credential identifier (e.g., "proof_of_human", "face", "passport", "mnc") */
     identifier: string;
     /** Signal hash (optional, included if signal was provided in request) */
     signal_hash?: string;
@@ -1110,7 +1094,7 @@ export interface ResponseItemSession {
     proof: string[];
     /** Session nullifier: 1st element is the session nullifier, 2nd is the generated action (hex strings) */
     session_nullifier: string[];
-    /** Credential issuer schema ID (1=orb, 2=face, 3=secure_document, 4=document, 5=device) */
+    /** Credential issuer schema ID (1=proof_of_human, 11=face, 9303=passport, 9310=mnc) */
     issuer_schema_id: number;
     /** Minimum expiration timestamp (unix seconds) */
     expires_at_min: number;

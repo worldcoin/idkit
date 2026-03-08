@@ -22,6 +22,9 @@ world-id-primitives = { version = "0.5.0", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
+# Enum utilities
+strum = { version = "0.27", features = ["derive"] }
+
 # Cryptography
 aes-gcm = "0.10"
 getrandom = { version = "0.2", features = ["js"] }

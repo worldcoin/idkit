@@ -42,15 +42,15 @@ describe("IDKitRequest API", () => {
   // });
 
   // it("should create CredentialRequest correctly", () => {
-  //   const item = CredentialRequest("orb", { signal: "test-signal" });
-  //   expect(item).toHaveProperty("type", "orb");
+  //   const item = CredentialRequest("proof_of_human", { signal: "test-signal" });
+  //   expect(item).toHaveProperty("type", "proof_of_human");
   //   expect(item).toHaveProperty("signal", "test-signal");
   // });
 
   // it("should create any() constraint correctly", () => {
-  //   const orb = CredentialRequest("orb");
+  //   const poh = CredentialRequest("proof_of_human");
   //   const face = CredentialRequest("face");
-  //   const constraint = any(orb, face);
+  //   const constraint = any(poh, face);
   //   expect(constraint).toHaveProperty("any");
   //   expect(constraint.any).toHaveLength(2);
   // });

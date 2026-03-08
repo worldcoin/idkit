@@ -108,7 +108,7 @@ describe("native transport request lifecycle", () => {
 
   it("uses per-identifier signal hashes when response omits signal_hash", async () => {
     const signalHashes = {
-      orb: hashSignal("orb-signal"),
+      proof_of_human: hashSignal("poh-signal"),
       face: hashSignal("face-signal"),
     };
 
@@ -121,7 +121,7 @@ describe("native transport request lifecycle", () => {
       status: "success",
       responses: [
         {
-          identifier: "orb",
+          identifier: "proof_of_human",
           proof: ["0x01"],
           nullifier: "0x02",
           issuer_schema_id: 1,
@@ -131,7 +131,7 @@ describe("native transport request lifecycle", () => {
           identifier: "face",
           proof: ["0x11"],
           nullifier: "0x12",
-          issuer_schema_id: 2,
+          issuer_schema_id: 11,
           expires_at_min: 0,
         },
       ],
@@ -141,7 +141,7 @@ describe("native transport request lifecycle", () => {
     expect(completion.success).toBe(true);
     if (completion.success) {
       expect(completion.result.responses[0]?.signal_hash).toBe(
-        signalHashes.orb,
+        signalHashes.proof_of_human,
       );
       expect(completion.result.responses[1]?.signal_hash).toBe(
         signalHashes.face,
@@ -150,7 +150,7 @@ describe("native transport request lifecycle", () => {
   });
 
   it("prefers response signal_hash over signal hashes map", async () => {
-    const signalHashes = { orb: hashSignal("from-constraints") };
+    const signalHashes = { proof_of_human: hashSignal("from-constraints") };
 
     const req = createNativeRequest({}, baseConfig, signalHashes);
     activeRequest = req;

@@ -9,44 +9,43 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 /// Credential types that can be requested
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    strum::AsRefStr,
+    strum::Display,
+    strum::EnumString,
+    strum::EnumIter,
+)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum CredentialType {
-    /// Orb credential
-    Orb,
+    /// Proof of human credential
+    ProofOfHuman,
     /// Face credential
     Face,
-    /// Secure NFC document with active or passive authentication, eID, or a Japanese MNC
-    SecureDocument,
-    /// NFC document without authentication
-    Document,
-    /// Device-based credential
-    Device,
+    /// Passport credential (ICAO 9303 compliant travel document)
+    Passport,
+    /// MNC (My Number Card) credential
+    Mnc,
 }
 
 impl CredentialType {
-    /// Returns all credential types
+    /// Returns the issuer schema ID for this credential type
     #[must_use]
-    pub fn all() -> Vec<Self> {
-        vec![
-            Self::Orb,
-            Self::Face,
-            Self::SecureDocument,
-            Self::Document,
-            Self::Device,
-        ]
-    }
-
-    /// Returns the credential as a string
-    #[must_use]
-    pub const fn as_str(&self) -> &'static str {
+    pub const fn issuer_schema_id(&self) -> u64 {
         match self {
-            Self::Orb => "orb",
-            Self::Face => "face",
-            Self::SecureDocument => "secure_document",
-            Self::Document => "document",
-            Self::Device => "device",
+            Self::ProofOfHuman => 1,
+            Self::Face => 11,
+            Self::Passport => 9303,
+            Self::Mnc => 9310,
         }
     }
 
@@ -56,11 +55,10 @@ impl CredentialType {
     #[must_use]
     pub const fn from_issuer_schema_id(id: u64) -> Option<Self> {
         match id {
-            1 => Some(Self::Orb),
-            2 => Some(Self::Face),
-            3 => Some(Self::SecureDocument),
-            4 => Some(Self::Document),
-            5 => Some(Self::Device),
+            1 => Some(Self::ProofOfHuman),
+            11 => Some(Self::Face),
+            9303 => Some(Self::Passport),
+            9310 => Some(Self::Mnc),
             _ => None,
         }
     }
@@ -268,12 +266,8 @@ impl CredentialRequest {
     ///
     /// Returns an error if the credential type cannot be mapped to an issuer schema ID
     pub fn to_protocol_item(&self) -> crate::Result<world_id_primitives::RequestItem> {
-        use crate::issuer_schema::credential_to_issuer_schema_id;
-
-        let identifier = self.credential_type.as_str().to_string();
-        let issuer_schema_id = credential_to_issuer_schema_id(&identifier).ok_or_else(|| {
-            crate::Error::InvalidConfiguration(format!("Unknown credential type: {identifier}"))
-        })?;
+        let identifier = self.credential_type.to_string();
+        let issuer_schema_id = self.credential_type.issuer_schema_id();
 
         // Hash signal if present
         let signal = self.signal.as_ref().map(crate::crypto::hash_signal);
@@ -408,7 +402,7 @@ pub struct BridgeResponseV1 {
     pub nullifier_hash: String,
 
     /// The verification level used to generate the proof
-    pub verification_level: CredentialType,
+    pub verification_level: VerificationLevel,
 }
 
 /// For context android still sends `credential_type` in the response
@@ -426,8 +420,8 @@ impl<'de> Deserialize<'de> for BridgeResponseV1 {
             proof: String,
             merkle_root: String,
             nullifier_hash: String,
-            verification_level: Option<CredentialType>,
-            credential_type: Option<CredentialType>,
+            verification_level: Option<VerificationLevel>,
+            credential_type: Option<VerificationLevel>,
         }
 
         let helper = Helper::deserialize(deserializer)?;
@@ -462,7 +456,7 @@ impl<'de> Deserialize<'de> for BridgeResponseV1 {
 pub enum ResponseItem {
     /// Protocol version 4.0 (World ID v4)
     V4 {
-        /// Credential identifier (e.g., "orb", "face", "document")
+        /// Credential identifier (e.g., `proof_of_human`, `face`, `passport`, `mnc`)
         identifier: String,
         /// Signal hash (optional, included if signal was provided in request)
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -483,7 +477,7 @@ pub enum ResponseItem {
     },
     /// Session proof (World ID v4 sessions)
     Session {
-        /// Credential identifier (e.g., "orb", "face", "document")
+        /// Credential identifier (e.g., `proof_of_human`, `face`, `passport`, `mnc`)
         identifier: String,
         /// Signal hash (optional, included if signal was provided in request)
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -507,7 +501,7 @@ pub enum ResponseItem {
     },
     /// Protocol version 3.0 (World ID v3 - legacy format)
     V3 {
-        /// Credential identifier (e.g., "orb", "face")
+        /// Credential identifier (e.g., `proof_of_human`, `face`)
         identifier: String,
         /// Signal hash (optional, included if signal was provided in request)
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -915,9 +909,12 @@ impl RpContext {
 }
 
 /// Verification level (for backward compatibility)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::AsRefStr, strum::Display,
+)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum VerificationLevel {
     /// Orb-only verification
     Orb,
@@ -942,7 +939,7 @@ pub enum VerificationLevel {
 #[must_use]
 #[uniffi::export]
 pub fn credential_to_string(credential: &CredentialType) -> String {
-    credential.as_str().to_string()
+    credential.to_string()
 }
 
 #[cfg(test)]
@@ -967,8 +964,11 @@ mod tests {
 
     #[test]
     fn test_request_item_creation() {
-        let item = CredentialRequest::new(CredentialType::Orb, Some(Signal::from_string("signal")));
-        assert_eq!(item.credential_type, CredentialType::Orb);
+        let item = CredentialRequest::new(
+            CredentialType::ProofOfHuman,
+            Some(Signal::from_string("signal")),
+        );
+        assert_eq!(item.credential_type, CredentialType::ProofOfHuman);
         assert_eq!(item.signal, Some(Signal::from_string("signal")));
         assert_eq!(item.genesis_issued_at_min, None);
 
@@ -980,11 +980,11 @@ mod tests {
     #[test]
     fn test_request_item_with_genesis_min() {
         let item = CredentialRequest::with_genesis_min(
-            CredentialType::Orb,
+            CredentialType::ProofOfHuman,
             Some(Signal::from_string("signal")),
             1_700_000_000,
         );
-        assert_eq!(item.credential_type, CredentialType::Orb);
+        assert_eq!(item.credential_type, CredentialType::ProofOfHuman);
         assert_eq!(item.genesis_issued_at_min, Some(1_700_000_000));
     }
 
@@ -992,7 +992,10 @@ mod tests {
     fn test_request_item_with_bytes_signal() {
         // Test creating request item with raw bytes
         let bytes = b"arbitrary\x00\xFF\xFE data";
-        let item = CredentialRequest::new(CredentialType::Orb, Some(Signal::from_bytes(bytes)));
+        let item = CredentialRequest::new(
+            CredentialType::ProofOfHuman,
+            Some(Signal::from_bytes(bytes)),
+        );
 
         // Verify signal is stored as bytes
         assert!(item.signal.is_some());
@@ -1018,7 +1021,7 @@ mod tests {
 
     #[test]
     fn test_request_item_without_signal() {
-        let item = CredentialRequest::new(CredentialType::Device, None);
+        let item = CredentialRequest::new(CredentialType::Passport, None);
         assert_eq!(item.signal, None);
         assert_eq!(item.signal_bytes(), None);
     }
@@ -1063,12 +1066,12 @@ mod tests {
 
     #[test]
     fn test_credential_serialization() {
-        let cred = CredentialType::Orb;
+        let cred = CredentialType::ProofOfHuman;
         let json = serde_json::to_string(&cred).unwrap();
-        assert_eq!(json, r#""orb""#);
+        assert_eq!(json, r#""proof_of_human""#);
 
         let deserialized: CredentialType = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, CredentialType::Orb);
+        assert_eq!(deserialized, CredentialType::ProofOfHuman);
     }
 
     #[test]
@@ -1142,29 +1145,42 @@ mod tests {
     }
 
     #[test]
+    fn test_credential_type_issuer_schema_id() {
+        assert_eq!(CredentialType::ProofOfHuman.issuer_schema_id(), 1);
+        assert_eq!(CredentialType::Face.issuer_schema_id(), 11);
+        assert_eq!(CredentialType::Passport.issuer_schema_id(), 9303);
+        assert_eq!(CredentialType::Mnc.issuer_schema_id(), 9310);
+    }
+
+    #[test]
     fn test_credential_type_from_issuer_schema_id() {
         assert_eq!(
             CredentialType::from_issuer_schema_id(1),
-            Some(CredentialType::Orb)
+            Some(CredentialType::ProofOfHuman)
         );
         assert_eq!(
-            CredentialType::from_issuer_schema_id(2),
+            CredentialType::from_issuer_schema_id(11),
             Some(CredentialType::Face)
         );
         assert_eq!(
-            CredentialType::from_issuer_schema_id(3),
-            Some(CredentialType::SecureDocument)
+            CredentialType::from_issuer_schema_id(9303),
+            Some(CredentialType::Passport)
         );
         assert_eq!(
-            CredentialType::from_issuer_schema_id(4),
-            Some(CredentialType::Document)
-        );
-        assert_eq!(
-            CredentialType::from_issuer_schema_id(5),
-            Some(CredentialType::Device)
+            CredentialType::from_issuer_schema_id(9310),
+            Some(CredentialType::Mnc)
         );
         assert_eq!(CredentialType::from_issuer_schema_id(0), None);
         assert_eq!(CredentialType::from_issuer_schema_id(99), None);
+    }
+
+    #[test]
+    fn test_credential_type_issuer_schema_roundtrip() {
+        use strum::IntoEnumIterator;
+        for cred in CredentialType::iter() {
+            let id = cred.issuer_schema_id();
+            assert_eq!(CredentialType::from_issuer_schema_id(id), Some(cred));
+        }
     }
 
     // BridgeUrl validation tests

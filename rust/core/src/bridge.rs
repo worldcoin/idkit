@@ -27,24 +27,25 @@ use std::sync::Arc;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Environment for the bridge request
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Default,
+    strum::AsRefStr,
+    strum::Display,
+)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum Environment {
     #[default]
     Production,
     Staging,
-}
-
-impl Environment {
-    /// Returns the environment as a string
-    #[must_use]
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Production => "production",
-            Self::Staging => "staging",
-        }
-    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,7 +137,7 @@ struct BridgePollResponse {
 impl BridgeResponseV1 {
     fn into_response_item(self, signal_hash: Option<String>) -> ResponseItem {
         ResponseItem::V3 {
-            identifier: self.verification_level.as_str().to_string(),
+            identifier: self.verification_level.to_string(),
             signal_hash,
             proof: self.proof,
             merkle_root: self.merkle_root,
@@ -228,23 +229,6 @@ pub enum Status {
     Failed(AppError),
 }
 
-/// Computes signal hashes from constraints
-///
-/// Returns a map from identifier (credential type) to signal hash
-#[allow(dead_code)]
-fn compute_signal_hashes(
-    constraints: &ConstraintNode,
-) -> std::collections::HashMap<String, String> {
-    let mut map = std::collections::HashMap::new();
-    for item in constraints.collect_items() {
-        if let Some(ref signal) = item.signal {
-            let hash = crate::crypto::hash_signal(signal);
-            map.insert(item.credential_type.as_str().to_string(), hash);
-        }
-    }
-    map
-}
-
 /// Parameters for creating a `BridgeConnection`
 pub struct BridgeConnectionParams {
     pub app_id: AppId,
@@ -256,14 +240,40 @@ pub struct BridgeConnectionParams {
     pub legacy_signal: String,
     pub bridge_url: Option<BridgeUrl>,
     pub allow_legacy_proofs: bool,
-    /// Signal hashes computed from constraints, keyed by identifier
-    pub signal_hashes: std::collections::HashMap<String, String>,
     /// Optional override for the connect base URL (e.g., for staging environments)
     pub override_connect_base_url: Option<String>,
     /// Optional deep-link callback URL appended as `return_to` on the connector URL
     pub return_to: Option<String>,
     /// Optional environment override (defaults to Production when not specified)
     pub environment: Option<Environment>,
+}
+
+impl BridgeConnectionParams {
+    /// Computes signal hash map for response matching.
+    ///
+    /// Contains:
+    /// - `credential_type` → `signal_hash` (from constraints, for V4 response matching)
+    /// - `legacy_verification_level` → hashed `legacy_signal` (for V3 response matching)
+    #[must_use]
+    pub fn compute_signal_hashes(&self) -> std::collections::HashMap<String, String> {
+        let mut map = std::collections::HashMap::new();
+
+        // V4: credential_type → signal_hash from constraint items
+        for item in self.constraints.collect_items() {
+            if let Some(ref signal) = item.signal {
+                let hash = crate::crypto::hash_signal(signal);
+                map.insert(item.credential_type.to_string(), hash);
+            }
+        }
+
+        // Legacy V3: verification_level → hashed legacy_signal
+        if !self.legacy_signal.is_empty() {
+            let hash = crate::crypto::hash_signal(&Signal::from_string(self.legacy_signal.clone()));
+            map.insert(self.legacy_verification_level.to_string(), hash);
+        }
+
+        map
+    }
 }
 
 /// A World ID verification connection to the bridge
@@ -443,6 +453,9 @@ impl BridgeConnection {
         let payload_value = build_request_payload(&params)?;
         let payload_json = serde_json::to_vec(&payload_value)?;
 
+        // Compute signal hashes before partial moves
+        let signal_hashes = params.compute_signal_hashes();
+
         // Extract bridge_url after the borrow is done
         let bridge_url = params.bridge_url.unwrap_or_default();
 
@@ -498,7 +511,7 @@ impl BridgeConnection {
             key_bytes: key_bytes.to_vec(),
             request_id: create_response.request_id,
             client,
-            signal_hashes: params.signal_hashes,
+            signal_hashes,
             action,
             action_description: params.action_description,
             nonce: params.rp_context.nonce.clone(),
@@ -605,7 +618,7 @@ impl BridgeConnection {
                                     session_id.to_string(),
                                     self.action_description.clone(),
                                     responses,
-                                    self.environment.as_str(),
+                                    self.environment.as_ref(),
                                 )
                             } else {
                                 IDKitResult::new(
@@ -614,7 +627,7 @@ impl BridgeConnection {
                                     self.action.clone(),
                                     self.action_description.clone(),
                                     responses,
-                                    self.environment.as_str(),
+                                    self.environment.as_ref(),
                                 )
                             },
                         ))
@@ -625,7 +638,7 @@ impl BridgeConnection {
                             .map(|item| {
                                 let signal_hash = self
                                     .signal_hashes
-                                    .get(item.verification_level.as_str())
+                                    .get(item.verification_level.as_ref())
                                     .cloned();
                                 item.into_response_item(signal_hash)
                             })
@@ -637,7 +650,7 @@ impl BridgeConnection {
                             self.action.clone(),
                             self.action_description.clone(),
                             responses,
-                            self.environment.as_str(),
+                            self.environment.as_ref(),
                         )))
                     }
                     BridgeResponse::ResponseV1(response) => {
@@ -645,7 +658,7 @@ impl BridgeConnection {
                         // For V1 we don't have identifier, use verification_level as key
                         let signal_hash = self
                             .signal_hashes
-                            .get(response.verification_level.as_str())
+                            .get(response.verification_level.as_ref())
                             .cloned();
                         let item = response.into_response_item(signal_hash);
                         Ok(Status::Confirmed(IDKitResult::new(
@@ -654,7 +667,7 @@ impl BridgeConnection {
                             self.action.clone(),
                             self.action_description.clone(),
                             vec![item],
-                            self.environment.as_str(),
+                            self.environment.as_ref(),
                         )))
                     }
                 }
@@ -749,7 +762,6 @@ impl IDKitConfig {
                     .as_ref()
                     .map(|url| BridgeUrl::new(url, &app_id))
                     .transpose()?;
-                let signal_hashes = compute_signal_hashes(&constraints);
 
                 Ok(BridgeConnectionParams {
                     app_id,
@@ -763,7 +775,6 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: config.allow_legacy_proofs,
-                    signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -776,7 +787,6 @@ impl IDKitConfig {
                     .as_ref()
                     .map(|url| BridgeUrl::new(url, &app_id))
                     .transpose()?;
-                let signal_hashes = compute_signal_hashes(&constraints);
 
                 Ok(BridgeConnectionParams {
                     app_id,
@@ -788,7 +798,6 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -801,7 +810,6 @@ impl IDKitConfig {
                     .as_ref()
                     .map(|url| BridgeUrl::new(url, &app_id))
                     .transpose()?;
-                let signal_hashes = compute_signal_hashes(&constraints);
 
                 Ok(BridgeConnectionParams {
                     app_id,
@@ -815,7 +823,6 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -831,7 +838,6 @@ impl IDKitConfig {
         preset: Preset,
     ) -> std::result::Result<BridgeConnectionParams, crate::error::IdkitError> {
         let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
-        let signal_hashes = compute_signal_hashes(&constraints);
 
         match self {
             Self::Request(config) => {
@@ -854,7 +860,6 @@ impl IDKitConfig {
                     legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: config.allow_legacy_proofs,
-                    signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -878,7 +883,6 @@ impl IDKitConfig {
                     legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -904,7 +908,6 @@ impl IDKitConfig {
                     legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    signal_hashes,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -1129,7 +1132,10 @@ mod tests {
 
     #[test]
     fn test_bridge_request_payload_serialization() {
-        let item = CredentialRequest::new(CredentialType::Orb, Some(Signal::from_string("test")));
+        let item = CredentialRequest::new(
+            CredentialType::ProofOfHuman,
+            Some(Signal::from_string("test")),
+        );
         let constraints = ConstraintNode::item(item);
 
         // Create a test RpContext with valid hex nonce and signature
@@ -1268,7 +1274,7 @@ mod tests {
         let response: BridgeResponse = serde_json::from_str(json).unwrap();
         match response {
             BridgeResponse::ResponseV1(v1) => {
-                assert_eq!(v1.verification_level, CredentialType::Device);
+                assert_eq!(v1.verification_level, VerificationLevel::Device);
                 assert_eq!(v1.proof, "0xproof");
                 assert_eq!(v1.merkle_root, "0xroot");
                 assert_eq!(v1.nullifier_hash, "0xnull");
@@ -1291,7 +1297,7 @@ mod tests {
         let response: BridgeResponse = serde_json::from_str(json).unwrap();
         match response {
             BridgeResponse::ResponseV1(v1) => {
-                assert_eq!(v1.verification_level, CredentialType::Orb);
+                assert_eq!(v1.verification_level, VerificationLevel::Orb);
             }
             other => panic!("Expected ResponseV1, got: {other:?}"),
         }
@@ -1326,14 +1332,14 @@ mod tests {
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
-            constraints: constraints.clone(),
+            constraints,
             rp_context,
             action_description: Some("Selfie check".to_string()),
             legacy_verification_level,
             legacy_signal: legacy_signal.unwrap_or_default(),
             bridge_url: None,
             allow_legacy_proofs: false,
-            signal_hashes: compute_signal_hashes(&constraints),
+
             override_connect_base_url: None,
             return_to: None,
             environment: Some(Environment::Production),
@@ -1364,14 +1370,14 @@ mod tests {
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
-            constraints: constraints.clone(),
+            constraints,
             rp_context,
             action_description: Some("Device check".to_string()),
             legacy_verification_level,
             legacy_signal: legacy_signal.unwrap_or_default(),
             bridge_url: None,
             allow_legacy_proofs: false,
-            signal_hashes: compute_signal_hashes(&constraints),
+
             override_connect_base_url: None,
             return_to: None,
             environment: Some(Environment::Production),
@@ -1385,23 +1391,19 @@ mod tests {
     fn test_issuer_schema_id_to_credential_type() {
         assert_eq!(
             CredentialType::from_issuer_schema_id(1),
-            Some(CredentialType::Orb)
+            Some(CredentialType::ProofOfHuman)
         );
         assert_eq!(
-            CredentialType::from_issuer_schema_id(2),
+            CredentialType::from_issuer_schema_id(11),
             Some(CredentialType::Face)
         );
         assert_eq!(
-            CredentialType::from_issuer_schema_id(3),
-            Some(CredentialType::SecureDocument)
+            CredentialType::from_issuer_schema_id(9303),
+            Some(CredentialType::Passport)
         );
         assert_eq!(
-            CredentialType::from_issuer_schema_id(4),
-            Some(CredentialType::Document)
-        );
-        assert_eq!(
-            CredentialType::from_issuer_schema_id(5),
-            Some(CredentialType::Device)
+            CredentialType::from_issuer_schema_id(9310),
+            Some(CredentialType::Mnc)
         );
         assert_eq!(CredentialType::from_issuer_schema_id(99), None);
     }
@@ -1419,7 +1421,10 @@ mod tests {
         )
         .unwrap();
 
-        let item = CredentialRequest::new(CredentialType::Orb, Some(Signal::from_string("test")));
+        let item = CredentialRequest::new(
+            CredentialType::ProofOfHuman,
+            Some(Signal::from_string("test")),
+        );
         let constraints = ConstraintNode::item(item);
 
         let params = BridgeConnectionParams {
@@ -1427,14 +1432,14 @@ mod tests {
             kind: RequestKind::Uniqueness {
                 action: "my-action".to_string(),
             },
-            constraints: constraints.clone(),
+            constraints,
             rp_context,
             action_description: None,
             legacy_verification_level: VerificationLevel::Orb,
             legacy_signal: "test-signal".to_string(),
             bridge_url: None,
             allow_legacy_proofs: false,
-            signal_hashes: compute_signal_hashes(&constraints),
+
             override_connect_base_url: None,
             return_to: None,
             environment: None,
