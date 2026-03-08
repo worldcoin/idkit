@@ -251,8 +251,8 @@ impl BridgeConnectionParams {
     /// Computes signal hash map for response matching.
     ///
     /// Contains:
-    /// - credential_type → signal_hash (from constraints, for V4 response matching)
-    /// - legacy_verification_level → hashed legacy_signal (for V3 response matching)
+    /// - `credential_type` → `signal_hash` (from constraints, for V4 response matching)
+    /// - `legacy_verification_level` → hashed `legacy_signal` (for V3 response matching)
     #[must_use]
     pub fn compute_signal_hashes(&self) -> std::collections::HashMap<String, String> {
         let mut map = std::collections::HashMap::new();
@@ -267,9 +267,7 @@ impl BridgeConnectionParams {
 
         // Legacy V3: verification_level → hashed legacy_signal
         if !self.legacy_signal.is_empty() {
-            let hash = crate::crypto::hash_signal(
-                &Signal::from_string(self.legacy_signal.clone()),
-            );
+            let hash = crate::crypto::hash_signal(&Signal::from_string(self.legacy_signal.clone()));
             map.insert(self.legacy_verification_level.as_str().to_string(), hash);
         }
 
