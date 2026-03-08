@@ -144,7 +144,7 @@ impl Preset {
             Self::DocumentLegacy { signal } => {
                 let signal_opt = signal.as_ref().map(|s| Signal::from_string(s.clone()));
                 let orb = CredentialRequest::new(CredentialType::ProofOfHuman, signal_opt.clone());
-                let passport = CredentialRequest::new(CredentialType::Passport, signal_opt.clone());
+                let passport = CredentialRequest::new(CredentialType::Passport, signal_opt);
                 let constraints = ConstraintNode::any(vec![
                     ConstraintNode::Item(orb),
                     ConstraintNode::Item(passport),

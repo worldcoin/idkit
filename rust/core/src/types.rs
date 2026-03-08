@@ -9,8 +9,20 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 /// Credential types that can be requested
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[derive(strum::AsRefStr, strum::Display, strum::EnumString, strum::EnumIter)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    strum::AsRefStr,
+    strum::Display,
+    strum::EnumString,
+    strum::EnumIter,
+)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
@@ -444,7 +456,7 @@ impl<'de> Deserialize<'de> for BridgeResponseV1 {
 pub enum ResponseItem {
     /// Protocol version 4.0 (World ID v4)
     V4 {
-        /// Credential identifier (e.g., "proof_of_human", "face", "passport", "mnc")
+        /// Credential identifier (e.g., `proof_of_human`, `face`, `passport`, `mnc`)
         identifier: String,
         /// Signal hash (optional, included if signal was provided in request)
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -465,7 +477,7 @@ pub enum ResponseItem {
     },
     /// Session proof (World ID v4 sessions)
     Session {
-        /// Credential identifier (e.g., "proof_of_human", "face", "passport", "mnc")
+        /// Credential identifier (e.g., `proof_of_human`, `face`, `passport`, `mnc`)
         identifier: String,
         /// Signal hash (optional, included if signal was provided in request)
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -489,7 +501,7 @@ pub enum ResponseItem {
     },
     /// Protocol version 3.0 (World ID v3 - legacy format)
     V3 {
-        /// Credential identifier (e.g., "proof_of_human", "face")
+        /// Credential identifier (e.g., `proof_of_human`, `face`)
         identifier: String,
         /// Signal hash (optional, included if signal was provided in request)
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -897,8 +909,9 @@ impl RpContext {
 }
 
 /// Verification level (for backward compatibility)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(strum::AsRefStr, strum::Display)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::AsRefStr, strum::Display,
+)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
@@ -951,7 +964,10 @@ mod tests {
 
     #[test]
     fn test_request_item_creation() {
-        let item = CredentialRequest::new(CredentialType::ProofOfHuman, Some(Signal::from_string("signal")));
+        let item = CredentialRequest::new(
+            CredentialType::ProofOfHuman,
+            Some(Signal::from_string("signal")),
+        );
         assert_eq!(item.credential_type, CredentialType::ProofOfHuman);
         assert_eq!(item.signal, Some(Signal::from_string("signal")));
         assert_eq!(item.genesis_issued_at_min, None);
@@ -976,7 +992,10 @@ mod tests {
     fn test_request_item_with_bytes_signal() {
         // Test creating request item with raw bytes
         let bytes = b"arbitrary\x00\xFF\xFE data";
-        let item = CredentialRequest::new(CredentialType::ProofOfHuman, Some(Signal::from_bytes(bytes)));
+        let item = CredentialRequest::new(
+            CredentialType::ProofOfHuman,
+            Some(Signal::from_bytes(bytes)),
+        );
 
         // Verify signal is stored as bytes
         assert!(item.signal.is_some());

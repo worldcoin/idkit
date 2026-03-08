@@ -37,7 +37,7 @@ impl CredentialRequestWasm {
     /// Creates a new request item
     ///
     /// # Arguments
-    /// * `credential_type` - The type of credential to request (e.g., "proof_of_human", "face")
+    /// * `credential_type` - The type of credential to request (e.g., `proof_of_human`, `face`)
     /// * `signal` - Optional signal string
     ///
     /// # Errors

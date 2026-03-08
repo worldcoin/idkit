@@ -230,9 +230,7 @@ impl ConstraintNode {
     /// Converts this node to a protocol constraint node (expression form)
     fn to_protocol_node(&self) -> ProtocolNode<'static> {
         match self {
-            Self::Item(item) => {
-                ProtocolNode::Type(Cow::Owned(item.credential_type.to_string()))
-            }
+            Self::Item(item) => ProtocolNode::Type(Cow::Owned(item.credential_type.to_string())),
             Self::Any { any } => ProtocolNode::Expr(ProtocolExpr::Any {
                 any: any.iter().map(Self::to_protocol_node).collect(),
             }),
@@ -405,7 +403,10 @@ mod tests {
         available.insert(CredentialType::ProofOfHuman);
 
         assert!(node.evaluate(&available));
-        assert_eq!(node.first_satisfying(&available), Some(CredentialType::ProofOfHuman));
+        assert_eq!(
+            node.first_satisfying(&available),
+            Some(CredentialType::ProofOfHuman)
+        );
     }
 
     #[test]
@@ -441,7 +442,10 @@ mod tests {
         available.insert(CredentialType::ProofOfHuman);
 
         // Even though both are available, ProofOfHuman should be selected (higher priority)
-        assert_eq!(node.first_satisfying(&available), Some(CredentialType::ProofOfHuman));
+        assert_eq!(
+            node.first_satisfying(&available),
+            Some(CredentialType::ProofOfHuman)
+        );
     }
 
     #[test]
@@ -500,10 +504,7 @@ mod tests {
         available.insert(CredentialType::Mnc);
 
         assert!(node.evaluate(&available));
-        assert_eq!(
-            node.first_satisfying(&available),
-            Some(CredentialType::Mnc)
-        );
+        assert_eq!(node.first_satisfying(&available), Some(CredentialType::Mnc));
     }
 
     #[test]
@@ -525,7 +526,10 @@ mod tests {
 
         // Both available - proof_of_human has priority
         available.insert(CredentialType::ProofOfHuman);
-        assert_eq!(node.first_satisfying(&available), Some(CredentialType::ProofOfHuman));
+        assert_eq!(
+            node.first_satisfying(&available),
+            Some(CredentialType::ProofOfHuman)
+        );
     }
 
     #[test]

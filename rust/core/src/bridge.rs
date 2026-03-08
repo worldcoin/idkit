@@ -1332,7 +1332,7 @@ mod tests {
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
-            constraints: constraints.clone(),
+            constraints,
             rp_context,
             action_description: Some("Selfie check".to_string()),
             legacy_verification_level,
@@ -1370,7 +1370,7 @@ mod tests {
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
-            constraints: constraints.clone(),
+            constraints,
             rp_context,
             action_description: Some("Device check".to_string()),
             legacy_verification_level,
@@ -1432,7 +1432,7 @@ mod tests {
             kind: RequestKind::Uniqueness {
                 action: "my-action".to_string(),
             },
-            constraints: constraints.clone(),
+            constraints,
             rp_context,
             action_description: None,
             legacy_verification_level: VerificationLevel::Orb,
