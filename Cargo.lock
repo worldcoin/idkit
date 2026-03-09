@@ -486,7 +486,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "alloy-sol-types 1.5.7",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "serde",
  "serde_json",
  "serde_with",
@@ -709,7 +709,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa501ad58dd20acddbfebc65b52e60f05ebf97c52fa40d1b35e91f5e2da0ad0e"
 dependencies = [
  "alloy-transport",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "url",
 ]
 
@@ -5344,9 +5344,9 @@ checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
 
 [[package]]
 name = "world-id-primitives"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13939e35b7f9a77ad4f7cf268a1a5cd29597a4cb60377395457eafd8df0b5839"
+checksum = "e180c481c1c9dcc8a9a2e9f20800454a9307f44f416c00e58bfdce87b4630e67"
 dependencies = [
  "alloy",
  "alloy-primitives 1.5.7",
