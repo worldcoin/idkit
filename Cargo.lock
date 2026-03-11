@@ -2647,6 +2647,7 @@ dependencies = [
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
+ "strum",
  "taceo-oprf",
  "thiserror 1.0.69",
  "time",
