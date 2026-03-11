@@ -196,7 +196,13 @@ describe("native transport request lifecycle", () => {
   });
 
   it("sends version in postMessage envelope", () => {
-    const req = createNativeRequest({ data: "test" }, baseConfig, {}, undefined, 1);
+    const req = createNativeRequest(
+      { data: "test" },
+      baseConfig,
+      {},
+      undefined,
+      1,
+    );
     activeRequest = req;
 
     const postMessageFn = (globalThis as any).window.Android.postMessage;

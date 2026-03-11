@@ -405,7 +405,10 @@ function nativeResultToIDKitResult(
       action: config.action ?? "",
       responses: verifications.map((v) => ({
         identifier: v.verification_level,
-        signal_hash: v.signal_hash ?? signalHashes[v.verification_level] ?? legacySignalHash,
+        signal_hash:
+          v.signal_hash ??
+          signalHashes[v.verification_level] ??
+          legacySignalHash,
         proof: v.proof,
         merkle_root: v.merkle_root,
         nullifier: v.nullifier_hash,
@@ -422,7 +425,10 @@ function nativeResultToIDKitResult(
     responses: [
       {
         identifier: p.verification_level,
-        signal_hash: p.signal_hash ?? signalHashes[p.verification_level] ?? legacySignalHash,
+        signal_hash:
+          p.signal_hash ??
+          signalHashes[p.verification_level] ??
+          legacySignalHash,
         proof: p.proof,
         merkle_root: p.merkle_root,
         nullifier: p.nullifier_hash,
