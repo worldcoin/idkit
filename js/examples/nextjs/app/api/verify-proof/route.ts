@@ -12,6 +12,11 @@ export async function POST(request: Request): Promise<Response> {
     const baseUrl =
       process.env.DEV_PORTAL_BASE_URL?.trim() || "https://developer.world.org";
 
+    console.log(
+      "dev porta payload",
+      JSON.stringify(body.devPortalPayload, null, 2),
+    );
+
     const response = await fetch(`${baseUrl}/api/v4/verify/${body.rp_id}`, {
       method: "POST",
       headers: {
