@@ -9,6 +9,9 @@ import {
   type HookState,
 } from "./common";
 
+const isDebug = () =>
+  typeof window !== "undefined" && (window as any).IDKIT_DEBUG;
+
 export function useIDKitFlow<TResult>(
   createFlowHandle: () => Promise<IDKitRequest>,
   config: FlowConfig,
@@ -74,8 +77,14 @@ export function useIDKitFlow<TResult>(
 
     void (async () => {
       try {
+        if (isDebug()) console.debug("[IDKit] Creating flow handle…");
         const request = await createFlowHandleRef.current();
         ensureNotAborted(controller.signal);
+        if (isDebug())
+          console.debug("[IDKit] Flow created", {
+            connectorURI: request.connectorURI,
+            requestId: request.requestId,
+          });
 
         setState((prev) => {
           if (prev.connectorURI === request.connectorURI) {
@@ -116,6 +125,8 @@ export function useIDKitFlow<TResult>(
           }
 
           if (nextStatus.type === "failed") {
+            if (isDebug())
+              console.warn("[IDKit] Poll returned failed", nextStatus);
             setFailed(nextStatus.error ?? IDKitErrorCodes.GenericError);
             return;
           }
@@ -131,9 +142,11 @@ export function useIDKitFlow<TResult>(
         }
       } catch (error) {
         if (controller.signal.aborted) {
+          if (isDebug()) console.debug("[IDKit] Flow aborted");
           return;
         }
 
+        if (isDebug()) console.error("[IDKit] Flow error:", error);
         setFailed(toErrorCode(error));
       }
     })();
