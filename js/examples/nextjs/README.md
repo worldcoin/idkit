@@ -31,5 +31,4 @@ Open `http://localhost:4001`.
 ## Eruda
 
 [Eruda](https://github.com/liriliri/eruda) is enabled by default for this
-example so you can inspect the console inside World App. Set
-`NEXT_PUBLIC_APP_ENV=production` to disable it.
+example so you can inspect the console inside World App.
