@@ -248,31 +248,62 @@ pub struct BridgeConnectionParams {
     pub environment: Option<Environment>,
 }
 
-impl BridgeConnectionParams {
-    /// Computes signal hash map for response matching.
-    ///
-    /// Contains:
-    /// - `credential_type` → `signal_hash` (from constraints, for V4 response matching)
-    /// - `legacy_verification_level` → hashed `legacy_signal` (for V3 response matching)
-    #[must_use]
-    pub fn compute_signal_hashes(&self) -> std::collections::HashMap<String, String> {
-        let mut map = std::collections::HashMap::new();
+/// A helper struct to cache the signal hashes of a request
+/// used to include the signal hash back in the response for convenience, since the bridge does not return them
+#[derive(serde::Serialize)]
+pub struct CachedSignalHashes {
+    /// Signal hashes computed from constraints, keyed by identifier
+    pub(crate) signal_hashes: std::collections::HashMap<String, String>,
+    /// Legacy signal hash for v3 compatibility
+    /// **Note** In legacy bridge requests requesting VerificationLevel.Device
+    /// could return an ORB ZKP we still want to return that signal hash
+    pub(crate) legacy_signal_hash: Option<String>,
+}
 
-        // V4: credential_type → signal_hash from constraint items
-        for item in self.constraints.collect_items() {
+impl CachedSignalHashes {
+    /// Computes signal hashes for both V4 and legacy V3 matching.
+    ///
+    /// Returns a struct containing:
+    /// - `signal_hashes`: Map of `credential_type` → `signal_hash` for V4 response matching
+    /// - `legacy_signal_hash`: Hashed legacy signal for V3 response matching (if applicable)
+    #[must_use]
+    pub fn compute(params: &BridgeConnectionParams) -> Self {
+        let mut signal_hashes = std::collections::HashMap::new();
+
+        // Compute signal hashes for V4 constraints
+        for item in params.constraints.collect_items() {
             if let Some(ref signal) = item.signal {
                 let hash = crate::crypto::hash_signal(signal);
-                map.insert(item.credential_type.to_string(), hash);
+                signal_hashes.insert(item.credential_type.to_string(), hash);
             }
         }
 
-        // Legacy V3: verification_level → hashed legacy_signal
-        if !self.legacy_signal.is_empty() {
-            let hash = crate::crypto::hash_signal(&Signal::from_string(self.legacy_signal.clone()));
-            map.insert(self.legacy_verification_level.to_string(), hash);
-        }
+        // Compute legacy signal hash if legacy verification level is set
+        let legacy_signal_hash =
+            if params.legacy_verification_level == VerificationLevel::Deprecated {
+                None
+            } else {
+                Some(crate::crypto::hash_signal(&Signal::from_string(
+                    params.legacy_signal.clone(),
+                )))
+            };
 
-        map
+        Self {
+            signal_hashes,
+            legacy_signal_hash,
+        }
+    }
+
+    /// Gets the signal hash for a given credential type (used for V4 response matching)
+    #[must_use]
+    pub fn get(&self, identifier: &str) -> Option<String> {
+        self.signal_hashes.get(identifier).cloned()
+    }
+
+    /// Gets the legacy signal hash (used for V3 response matching)
+    #[must_use]
+    pub fn legacy(&self) -> Option<String> {
+        self.legacy_signal_hash.clone()
     }
 }
 
@@ -286,8 +317,9 @@ pub struct BridgeConnection {
     key_bytes: Vec<u8>,
     request_id: Uuid,
     client: reqwest::Client,
-    /// Signal hashes computed from constraints, keyed by identifier
-    signal_hashes: std::collections::HashMap<String, String>,
+    /// Cached signal hashes of the request
+    /// Used to add the `signal_hash` back to the idkit response for convenience
+    cached_signal_hashes: CachedSignalHashes,
     /// Action identifier (only for uniqueness proofs)
     action: Option<String>,
     /// Action description (only if provided in input)
@@ -454,7 +486,7 @@ impl BridgeConnection {
         let payload_json = serde_json::to_vec(&payload_value)?;
 
         // Compute signal hashes before partial moves
-        let signal_hashes = params.compute_signal_hashes();
+        let cached_signal_hashes = CachedSignalHashes::compute(&params);
 
         // Extract bridge_url after the borrow is done
         let bridge_url = params.bridge_url.unwrap_or_default();
@@ -511,7 +543,7 @@ impl BridgeConnection {
             key_bytes: key_bytes.to_vec(),
             request_id: create_response.request_id,
             client,
-            signal_hashes,
+            cached_signal_hashes,
             action,
             action_description: params.action_description,
             nonce: params.rp_context.nonce.clone(),
@@ -606,7 +638,7 @@ impl BridgeConnection {
                             .responses
                             .into_iter()
                             .map(|item| {
-                                let signal_hash = self.signal_hashes.get(&item.identifier).cloned();
+                                let signal_hash = self.cached_signal_hashes.get(&item.identifier);
                                 ResponseItem::from_protocol_item(item, signal_hash)
                             })
                             .collect::<Result<Vec<_>>>()?;
@@ -637,9 +669,8 @@ impl BridgeConnection {
                             .into_iter()
                             .map(|item| {
                                 let signal_hash = self
-                                    .signal_hashes
-                                    .get(item.verification_level.as_ref())
-                                    .cloned();
+                                    .cached_signal_hashes
+                                    .get(item.verification_level.as_ref());
                                 item.into_response_item(signal_hash)
                             })
                             .collect();
@@ -656,10 +687,7 @@ impl BridgeConnection {
                     BridgeResponse::ResponseV1(response) => {
                         // V1 responses are always protocol 3.0
                         // For V1 we don't have identifier, use verification_level as key
-                        let signal_hash = self
-                            .signal_hashes
-                            .get(response.verification_level.as_ref())
-                            .cloned();
+                        let signal_hash = self.cached_signal_hashes.legacy();
                         let item = response.into_response_item(signal_hash);
                         Ok(Status::Confirmed(IDKitResult::new(
                             "3.0",
@@ -1461,7 +1489,10 @@ mod tests {
             key_bytes: vec![1, 2, 3, 4],
             request_id: Uuid::parse_str("64e0ec6b-b4ca-47cc-8f70-504a95189e26").unwrap(),
             client: reqwest::Client::new(),
-            signal_hashes: std::collections::HashMap::new(),
+            cached_signal_hashes: CachedSignalHashes {
+                signal_hashes: std::collections::HashMap::new(),
+                legacy_signal_hash: None,
+            },
             action: Some("test-action".to_string()),
             action_description: None,
             nonce: "0x01".to_string(),

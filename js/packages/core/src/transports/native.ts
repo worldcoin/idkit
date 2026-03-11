@@ -104,7 +104,8 @@ export function createNativeRequest(
   wasmPayload: unknown,
   config: BuilderConfig,
   signalHashes: Record<string, string> = {},
-  version: 1 | 2,
+  legacySignalHash?: string,
+  version: 1 | 2 = 2,
 ): IDKitRequest {
   if (_activeNativeRequest?.isPending()) {
     console.warn(
@@ -116,6 +117,7 @@ export function createNativeRequest(
     wasmPayload,
     config,
     signalHashes,
+    legacySignalHash,
     version,
   );
   _activeNativeRequest = request;
@@ -138,7 +140,8 @@ class NativeIDKitRequest implements IDKitRequest {
     wasmPayload: unknown,
     config: BuilderConfig,
     signalHashes: Record<string, string> = {},
-    version: 1 | 2,
+    legacySignalHash?: string,
+    version: 1 | 2 = 2,
   ) {
     this.requestId =
       crypto.randomUUID?.() ?? `native-${Date.now()}-${++_requestCounter}`;
@@ -164,6 +167,7 @@ class NativeIDKitRequest implements IDKitRequest {
           responsePayload,
           config,
           signalHashes,
+          legacySignalHash,
         );
         this.resolvedResult = result;
         this.cleanup();
@@ -340,6 +344,7 @@ function nativeResultToIDKitResult(
   payload: unknown,
   config: BuilderConfig,
   signalHashes: Record<string, string>,
+  legacySignalHash?: string,
 ): IDKitResult {
   const p = payload as Record<string, any>;
   const rpNonce = config.rp_context?.nonce ?? "";
@@ -400,7 +405,7 @@ function nativeResultToIDKitResult(
       action: config.action ?? "",
       responses: verifications.map((v) => ({
         identifier: v.verification_level,
-        signal_hash: v.signal_hash ?? signalHashes[v.verification_level],
+        signal_hash: v.signal_hash ?? signalHashes[v.verification_level] ?? legacySignalHash,
         proof: v.proof,
         merkle_root: v.merkle_root,
         nullifier: v.nullifier_hash,
@@ -417,7 +422,7 @@ function nativeResultToIDKitResult(
     responses: [
       {
         identifier: p.verification_level,
-        signal_hash: p.signal_hash ?? signalHashes[p.verification_level],
+        signal_hash: p.signal_hash ?? signalHashes[p.verification_level] ?? legacySignalHash,
         proof: p.proof,
         merkle_root: p.merkle_root,
         nullifier: p.nullifier_hash,
