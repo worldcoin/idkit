@@ -33,8 +33,12 @@ import androidx.compose.ui.unit.dp
 import com.worldcoin.idkit.IDKit
 import com.worldcoin.idkit.IDKitRequest
 import com.worldcoin.idkit.IDKitRequestConfig
+import com.worldcoin.idkit.documentLegacy
 import com.worldcoin.idkit.idkitResultToJson
 import com.worldcoin.idkit.deviceLegacy
+import com.worldcoin.idkit.orbLegacy
+import com.worldcoin.idkit.secureDocumentLegacy
+import com.worldcoin.idkit.selfieCheckLegacy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -122,6 +126,10 @@ private fun SampleScreen(
                 EnvironmentSelector(
                     selected = model.environment,
                     onSelect = { model.environment = it },
+                )
+                LegacyPresetSelector(
+                    selected = model.legacyPreset,
+                    onSelect = { model.legacyPreset = it },
                 )
 
                 Button(
@@ -225,9 +233,63 @@ private fun EnvironmentSelector(
     }
 }
 
+@Composable
+private fun LegacyPresetSelector(
+    selected: SampleLegacyPreset,
+    onSelect: (SampleLegacyPreset) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Legacy preset", style = MaterialTheme.typography.labelLarge)
+
+        SampleLegacyPreset.entries
+            .chunked(2)
+            .forEach { rowItems ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    rowItems.forEach { preset ->
+                        if (selected == preset) {
+                            FilledTonalButton(
+                                onClick = {},
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text(preset.label)
+                            }
+                        } else {
+                            OutlinedButton(
+                                onClick = { onSelect(preset) },
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text(preset.label)
+                            }
+                        }
+                    }
+                }
+            }
+    }
+}
+
 private enum class SampleEnvironment {
     PRODUCTION,
     STAGING,
+}
+
+private enum class SampleLegacyPreset(val label: String) {
+    ORB("orb"),
+    SECURE_DOCUMENT("secure document"),
+    DOCUMENT("document"),
+    DEVICE("device"),
+    SELFIE_CHECK("selfie check"),
+    ;
+
+    fun toPreset(signal: String) = when (this) {
+        ORB -> orbLegacy(signal = signal)
+        SECURE_DOCUMENT -> secureDocumentLegacy(signal = signal)
+        DOCUMENT -> documentLegacy(signal = signal)
+        DEVICE -> deviceLegacy(signal = signal)
+        SELFIE_CHECK -> selfieCheckLegacy(signal = signal)
+    }
 }
 
 private class SampleModel {
@@ -238,6 +300,7 @@ private class SampleModel {
     var action by mutableStateOf("test-action")
     var signal by mutableStateOf("signal")
     var environment by mutableStateOf(SampleEnvironment.PRODUCTION)
+    var legacyPreset by mutableStateOf(SampleLegacyPreset.DEVICE)
     private val returnToURL = "idkitsample://callback"
     var connectorURI by mutableStateOf<String?>(null)
     var logs by mutableStateOf("")
@@ -290,10 +353,11 @@ private class SampleModel {
                         SampleEnvironment.STAGING -> Environment.STAGING
                     },
                 )
+                val preset = legacyPreset.toPreset(signal)
 
                 val request = IDKit
                     .request(config)
-                    .preset(deviceLegacy(signal = signal))
+                    .preset(preset)
 
                 completionJob?.cancel()
                 connectorURI = request.connectorURI
@@ -301,6 +365,7 @@ private class SampleModel {
                 deepLinkReceivedForPendingRequest = false
 
                 android.util.Log.i("IDKitSample", "IDKit connector URL: ${request.connectorURI}")
+                log("Using legacy preset: ${legacyPreset.label}")
                 log("Generated request ID: ${request.requestId}")
                 log("Configured return_to callback: $returnToURL")
                 startPollingForRequest(
@@ -383,26 +448,13 @@ private class SampleModel {
                         }
 
                         is com.worldcoin.idkit.IDKitStatus.Failed -> {
-                            if (status.error == com.worldcoin.idkit.IDKitErrorCode.CONNECTION_FAILED) {
-                                log(
-                                    "Bridge poll returned connection_failed " +
-                                        "(foreground=$appIsForeground, deepLinkReceived=$deepLinkReceivedForPendingRequest).",
-                                )
-                            }
-
-                            val shouldRetryConnectionFailure =
-                                status.error == com.worldcoin.idkit.IDKitErrorCode.CONNECTION_FAILED &&
-                                    !deepLinkReceivedForPendingRequest &&
-                                    pendingRequest?.requestId == request.requestId
-
-                            if (shouldRetryConnectionFailure) {
-                                log("Bridge not ready yet (connection_failed). Retrying...")
-                                delay(pollIntervalMs)
-                                continue
-                            }
-
                             log("Proof completion failed: ${status.error.rawValue}")
                             return@launch
+                        }
+
+                        is com.worldcoin.idkit.IDKitStatus.TransientError -> {
+                            log("Transient error (${status.error.rawValue}), retrying...")
+                            delay(pollIntervalMs)
                         }
 
                         com.worldcoin.idkit.IDKitStatus.AwaitingConfirmation,

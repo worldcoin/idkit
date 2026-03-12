@@ -61,6 +61,7 @@ public enum IDKitStatus: Equatable {
     case awaitingConfirmation
     case confirmed(IDKitResult)
     case failed(IDKitErrorCode)
+    case transientError(IDKitErrorCode)
 }
 
 /// Result returned by `IDKitRequest.pollUntilCompletion(options:)`.
@@ -203,7 +204,7 @@ public final class IDKitRequest {
                 return .success(result)
             case .failed(let error):
                 return .failure(error)
-            case .waitingForConnection, .awaitingConfirmation:
+            case .waitingForConnection, .awaitingConfirmation, .transientError:
                 break
             }
 
@@ -225,6 +226,8 @@ public final class IDKitRequest {
             .confirmed(result)
         case .failed(let error):
             .failed(IDKitErrorCode.from(appError: error))
+        case .transientError(let error):
+            .transientError(IDKitErrorCode.from(appError: error))
         }
     }
 }

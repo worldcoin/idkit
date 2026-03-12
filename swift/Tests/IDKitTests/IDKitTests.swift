@@ -81,6 +81,7 @@ func statusMapping() {
     #expect(IDKitRequest.mapStatus(.awaitingConfirmation) == .awaitingConfirmation)
     #expect(IDKitRequest.mapStatus(.confirmed(result: result)) == .confirmed(result))
     #expect(IDKitRequest.mapStatus(.failed(error: .invalidNetwork)) == .failed(.invalidNetwork))
+    #expect(IDKitRequest.mapStatus(.transientError(error: .connectionFailed)) == .transientError(.connectionFailed))
 }
 
 @Test("pollUntilCompletion success path")
@@ -128,6 +129,26 @@ func pollUntilCompletionCancellation() async {
 
     let completion = await task.value
     #expect(completion == .failure(.cancelled))
+}
+
+@Test("pollUntilCompletion recovers from transient errors")
+func pollUntilCompletionTransientRecovery() async {
+    let poller = StatusPoller([
+        .waitingForConnection,
+        .transientError(.connectionFailed),
+        .transientError(.connectionFailed),
+        .awaitingConfirmation,
+        .confirmed(sampleResult())
+    ])
+
+    let request = IDKitRequest(
+        connectorURL: URL(string: "https://world.org/verify?t=wld")!,
+        requestID: UUID(),
+        pollOnce: { await poller.next() }
+    )
+
+    let completion = await request.pollUntilCompletion(options: .init(pollIntervalMs: 1, timeoutMs: 1_000))
+    #expect(completion == .success(sampleResult()))
 }
 
 @Test("pollUntilCompletion app failure path")

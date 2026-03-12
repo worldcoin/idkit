@@ -35,6 +35,7 @@ fun IDKitRequest.statusFlow(pollInterval: Duration = 3.seconds): Flow<IDKitStatu
         when (current) {
             is IDKitStatus.Confirmed,
             is IDKitStatus.Failed -> return@flow
+            is IDKitStatus.TransientError,
             IDKitStatus.AwaitingConfirmation,
             IDKitStatus.WaitingForConnection -> {
                 delay(pollInterval)

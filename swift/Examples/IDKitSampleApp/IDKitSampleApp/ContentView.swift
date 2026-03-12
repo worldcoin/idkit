@@ -8,6 +8,31 @@ enum SampleEnvironment: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum SampleLegacyPreset: String, CaseIterable, Identifiable {
+    case orb
+    case secureDocument = "secure document"
+    case document
+    case device
+    case selfieCheck = "selfie check"
+
+    var id: String { rawValue }
+
+    func toPreset(signal: String) -> Preset {
+        switch self {
+        case .orb:
+            orbLegacy(signal: signal)
+        case .secureDocument:
+            secureDocumentLegacy(signal: signal)
+        case .document:
+            documentLegacy(signal: signal)
+        case .device:
+            deviceLegacy(signal: signal)
+        case .selfieCheck:
+            selfieCheckLegacy(signal: signal)
+        }
+    }
+}
+
 struct ContentView: View {
     @StateObject private var model = SampleModel()
 
@@ -36,6 +61,12 @@ struct ContentView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+
+                    Picker("Legacy preset", selection: $model.legacyPreset) {
+                        ForEach(SampleLegacyPreset.allCases) { preset in
+                            Text(preset.rawValue).tag(preset)
+                        }
+                    }
                 }
 
                 Section {
@@ -85,6 +116,7 @@ final class SampleModel: ObservableObject {
     @Published var action = "test-action"
     @Published var signal = "signal"
     @Published var environment: SampleEnvironment = .production
+    @Published var legacyPreset: SampleLegacyPreset = .orb
     @Published var connectorURL: URL?
     @Published var logs = ""
     @Published var isLoading = false
@@ -132,7 +164,9 @@ final class SampleModel: ObservableObject {
                 }()
             )
 
-            let request = try IDKit.request(config: config).preset(orbLegacy(signal: signal))
+            let request = try IDKit
+                .request(config: config)
+                .preset(legacyPreset.toPreset(signal: signal))
 
             completionTask?.cancel()
             connectorURL = request.connectorURL
@@ -140,6 +174,7 @@ final class SampleModel: ObservableObject {
             deepLinkReceivedForPendingRequest = false
 
             print("IDKit connector URL: \(request.connectorURL.absoluteString)")
+            log("Using legacy preset: \(legacyPreset.rawValue)")
             log("Generated request ID: \(request.requestID.uuidString)")
             log("Configured return_to callback: \(returnToURL)")
             startPollingForRequest(request: request, reason: "request generation")
@@ -226,19 +261,12 @@ final class SampleModel: ObservableObject {
                         return
 
                     case .failed(let error):
-                        let shouldRetryConnectionFailure =
-                            error == .connectionFailed &&
-                            !deepLinkReceivedForPendingRequest &&
-                            pendingRequest?.requestID == request.requestID
-
-                        if shouldRetryConnectionFailure {
-                            log("Bridge not ready yet (connection_failed). Retrying...")
-                            try await Task.sleep(nanoseconds: pollIntervalNs)
-                            continue
-                        }
-
                         log("Proof completion failed: \(error.rawValue)")
                         return
+
+                    case .transientError(let error):
+                        log("Transient error (\(error.rawValue)), retrying...")
+                        try await Task.sleep(nanoseconds: pollIntervalNs)
 
                     case .awaitingConfirmation, .waitingForConnection:
                         try await Task.sleep(nanoseconds: pollIntervalNs)
