@@ -1092,7 +1092,7 @@ fn is_transient_error(error: &Error) -> bool {
     match error {
         Error::Timeout | Error::ConnectionFailed | Error::BridgeError(_) => true,
         #[cfg(any(feature = "bridge", feature = "bridge-wasm"))]
-        Error::Http(err) => err.is_connect() || err.is_timeout(),
+        Error::Http(err) => err.is_timeout() || err.is_request(),
         _ => false,
     }
 }
