@@ -12,7 +12,6 @@ export async function POST(request: Request): Promise<Response> {
 
     const signingKey = process.env.RP_SIGNING_KEY;
     const { sig, nonce, createdAt, expiresAt } = signRequest(
-      body.action!,
       signingKey!,
       body.ttl,
     );

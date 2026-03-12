@@ -61,13 +61,11 @@ export function computeRpSignatureMessage(
  * Nonce generation matches `from_arbitrary_raw_bytes`:
  * https://github.com/worldcoin/world-id-protocol/blob/31405df8bcd5a2784e04ad9890cf095111dcac13/crates/primitives/src/lib.rs#L134-L149
  *
- * @param action - The action tied to the proof request (accepted for API compat, not used in signature)
  * @param signingKeyHex - The ECDSA private key as hex (0x-prefixed or not, 32 bytes)
  * @param ttl - Time-to-live in seconds (defaults to 300 = 5 minutes)
  * @returns RpSignature object with sig, nonce, createdAt, expiresAt
  */
 export function signRequest(
-  _action: string,
   signingKeyHex: string,
   ttl: number = DEFAULT_TTL_SEC,
 ): RpSignature {

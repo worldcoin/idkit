@@ -20,7 +20,6 @@ const hexToBytes = (input: string): Uint8Array =>
 
 const TEST_KEY =
   "0xabababababababababababababababababababababababababababababababab";
-const TEST_ACTION = "test-action";
 const FIXED_NOW_MS = 1700000000_000;
 
 const stubDeterministicRuntime = () => {
@@ -146,7 +145,7 @@ describe("signRequest", () => {
   });
 
   it("should return correctly formatted signature", () => {
-    const sig = signRequest(TEST_ACTION, TEST_KEY);
+    const sig = signRequest(TEST_KEY);
 
     expect(sig.sig).toMatch(/^0x[0-9a-f]{130}$/);
     expect(sig.sig.length).toBe(132);
@@ -157,7 +156,7 @@ describe("signRequest", () => {
 
   it("should use default TTL of 300 seconds", () => {
     vi.spyOn(Date, "now").mockReturnValue(FIXED_NOW_MS);
-    const sig = signRequest(TEST_ACTION, TEST_KEY);
+    const sig = signRequest(TEST_KEY);
 
     expect(sig.createdAt).toBe(1700000000);
     expect(sig.expiresAt).toBe(1700000300);
@@ -166,7 +165,7 @@ describe("signRequest", () => {
 
   it("should use custom TTL", () => {
     vi.spyOn(Date, "now").mockReturnValue(FIXED_NOW_MS);
-    const sig = signRequest(TEST_ACTION, TEST_KEY, 600);
+    const sig = signRequest(TEST_KEY, 600);
 
     expect(sig.createdAt).toBe(1700000000);
     expect(sig.expiresAt).toBe(1700000600);
@@ -174,45 +173,45 @@ describe("signRequest", () => {
   });
 
   it("should generate unique nonces", () => {
-    const sig1 = signRequest(TEST_ACTION, TEST_KEY);
-    const sig2 = signRequest(TEST_ACTION, TEST_KEY);
+    const sig1 = signRequest(TEST_KEY);
+    const sig2 = signRequest(TEST_KEY);
     expect(sig1.nonce).not.toBe(sig2.nonce);
   });
 
   it("should produce v value of 27 or 28", () => {
-    const sig = signRequest(TEST_ACTION, TEST_KEY);
+    const sig = signRequest(TEST_KEY);
     const vHex = sig.sig.slice(-2);
     const v = parseInt(vHex, 16);
     expect(v === 27 || v === 28).toBe(true);
   });
 
   it("should have nonce with leading zero byte (field element)", () => {
-    const sig = signRequest(TEST_ACTION, TEST_KEY);
+    const sig = signRequest(TEST_KEY);
     expect(sig.nonce.slice(2, 4)).toBe("00");
   });
 
   it("should accept key without 0x prefix", () => {
     const keyNoPrefix =
       "abababababababababababababababababababababababababababababababab";
-    const sig = signRequest(TEST_ACTION, keyNoPrefix);
+    const sig = signRequest(keyNoPrefix);
     expect(sig.sig).toMatch(/^0x[0-9a-f]{130}$/);
   });
 
   it("should reject signing key that is too short", () => {
-    expect(() => signRequest(TEST_ACTION, "0xabcd")).toThrow();
+    expect(() => signRequest("0xabcd")).toThrow();
   });
 
   it("should reject signing key with invalid hex", () => {
     const invalidKey =
       "0xZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
-    expect(() => signRequest(TEST_ACTION, invalidKey)).toThrow();
+    expect(() => signRequest(invalidKey)).toThrow();
   });
 
   it("should match Rust WASM for deterministic signature generation", () => {
     stubDeterministicRuntime();
 
-    const jsSig = signRequest(TEST_ACTION, TEST_KEY);
-    const wasmSig = wasmSignRequest(TEST_ACTION, TEST_KEY).toJSON();
+    const jsSig = signRequest(TEST_KEY);
+    const wasmSig = wasmSignRequest(TEST_KEY).toJSON();
 
     expect(wasmSig).toEqual(jsSig);
   });
@@ -220,7 +219,7 @@ describe("signRequest", () => {
   it("should serialize sig as a single string in WASM JSON output", () => {
     stubDeterministicRuntime();
 
-    const wasmSig = wasmSignRequest(TEST_ACTION, TEST_KEY);
+    const wasmSig = wasmSignRequest(TEST_KEY);
     expect(typeof wasmSig.sig).toBe("string");
 
     const jsonValue = wasmSig.toJSON();
