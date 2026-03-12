@@ -27,7 +27,8 @@ fun IDKitRequest.statusFlow(pollInterval: Duration = 3.seconds): Flow<IDKitStatu
 
     while (true) {
         val current = pollStatusOnce()
-        if (current != last) {
+        // Transient errors are silently retried, consistent with pollUntilCompletion
+        if (current != last && current !is IDKitStatus.TransientError) {
             last = current
             emit(current)
         }
