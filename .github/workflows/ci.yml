@@ -63,6 +63,32 @@ jobs:
         working-directory: go/idkit
         run: go test ./...
 
+  go-rust-parity:
+    name: Go ↔ Rust Parity Tests
+    runs-on:
+      group: arc-public-large-amd64-runner
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go/idkit/go.mod
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build rp-sign-vectors binary
+        run: cargo build --release -p idkit-core --bin rp-sign-vectors --features rp-signature
+
+      - name: Run Go parity tests
+        working-directory: go/idkit
+        run: go test -tags rust_parity -v ./...
+
   swift-bindings:
     name: Swift Bindings - Build & Test
     runs-on: ${{ matrix.os }}

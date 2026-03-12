@@ -16,6 +16,7 @@ import (
 )
 
 const defaultTTLSeconds uint64 = 300
+const rpSignatureMsgVersion byte = 0x01
 
 // Signer produces RP signatures for World ID verification requests.
 type Signer struct {
@@ -57,17 +58,18 @@ func hashToField(input []byte) []byte {
 	return field
 }
 
-// computeRpSignatureMessage builds the 48-byte RP signature payload:
-// nonce(32) || createdAt_u64_be(8) || expiresAt_u64_be(8).
+// computeRpSignatureMessage builds the 49-byte RP signature payload:
+// version(1) || nonce(32) || createdAt_u64_be(8) || expiresAt_u64_be(8).
 func computeRpSignatureMessage(
 	nonceBytes []byte,
 	createdAt uint64,
 	expiresAt uint64,
 ) []byte {
-	message := make([]byte, 48)
-	copy(message[:32], nonceBytes)
-	binary.BigEndian.PutUint64(message[32:40], createdAt)
-	binary.BigEndian.PutUint64(message[40:48], expiresAt)
+	message := make([]byte, 49)
+	message[0] = rpSignatureMsgVersion
+	copy(message[1:33], nonceBytes)
+	binary.BigEndian.PutUint64(message[33:41], createdAt)
+	binary.BigEndian.PutUint64(message[41:49], expiresAt)
 
 	return message
 }

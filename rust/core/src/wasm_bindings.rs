@@ -304,6 +304,28 @@ pub fn hash_signal_wasm(signal: JsValue) -> Result<String, JsValue> {
     Err(JsValue::from_str("Signal must be a string or Uint8Array"))
 }
 
+/// Computes the raw RP signature message bytes for a given nonce and timestamps.
+///
+/// This mirrors the message that Rust signs internally for `signRequest`.
+///
+/// # Errors
+///
+/// Returns an error if the nonce is not a valid field element string.
+#[wasm_bindgen(js_name = computeRpSignatureMessage)]
+pub fn compute_rp_signature_message_wasm(
+    nonce: &str,
+    created_at: u64,
+    expires_at: u64,
+) -> Result<Vec<u8>, JsValue> {
+    use world_id_primitives::{FieldElement, rp::compute_rp_signature_msg};
+
+    let nonce = nonce
+        .parse::<FieldElement>()
+        .map_err(|e| JsValue::from_str(&format!("Invalid nonce: {e}")))?;
+
+    Ok(compute_rp_signature_msg(*nonce, created_at, expires_at))
+}
+
 // RP Signature wrapper for WASM
 #[wasm_bindgen(js_name = RpSignature)]
 pub struct RpSignatureWasm {
@@ -371,11 +393,10 @@ impl RpSignatureWasm {
 /// proof requests. It:
 /// 1. Generates a random nonce
 /// 2. Gets the current timestamp
-/// 3. Computes: keccak256(nonce || action || timestamp || `expires_at`)
+/// 3. Computes: keccak256(version || nonce || timestamp || `expires_at`)
 /// 4. Signs the hash with ECDSA secp256k1
 ///
 /// # Arguments
-/// * `action` - The action identifier string (e.g., "verify-human")
 /// * `signing_key_hex` - The ECDSA private key as hex (0x-prefixed or not, 32 bytes)
 /// * `ttl_seconds` - Optional time-to-live in seconds (defaults to 300 = 5 minutes)
 ///
@@ -394,24 +415,19 @@ impl RpSignatureWasm {
 /// import { signRequest } from '@worldcoin/idkit-core'
 ///
 /// const signingKey = process.env.RP_SIGNING_KEY // Load from secure env var
-/// const signature = signRequest('my-action', signingKey) // default 5 min TTL
-/// const customTtl = signRequest('my-action', signingKey, 600) // 10 min TTL
+/// const signature = signRequest(signingKey) // default 5 min TTL
+/// const customTtl = signRequest(signingKey, 600) // 10 min TTL
 /// console.log(signature.sig, signature.nonce, signature.createdAt, signature.expiresAt)
 /// ```
 #[wasm_bindgen(js_name = signRequest)]
 pub fn compute_rp_signature_wasm(
-    action: &str,
     signing_key_hex: &str,
     ttl_seconds: Option<u64>,
 ) -> Result<RpSignatureWasm, JsValue> {
     #[cfg(feature = "rp-signature")]
     {
-        use world_id_primitives::FieldElement;
-
-        let action = FieldElement::from_arbitrary_raw_bytes(action.as_bytes());
-
         // Compute signature using core implementation
-        let sig = crate::rp_signature::compute_rp_signature(signing_key_hex, action, ttl_seconds)
+        let sig = crate::rp_signature::compute_rp_signature(signing_key_hex, ttl_seconds)
             .map_err(|e| JsValue::from_str(&format!("Signature computation failed: {e}")))?;
 
         Ok(RpSignatureWasm {
@@ -1065,6 +1081,7 @@ export type ConstraintNode =
  * Returns a 0x-prefixed hex string.
  */
 export function hashSignal(signal: string | Uint8Array): string;
+export function computeRpSignatureMessage(nonce: string, createdAt: bigint, expiresAt: bigint): Uint8Array;
 "#;
 
 // Export ResponseItem/IDKitResult types for unified response
@@ -1276,7 +1293,7 @@ export interface RpSignature {
     toJSON(): { sig: string; nonce: string; createdAt: number; expiresAt: number };
 }
 
-export function signRequest(action: string, signingKeyHex: string, ttlSeconds?: number): RpSignature;
+export function signRequest(signingKeyHex: string, ttlSeconds?: number): RpSignature;
 "#;
 
 // Export native payload result type (return type of nativePayload / nativePayloadFromPreset)

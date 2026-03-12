@@ -10,6 +10,7 @@ etc.hmacSha256Sync = (key: Uint8Array, ...msgs: Uint8Array[]) =>
   hmac(sha256, key, etc.concatBytes(...msgs));
 
 const DEFAULT_TTL_SEC = 300;
+const RP_SIGNATURE_MSG_VERSION = 0x01;
 
 export function hashToField(input: Uint8Array): Uint8Array {
   const hash = BigInt("0x" + bytesToHex(keccak_256(input))) >> 8n;
@@ -24,29 +25,30 @@ export interface RpSignature {
 }
 
 /**
- * Builds the 48-byte message that gets signed for RP signature verification.
+ * Builds the 49-byte message that gets signed for RP signature verification.
  *
- * Message format: nonce(32) || createdAt_u64_be(8) || expiresAt_u64_be(8)
+ * Message format: version(1) || nonce(32) || createdAt_u64_be(8) || expiresAt_u64_be(8)
  *
- * Matches Rust `compute_rp_signature_msg`:
+ * Matches Rust `compute_rp_signature_msg` (world-id-primitives v0.5.1+):
  * https://github.com/worldcoin/world-id-protocol/blob/0008eab1efe200e572f27258793f9be5cb32858b/crates/primitives/src/rp.rs#L95-L105
  *
  * @param nonceBytes - 32-byte nonce as Uint8Array
  * @param createdAt - unix timestamp in seconds
  * @param expiresAt - unix timestamp in seconds
- * @returns 48-byte message ready to be hashed and signed
+ * @returns 49-byte message ready to be hashed and signed
  */
 export function computeRpSignatureMessage(
   nonceBytes: Uint8Array,
   createdAt: number,
   expiresAt: number,
 ): Uint8Array {
-  const message = new Uint8Array(48);
-  message.set(nonceBytes, 0);
+  const message = new Uint8Array(49);
+  message[0] = RP_SIGNATURE_MSG_VERSION;
+  message.set(nonceBytes, 1);
 
   const view = new DataView(message.buffer);
-  view.setBigUint64(32, BigInt(createdAt), false); // big-endian
-  view.setBigUint64(40, BigInt(expiresAt), false); // big-endian
+  view.setBigUint64(33, BigInt(createdAt), false); // big-endian
+  view.setBigUint64(41, BigInt(expiresAt), false); // big-endian
 
   return message;
 }
