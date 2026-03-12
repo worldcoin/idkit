@@ -22,6 +22,7 @@ const TEST_KEY =
   "0xabababababababababababababababababababababababababababababababab";
 const FIXED_NOW_MS = 1700000000_000;
 
+// Stubs clock and randomness so JS and WASM signRequest produce identical, comparable outputs.
 const stubDeterministicRuntime = () => {
   vi.spyOn(Date, "now").mockReturnValue(FIXED_NOW_MS);
   vi.stubGlobal("crypto", {

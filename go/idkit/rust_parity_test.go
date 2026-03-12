@@ -69,26 +69,38 @@ func TestSignRequestParityWithRustMultipleVectors(t *testing.T) {
 	t.Parallel()
 
 	seeds := []struct {
-		name   string
-		fill   func([]byte)
-		ttl    uint64
-		nowFn  func() uint64
+		name  string
+		fill  func([]byte)
+		ttl   uint64
+		nowFn func() uint64
 	}{
 		{
-			name:  "sequential",
-			fill:  func(dst []byte) { for i := range dst { dst[i] = byte(i) } },
+			name: "sequential",
+			fill: func(dst []byte) {
+				for i := range dst {
+					dst[i] = byte(i)
+				}
+			},
 			ttl:   300,
 			nowFn: func() uint64 { return fixedUnixNow },
 		},
 		{
-			name:  "offset_10",
-			fill:  func(dst []byte) { for i := range dst { dst[i] = byte(i + 10) } },
+			name: "offset_10",
+			fill: func(dst []byte) {
+				for i := range dst {
+					dst[i] = byte(i + 10)
+				}
+			},
 			ttl:   600,
 			nowFn: func() uint64 { return fixedUnixNow + 1000 },
 		},
 		{
-			name:  "all_0xff",
-			fill:  func(dst []byte) { for i := range dst { dst[i] = 0xff } },
+			name: "all_0xff",
+			fill: func(dst []byte) {
+				for i := range dst {
+					dst[i] = 0xff
+				}
+			},
 			ttl:   60,
 			nowFn: func() uint64 { return 1_800_000_000 },
 		},

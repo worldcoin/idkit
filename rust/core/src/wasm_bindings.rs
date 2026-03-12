@@ -317,7 +317,7 @@ pub fn compute_rp_signature_message_wasm(
     created_at: u64,
     expires_at: u64,
 ) -> Result<Vec<u8>, JsValue> {
-    use world_id_primitives::{FieldElement, rp::compute_rp_signature_msg};
+    use world_id_primitives::{rp::compute_rp_signature_msg, FieldElement};
 
     let nonce = nonce
         .parse::<FieldElement>()

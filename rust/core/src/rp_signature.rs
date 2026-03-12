@@ -47,10 +47,7 @@ pub struct RpSignature {
 /// - Random number generation fails
 /// - System time is before UNIX epoch
 /// - Signing operation fails
-pub fn compute_rp_signature(
-    signing_key_hex: &str,
-    ttl: Option<u64>,
-) -> Result<RpSignature> {
+pub fn compute_rp_signature(signing_key_hex: &str, ttl: Option<u64>) -> Result<RpSignature> {
     // 1. Parse signing key
     let hex_str = signing_key_hex
         .strip_prefix("0x")
