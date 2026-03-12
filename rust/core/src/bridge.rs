@@ -668,9 +668,11 @@ impl BridgeConnection {
                         let responses: Vec<ResponseItem> = legacy_responses
                             .into_iter()
                             .map(|item| {
+                                // Search the `signal_hashes` or fallback to legacy signal hash for v3 responses since the bridge does not return signal hashes
                                 let signal_hash = self
                                     .cached_signal_hashes
-                                    .get(item.verification_level.as_ref());
+                                    .get(item.verification_level.as_ref())
+                                    .or(self.cached_signal_hashes.legacy());
                                 item.into_response_item(signal_hash)
                             })
                             .collect();
