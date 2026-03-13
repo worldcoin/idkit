@@ -734,8 +734,13 @@ impl IDKitBuilderWasm {
             .serialize(&serializer)
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
-        let signal_hashes_js = params
-            .compute_signal_hashes()
+        let cached = crate::bridge::CachedSignalHashes::compute(&params);
+        let signal_hashes_js = cached
+            .signal_hashes
+            .serialize(&serializer)
+            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
+        let legacy_signal_hash_js = cached
+            .legacy_signal_hash
             .serialize(&serializer)
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
@@ -748,6 +753,12 @@ impl IDKitBuilderWasm {
             &signal_hashes_js,
         )
         .map_err(|e| JsValue::from_str(&format!("Failed to set signal_hashes: {e:?}")))?;
+        js_sys::Reflect::set(
+            &result,
+            &JsValue::from_str("legacy_signal_hash"),
+            &legacy_signal_hash_js,
+        )
+        .map_err(|e| JsValue::from_str(&format!("Failed to set legacy_signal_hash: {e:?}")))?;
 
         Ok(result.into())
     }
@@ -775,8 +786,13 @@ impl IDKitBuilderWasm {
             .serialize(&serializer)
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
-        let signal_hashes_js = params
-            .compute_signal_hashes()
+        let cached = crate::bridge::CachedSignalHashes::compute(&params);
+        let signal_hashes_js = cached
+            .signal_hashes
+            .serialize(&serializer)
+            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
+        let legacy_signal_hash_js = cached
+            .legacy_signal_hash
             .serialize(&serializer)
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
@@ -789,6 +805,12 @@ impl IDKitBuilderWasm {
             &signal_hashes_js,
         )
         .map_err(|e| JsValue::from_str(&format!("Failed to set signal_hashes: {e:?}")))?;
+        js_sys::Reflect::set(
+            &result,
+            &JsValue::from_str("legacy_signal_hash"),
+            &legacy_signal_hash_js,
+        )
+        .map_err(|e| JsValue::from_str(&format!("Failed to set legacy_signal_hash: {e:?}")))?;
 
         Ok(result.into())
     }
@@ -817,8 +839,13 @@ impl IDKitBuilderWasm {
             .serialize(&serializer)
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
-        let signal_hashes_js = params
-            .compute_signal_hashes()
+        let cached = crate::bridge::CachedSignalHashes::compute(&params);
+        let signal_hashes_js = cached
+            .signal_hashes
+            .serialize(&serializer)
+            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
+        let legacy_signal_hash_js = cached
+            .legacy_signal_hash
             .serialize(&serializer)
             .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
 
@@ -831,6 +858,12 @@ impl IDKitBuilderWasm {
             &signal_hashes_js,
         )
         .map_err(|e| JsValue::from_str(&format!("Failed to set signal_hashes: {e:?}")))?;
+        js_sys::Reflect::set(
+            &result,
+            &JsValue::from_str("legacy_signal_hash"),
+            &legacy_signal_hash_js,
+        )
+        .map_err(|e| JsValue::from_str(&format!("Failed to set legacy_signal_hash: {e:?}")))?;
 
         Ok(result.into())
     }
@@ -1287,6 +1320,7 @@ const TS_NATIVE_PAYLOAD: &str = r#"
 export interface NativePayloadResult {
     payload: unknown;
     signal_hashes: Record<string, string>;
+    legacy_signal_hash: string | null;
 }
 
 /** V1 native payload sent to older World App versions (verify command v1) */

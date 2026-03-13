@@ -27,3 +27,8 @@ pnpm dev
 ```
 
 Open `http://localhost:4001`.
+
+## Eruda
+
+[Eruda](https://github.com/liriliri/eruda) is enabled by default for this
+example so you can inspect the console inside World App.
