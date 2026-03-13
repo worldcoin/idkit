@@ -13,6 +13,7 @@ export type HookState<TResult> = {
   connectorURI: string | null;
   result: TResult | null;
   errorCode: IDKitErrorCodes | null;
+  isInWorldApp: boolean;
 };
 
 export function createInitialHookState<TResult>(): HookState<TResult> {
@@ -22,6 +23,7 @@ export function createInitialHookState<TResult>(): HookState<TResult> {
     connectorURI: null,
     result: null,
     errorCode: null,
+    isInWorldApp: false,
   };
 }
 

@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { IDKitErrorCodes, type IDKitRequest } from "@worldcoin/idkit-core";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  IDKitErrorCodes,
+  isInWorldApp as isInWorldAppCheck,
+  type IDKitRequest,
+} from "@worldcoin/idkit-core";
 import type { FlowConfig, IDKitHookResult } from "../types";
 import {
   createInitialHookState,
@@ -16,6 +20,8 @@ export function useIDKitFlow<TResult>(
   createFlowHandle: () => Promise<IDKitRequest>,
   config: FlowConfig,
 ): IDKitHookResult<TResult> {
+  const isInWorldApp = useMemo(() => isInWorldAppCheck(), []);
+
   const [state, setState] = useState<HookState<TResult>>(
     createInitialHookState,
   );
@@ -49,9 +55,10 @@ export function useIDKitFlow<TResult>(
         connectorURI: null,
         result: null,
         errorCode: null,
+        isInWorldApp: isInWorldApp,
       };
     });
-  }, []);
+  }, [isInWorldApp]);
 
   useEffect(() => {
     if (!state.isOpen) {
@@ -86,11 +93,12 @@ export function useIDKitFlow<TResult>(
             requestId: request.requestId,
           });
 
+        const connectorURI = isInWorldApp ? null : request.connectorURI;
         setState((prev) => {
-          if (prev.connectorURI === request.connectorURI) {
+          if (prev.connectorURI === connectorURI) {
             return prev;
           }
-          return { ...prev, connectorURI: request.connectorURI };
+          return { ...prev, connectorURI };
         });
 
         const pollInterval = configRef.current.polling?.interval ?? 1000;
@@ -170,5 +178,6 @@ export function useIDKitFlow<TResult>(
     result: state.result,
     errorCode: state.errorCode,
     isOpen: state.isOpen,
+    isInWorldApp: isInWorldApp,
   };
 }

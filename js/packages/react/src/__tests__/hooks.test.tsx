@@ -24,6 +24,7 @@ vi.mock("@worldcoin/idkit-core", () => ({
     MalformedRequest: "malformed_request",
     UnexpectedResponse: "unexpected_response",
   },
+  isInWorldApp: () => false,
 }));
 
 const baseRpContext = {

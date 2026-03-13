@@ -284,8 +284,11 @@ export function DemoClient(): ReactElement {
           rp_context={widgetRpContext}
           allow_legacy_proofs={true}
           preset={widgetPreset}
-          onSuccess={() => {}}
+          onSuccess={() => {
+            console.log("success");
+          }}
           handleVerify={async (result) => {
+            console.log("test");
             const verified = await verifyProof(result);
             setWidgetVerifyResult(verified);
           }}

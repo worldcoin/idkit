@@ -99,13 +99,34 @@ export function IDKitRequestWidget({
     });
   }, [effectiveErrorCode, onError]);
 
-  // Auto-close on success
+  // In World App context there's no UI to render HostAppVerificationState,
+  // so invoke handleVerify programmatically when the proof arrives.
   useEffect(() => {
-    if (isSuccess && autoClose) {
-      const timer = setTimeout(() => onOpenChange(false), 2500);
-      return () => clearTimeout(timer);
+    if (!flow.isInWorldApp || !isHostVerifying || !flow.result || !handleVerify) {
+      return;
     }
-  }, [isSuccess, autoClose, onOpenChange]);
+
+    void Promise.resolve(handleVerify(flow.result))
+      .then(() => setHostVerifyResult("passed"))
+      .catch(() => setHostVerifyResult("failed"));
+  }, [flow.isInWorldApp, isHostVerifying, flow.result, handleVerify]);
+
+  // Auto-close on success: immediate in World App (no visible UI), delayed in bridge flow
+  useEffect(() => {
+    if (isSuccess) {
+      if (flow.isInWorldApp) {
+        onOpenChange(false);
+      } else if (autoClose) {
+        const timer = setTimeout(() => onOpenChange(false), 2500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isSuccess, autoClose, onOpenChange, flow.isInWorldApp]);
+
+  // In World App context, the host app handles all UI — render nothing.
+  if (flow.isInWorldApp) {
+    return null;
+  }
 
   const stage = getVisualStage(isSuccess, isError, isHostVerifying);
   const showSimulatorCallout = config.environment === "staging";
