@@ -119,17 +119,16 @@ export function IDKitSessionWidget({
       .catch(() => setHostVerifyResult("failed"));
   }, [flow.isInWorldApp, isHostVerifying, flow.result, handleVerify]);
 
-  // Auto-close on success: immediate in World App (no visible UI), delayed in bridge flow
+  // In World App there's no visible UI, so auto-close immediately on success or error.
+  // In bridge flow, only auto-close on success after the 2.5s delay (errors show retry UI).
   useEffect(() => {
-    if (isSuccess) {
-      if (flow.isInWorldApp) {
-        onOpenChange(false);
-      } else if (autoClose) {
-        const timer = setTimeout(() => onOpenChange(false), 2500);
-        return () => clearTimeout(timer);
-      }
+    if (flow.isInWorldApp && (isSuccess || isError)) {
+      onOpenChange(false);
+    } else if (isSuccess && autoClose) {
+      const timer = setTimeout(() => onOpenChange(false), 2500);
+      return () => clearTimeout(timer);
     }
-  }, [isSuccess, autoClose, onOpenChange, flow.isInWorldApp]);
+  }, [isSuccess, isError, autoClose, onOpenChange, flow.isInWorldApp]);
 
   // In World App context, the host app handles all UI — render nothing.
   if (flow.isInWorldApp) {
