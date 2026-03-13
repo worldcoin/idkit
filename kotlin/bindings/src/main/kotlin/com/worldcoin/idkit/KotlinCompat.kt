@@ -27,7 +27,8 @@ fun IDKitRequest.statusFlow(pollInterval: Duration = 3.seconds): Flow<IDKitStatu
 
     while (true) {
         val current = pollStatusOnce()
-        if (current != last) {
+        // Networking errors are silently retried, consistent with pollUntilCompletion
+        if (current != last && current !is IDKitStatus.NetworkingError) {
             last = current
             emit(current)
         }
@@ -35,6 +36,7 @@ fun IDKitRequest.statusFlow(pollInterval: Duration = 3.seconds): Flow<IDKitStatu
         when (current) {
             is IDKitStatus.Confirmed,
             is IDKitStatus.Failed -> return@flow
+            is IDKitStatus.NetworkingError,
             IDKitStatus.AwaitingConfirmation,
             IDKitStatus.WaitingForConnection -> {
                 delay(pollInterval)

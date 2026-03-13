@@ -89,6 +89,10 @@ class IDKitTests {
             IDKitStatus.Failed(IDKitErrorCode.INVALID_NETWORK),
             IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.INVALID_NETWORK)),
         )
+        assertEquals(
+            IDKitStatus.NetworkingError(IDKitErrorCode.CONNECTION_FAILED),
+            IDKitRequest.mapStatus(StatusWrapper.NetworkingError(AppError.CONNECTION_FAILED)),
+        )
     }
 
     @Test
@@ -136,6 +140,29 @@ class IDKitTests {
 
         val completion = request.pollUntilCompletion(IDKitPollOptions(pollIntervalMs = 200u, timeoutMs = 10_000u))
         assertEquals(IDKitCompletionResult.Failure(IDKitErrorCode.CANCELLED), completion)
+    }
+
+    @Test
+    fun `pollUntilCompletion recovers from networking errors`() = runBlocking {
+        val statuses = ArrayDeque(
+            listOf(
+                IDKitStatus.WaitingForConnection,
+                IDKitStatus.NetworkingError(IDKitErrorCode.CONNECTION_FAILED),
+                IDKitStatus.NetworkingError(IDKitErrorCode.CONNECTION_FAILED),
+                IDKitStatus.AwaitingConfirmation,
+                IDKitStatus.Confirmed(sampleResult()),
+            ),
+        )
+
+        val request = IDKitRequest.forTesting(
+            connectorURI = "https://world.org/verify?t=wld",
+            requestId = "7a6ff287-c95f-4330-b3de-9447f77ca3f9",
+        ) {
+            statuses.removeFirstOrNull() ?: IDKitStatus.WaitingForConnection
+        }
+
+        val completion = request.pollUntilCompletion(IDKitPollOptions(pollIntervalMs = 1u, timeoutMs = 1_000u))
+        assertEquals(IDKitCompletionResult.Success(sampleResult()), completion)
     }
 
     @Test
