@@ -264,8 +264,8 @@ final class SampleModel: ObservableObject {
                         log("Proof completion failed: \(error.rawValue)")
                         return
 
-                    case .transientError(let error):
-                        log("Transient error (\(error.rawValue)), retrying...")
+                    case .networkingError(let error):
+                        log("Networking error (\(error.rawValue)), retrying...")
                         try await Task.sleep(nanoseconds: pollIntervalNs)
 
                     case .awaitingConfirmation, .waitingForConnection:

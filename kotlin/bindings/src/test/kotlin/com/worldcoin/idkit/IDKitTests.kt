@@ -90,8 +90,8 @@ class IDKitTests {
             IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.INVALID_NETWORK)),
         )
         assertEquals(
-            IDKitStatus.TransientError(IDKitErrorCode.CONNECTION_FAILED),
-            IDKitRequest.mapStatus(StatusWrapper.TransientError(AppError.CONNECTION_FAILED)),
+            IDKitStatus.NetworkingError(IDKitErrorCode.CONNECTION_FAILED),
+            IDKitRequest.mapStatus(StatusWrapper.NetworkingError(AppError.CONNECTION_FAILED)),
         )
     }
 
@@ -143,12 +143,12 @@ class IDKitTests {
     }
 
     @Test
-    fun `pollUntilCompletion recovers from transient errors`() = runBlocking {
+    fun `pollUntilCompletion recovers from networking errors`() = runBlocking {
         val statuses = ArrayDeque(
             listOf(
                 IDKitStatus.WaitingForConnection,
-                IDKitStatus.TransientError(IDKitErrorCode.CONNECTION_FAILED),
-                IDKitStatus.TransientError(IDKitErrorCode.CONNECTION_FAILED),
+                IDKitStatus.NetworkingError(IDKitErrorCode.CONNECTION_FAILED),
+                IDKitStatus.NetworkingError(IDKitErrorCode.CONNECTION_FAILED),
                 IDKitStatus.AwaitingConfirmation,
                 IDKitStatus.Confirmed(sampleResult()),
             ),

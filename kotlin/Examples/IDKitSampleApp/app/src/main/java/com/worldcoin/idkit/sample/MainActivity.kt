@@ -452,8 +452,8 @@ private class SampleModel {
                             return@launch
                         }
 
-                        is com.worldcoin.idkit.IDKitStatus.TransientError -> {
-                            log("Transient error (${status.error.rawValue}), retrying...")
+                        is com.worldcoin.idkit.IDKitStatus.NetworkingError -> {
+                            log("Networking error (${status.error.rawValue}), retrying...")
                             delay(pollIntervalMs)
                         }
 

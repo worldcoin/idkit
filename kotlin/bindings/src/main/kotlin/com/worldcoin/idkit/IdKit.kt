@@ -79,7 +79,7 @@ sealed interface IDKitStatus {
     data object AwaitingConfirmation : IDKitStatus
     data class Confirmed(val result: IDKitResult) : IDKitStatus
     data class Failed(val error: IDKitErrorCode) : IDKitStatus
-    data class TransientError(val error: IDKitErrorCode) : IDKitStatus
+    data class NetworkingError(val error: IDKitErrorCode) : IDKitStatus
 }
 
 sealed interface IDKitCompletionResult {
@@ -146,7 +146,7 @@ class IDKitRequest internal constructor(
                 when (val status = pollStatusOnce()) {
                     is IDKitStatus.Confirmed -> return IDKitCompletionResult.Success(status.result)
                     is IDKitStatus.Failed -> return IDKitCompletionResult.Failure(status.error)
-                    is IDKitStatus.TransientError -> delay(pollIntervalMs.toLong())
+                    is IDKitStatus.NetworkingError -> delay(pollIntervalMs.toLong())
                     IDKitStatus.AwaitingConfirmation,
                     IDKitStatus.WaitingForConnection -> delay(pollIntervalMs.toLong())
                 }
@@ -168,7 +168,7 @@ class IDKitRequest internal constructor(
             StatusWrapper.AwaitingConfirmation -> IDKitStatus.AwaitingConfirmation
             is StatusWrapper.Confirmed -> IDKitStatus.Confirmed(status.result)
             is StatusWrapper.Failed -> IDKitStatus.Failed(IDKitErrorCode.from(status.error))
-            is StatusWrapper.TransientError -> IDKitStatus.TransientError(IDKitErrorCode.from(status.error))
+            is StatusWrapper.NetworkingError -> IDKitStatus.NetworkingError(IDKitErrorCode.from(status.error))
         }
     }
 }

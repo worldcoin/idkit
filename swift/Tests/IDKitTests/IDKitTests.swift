@@ -81,7 +81,7 @@ func statusMapping() {
     #expect(IDKitRequest.mapStatus(.awaitingConfirmation) == .awaitingConfirmation)
     #expect(IDKitRequest.mapStatus(.confirmed(result: result)) == .confirmed(result))
     #expect(IDKitRequest.mapStatus(.failed(error: .invalidNetwork)) == .failed(.invalidNetwork))
-    #expect(IDKitRequest.mapStatus(.transientError(error: .connectionFailed)) == .transientError(.connectionFailed))
+    #expect(IDKitRequest.mapStatus(.networkingError(error: .connectionFailed)) == .networkingError(.connectionFailed))
 }
 
 @Test("pollUntilCompletion success path")
@@ -131,12 +131,12 @@ func pollUntilCompletionCancellation() async {
     #expect(completion == .failure(.cancelled))
 }
 
-@Test("pollUntilCompletion recovers from transient errors")
-func pollUntilCompletionTransientRecovery() async {
+@Test("pollUntilCompletion recovers from networking errors")
+func pollUntilCompletionNetworkingRecovery() async {
     let poller = StatusPoller([
         .waitingForConnection,
-        .transientError(.connectionFailed),
-        .transientError(.connectionFailed),
+        .networkingError(.connectionFailed),
+        .networkingError(.connectionFailed),
         .awaitingConfirmation,
         .confirmed(sampleResult())
     ])
