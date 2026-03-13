@@ -13,19 +13,10 @@ const DEV_PORTAL_BASE_URL =
   process.env.DEV_PORTAL_BASE_URL || "https://developer.world.org";
 
 app.post("/api/rp-signature", (req, res) => {
-  const { action, ttl } = req.body;
-
-  if (!action || typeof action !== "string") {
-    res.status(400).json({ error: "action is required" });
-    return;
-  }
+  const { ttl } = req.body;
 
   try {
-    const sig = signRequest(
-      action,
-      DEMO_SIGNING_KEY,
-      ttl ? Number(ttl) : undefined,
-    );
+    const sig = signRequest(DEMO_SIGNING_KEY, ttl ? Number(ttl) : undefined);
 
     res.json({
       sig: sig.sig,

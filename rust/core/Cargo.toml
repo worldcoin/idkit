@@ -11,6 +11,11 @@ description = "Core Rust implementation of IDKit - World ID SDK for Relying Part
 name = "idkit"
 crate-type = ["rlib", "cdylib", "staticlib"]
 
+[[bin]]
+name = "rp-sign-vectors"
+path = "src/bin/rp_sign_vectors.rs"
+required-features = ["rp-signature"]
+
 [dependencies]
 world-id-primitives = { workspace = true }
 serde = { workspace = true }

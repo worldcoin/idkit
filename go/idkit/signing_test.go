@@ -80,7 +80,7 @@ func TestComputeRpSignatureMessageVector(t *testing.T) {
 	nonce := mustDecodeHex(t, "008ae1aa597fa146ebd3aa2ceddf360668dea5e526567e92b0321816a4e895bd")
 	message := computeRpSignatureMessage(nonce, fixedUnixNow, fixedUnixNow+300)
 
-	expected := "008ae1aa597fa146ebd3aa2ceddf360668dea5e526567e92b0321816a4e895bd000000006553f100000000006553f22c"
+	expected := "01008ae1aa597fa146ebd3aa2ceddf360668dea5e526567e92b0321816a4e895bd000000006553f100000000006553f22c"
 	got := hex.EncodeToString(message)
 	if got != expected {
 		t.Fatalf("message mismatch: got %s want %s", got, expected)
@@ -108,7 +108,7 @@ func TestSignRequestDeterministicParityVector(t *testing.T) {
 	if sig.Nonce != "0x008ae1aa597fa146ebd3aa2ceddf360668dea5e526567e92b0321816a4e895bd" {
 		t.Fatalf("nonce mismatch: got %s", sig.Nonce)
 	}
-	if sig.Sig != "0x1e3e9519313b4bd40abd83c7bfc39f636182a374237bf3eb6513442f5d95866759623539aa70279410f1aef2a391c8cc1825e7b1f80e23086b2c8a3491f1e3cc1b" {
+	if sig.Sig != "0x37819a5e3213349572834237f3cb478659e6439dc97369c4b64734004d6ba4623450113c50f1e8b8a72662f5f6c71f8ef09ddd411a86c07efc6dd5ad692d75681b" {
 		t.Fatalf("signature mismatch: got %s", sig.Sig)
 	}
 	if sig.CreatedAt != fixedUnixNow {
@@ -116,6 +116,22 @@ func TestSignRequestDeterministicParityVector(t *testing.T) {
 	}
 	if sig.ExpiresAt != fixedUnixNow+300 {
 		t.Fatalf("expiresAt mismatch: got %d want %d", sig.ExpiresAt, fixedUnixNow+300)
+	}
+}
+
+func TestComputeRpSignatureMessageVersionByte(t *testing.T) {
+	t.Parallel()
+
+	nonce := make([]byte, 32)
+	nonce[0] = 0x00
+	nonce[1] = 0x42
+	message := computeRpSignatureMessage(nonce, 1000, 1300)
+
+	if len(message) != 49 {
+		t.Fatalf("expected message length 49, got %d", len(message))
+	}
+	if message[0] != 0x01 {
+		t.Fatalf("expected version byte 0x01, got 0x%02x", message[0])
 	}
 }
 
