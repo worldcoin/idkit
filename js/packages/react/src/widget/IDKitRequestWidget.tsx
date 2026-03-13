@@ -111,9 +111,17 @@ export function IDKitRequestWidget({
       return;
     }
 
+    let cancelled = false;
     void Promise.resolve(handleVerify(flow.result))
-      .then(() => setHostVerifyResult("passed"))
-      .catch(() => setHostVerifyResult("failed"));
+      .then(() => {
+        if (!cancelled) setHostVerifyResult("passed");
+      })
+      .catch(() => {
+        if (!cancelled) setHostVerifyResult("failed");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [flow.isInWorldApp, isHostVerifying, flow.result, handleVerify]);
 
   // In World App there's no visible UI, so auto-close immediately on success or error.
