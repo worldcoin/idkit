@@ -164,7 +164,7 @@ export function useIDKitFlow<TResult>(
         abortRef.current = null;
       }
     };
-  }, [state.isOpen, runId]);
+  }, [state.isOpen, runId, isInWorldApp]);
 
   return {
     open,
@@ -177,6 +177,6 @@ export function useIDKitFlow<TResult>(
     result: state.result,
     errorCode: state.errorCode,
     isOpen: state.isOpen,
-    isInWorldApp: isInWorldApp,
+    isInWorldApp,
   };
 }
