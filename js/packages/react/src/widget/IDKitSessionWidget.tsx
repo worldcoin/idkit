@@ -105,7 +105,12 @@ export function IDKitSessionWidget({
   // In World App context there's no UI to render HostAppVerificationState,
   // so invoke handleVerify programmatically when the proof arrives.
   useEffect(() => {
-    if (!flow.isInWorldApp || !isHostVerifying || !flow.result || !handleVerify) {
+    if (
+      !flow.isInWorldApp ||
+      !isHostVerifying ||
+      !flow.result ||
+      !handleVerify
+    ) {
       return;
     }
 
