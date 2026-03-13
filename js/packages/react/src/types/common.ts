@@ -20,6 +20,6 @@ export type IDKitHookResult<TResult> = {
   result: TResult | null;
   errorCode: IDKitErrorCodes | null;
   isOpen: boolean;
-  /** `true` when running inside World App (mini app context). The widget renders nothing and `handleVerify` is skipped. */
+  /** Use `isInWorldApp` to determine if the widget is running inside the World App (mini app context). */
   isInWorldApp: boolean;
 };
