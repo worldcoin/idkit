@@ -55,10 +55,9 @@ export function useIDKitFlow<TResult>(
         connectorURI: null,
         result: null,
         errorCode: null,
-        isInWorldApp: isInWorldApp,
       };
     });
-  }, [isInWorldApp]);
+  }, []);
 
   useEffect(() => {
     if (!state.isOpen) {
