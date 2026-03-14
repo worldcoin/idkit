@@ -102,13 +102,46 @@ export function IDKitSessionWidget({
     });
   }, [effectiveErrorCode, onError]);
 
-  // Auto-close on success
+  // In World App context there's no UI to render HostAppVerificationState,
+  // so invoke handleVerify programmatically when the proof arrives.
   useEffect(() => {
-    if (isSuccess && autoClose) {
+    if (
+      !flow.isInWorldApp ||
+      !isHostVerifying ||
+      !flow.result ||
+      !handleVerify
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    void Promise.resolve(handleVerify(flow.result))
+      .then(() => {
+        if (!cancelled) setHostVerifyResult("passed");
+      })
+      .catch(() => {
+        if (!cancelled) setHostVerifyResult("failed");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [flow.isInWorldApp, isHostVerifying, flow.result, handleVerify]);
+
+  // In World App there's no visible UI, so auto-close immediately on success or error.
+  // In bridge flow, only auto-close on success after the 2.5s delay (errors show retry UI).
+  useEffect(() => {
+    if (flow.isInWorldApp && (isSuccess || isError)) {
+      onOpenChange(false);
+    } else if (isSuccess && autoClose) {
       const timer = setTimeout(() => onOpenChange(false), 2500);
       return () => clearTimeout(timer);
     }
-  }, [isSuccess, autoClose, onOpenChange]);
+  }, [isSuccess, isError, autoClose, onOpenChange, flow.isInWorldApp]);
+
+  // In World App context, the host app handles all UI — render nothing.
+  if (flow.isInWorldApp) {
+    return null;
+  }
 
   const stage = getVisualStage(isSuccess, isError, isHostVerifying);
   const showSimulatorCallout = config.environment === "staging";

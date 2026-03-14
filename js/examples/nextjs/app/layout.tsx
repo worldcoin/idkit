@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { ErudaProvider } from "./eruda";
+import { MiniKitProvider } from "@worldcoin/minikit-js/minikit-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,7 +15,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <ErudaProvider>{children}</ErudaProvider>
+        <MiniKitProvider>
+          <ErudaProvider>{children}</ErudaProvider>
+        </MiniKitProvider>
       </body>
     </html>
   );
