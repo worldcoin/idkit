@@ -45,9 +45,6 @@ importers:
       '@worldcoin/idkit':
         specifier: workspace:*
         version: link:../../packages/react
-      '@worldcoin/minikit-js':
-        specifier: 2.0.0-dev.0
-        version: 2.0.0-dev.0(react@18.3.1)(typescript@5.9.3)(viem@2.47.2(typescript@5.9.3))
       eruda:
         specifier: ^3.4.1
         version: 3.4.3
@@ -60,6 +57,9 @@ importers:
       react-dom:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
+      takis-minikit-js:
+        specifier: 2.0.0-dev.1
+        version: 2.0.0-dev.1(react@18.3.1)(typescript@5.9.3)(viem@2.47.2(typescript@5.9.3))
       viem:
         specifier: ^2.47.2
         version: 2.47.2(typescript@5.9.3)
@@ -575,10 +575,6 @@ packages:
     resolution: {integrity: sha512-k11yZxZg+t+gWvBbIswW0yoJlu8cHOC7dhunwOzoWH/mXGBiYyR4YY6hAEK/3EUs4UpB8la1RfdRpeGsFHkWsA==}
     engines: {node: ^14.21.3 || >=16}
 
-  '@noble/curves@1.9.7':
-    resolution: {integrity: sha512-gbKGcRUYIjA3/zCCNaWDciTMFI0dCkvou3TL8Zmy5Nc7sJ47a0jtOeZoTaMxkuqRo9cRhjOdZJXegxYE5FN/xw==}
-    engines: {node: ^14.21.3 || >=16}
-
   '@noble/hashes@1.8.0':
     resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
     engines: {node: ^14.21.3 || >=16}
@@ -845,23 +841,6 @@ packages:
 
   '@vitest/utils@4.0.18':
     resolution: {integrity: sha512-msMRKLMVLWygpK3u2Hybgi4MNjcYJvwTb0Ru09+fOyCXIgT5raYP041DRRdiJiI3k/2U6SEbAETB3YtBrUkCFA==}
-
-  '@worldcoin/minikit-js@2.0.0-dev.0':
-    resolution: {integrity: sha512-UNZdjOq4lpQklYumX0FM7fPh5zqJWJImvTBZzetwKrGLGm8JLINcmrULb5gTfqVjv/IKPRV/txEeVoVID1k3xQ==}
-    engines: {node: '>= 16'}
-    peerDependencies:
-      '@worldcoin/idkit-core': '*'
-      react: ^17 || ^18 || ^19
-      siwe: ^3.0.0
-      viem: ^2.21.0
-      wagmi: ^3.0.0
-    peerDependenciesMeta:
-      '@worldcoin/idkit-core':
-        optional: true
-      siwe:
-        optional: true
-      wagmi:
-        optional: true
 
   abitype@1.2.3:
     resolution: {integrity: sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg==}
@@ -1615,6 +1594,22 @@ packages:
     resolution: {integrity: sha512-MpUEN2OodtUzxvKQl72cUF7RQ5EiHsGvSsVG0ia9c5RbWGL2CI4C7EpPS8UTBIplnlzZiNuV56w+FuNxy3ty2Q==}
     engines: {node: '>=10'}
 
+  takis-minikit-js@2.0.0-dev.1:
+    resolution: {integrity: sha512-VhZcoDCB74xJA37pAx6TqATruS+zhD96lY0wUlMVMbeAF7t/23klAKHQJjDPJfR7Zgy8BiZtmfFRVJOHntRyEQ==}
+    engines: {node: '>= 16'}
+    peerDependencies:
+      react: ^17 || ^18 || ^19
+      siwe: ^3.0.0
+      viem: ^2.21.0
+      wagmi: ^3.0.0
+    peerDependenciesMeta:
+      siwe:
+        optional: true
+      viem:
+        optional: true
+      wagmi:
+        optional: true
+
   thenify-all@1.6.0:
     resolution: {integrity: sha512-RNxQH/qI8/t3thXJDwcstUO4zeqo64+Uy/+sNVRBx4Xn2OX+OZ9oP+iJnNFqplFra2ZUVeKCSa2oVWi3T4uVmA==}
     engines: {node: '>=0.8'}
@@ -2096,10 +2091,6 @@ snapshots:
     dependencies:
       '@noble/hashes': 1.8.0
 
-  '@noble/curves@1.9.7':
-    dependencies:
-      '@noble/hashes': 1.8.0
-
   '@noble/hashes@1.8.0': {}
 
   '@noble/secp256k1@2.3.0': {}
@@ -2183,7 +2174,7 @@ snapshots:
 
   '@scure/bip32@1.7.0':
     dependencies:
-      '@noble/curves': 1.9.7
+      '@noble/curves': 1.9.1
       '@noble/hashes': 1.8.0
       '@scure/base': 1.2.6
 
@@ -2349,15 +2340,6 @@ snapshots:
     dependencies:
       '@vitest/pretty-format': 4.0.18
       tinyrainbow: 3.0.3
-
-  '@worldcoin/minikit-js@2.0.0-dev.0(react@18.3.1)(typescript@5.9.3)(viem@2.47.2(typescript@5.9.3))':
-    dependencies:
-      abitype: 1.2.3(typescript@5.9.3)
-      react: 18.3.1
-      viem: 2.47.2(typescript@5.9.3)
-    transitivePeerDependencies:
-      - typescript
-      - zod
 
   abitype@1.2.3(typescript@5.9.3):
     optionalDependencies:
@@ -3149,6 +3131,16 @@ snapshots:
   supports-color@8.1.1:
     dependencies:
       has-flag: 4.0.0
+
+  takis-minikit-js@2.0.0-dev.1(react@18.3.1)(typescript@5.9.3)(viem@2.47.2(typescript@5.9.3)):
+    dependencies:
+      abitype: 1.2.3(typescript@5.9.3)
+      react: 18.3.1
+    optionalDependencies:
+      viem: 2.47.2(typescript@5.9.3)
+    transitivePeerDependencies:
+      - typescript
+      - zod
 
   thenify-all@1.6.0:
     dependencies:
