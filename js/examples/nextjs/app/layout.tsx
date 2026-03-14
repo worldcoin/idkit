@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { ErudaProvider } from "./eruda";
-import { MiniKitProvider } from "@worldcoin/minikit-js/minikit-provider";
+import { MiniKitProvider } from "takis-minikit-js/minikit-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
