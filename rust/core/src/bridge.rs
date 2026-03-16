@@ -1080,6 +1080,8 @@ pub enum StatusWrapper {
     Confirmed { result: IDKitResult },
     /// Request has failed
     Failed { error: AppError },
+    /// Network/transport error — safe to retry
+    NetworkingError { error: AppError },
 }
 
 #[cfg(feature = "ffi")]
@@ -1110,6 +1112,18 @@ fn to_app_error(error: &Error) -> AppError {
         Error::InvalidProof(_) => AppError::UnexpectedResponse,
         #[cfg(any(feature = "bridge", feature = "bridge-wasm"))]
         Error::Http(_) => AppError::ConnectionFailed,
+    }
+}
+
+/// Networking errors are network/transport-level failures where the bridge
+/// never returned a meaningful response. These are safe to retry because
+/// the request itself is valid — only the delivery failed.
+fn is_networking_error(error: &Error) -> bool {
+    match error {
+        Error::Timeout | Error::ConnectionFailed | Error::BridgeError(_) => true,
+        #[cfg(any(feature = "bridge", feature = "bridge-wasm"))]
+        Error::Http(err) => err.is_timeout() || err.is_request(),
+        _ => false,
     }
 }
 
@@ -1146,9 +1160,14 @@ impl IDKitRequestWrapper {
     pub fn poll_status_once(&self) -> StatusWrapper {
         match self.runtime.block_on(self.inner.poll_for_status()) {
             Ok(status) => status.into(),
-            Err(err) => StatusWrapper::Failed {
-                error: to_app_error(&err),
-            },
+            Err(err) => {
+                let app_error = to_app_error(&err);
+                if is_networking_error(&err) {
+                    StatusWrapper::NetworkingError { error: app_error }
+                } else {
+                    StatusWrapper::Failed { error: app_error }
+                }
+            }
         }
     }
 }
