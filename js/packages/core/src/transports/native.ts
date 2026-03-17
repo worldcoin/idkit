@@ -127,14 +127,12 @@ export function createNativeRequest(
 class NativeIDKitRequest implements IDKitRequest {
   readonly connectorURI: string = ""; // No QR needed in World App
   readonly requestId: string;
-  private resultPromise: Promise<IDKitResult>;
-  private resolved = false;
-  private cancelled = false;
-  private settled = false;
-  private resolvedResult: IDKitResult | null = null;
+  private resultPromise: Promise<IDKitCompletionResult>;
+  // Non-null once the request is done (success, error, cancel, or timeout).
+  private completionResult: IDKitCompletionResult | null = null;
+  private resolveFn: ((result: IDKitCompletionResult) => void) | null = null;
   private messageHandler: ((event: MessageEvent) => void) | null = null;
   private miniKitHandler: ((payload: any) => void) | null = null;
-  private rejectFn: ((reason: Error) => void) | null = null;
 
   constructor(
     wasmPayload: unknown,
@@ -146,32 +144,30 @@ class NativeIDKitRequest implements IDKitRequest {
     this.requestId =
       crypto.randomUUID?.() ?? `native-${Date.now()}-${++_requestCounter}`;
 
-    this.resultPromise = new Promise<IDKitResult>((resolve, reject) => {
-      this.rejectFn = reject;
+    // Never rejects — all outcomes (success, error, cancel, timeout) resolve.
+    this.resultPromise = new Promise<IDKitCompletionResult>((resolve) => {
+      this.resolveFn = resolve;
 
       const handleIncomingPayload = (responsePayload: any) => {
-        if (this.cancelled || this.resolved || this.settled) return;
+        if (this.completionResult) return;
 
         if (responsePayload?.status === "error") {
-          this.cleanup();
-          reject(
-            new NativeVerifyError(
-              responsePayload.error_code ?? IDKitErrorCodes.GenericError,
-            ),
-          );
+          this.complete({
+            success: false,
+            error: responsePayload.error_code ?? IDKitErrorCodes.GenericError,
+          });
           return;
         }
 
-        this.resolved = true;
-        const result = nativeResultToIDKitResult(
-          responsePayload,
-          config,
-          signalHashes,
-          legacySignalHash,
-        );
-        this.resolvedResult = result;
-        this.cleanup();
-        resolve(result);
+        this.complete({
+          success: true,
+          result: nativeResultToIDKitResult(
+            responsePayload,
+            config,
+            signalHashes,
+            legacySignalHash,
+          ),
+        });
       };
 
       const handler = (event: MessageEvent) => {
@@ -214,35 +210,27 @@ class NativeIDKitRequest implements IDKitRequest {
       } else if (w.Android) {
         w.Android.postMessage(JSON.stringify(sendPayload));
       } else {
-        this.cleanup();
-        reject(new Error("No WebView bridge available"));
+        this.complete({
+          success: false,
+          error: IDKitErrorCodes.GenericError,
+        });
       }
     });
-
-    // Ensure listener is always cleaned up when the promise settles
-    this.resultPromise
-      .catch(() => {})
-      .finally(() => {
-        this.settled = true;
-        this.cleanup();
-        if (_activeNativeRequest === this) {
-          _activeNativeRequest = null;
-        }
-      });
   }
 
-  /**
-   * Cancel this request. Removes the message listener so it cannot consume
-   * a response meant for a later request, and rejects the pending promise.
-   */
-  cancel(): void {
-    if (this.resolved || this.cancelled) return;
-    this.cancelled = true;
+  // Single entry point for finishing the request. Idempotent — first caller wins.
+  private complete(result: IDKitCompletionResult): void {
+    if (this.completionResult) return;
+    this.completionResult = result;
     this.cleanup();
-    this.rejectFn?.(new NativeVerifyError(IDKitErrorCodes.Cancelled));
+    this.resolveFn?.(result);
     if (_activeNativeRequest === this) {
       _activeNativeRequest = null;
     }
+  }
+
+  cancel(): void {
+    this.complete({ success: false, error: IDKitErrorCodes.Cancelled });
   }
 
   private cleanup(): void {
@@ -263,76 +251,52 @@ class NativeIDKitRequest implements IDKitRequest {
   }
 
   isPending(): boolean {
-    return !this.settled && !this.cancelled;
+    return this.completionResult === null;
   }
 
   async pollOnce(): Promise<Status> {
-    if (this.resolved && this.resolvedResult) {
-      return { type: "confirmed", result: this.resolvedResult };
+    if (!this.completionResult) {
+      return { type: "awaiting_confirmation" };
     }
-    return { type: "awaiting_confirmation" };
+    if (this.completionResult.success) {
+      return { type: "confirmed", result: this.completionResult.result };
+    }
+    return { type: "failed", error: this.completionResult.error };
   }
 
   async pollUntilCompletion(
     options?: WaitOptions,
   ): Promise<IDKitCompletionResult> {
     const timeout = options?.timeout ?? 300000;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    let abortHandler: (() => void) | null = null;
-    let waiterTerminationCode:
-      | IDKitErrorCodes.Timeout
-      | IDKitErrorCodes.Cancelled
-      | null = null;
+
+    const timeoutId = setTimeout(() => {
+      this.complete({ success: false, error: IDKitErrorCodes.Timeout });
+    }, timeout);
+
+    const abortHandler = options?.signal
+      ? () => {
+          this.complete({ success: false, error: IDKitErrorCodes.Cancelled });
+        }
+      : null;
+
+    if (abortHandler) {
+      if (options!.signal!.aborted) {
+        abortHandler();
+      } else {
+        options!.signal!.addEventListener("abort", abortHandler, {
+          once: true,
+        });
+      }
+    }
 
     try {
-      const result = await Promise.race([
-        this.resultPromise,
-        new Promise<never>((_, reject) => {
-          if (options?.signal) {
-            abortHandler = () => {
-              waiterTerminationCode = IDKitErrorCodes.Cancelled;
-              reject(new NativeVerifyError(IDKitErrorCodes.Cancelled));
-            };
-            if (options.signal.aborted) {
-              abortHandler();
-              return;
-            }
-            options.signal.addEventListener("abort", abortHandler, {
-              once: true,
-            });
-          }
-          timeoutId = setTimeout(() => {
-            waiterTerminationCode = IDKitErrorCodes.Timeout;
-            reject(new NativeVerifyError(IDKitErrorCodes.Timeout));
-          }, timeout);
-        }),
-      ]);
-      return { success: true, result };
-    } catch (error) {
-      if (error instanceof NativeVerifyError) {
-        if (waiterTerminationCode === error.code && this.isPending()) {
-          // Ensure timeout/abort does not leave a stale active request.
-          this.cancel();
-        }
-        return { success: false, error: error.code };
-      }
-      return { success: false, error: IDKitErrorCodes.GenericError };
+      return await this.resultPromise;
     } finally {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
+      clearTimeout(timeoutId);
       if (options?.signal && abortHandler) {
         options.signal.removeEventListener("abort", abortHandler);
       }
     }
-  }
-}
-
-class NativeVerifyError extends Error {
-  code: IDKitErrorCodes;
-  constructor(code: IDKitErrorCodes) {
-    super(code);
-    this.code = code;
   }
 }
 
