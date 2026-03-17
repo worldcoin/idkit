@@ -121,6 +121,7 @@ describe("computeRpSignatureMessage", () => {
 describe("signRequest (pure JS)", () => {
   const TEST_KEY =
     "0xabababababababababababababababababababababababababababababababab";
+  const TEST_ACTION = "test-action";
   const FIXED_NOW_MS = 1700000000_000; // 2023-11-14T22:13:20Z
 
   afterEach(() => {
@@ -128,7 +129,7 @@ describe("signRequest (pure JS)", () => {
   });
 
   it("should return correctly formatted signature", () => {
-    const sig = signRequest(TEST_KEY);
+    const sig = signRequest(TEST_ACTION, TEST_KEY);
 
     // 65 bytes = 0x + 130 hex chars
     expect(sig.sig).toMatch(/^0x[0-9a-f]{130}$/);
@@ -141,7 +142,7 @@ describe("signRequest (pure JS)", () => {
 
   it("should use default TTL of 300 seconds", () => {
     vi.spyOn(Date, "now").mockReturnValue(FIXED_NOW_MS);
-    const sig = signRequest(TEST_KEY);
+    const sig = signRequest(TEST_ACTION, TEST_KEY);
 
     expect(sig.createdAt).toBe(1700000000);
     expect(sig.expiresAt).toBe(1700000300);
@@ -150,7 +151,7 @@ describe("signRequest (pure JS)", () => {
 
   it("should use custom TTL", () => {
     vi.spyOn(Date, "now").mockReturnValue(FIXED_NOW_MS);
-    const sig = signRequest(TEST_KEY, 600);
+    const sig = signRequest(TEST_ACTION, TEST_KEY, 600);
 
     expect(sig.createdAt).toBe(1700000000);
     expect(sig.expiresAt).toBe(1700000600);
@@ -158,13 +159,13 @@ describe("signRequest (pure JS)", () => {
   });
 
   it("should generate unique nonces", () => {
-    const sig1 = signRequest(TEST_KEY);
-    const sig2 = signRequest(TEST_KEY);
+    const sig1 = signRequest(TEST_ACTION, TEST_KEY);
+    const sig2 = signRequest(TEST_ACTION, TEST_KEY);
     expect(sig1.nonce).not.toBe(sig2.nonce);
   });
 
   it("should produce v value of 27 or 28", () => {
-    const sig = signRequest(TEST_KEY);
+    const sig = signRequest(TEST_ACTION, TEST_KEY);
     // Last byte of 65-byte sig is v
     const vHex = sig.sig.slice(-2);
     const v = parseInt(vHex, 16);
@@ -172,7 +173,7 @@ describe("signRequest (pure JS)", () => {
   });
 
   it("should have nonce with leading zero byte (field element)", () => {
-    const sig = signRequest(TEST_KEY);
+    const sig = signRequest(TEST_ACTION, TEST_KEY);
     // After 0x prefix, first two hex chars should be "00"
     expect(sig.nonce.slice(2, 4)).toBe("00");
   });
@@ -180,17 +181,17 @@ describe("signRequest (pure JS)", () => {
   it("should accept key without 0x prefix", () => {
     const keyNoPrefix =
       "abababababababababababababababababababababababababababababababab";
-    const sig = signRequest(keyNoPrefix);
+    const sig = signRequest(TEST_ACTION, keyNoPrefix);
     expect(sig.sig).toMatch(/^0x[0-9a-f]{130}$/);
   });
 
   it("should reject signing key that is too short", () => {
-    expect(() => signRequest("0xabcd")).toThrow();
+    expect(() => signRequest(TEST_ACTION, "0xabcd")).toThrow();
   });
 
   it("should reject signing key with invalid hex", () => {
     const invalidKey =
       "0xZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
-    expect(() => signRequest(invalidKey)).toThrow();
+    expect(() => signRequest(TEST_ACTION, invalidKey)).toThrow();
   });
 });

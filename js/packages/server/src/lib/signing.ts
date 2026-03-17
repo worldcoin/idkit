@@ -66,6 +66,7 @@ export function computeRpSignatureMessage(
  * @returns RpSignature object with sig, nonce, createdAt, expiresAt
  */
 export function signRequest(
+  _action: string,
   signingKeyHex: string,
   ttl: number = DEFAULT_TTL_SEC,
 ): RpSignature {
