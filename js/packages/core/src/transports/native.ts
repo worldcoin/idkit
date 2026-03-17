@@ -204,12 +204,19 @@ class NativeIDKitRequest implements IDKitRequest {
         payload: wasmPayload,
       };
 
-      const w = window as any;
-      if (w.webkit?.messageHandlers?.minikit) {
-        w.webkit.messageHandlers.minikit.postMessage(sendPayload);
-      } else if (w.Android) {
-        w.Android.postMessage(JSON.stringify(sendPayload));
-      } else {
+      try {
+        const w = window as any;
+        if (w.webkit?.messageHandlers?.minikit) {
+          w.webkit.messageHandlers.minikit.postMessage(sendPayload);
+        } else if (w.Android) {
+          w.Android.postMessage(JSON.stringify(sendPayload));
+        } else {
+          this.complete({
+            success: false,
+            error: IDKitErrorCodes.GenericError,
+          });
+        }
+      } catch {
         this.complete({
           success: false,
           error: IDKitErrorCodes.GenericError,
@@ -291,6 +298,10 @@ class NativeIDKitRequest implements IDKitRequest {
 
     try {
       return await this.resultPromise;
+    } catch (error) {
+      // the resultPromise should never reject, but just in case, catch unexpected rejections and convert to a failure result.
+      console.error("Unexpected rejection in native resultPromise", error);
+      return { success: false, error: IDKitErrorCodes.GenericError };
     } finally {
       clearTimeout(timeoutId);
       if (options?.signal && abortHandler) {
