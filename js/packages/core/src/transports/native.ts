@@ -301,7 +301,8 @@ class NativeIDKitRequest implements IDKitRequest {
     } catch (error) {
       // the resultPromise should never reject, but just in case, catch unexpected rejections and convert to a failure result.
       console.error("Unexpected rejection in native resultPromise", error);
-      return { success: false, error: IDKitErrorCodes.GenericError };
+      this.complete({ success: false, error: IDKitErrorCodes.GenericError });
+      return this.completionResult!;
     } finally {
       clearTimeout(timeoutId);
       if (options?.signal && abortHandler) {
