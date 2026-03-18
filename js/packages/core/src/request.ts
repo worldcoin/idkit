@@ -371,6 +371,7 @@ function createWasmBuilderFromConfig(
       config.bridge_url ?? null,
       config.allow_legacy_proofs ?? false,
       config.override_connect_base_url ?? null,
+      config.return_to ?? null,
       config.environment ?? null,
     );
   }
@@ -383,6 +384,7 @@ function createWasmBuilderFromConfig(
       config.action_description ?? null,
       config.bridge_url ?? null,
       config.override_connect_base_url ?? null,
+      config.return_to ?? null,
       config.environment ?? null,
     );
   }
@@ -394,6 +396,7 @@ function createWasmBuilderFromConfig(
     config.action_description ?? null,
     config.bridge_url ?? null,
     config.override_connect_base_url ?? null,
+    config.return_to ?? null,
     config.environment ?? null,
   );
 }
@@ -602,6 +605,7 @@ function createRequest(config: IDKitRequestConfig): IDKitBuilder {
     rp_context: config.rp_context,
     action_description: config.action_description,
     bridge_url: config.bridge_url,
+    return_to: config.return_to,
     allow_legacy_proofs: config.allow_legacy_proofs,
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
@@ -651,6 +655,7 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
     rp_context: config.rp_context,
     action_description: config.action_description,
     bridge_url: config.bridge_url,
+    return_to: config.return_to,
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
   });
@@ -705,6 +710,7 @@ function proveSession(
     rp_context: config.rp_context,
     action_description: config.action_description,
     bridge_url: config.bridge_url,
+    return_to: config.return_to,
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
   });

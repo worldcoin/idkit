@@ -73,6 +73,7 @@ export interface BuilderConfig {
   rp_context?: import("../types/config").RpContext;
   action_description?: string;
   bridge_url?: string;
+  return_to?: string;
   allow_legacy_proofs?: boolean;
   override_connect_base_url?: string;
   environment?: string;
