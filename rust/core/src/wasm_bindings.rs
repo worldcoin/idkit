@@ -971,6 +971,7 @@ pub fn create_session(
 /// Entry point for proving an existing session (WASM)
 #[must_use]
 #[wasm_bindgen(js_name = proveSession)]
+#[allow(clippy::too_many_arguments)]
 pub fn prove_session(
     session_id: String,
     app_id: String,
