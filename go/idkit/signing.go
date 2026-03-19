@@ -18,6 +18,39 @@ import (
 const defaultTTLSeconds uint64 = 300
 const rpSignatureMsgVersion byte = 0x01
 
+type signConfig struct {
+	action string
+	ttl    uint64
+}
+
+// SignOption configures RP signing behavior.
+type SignOption func(*signConfig)
+
+// WithAction appends the hashed action field to the signed payload.
+func WithAction(action string) SignOption {
+	return func(cfg *signConfig) {
+		cfg.action = action
+	}
+}
+
+// WithTTL overrides the default request TTL in seconds.
+func WithTTL(ttl uint64) SignOption {
+	return func(cfg *signConfig) {
+		cfg.ttl = ttl
+	}
+}
+
+func resolveSignConfig(opts []SignOption) signConfig {
+	cfg := signConfig{ttl: defaultTTLSeconds}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+
+	return cfg
+}
+
 // Signer produces RP signatures for World ID verification requests.
 type Signer struct {
 	privKey *secp256k1.PrivateKey
@@ -58,44 +91,48 @@ func hashToField(input []byte) []byte {
 	return field
 }
 
-// computeRpSignatureMessage builds the 49-byte RP signature payload:
-// version(1) || nonce(32) || createdAt_u64_be(8) || expiresAt_u64_be(8).
+// computeRpSignatureMessage builds the RP signature payload:
+// version(1) || nonce(32) || createdAt_u64_be(8) || expiresAt_u64_be(8) || action?(32).
 func computeRpSignatureMessage(
 	nonceBytes []byte,
 	createdAt uint64,
 	expiresAt uint64,
+	action string,
 ) []byte {
-	message := make([]byte, 49)
+	actionBytes := []byte(nil)
+	if action != "" {
+		actionBytes = hashToField([]byte(action))
+	}
+
+	message := make([]byte, 49+len(actionBytes))
 	message[0] = rpSignatureMsgVersion
 	copy(message[1:33], nonceBytes)
 	binary.BigEndian.PutUint64(message[33:41], createdAt)
 	binary.BigEndian.PutUint64(message[41:49], expiresAt)
+	copy(message[49:], actionBytes)
 
 	return message
 }
 
-// SignRequest computes the RP signature payload using the default TTL (300s).
-func SignRequest(signingKeyHex string) (RpSignature, error) {
+// SignRequest computes the RP signature payload using optional signing options.
+// By default it signs a session-style payload with a 300-second TTL.
+func SignRequest(signingKeyHex string, opts ...SignOption) (RpSignature, error) {
 	s, err := NewSigner(signingKeyHex)
 	if err != nil {
 		return RpSignature{}, err
 	}
 
-	return s.SignRequestWithTTL(defaultTTLSeconds)
+	return s.SignRequest(opts...)
 }
 
 // SignRequestWithTTL computes the RP signature payload with a custom TTL.
 func SignRequestWithTTL(signingKeyHex string, ttl uint64) (RpSignature, error) {
-	s, err := NewSigner(signingKeyHex)
-	if err != nil {
-		return RpSignature{}, err
-	}
-
-	return s.SignRequestWithTTL(ttl)
+	return SignRequest(signingKeyHex, WithTTL(ttl))
 }
 
-// SignRequestWithTTL computes the RP signature payload with a custom TTL.
-func (s *Signer) SignRequestWithTTL(ttl uint64) (RpSignature, error) {
+// SignRequest computes the RP signature payload using optional signing options.
+func (s *Signer) SignRequest(opts ...SignOption) (RpSignature, error) {
+	cfg := resolveSignConfig(opts)
 	var randomBytes [32]byte
 
 	if _, err := io.ReadFull(s.random, randomBytes[:]); err != nil {
@@ -105,9 +142,9 @@ func (s *Signer) SignRequestWithTTL(ttl uint64) (RpSignature, error) {
 	nonceBytes := hashToField(randomBytes[:])
 
 	createdAt := s.now()
-	expiresAt := createdAt + ttl
+	expiresAt := createdAt + cfg.ttl
 
-	message := computeRpSignatureMessage(nonceBytes, createdAt, expiresAt)
+	message := computeRpSignatureMessage(nonceBytes, createdAt, expiresAt, cfg.action)
 	msgHash := keccak256(message)
 	compactSig := secp256k1ecdsa.SignCompact(s.privKey, msgHash, false)
 	sig65 := make([]byte, 65)
@@ -120,6 +157,11 @@ func (s *Signer) SignRequestWithTTL(ttl uint64) (RpSignature, error) {
 		CreatedAt: createdAt,
 		ExpiresAt: expiresAt,
 	}, nil
+}
+
+// SignRequestWithTTL computes the RP signature payload with a custom TTL.
+func (s *Signer) SignRequestWithTTL(ttl uint64) (RpSignature, error) {
+	return s.SignRequest(WithTTL(ttl))
 }
 
 func parseSigningKey(signingKeyHex string) (*secp256k1.PrivateKey, error) {

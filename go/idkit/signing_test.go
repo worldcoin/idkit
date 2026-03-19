@@ -78,12 +78,29 @@ func TestComputeRpSignatureMessageVector(t *testing.T) {
 	t.Parallel()
 
 	nonce := mustDecodeHex(t, "008ae1aa597fa146ebd3aa2ceddf360668dea5e526567e92b0321816a4e895bd")
-	message := computeRpSignatureMessage(nonce, fixedUnixNow, fixedUnixNow+300)
+	message := computeRpSignatureMessage(nonce, fixedUnixNow, fixedUnixNow+300, "")
 
 	expected := "01008ae1aa597fa146ebd3aa2ceddf360668dea5e526567e92b0321816a4e895bd000000006553f100000000006553f22c"
 	got := hex.EncodeToString(message)
 	if got != expected {
 		t.Fatalf("message mismatch: got %s want %s", got, expected)
+	}
+}
+
+func TestComputeRpSignatureMessageWithAction(t *testing.T) {
+	t.Parallel()
+
+	nonce := mustDecodeHex(t, "008ae1aa597fa146ebd3aa2ceddf360668dea5e526567e92b0321816a4e895bd")
+	message := computeRpSignatureMessage(nonce, fixedUnixNow, fixedUnixNow+300, "test-action")
+
+	if len(message) != 81 {
+		t.Fatalf("expected message length 81, got %d", len(message))
+	}
+
+	expectedAction := hashToField([]byte("test-action"))
+	gotAction := message[49:]
+	if hex.EncodeToString(gotAction) != hex.EncodeToString(expectedAction) {
+		t.Fatalf("action mismatch: got %x want %x", gotAction, expectedAction)
 	}
 }
 
@@ -100,7 +117,7 @@ func TestSignRequestDeterministicParityVector(t *testing.T) {
 		}),
 	)
 
-	sig, err := signer.SignRequestWithTTL(defaultTTLSeconds)
+	sig, err := signer.SignRequest()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -119,13 +136,45 @@ func TestSignRequestDeterministicParityVector(t *testing.T) {
 	}
 }
 
+func TestSignRequestDeterministicParityVectorWithAction(t *testing.T) {
+	t.Parallel()
+
+	signer := newTestSigner(t, testKey,
+		func() uint64 { return fixedUnixNow },
+		readerFunc(func(dst []byte) (int, error) {
+			for i := range dst {
+				dst[i] = byte(i)
+			}
+			return len(dst), nil
+		}),
+	)
+
+	sig, err := signer.SignRequest(WithAction("test-action"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if sig.Nonce != "0x008ae1aa597fa146ebd3aa2ceddf360668dea5e526567e92b0321816a4e895bd" {
+		t.Fatalf("nonce mismatch: got %s", sig.Nonce)
+	}
+	if sig.Sig != "0xdf5fa73d98377548d1a4dd53dccb26c3c9405ee5d935cfe8bcfccbbceaa665a5240a0f57562f265b9b75c28cd4297cd2b78ca951fb842dfd02df126ab2cb214c1b" {
+		t.Fatalf("signature mismatch: got %s", sig.Sig)
+	}
+	if sig.CreatedAt != fixedUnixNow {
+		t.Fatalf("createdAt mismatch: got %d want %d", sig.CreatedAt, fixedUnixNow)
+	}
+	if sig.ExpiresAt != fixedUnixNow+300 {
+		t.Fatalf("expiresAt mismatch: got %d want %d", sig.ExpiresAt, fixedUnixNow+300)
+	}
+}
+
 func TestComputeRpSignatureMessageVersionByte(t *testing.T) {
 	t.Parallel()
 
 	nonce := make([]byte, 32)
 	nonce[0] = 0x00
 	nonce[1] = 0x42
-	message := computeRpSignatureMessage(nonce, 1000, 1300)
+	message := computeRpSignatureMessage(nonce, 1000, 1300, "")
 
 	if len(message) != 49 {
 		t.Fatalf("expected message length 49, got %d", len(message))
@@ -148,7 +197,7 @@ func TestSignRequestDefaultTTL(t *testing.T) {
 		}),
 	)
 
-	sig, err := signer.SignRequestWithTTL(defaultTTLSeconds)
+	sig, err := signer.SignRequest()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -171,7 +220,7 @@ func TestSignRequestCustomTTL(t *testing.T) {
 		}),
 	)
 
-	sig, err := signer.SignRequestWithTTL(600)
+	sig, err := signer.SignRequest(WithTTL(600))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -200,6 +249,47 @@ func TestSignRequestFormatting(t *testing.T) {
 	}
 	if _, err := hex.DecodeString(sig.Nonce[2:]); err != nil {
 		t.Fatalf("invalid nonce hex: %v", err)
+	}
+}
+
+func TestSignRequestWithActionChangesSignature(t *testing.T) {
+	t.Parallel()
+
+	signer := newTestSigner(t, testKey,
+		func() uint64 { return fixedUnixNow },
+		readerFunc(func(dst []byte) (int, error) {
+			for i := range dst {
+				dst[i] = byte(i)
+			}
+			return len(dst), nil
+		}),
+	)
+
+	sessionSig, err := signer.SignRequest()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	signer = newTestSigner(t, testKey,
+		func() uint64 { return fixedUnixNow },
+		readerFunc(func(dst []byte) (int, error) {
+			for i := range dst {
+				dst[i] = byte(i)
+			}
+			return len(dst), nil
+		}),
+	)
+
+	actionSig, err := signer.SignRequest(WithAction("test-action"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if sessionSig.Nonce != actionSig.Nonce {
+		t.Fatalf("expected same nonce, got %s vs %s", sessionSig.Nonce, actionSig.Nonce)
+	}
+	if sessionSig.Sig == actionSig.Sig {
+		t.Fatalf("expected action to change signature, got %s", actionSig.Sig)
 	}
 }
 
@@ -295,7 +385,7 @@ func TestSignRequestFailsWhenRandomReadFails(t *testing.T) {
 		readerFunc(func(_ []byte) (int, error) { return 0, randomErr }),
 	)
 
-	_, err := signer.SignRequestWithTTL(defaultTTLSeconds)
+	_, err := signer.SignRequest()
 	if err == nil {
 		t.Fatal("expected random failure")
 	}
