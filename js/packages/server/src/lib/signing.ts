@@ -98,7 +98,9 @@ export function signRequest(params: SignRequestParams): RpSignature {
   const { action, signingKeyHex, ttl = DEFAULT_TTL_SEC } = params;
 
   if (typeof signingKeyHex !== "string") {
-    throw new Error("Invalid signing key: expected signingKeyHex to be a string");
+    throw new Error(
+      "Invalid signing key: expected signingKeyHex to be a string",
+    );
   }
 
   // 1. Parse signing key

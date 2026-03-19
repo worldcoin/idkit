@@ -117,10 +117,10 @@ const { success } = await response.json();
 
 Pure JS subpath exports are available for server-side use without WASM initialization:
 
-| Subpath    | Exports                                                          |
-| ---------- | ---------------------------------------------------------------- |
+| Subpath    | Exports                                                                                   |
+| ---------- | ----------------------------------------------------------------------------------------- |
 | `/signing` | `signRequest`, `computeRpSignatureMessage`, `RpSignature` and `SignRequestParams` (types) |
-| `/hashing` | `hashSignal`                                                     |
+| `/hashing` | `hashSignal`                                                                              |
 
 ```typescript
 import { signRequest } from "@worldcoin/idkit-core/signing";
