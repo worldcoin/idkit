@@ -3,9 +3,9 @@
 //! This module is only available when the `rp-signature` feature is enabled.
 
 use crate::error::{Error, Result};
+use alloy::signers::{local::PrivateKeySigner, SignerSync};
 use getrandom::getrandom;
 use k256::ecdsa::SigningKey;
-use tiny_keccak::{Hasher, Keccak};
 use world_id_primitives::{rp::compute_rp_signature_msg, FieldElement};
 
 // Default expiration time of an RP request - 5 minutes
@@ -31,8 +31,8 @@ pub struct RpSignature {
 /// 1. Generates a random nonce
 /// 2. Gets the current unix timestamp
 /// 3. Computes the message: version(1) || nonce(32) || timestamps(16) || action?(32)
-/// 4. Hashes the message with keccak256
-/// 5. Signs the hash with ECDSA secp256k1
+/// 4. Signs the message with the Ethereum EIP-191 message prefix
+/// 5. Returns a recoverable secp256k1 signature
 ///
 /// # Arguments
 /// * `signing_key_hex` - Hex-encoded 32-byte private key (with or without 0x prefix)
@@ -96,7 +96,7 @@ pub fn compute_rp_signature(
 /// Deterministic RP signature computation.
 ///
 /// Given an already-parsed signing key, nonce, and timestamps, builds the
-/// message, hashes it, signs it, and returns the formatted result.
+/// message, signs it with the Ethereum message prefix, and returns the formatted result.
 /// All inputs are explicit — no randomness or clock access.
 ///
 /// # Errors
@@ -110,22 +110,13 @@ pub fn sign_rp_message(
 ) -> Result<RpSignature> {
     let msg =
         compute_rp_signature_msg(*nonce, created_at, expires_at, action.map(|action| *action));
-
-    let mut hasher = Keccak::v256();
-    let mut hash = [0u8; 32];
-    hasher.update(&msg);
-    hasher.finalize(&mut hash);
-
-    let (sig, recovery_id) = signing_key
-        .sign_prehash_recoverable(&hash)
+    let signer = PrivateKeySigner::from_signing_key(signing_key.clone());
+    let signature = signer
+        .sign_message_sync(&msg)
         .map_err(|e| Error::Crypto(format!("Signing failed: {e}")))?;
 
-    let mut signature_bytes = [0u8; 65];
-    signature_bytes[..64].copy_from_slice(&sig.to_bytes());
-    signature_bytes[64] = recovery_id.to_byte() + 27; // Ethereum convention
-
     Ok(RpSignature {
-        sig: format!("0x{}", hex::encode(signature_bytes)),
+        sig: signature.to_string(),
         nonce: nonce.to_string(),
         created_at,
         expires_at,
@@ -135,7 +126,7 @@ pub fn sign_rp_message(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::Signature;
+    use alloy_primitives::{Address, Signature};
     use std::str::FromStr;
 
     // Valid 32-byte (64 hex chars) test key
@@ -289,42 +280,54 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[test]
-    fn test_signature_is_recoverable_to_correct_public_key() {
-        use k256::ecdsa::{RecoveryId, VerifyingKey};
-
-        let result = compute_rp_signature(TEST_KEY, None, Some("test-action")).unwrap();
-
-        // 1. Parse the signing key to get expected public key
+    fn expected_test_signer_address() -> Address {
         let key_bytes = hex::decode(TEST_KEY).unwrap();
         let signing_key = SigningKey::from_bytes(key_bytes.as_slice().into()).unwrap();
-        let expected_verifying_key = signing_key.verifying_key();
+        PrivateKeySigner::from_signing_key(signing_key).address()
+    }
 
-        // 2. Reconstruct the message hash (same as in compute_rp_signature)
+    #[test]
+    fn test_sign_rp_message_matches_protocol_signer_with_action() {
+        let key_bytes = hex::decode(TEST_KEY).unwrap();
+        let signing_key = SigningKey::from_bytes(key_bytes.as_slice().into()).unwrap();
+        let protocol_signer = PrivateKeySigner::from_signing_key(signing_key.clone());
+
+        let nonce = FieldElement::from(123_u64);
+        let created_at = 1_700_000_000_u64;
+        let expires_at = 1_700_000_300_u64;
+        let action = FieldElement::from_arbitrary_raw_bytes(b"test-action");
+        let msg = compute_rp_signature_msg(*nonce, created_at, expires_at, Some(*action));
+
+        let expected_sig = protocol_signer.sign_message_sync(&msg).unwrap().to_string();
+        let actual_sig =
+            sign_rp_message(&signing_key, nonce, created_at, expires_at, Some(action)).unwrap();
+
+        assert_eq!(actual_sig.sig, expected_sig);
+    }
+
+    #[test]
+    fn test_signature_recovers_expected_signer_address_without_action() {
+        let result = compute_rp_signature(TEST_KEY, None, None).unwrap();
+        let nonce = FieldElement::from_str(&result.nonce).unwrap();
+        let msg = compute_rp_signature_msg(*nonce, result.created_at, result.expires_at, None);
+        let signature = Signature::from_str(&result.sig).unwrap();
+
+        let recovered = signature.recover_address_from_msg(&msg).unwrap();
+
+        assert_eq!(recovered, expected_test_signer_address());
+    }
+
+    #[test]
+    fn test_signature_recovers_expected_signer_address_with_action() {
+        let result = compute_rp_signature(TEST_KEY, None, Some("test-action")).unwrap();
         let nonce = FieldElement::from_str(&result.nonce).unwrap();
         let action = FieldElement::from_arbitrary_raw_bytes(b"test-action");
         let msg =
             compute_rp_signature_msg(*nonce, result.created_at, result.expires_at, Some(*action));
+        let signature = Signature::from_str(&result.sig).unwrap();
 
-        let mut hasher = Keccak::v256();
-        let mut hash = [0u8; 32];
-        hasher.update(&msg);
-        hasher.finalize(&mut hash);
+        let recovered = signature.recover_address_from_msg(&msg).unwrap();
 
-        // 3. Parse the signature
-        let sig_hex = result.sig.strip_prefix("0x").unwrap();
-        let sig_bytes = hex::decode(sig_hex).unwrap();
-        let signature = k256::ecdsa::Signature::from_slice(&sig_bytes[..64]).unwrap();
-        let recovery_id = RecoveryId::from_byte(sig_bytes[64] - 27).unwrap();
-
-        // 4. Recover the public key from the signature
-        let recovered_key = VerifyingKey::recover_from_prehash(&hash, &signature, recovery_id)
-            .expect("Failed to recover public key from signature");
-
-        // 5. Verify recovered key matches expected key
-        assert_eq!(
-            recovered_key, *expected_verifying_key,
-            "Recovered public key does not match the signer's public key"
-        );
+        assert_eq!(recovered, expected_test_signer_address());
     }
 }

@@ -2,6 +2,8 @@ import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect, vi, afterEach, beforeAll } from "vitest";
+import { getPublicKey, Signature as SecpSignature, etc } from "@noble/secp256k1";
+import { keccak_256 } from "@noble/hashes/sha3";
 import initWasm, {
   computeRpSignatureMessage as wasmComputeRpSignatureMessage,
   hashSignal as wasmHashSignal,
@@ -17,6 +19,27 @@ const bytesToHex = (input: Uint8Array): string =>
   Buffer.from(input).toString("hex");
 const hexToBytes = (input: string): Uint8Array =>
   new Uint8Array(Buffer.from(input, "hex"));
+const hashEthereumMessage = (message: Uint8Array): Uint8Array => {
+  const prefix = new TextEncoder().encode(
+    `\x19Ethereum Signed Message:\n${message.length}`,
+  );
+  return keccak_256(etc.concatBytes(prefix, message));
+};
+const ethereumAddressFromPublicKey = (publicKey: Uint8Array): string => {
+  const digest = keccak_256(publicKey.slice(1));
+  return "0x" + bytesToHex(digest.slice(-20));
+};
+const recoverAddressFromSignature = (
+  signatureHex: string,
+  message: Uint8Array,
+): string => {
+  const signatureBytes = hexToBytes(signatureHex.slice(2));
+  const signature = SecpSignature.fromCompact(signatureBytes.slice(0, 64))
+    .addRecoveryBit(signatureBytes[64] - 27)
+    .recoverPublicKey(hashEthereumMessage(message));
+
+  return ethereumAddressFromPublicKey(signature.toRawBytes(false));
+};
 type RandomValuesCrypto = {
   getRandomValues: (buffer: Uint8Array) => Uint8Array;
 };
@@ -25,6 +48,9 @@ const TEST_KEY =
   "0xabababababababababababababababababababababababababababababababab";
 const TEST_ACTION = "test-action";
 const FIXED_NOW_MS = 1700000000_000;
+const TEST_SIGNER_ADDRESS = ethereumAddressFromPublicKey(
+  getPublicKey(hexToBytes(TEST_KEY.slice(2)), false),
+);
 
 // Stubs clock and randomness so JS and WASM no-action signRequest produce identical outputs.
 const stubDeterministicRuntime = () => {
@@ -295,6 +321,37 @@ describe("signRequest", () => {
     const wasmSig = wasmSignRequest(TEST_KEY, undefined, TEST_ACTION).toJSON();
 
     expect(wasmSig).toEqual(jsSig);
+  });
+
+  it("should recover the expected signer address for session proofs", () => {
+    stubDeterministicRuntime();
+
+    const sig = signRequest({ signingKeyHex: TEST_KEY });
+    const message = computeRpSignatureMessage(
+      hexToBytes(sig.nonce.slice(2)),
+      sig.createdAt,
+      sig.expiresAt,
+    );
+
+    expect(recoverAddressFromSignature(sig.sig, message)).toBe(
+      TEST_SIGNER_ADDRESS,
+    );
+  });
+
+  it("should recover the expected signer address for action proofs", () => {
+    stubDeterministicRuntime();
+
+    const sig = signRequest({ action: TEST_ACTION, signingKeyHex: TEST_KEY });
+    const message = computeRpSignatureMessage(
+      hexToBytes(sig.nonce.slice(2)),
+      sig.createdAt,
+      sig.expiresAt,
+      TEST_ACTION,
+    );
+
+    expect(recoverAddressFromSignature(sig.sig, message)).toBe(
+      TEST_SIGNER_ADDRESS,
+    );
   });
 
   it("should serialize sig as a single string in WASM JSON output", () => {

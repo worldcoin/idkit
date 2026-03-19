@@ -11,6 +11,7 @@ etc.hmacSha256Sync = (key: Uint8Array, ...msgs: Uint8Array[]) =>
 
 const DEFAULT_TTL_SEC = 300;
 const RP_SIGNATURE_MSG_VERSION = 0x01;
+const ETHEREUM_MESSAGE_PREFIX = "\x19Ethereum Signed Message:\n";
 const textEncoder = new TextEncoder();
 
 export function hashToField(input: Uint8Array): Uint8Array {
@@ -68,10 +69,18 @@ export function computeRpSignatureMessage(
   return message;
 }
 
+function hashEthereumMessage(message: Uint8Array): Uint8Array {
+  const prefix = textEncoder.encode(
+    `${ETHEREUM_MESSAGE_PREFIX}${message.length}`,
+  );
+  return keccak_256(etc.concatBytes(prefix, message));
+}
+
 /**
  * Signs an RP request using pure JS (no WASM required).
  *
- * Algorithm matches Rust implementation in rust/core/src/rp_signature.rs
+ * Algorithm matches the protocol verifier path:
+ * Ethereum EIP-191 message signing over the RP signature payload bytes.
  *
  * Nonce generation matches `from_arbitrary_raw_bytes`:
  * https://github.com/worldcoin/world-id-protocol/blob/31405df8bcd5a2784e04ad9890cf095111dcac13/crates/primitives/src/lib.rs#L134-L149
@@ -134,7 +143,7 @@ export function signRequest(params: SignRequestParams): RpSignature {
     expiresAt,
     action,
   );
-  const msgHash = keccak_256(message);
+  const msgHash = hashEthereumMessage(message);
 
   // 5. Sign with recoverable signature
   const recSig = sign(msgHash, privKey);

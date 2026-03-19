@@ -6,6 +6,8 @@ import (
 	"io"
 	"strings"
 	"testing"
+
+	secp256k1ecdsa "github.com/decred/dcrd/dcrec/secp256k1/v4/ecdsa"
 )
 
 const (
@@ -31,6 +33,38 @@ func newTestSigner(t *testing.T, key string, nowFn func() uint64, r io.Reader) *
 	s.random = r
 
 	return s
+}
+
+func ethereumAddressFromPublicKey(pubKey []byte) string {
+	hash := keccak256(pubKey[1:])
+	return "0x" + hex.EncodeToString(hash[12:])
+}
+
+func expectedSignerAddress(t *testing.T, key string) string {
+	t.Helper()
+
+	privKey, err := parseSigningKey(key)
+	if err != nil {
+		t.Fatalf("failed to parse signing key: %v", err)
+	}
+
+	return ethereumAddressFromPublicKey(privKey.PubKey().SerializeUncompressed())
+}
+
+func recoverAddressFromSignature(t *testing.T, sigHex string, message []byte) string {
+	t.Helper()
+
+	sigBytes := mustDecodeHex(t, strings.TrimPrefix(sigHex, "0x"))
+	compactSig := make([]byte, 65)
+	compactSig[0] = sigBytes[64]
+	copy(compactSig[1:], sigBytes[:64])
+
+	pubKey, _, err := secp256k1ecdsa.RecoverCompact(compactSig, hashEthereumMessage(message))
+	if err != nil {
+		t.Fatalf("failed to recover public key: %v", err)
+	}
+
+	return ethereumAddressFromPublicKey(pubKey.SerializeUncompressed())
 }
 
 func TestHashToFieldParityVectors(t *testing.T) {
@@ -125,7 +159,7 @@ func TestSignRequestDeterministicParityVector(t *testing.T) {
 	if sig.Nonce != "0x008ae1aa597fa146ebd3aa2ceddf360668dea5e526567e92b0321816a4e895bd" {
 		t.Fatalf("nonce mismatch: got %s", sig.Nonce)
 	}
-	if sig.Sig != "0x37819a5e3213349572834237f3cb478659e6439dc97369c4b64734004d6ba4623450113c50f1e8b8a72662f5f6c71f8ef09ddd411a86c07efc6dd5ad692d75681b" {
+	if sig.Sig != "0x14f693175773aed912852a601e9c0fd30f2afe2738d31388316232ce6f64ae9e4edbfb19d81c4229ba9c9fca78ede4b28956b7ba4415f08d957cbc1b3bdaa4021b" {
 		t.Fatalf("signature mismatch: got %s", sig.Sig)
 	}
 	if sig.CreatedAt != fixedUnixNow {
@@ -157,7 +191,7 @@ func TestSignRequestDeterministicParityVectorWithAction(t *testing.T) {
 	if sig.Nonce != "0x008ae1aa597fa146ebd3aa2ceddf360668dea5e526567e92b0321816a4e895bd" {
 		t.Fatalf("nonce mismatch: got %s", sig.Nonce)
 	}
-	if sig.Sig != "0xdf5fa73d98377548d1a4dd53dccb26c3c9405ee5d935cfe8bcfccbbceaa665a5240a0f57562f265b9b75c28cd4297cd2b78ca951fb842dfd02df126ab2cb214c1b" {
+	if sig.Sig != "0x05594adb6c1495768a38d523d7d6ee6356b2c31231919198794ed022ade7d08f73753f83bd167067d99c9b969d28e9222315837c66af25867b041273a6d5056f1b" {
 		t.Fatalf("signature mismatch: got %s", sig.Sig)
 	}
 	if sig.CreatedAt != fixedUnixNow {
@@ -165,6 +199,66 @@ func TestSignRequestDeterministicParityVectorWithAction(t *testing.T) {
 	}
 	if sig.ExpiresAt != fixedUnixNow+300 {
 		t.Fatalf("expiresAt mismatch: got %d want %d", sig.ExpiresAt, fixedUnixNow+300)
+	}
+}
+
+func TestSignRequestRecoversExpectedSignerWithoutAction(t *testing.T) {
+	t.Parallel()
+
+	signer := newTestSigner(t, testKey,
+		func() uint64 { return fixedUnixNow },
+		readerFunc(func(dst []byte) (int, error) {
+			for i := range dst {
+				dst[i] = byte(i)
+			}
+			return len(dst), nil
+		}),
+	)
+
+	sig, err := signer.SignRequest()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	message := computeRpSignatureMessage(
+		mustDecodeHex(t, strings.TrimPrefix(sig.Nonce, "0x")),
+		sig.CreatedAt,
+		sig.ExpiresAt,
+		"",
+	)
+
+	if got, want := recoverAddressFromSignature(t, sig.Sig, message), expectedSignerAddress(t, testKey); got != want {
+		t.Fatalf("recovered signer mismatch: got %s want %s", got, want)
+	}
+}
+
+func TestSignRequestRecoversExpectedSignerWithAction(t *testing.T) {
+	t.Parallel()
+
+	signer := newTestSigner(t, testKey,
+		func() uint64 { return fixedUnixNow },
+		readerFunc(func(dst []byte) (int, error) {
+			for i := range dst {
+				dst[i] = byte(i)
+			}
+			return len(dst), nil
+		}),
+	)
+
+	sig, err := signer.SignRequest(WithAction("test-action"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	message := computeRpSignatureMessage(
+		mustDecodeHex(t, strings.TrimPrefix(sig.Nonce, "0x")),
+		sig.CreatedAt,
+		sig.ExpiresAt,
+		"test-action",
+	)
+
+	if got, want := recoverAddressFromSignature(t, sig.Sig, message), expectedSignerAddress(t, testKey); got != want {
+		t.Fatalf("recovered signer mismatch: got %s want %s", got, want)
 	}
 }
 

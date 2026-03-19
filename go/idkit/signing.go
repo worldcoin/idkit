@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 
 const defaultTTLSeconds uint64 = 300
 const rpSignatureMsgVersion byte = 0x01
+const ethereumMessagePrefix = "\x19Ethereum Signed Message:\n"
 
 type signConfig struct {
 	action string
@@ -115,7 +117,8 @@ func computeRpSignatureMessage(
 }
 
 // SignRequest computes the RP signature payload using optional signing options.
-// By default it signs a session-style payload with a 300-second TTL.
+// By default it signs a session-style payload with a 300-second TTL using
+// Ethereum EIP-191 message signing semantics.
 func SignRequest(signingKeyHex string, opts ...SignOption) (RpSignature, error) {
 	s, err := NewSigner(signingKeyHex)
 	if err != nil {
@@ -145,7 +148,7 @@ func (s *Signer) SignRequest(opts ...SignOption) (RpSignature, error) {
 	expiresAt := createdAt + cfg.ttl
 
 	message := computeRpSignatureMessage(nonceBytes, createdAt, expiresAt, cfg.action)
-	msgHash := keccak256(message)
+	msgHash := hashEthereumMessage(message)
 	compactSig := secp256k1ecdsa.SignCompact(s.privKey, msgHash, false)
 	sig65 := make([]byte, 65)
 	copy(sig65[:64], compactSig[1:])
@@ -192,4 +195,16 @@ func keccak256(input []byte) []byte {
 	hasher := sha3.NewLegacyKeccak256()
 	_, _ = hasher.Write(input)
 	return hasher.Sum(nil)
+}
+
+func hashEthereumMessage(message []byte) []byte {
+	prefix := make([]byte, 0, len(ethereumMessagePrefix)+20)
+	prefix = append(prefix, ethereumMessagePrefix...)
+	prefix = strconv.AppendInt(prefix, int64(len(message)), 10)
+
+	payload := make([]byte, 0, len(prefix)+len(message))
+	payload = append(payload, prefix...)
+	payload = append(payload, message...)
+
+	return keccak256(payload)
 }

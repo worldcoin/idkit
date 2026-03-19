@@ -400,8 +400,8 @@ impl RpSignatureWasm {
 /// proof requests. It:
 /// 1. Generates a random nonce
 /// 2. Gets the current timestamp
-/// 3. Computes: keccak256(version || nonce || timestamp || `expires_at`)
-/// 4. Signs the hash with ECDSA secp256k1
+/// 3. Computes the RP signature payload bytes
+/// 4. Signs the message using the Ethereum EIP-191 message prefix
 ///
 /// # Arguments
 /// * `signing_key_hex` - The ECDSA private key as hex (0x-prefixed or not, 32 bytes)
