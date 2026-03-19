@@ -27,7 +27,7 @@ fn main() {
     let expires_at: u64 = args[4].parse().expect("invalid expires_at");
 
     let result =
-        sign_rp_message(&signing_key, nonce, created_at, expires_at).expect("signing failed");
+        sign_rp_message(&signing_key, nonce, created_at, expires_at, None).expect("signing failed");
 
     let output = serde_json::json!({
         "sig": result.sig,

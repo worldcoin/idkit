@@ -12,8 +12,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use world_id_primitives::FieldElement;
-use world_id_primitives::ProofRequest;
+use world_id_primitives::{FieldElement, ProofRequest, SessionId};
 
 #[cfg(feature = "native-crypto")]
 use crate::crypto::CryptoKey;
@@ -354,10 +353,11 @@ pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_js
         }
         RequestKind::CreateSession => (None, None, None),
         RequestKind::ProveSession { session_id } => {
-            let fe = FieldElement::from_str(session_id).map_err(|_| {
-                Error::InvalidConfiguration("Invalid session_id format".to_string())
-            })?;
-            (None, Some(fe), None)
+            let parsed =
+                serde_json::from_str::<SessionId>(&format!("\"{session_id}\"")).map_err(|_| {
+                    Error::InvalidConfiguration("Invalid session_id format".to_string())
+                })?;
+            (None, Some(parsed), None)
         }
     };
 
@@ -647,7 +647,10 @@ impl BridgeConnection {
                             if let Some(session_id) = proof_response.session_id {
                                 IDKitResult::new_session(
                                     self.nonce.clone(),
-                                    session_id.to_string(),
+                                    format!(
+                                        "session_{}",
+                                        hex::encode(session_id.to_compressed_bytes())
+                                    ),
                                     self.action_description.clone(),
                                     responses,
                                     self.environment.as_ref(),
