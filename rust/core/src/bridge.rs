@@ -346,6 +346,9 @@ pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_js
     params.constraints.validate()?;
 
     // Extract action and session_id from kind
+    // TODO: Clean up session_id handling once the SDK surface can carry the
+    // protocol SessionId type directly instead of adapting the `session_<hex>`
+    // string form at this bridge boundary.
     let (action_fe, session_id_fe, action_str) = match &params.kind {
         RequestKind::Uniqueness { action } => {
             let fe = FieldElement::from_arbitrary_raw_bytes(action.as_bytes());
