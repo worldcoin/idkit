@@ -2,7 +2,11 @@ import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect, vi, afterEach, beforeAll } from "vitest";
-import { getPublicKey, Signature as SecpSignature, etc } from "@noble/secp256k1";
+import {
+  getPublicKey,
+  Signature as SecpSignature,
+  etc,
+} from "@noble/secp256k1";
 import { keccak_256 } from "@noble/hashes/sha3";
 import initWasm, {
   computeRpSignatureMessage as wasmComputeRpSignatureMessage,
