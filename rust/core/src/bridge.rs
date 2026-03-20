@@ -91,7 +91,7 @@ struct BridgeRequestPayload {
     // -- New Proof Request fields for World ID 4.0 --
     // -----------------------------------------------
     /// The protocol-level proof request
-    proof_request: ProofRequest,
+    // proof_request: ProofRequest,
 
     /// Whether to accept legacy (v3) proofs as fallback.
     /// - `true`: Accept both v3 and v4 proofs. Use during migration.
@@ -394,7 +394,7 @@ pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_js
         app_id: params.app_id.as_str().to_string(),
         action: action_str,
         action_description: params.action_description.clone(),
-        proof_request,
+        // proof_request,
         verification_level: params.legacy_verification_level,
         signal: legacy_signal_hash,
         allow_legacy_proofs: params.allow_legacy_proofs,
@@ -1229,7 +1229,7 @@ mod tests {
             action_description: Some("Test description".to_string()),
             signal: String::new(),
             verification_level: VerificationLevel::Deprecated,
-            proof_request,
+            // proof_request,
             allow_legacy_proofs: false,
             environment: Environment::Production,
         };
