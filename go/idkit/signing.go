@@ -21,7 +21,7 @@ const rpSignatureMsgVersion byte = 0x01
 const ethereumMessagePrefix = "\x19Ethereum Signed Message:\n"
 
 type signConfig struct {
-	action string
+	action *string
 	ttl    uint64
 }
 
@@ -31,7 +31,7 @@ type SignOption func(*signConfig)
 // WithAction appends the hashed action field to the signed payload.
 func WithAction(action string) SignOption {
 	return func(cfg *signConfig) {
-		cfg.action = action
+		cfg.action = &action
 	}
 }
 
@@ -99,11 +99,11 @@ func computeRpSignatureMessage(
 	nonceBytes []byte,
 	createdAt uint64,
 	expiresAt uint64,
-	action string,
+	action *string,
 ) []byte {
 	actionBytes := []byte(nil)
-	if action != "" {
-		actionBytes = hashToField([]byte(action))
+	if action != nil {
+		actionBytes = hashToField([]byte(*action))
 	}
 
 	message := make([]byte, 49+len(actionBytes))

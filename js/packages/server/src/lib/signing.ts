@@ -115,6 +115,9 @@ export function signRequest(params: SignRequestParams): RpSignature {
       "Invalid signing key: expected signingKeyHex to be a string",
     );
   }
+  if (action !== undefined && typeof action !== "string") {
+    throw new Error("Invalid action: expected action to be a string");
+  }
 
   // 1. Parse signing key
   const keyHex = signingKeyHex.startsWith("0x")

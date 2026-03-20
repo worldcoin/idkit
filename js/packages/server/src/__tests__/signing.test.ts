@@ -202,6 +202,14 @@ describe("computeRpSignatureMessage", () => {
     );
     expect(wasmMsg).toEqual(msg);
   });
+
+  it("should append the hashed empty action when explicitly provided", () => {
+    const nonce = hashToField(new Uint8Array(32).fill(0x22));
+    const msg = computeRpSignatureMessage(nonce, 1700000000, 1700000300, "");
+
+    expect(msg.length).toBe(81);
+    expect(msg.slice(49)).toEqual(hashToField(new TextEncoder().encode("")));
+  });
 });
 
 describe("signRequest", () => {
@@ -282,6 +290,15 @@ describe("signRequest", () => {
     expect(() =>
       signRequest({ action: TEST_ACTION, signingKeyHex: invalidKey }),
     ).toThrow();
+  });
+
+  it("should reject non-string actions", () => {
+    expect(() =>
+      signRequest({ action: null as any, signingKeyHex: TEST_KEY }),
+    ).toThrow("Invalid action");
+    expect(() =>
+      signRequest({ action: 123 as any, signingKeyHex: TEST_KEY }),
+    ).toThrow("Invalid action");
   });
 
   it("should support signing without an action", () => {
