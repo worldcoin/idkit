@@ -11,11 +11,11 @@ export async function POST(request: Request): Promise<Response> {
     };
 
     const signingKey = process.env.RP_SIGNING_KEY;
-    const { sig, nonce, createdAt, expiresAt } = signRequest(
-      body.action,
-      signingKey!,
-      body.ttl,
-    );
+    const { sig, nonce, createdAt, expiresAt } = signRequest({
+      action: body.action,
+      signingKeyHex: signingKey!,
+      ttl: body.ttl,
+    });
 
     console.log("Generated RP signature:", {
       sig,
