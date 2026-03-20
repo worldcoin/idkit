@@ -11,6 +11,7 @@ etc.hmacSha256Sync = (key: Uint8Array, ...msgs: Uint8Array[]) =>
 
 const DEFAULT_TTL_SEC = 300;
 const RP_SIGNATURE_MSG_VERSION = 0x01;
+// Prefix for Ethereum signed messages as per EIP-191: "\x19Ethereum Signed Message:\n" + message.length
 const ETHEREUM_MESSAGE_PREFIX = "\x19Ethereum Signed Message:\n";
 const textEncoder = new TextEncoder();
 
@@ -69,6 +70,9 @@ export function computeRpSignatureMessage(
   return message;
 }
 
+// Intentionally hardcoding this because libraries like 'viem' are too big for our use case,
+// Copied from viem: https://github.com/wevm/viem/commit/main/src/constants/strings.ts
+// In any case we have setup parity tests with the Rust implementation to ensure the message hashing and signing is correct
 function hashEthereumMessage(message: Uint8Array): Uint8Array {
   const prefix = textEncoder.encode(
     `${ETHEREUM_MESSAGE_PREFIX}${message.length}`,
