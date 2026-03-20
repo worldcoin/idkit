@@ -16,11 +16,11 @@ app.post("/api/rp-signature", (req, res) => {
   const { ttl, action } = req.body;
 
   try {
-    const sig = signRequest({
+    const sig = signRequest(
       action,
-      signingKeyHex: DEMO_SIGNING_KEY,
-      ttl: ttl ? Number(ttl) : undefined,
-    });
+      DEMO_SIGNING_KEY,
+      ttl ? Number(ttl) : undefined,
+    );
 
     res.json({
       sig: sig.sig,

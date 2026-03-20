@@ -155,10 +155,7 @@ describe("RP Signature Generation", () => {
     "0xabababababababababababababababababababababababababababababababab";
   const TEST_ACTION = "test-action";
   it("should compute RP signature with default TTL", () => {
-    const signature = signRequest({
-      action: TEST_ACTION,
-      signingKeyHex: TEST_SIGNING_KEY,
-    });
+    const signature = signRequest(TEST_ACTION, TEST_SIGNING_KEY);
 
     // Verify signature format: 65 bytes (0x + 130 hex chars)
     expect(signature.sig).toMatch(/^0x[0-9a-f]{130}$/i);
@@ -179,11 +176,7 @@ describe("RP Signature Generation", () => {
 
   it("should compute RP signature with custom TTL", () => {
     const customTtl = 600; // 10 minutes
-    const signature = signRequest({
-      action: TEST_ACTION,
-      signingKeyHex: TEST_SIGNING_KEY,
-      ttl: customTtl,
-    });
+    const signature = signRequest(TEST_ACTION, TEST_SIGNING_KEY, customTtl);
 
     // Verify TTL matches custom value (±2 seconds for timing variance)
     const actualTtl = Number(signature.expiresAt) - Number(signature.createdAt);
@@ -192,14 +185,8 @@ describe("RP Signature Generation", () => {
   });
 
   it("should generate unique nonces", () => {
-    const signature1 = signRequest({
-      action: TEST_ACTION,
-      signingKeyHex: TEST_SIGNING_KEY,
-    });
-    const signature2 = signRequest({
-      action: TEST_ACTION,
-      signingKeyHex: TEST_SIGNING_KEY,
-    });
+    const signature1 = signRequest(TEST_ACTION, TEST_SIGNING_KEY);
+    const signature2 = signRequest(TEST_ACTION, TEST_SIGNING_KEY);
 
     // Nonces should be different (proving randomness)
     expect(signature1.nonce).not.toBe(signature2.nonce);
@@ -212,15 +199,11 @@ describe("RP Signature Generation", () => {
   it("should reject invalid signing keys", () => {
     // Test with wrong-length key (should be 32 bytes = 64 hex chars)
     const shortKey = "0xabcd";
-    expect(() =>
-      signRequest({ action: TEST_ACTION, signingKeyHex: shortKey }),
-    ).toThrow();
+    expect(() => signRequest(TEST_ACTION, shortKey)).toThrow();
 
     // Test with non-hex key
     const invalidKey =
       "0xZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
-    expect(() =>
-      signRequest({ action: TEST_ACTION, signingKeyHex: invalidKey }),
-    ).toThrow();
+    expect(() => signRequest(TEST_ACTION, invalidKey)).toThrow();
   });
 });

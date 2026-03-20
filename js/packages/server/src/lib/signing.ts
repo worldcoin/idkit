@@ -11,9 +11,6 @@ etc.hmacSha256Sync = (key: Uint8Array, ...msgs: Uint8Array[]) =>
 
 const DEFAULT_TTL_SEC = 300;
 const RP_SIGNATURE_MSG_VERSION = 0x01;
-// Prefix for Ethereum signed messages as per EIP-191: "\x19Ethereum Signed Message:\n" + message.length
-const ETHEREUM_MESSAGE_PREFIX = "\x19Ethereum Signed Message:\n";
-const textEncoder = new TextEncoder();
 
 export function hashToField(input: Uint8Array): Uint8Array {
   const hash = BigInt("0x" + bytesToHex(keccak_256(input))) >> 8n;
@@ -27,35 +24,25 @@ export interface RpSignature {
   expiresAt: number; // unix seconds
 }
 
-export interface SignRequestParams {
-  signingKeyHex: string;
-  action?: string;
-  ttl?: number;
-}
-
 /**
- * Builds the message that gets signed for RP signature verification.
+ * Builds the 49-byte message that gets signed for RP signature verification.
  *
- * Message format: version(1) || nonce(32) || createdAt_u64_be(8) || expiresAt_u64_be(8) || action?(32)
+ * Message format: version(1) || nonce(32) || createdAt_u64_be(8) || expiresAt_u64_be(8)
  *
- * Matches Rust `compute_rp_signature_msg` in `world-id-primitives`.
- * Session proofs omit `action`, while uniqueness proofs append the action field element.
+ * Matches Rust `compute_rp_signature_msg` (world-id-primitives v0.5.1+):
+ * https://github.com/worldcoin/world-id-protocol/blob/0008eab1efe200e572f27258793f9be5cb32858b/crates/primitives/src/rp.rs#L95-L105
  *
  * @param nonceBytes - 32-byte nonce as Uint8Array
  * @param createdAt - unix timestamp in seconds
  * @param expiresAt - unix timestamp in seconds
- * @param action - Optional action string hashed into a field element and appended to the message
- * @returns 49-byte or 81-byte message ready to be hashed and signed
+ * @returns 49-byte message ready to be hashed and signed
  */
 export function computeRpSignatureMessage(
   nonceBytes: Uint8Array,
   createdAt: number,
   expiresAt: number,
-  action?: string,
 ): Uint8Array {
-  const actionBytes =
-    action === undefined ? undefined : hashToField(textEncoder.encode(action));
-  const message = new Uint8Array(49 + (actionBytes?.length ?? 0));
+  const message = new Uint8Array(49);
   message[0] = RP_SIGNATURE_MSG_VERSION;
   message.set(nonceBytes, 1);
 
@@ -63,60 +50,31 @@ export function computeRpSignatureMessage(
   view.setBigUint64(33, BigInt(createdAt), false); // big-endian
   view.setBigUint64(41, BigInt(expiresAt), false); // big-endian
 
-  if (actionBytes) {
-    message.set(actionBytes, 49);
-  }
-
   return message;
-}
-
-// Intentionally hardcoding this because libraries like 'viem' are too big for our use case,
-// Copied from viem: https://github.com/wevm/viem/commit/main/src/constants/strings.ts
-// In any case we have setup parity tests with the Rust implementation to ensure the message hashing and signing is correct
-function hashEthereumMessage(message: Uint8Array): Uint8Array {
-  const prefix = textEncoder.encode(
-    `${ETHEREUM_MESSAGE_PREFIX}${message.length}`,
-  );
-  return keccak_256(etc.concatBytes(prefix, message));
 }
 
 /**
  * Signs an RP request using pure JS (no WASM required).
  *
- * Algorithm matches the protocol verifier path:
- * Ethereum EIP-191 message signing over the RP signature payload bytes.
+ * Algorithm matches Rust implementation in rust/core/src/rp_signature.rs
  *
  * Nonce generation matches `from_arbitrary_raw_bytes`:
  * https://github.com/worldcoin/world-id-protocol/blob/31405df8bcd5a2784e04ad9890cf095111dcac13/crates/primitives/src/lib.rs#L134-L149
  *
- * Accepts a single options object: `signRequest({ signingKeyHex, action?, ttl? })`.
- * When `action` is provided, it is hashed to a field element and appended to the signed message.
- * This is required for non-session proofs. Session proofs omit the action.
+ * @param signingKeyHex - The ECDSA private key as hex (0x-prefixed or not, 32 bytes)
+ * @param ttl - Time-to-live in seconds (defaults to 300 = 5 minutes)
  * @returns RpSignature object with sig, nonce, createdAt, expiresAt
  */
-export function signRequest(params: SignRequestParams): RpSignature {
+export function signRequest(
+  _action: string,
+  signingKeyHex: string,
+  ttl: number = DEFAULT_TTL_SEC,
+): RpSignature {
   if (!isServerEnvironment()) {
     throw new Error(
       "signRequest can only be used in Node.js environments. " +
         "This function requires access to signing keys and should never be called from browser/client-side code.",
     );
-  }
-
-  if (typeof params !== "object" || params === null) {
-    throw new Error(
-      "signRequest expects an options object: signRequest({ signingKeyHex, action?, ttl? })",
-    );
-  }
-
-  const { action, signingKeyHex, ttl = DEFAULT_TTL_SEC } = params;
-
-  if (typeof signingKeyHex !== "string") {
-    throw new Error(
-      "Invalid signing key: expected signingKeyHex to be a string",
-    );
-  }
-  if (action !== undefined && typeof action !== "string") {
-    throw new Error("Invalid action: expected action to be a string");
   }
 
   // 1. Parse signing key
@@ -144,13 +102,8 @@ export function signRequest(params: SignRequestParams): RpSignature {
   const expiresAt = createdAt + ttl;
 
   // 4. Build message and sign
-  const message = computeRpSignatureMessage(
-    nonceBytes,
-    createdAt,
-    expiresAt,
-    action,
-  );
-  const msgHash = hashEthereumMessage(message);
+  const message = computeRpSignatureMessage(nonceBytes, createdAt, expiresAt);
+  const msgHash = keccak_256(message);
 
   // 5. Sign with recoverable signature
   const recSig = sign(msgHash, privKey);
