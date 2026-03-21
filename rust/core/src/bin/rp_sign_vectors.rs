@@ -1,6 +1,6 @@
 //! Deterministic RP signature CLI for cross-language parity tests.
 //!
-//! Usage: rp-sign-vectors <key_hex> <nonce_hex> <created_at> <expires_at> [action]
+//! Usage: rp-sign-vectors <key_hex> <nonce_hex> <created_at> <expires_at> <action>
 //!
 //! Outputs JSON: {"sig":"0x...","nonce":"0x...","created_at":N,"expires_at":N}
 
