@@ -14,7 +14,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 5 && args.len() != 6 {
         eprintln!(
-            "usage: rp-sign-vectors <key_hex> <nonce_hex> <created_at> <expires_at> [action]"
+            "usage: rp-sign-vectors <key_hex> <nonce_hex> <created_at> <expires_at> <action>"
         );
         std::process::exit(1);
     }
