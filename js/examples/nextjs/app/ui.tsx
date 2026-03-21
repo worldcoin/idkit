@@ -22,16 +22,13 @@ const STAGING_CONNECT_BASE_URL = "https://staging.world.org/verify";
 const CONNECT_URL_OVERRIDE_TOOLTIP =
   "Enable this to change the deeplink base URL to the staging verify endpoint. Useful when testing with a Staging iOS World App build that supports this override.";
 const RETURN_TO_TOOLTIP =
-  "Enable this to append a return_to callback to the connector URL. The default value opens the current page in Chrome, and you can override it before starting a verification.";
+  "Enable this to append a return_to callback to the connector URL. The default value just reopens Chrome, and you can override it before starting a verification.";
 
 type PresetKind = "orb" | "secure_document" | "document" | "device" | "selfie";
 
-function createChromeDeeplink(url: string): string {
+function createChromeAppDeeplink(url: string): string {
   const parsed = new URL(url);
-  const protocol =
-    parsed.protocol === "https:" ? "googlechromes://" : "googlechrome://";
-
-  return `${protocol}${parsed.host}${parsed.pathname}${parsed.search}${parsed.hash}`;
+  return parsed.protocol === "https:" ? "googlechromes://" : "googlechrome://";
 }
 
 function createPreset(kind: PresetKind, signal: string) {
@@ -159,7 +156,9 @@ export function DemoClient(): ReactElement {
     }
 
     setReturnTo((current) =>
-      current.length > 0 ? current : createChromeDeeplink(window.location.href),
+      current.length > 0
+        ? current
+        : createChromeAppDeeplink(window.location.href),
     );
   }, []);
 
@@ -325,7 +324,7 @@ export function DemoClient(): ReactElement {
             value={returnTo}
             onChange={(e) => setReturnTo(e.target.value)}
             disabled={!useReturnTo}
-            placeholder="googlechromes://example.com/path"
+            placeholder="googlechromes://"
           />
         </div>
       </section>
