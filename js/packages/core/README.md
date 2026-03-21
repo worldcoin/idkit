@@ -16,7 +16,10 @@ The RP signature authenticates your verification requests. Generate it server-si
 import { signRequest } from "@worldcoin/idkit-core/signing";
 
 // Never expose RP_SIGNING_KEY to clients
-const sig = signRequest("my-action", process.env.RP_SIGNING_KEY);
+const sig = signRequest({
+  action: "my-action",
+  signingKeyHex: process.env.RP_SIGNING_KEY!,
+});
 
 // Return to client
 res.json({
@@ -114,10 +117,10 @@ const { success } = await response.json();
 
 Pure JS subpath exports are available for server-side use without WASM initialization:
 
-| Subpath    | Exports                                                          |
-| ---------- | ---------------------------------------------------------------- |
-| `/signing` | `signRequest`, `computeRpSignatureMessage`, `RpSignature` (type) |
-| `/hashing` | `hashSignal`                                                     |
+| Subpath    | Exports                                                                                   |
+| ---------- | ----------------------------------------------------------------------------------------- |
+| `/signing` | `signRequest`, `computeRpSignatureMessage`, `RpSignature` and `SignRequestParams` (types) |
+| `/hashing` | `hashSignal`                                                                              |
 
 ```typescript
 import { signRequest } from "@worldcoin/idkit-core/signing";
