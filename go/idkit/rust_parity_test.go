@@ -13,14 +13,30 @@ import (
 
 // rustSign calls the rp-sign-vectors Rust binary with deterministic inputs
 // and returns the Rust-computed signature for cross-language parity comparison.
-func rustSign(t *testing.T, keyHex, nonceHex string, createdAt, expiresAt uint64) RpSignature {
+func rustSign(
+	t *testing.T,
+	keyHex,
+	nonceHex string,
+	createdAt,
+	expiresAt uint64,
+	action *string,
+) RpSignature {
 	t.Helper()
 
 	_, thisFile, _, _ := runtime.Caller(0)
 	binPath := filepath.Join(filepath.Dir(thisFile), "..", "..", "target", "release", "rp-sign-vectors")
 
-	cmd := exec.Command(binPath, keyHex, nonceHex,
-		fmt.Sprintf("%d", createdAt), fmt.Sprintf("%d", expiresAt))
+	args := []string{
+		keyHex,
+		nonceHex,
+		fmt.Sprintf("%d", createdAt),
+		fmt.Sprintf("%d", expiresAt),
+	}
+	if action != nil {
+		args = append(args, *action)
+	}
+
+	cmd := exec.Command(binPath, args...)
 	out, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -50,12 +66,12 @@ func TestSignRequestParityWithRust(t *testing.T) {
 		}),
 	)
 
-	goSig, err := signer.SignRequestWithTTL(defaultTTLSeconds)
+	goSig, err := signer.SignRequest()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	rustSig := rustSign(t, testKey, goSig.Nonce, goSig.CreatedAt, goSig.ExpiresAt)
+	rustSig := rustSign(t, testKey, goSig.Nonce, goSig.CreatedAt, goSig.ExpiresAt, nil)
 
 	if goSig.Sig != rustSig.Sig {
 		t.Fatalf("signature mismatch:\n  go:   %s\n  rust: %s", goSig.Sig, rustSig.Sig)
@@ -119,16 +135,72 @@ func TestSignRequestParityWithRustMultipleVectors(t *testing.T) {
 				}),
 			)
 
-			goSig, err := signer.SignRequestWithTTL(s.ttl)
+			goSig, err := signer.SignRequest(WithTTL(s.ttl))
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			rustSig := rustSign(t, testKey, goSig.Nonce, goSig.CreatedAt, goSig.ExpiresAt)
+			rustSig := rustSign(t, testKey, goSig.Nonce, goSig.CreatedAt, goSig.ExpiresAt, nil)
 
 			if goSig.Sig != rustSig.Sig {
 				t.Fatalf("signature mismatch:\n  go:   %s\n  rust: %s", goSig.Sig, rustSig.Sig)
 			}
 		})
+	}
+}
+
+func TestSignRequestParityWithRustAndAction(t *testing.T) {
+	t.Parallel()
+
+	signer := newTestSigner(t, testKey,
+		func() uint64 { return fixedUnixNow },
+		readerFunc(func(dst []byte) (int, error) {
+			for i := range dst {
+				dst[i] = byte(i)
+			}
+			return len(dst), nil
+		}),
+	)
+
+	goSig, err := signer.SignRequest(WithAction("test-action"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rustSig := rustSign(t, testKey, goSig.Nonce, goSig.CreatedAt, goSig.ExpiresAt, stringPtr("test-action"))
+
+	if goSig.Sig != rustSig.Sig {
+		t.Fatalf("signature mismatch:\n  go:   %s\n  rust: %s", goSig.Sig, rustSig.Sig)
+	}
+	if goSig.Nonce != rustSig.Nonce {
+		t.Fatalf("nonce mismatch:\n  go:   %s\n  rust: %s", goSig.Nonce, rustSig.Nonce)
+	}
+}
+
+func TestSignRequestParityWithRustAndExplicitEmptyAction(t *testing.T) {
+	t.Parallel()
+
+	signer := newTestSigner(t, testKey,
+		func() uint64 { return fixedUnixNow },
+		readerFunc(func(dst []byte) (int, error) {
+			for i := range dst {
+				dst[i] = byte(i)
+			}
+			return len(dst), nil
+		}),
+	)
+
+	goSig, err := signer.SignRequest(WithAction(""))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	rustSig := rustSign(t, testKey, goSig.Nonce, goSig.CreatedAt, goSig.ExpiresAt, stringPtr(""))
+
+	if goSig.Sig != rustSig.Sig {
+		t.Fatalf("signature mismatch:\n  go:   %s\n  rust: %s", goSig.Sig, rustSig.Sig)
+	}
+	if goSig.Nonce != rustSig.Nonce {
+		t.Fatalf("nonce mismatch:\n  go:   %s\n  rust: %s", goSig.Nonce, rustSig.Nonce)
 	}
 }
