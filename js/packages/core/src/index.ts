@@ -66,7 +66,7 @@ export { isInWorldApp } from "./transports/native";
 
 // RP Request Signing (server-side only)
 export { signRequest } from "./signing";
-export type { RpSignature } from "./signing";
+export type { RpSignature, SignRequestParams } from "./signing";
 
 // Hashing utilities
 export { hashSignal } from "./lib/hashing";

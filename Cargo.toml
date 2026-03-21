@@ -16,7 +16,7 @@ authors = ["World Contributors"]
 
 [workspace.dependencies]
 # World ID protocol types
-world-id-primitives = { version = "0.5.1", default-features = false }
+world-id-primitives = { version = "0.6.0", default-features = false }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -59,7 +59,7 @@ alloy-primitives = "1.5.7"
 ruint = "1.11.1"
 
 # OPRF types
-taceo-oprf = { version = "0.7", default-features = false, features = ["types"] }
+taceo-oprf = { version = "0.8", default-features = false, features = ["types"] }
 
 # UniFFI
 uniffi = "0.30"

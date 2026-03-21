@@ -3,9 +3,9 @@
 //! This module is only available when the `rp-signature` feature is enabled.
 
 use crate::error::{Error, Result};
+use alloy::signers::{local::PrivateKeySigner, SignerSync};
 use getrandom::getrandom;
 use k256::ecdsa::SigningKey;
-use tiny_keccak::{Hasher, Keccak};
 use world_id_primitives::{rp::compute_rp_signature_msg, FieldElement};
 
 // Default expiration time of an RP request - 5 minutes
@@ -30,13 +30,14 @@ pub struct RpSignature {
 /// This function:
 /// 1. Generates a random nonce
 /// 2. Gets the current unix timestamp
-/// 3. Computes the 49-byte message: version(1) || nonce(32) || timestamps(16)
-/// 4. Hashes the message with keccak256
-/// 5. Signs the hash with ECDSA secp256k1
+/// 3. Computes the message: version(1) || nonce(32) || timestamps(16) || action?(32)
+/// 4. Signs the message with the Ethereum EIP-191 message prefix
+/// 5. Returns a recoverable secp256k1 signature
 ///
 /// # Arguments
 /// * `signing_key_hex` - Hex-encoded 32-byte private key (with or without 0x prefix)
 /// * `ttl` - Optional time-to-live in seconds (defaults to 300 = 5 minutes)
+/// * `action` - Optional action string hashed into a field element and appended to the message
 ///
 /// # Returns
 /// `Result<RpSignature>` containing the signature, nonce, and timestamp
@@ -47,7 +48,11 @@ pub struct RpSignature {
 /// - Random number generation fails
 /// - System time is before UNIX epoch
 /// - Signing operation fails
-pub fn compute_rp_signature(signing_key_hex: &str, ttl: Option<u64>) -> Result<RpSignature> {
+pub fn compute_rp_signature(
+    signing_key_hex: &str,
+    ttl: Option<u64>,
+    action: Option<&str>,
+) -> Result<RpSignature> {
     // 1. Parse signing key
     let hex_str = signing_key_hex
         .strip_prefix("0x")
@@ -83,14 +88,15 @@ pub fn compute_rp_signature(signing_key_hex: &str, ttl: Option<u64>) -> Result<R
     let timestamp = (js_sys::Date::now() / 1000.0) as u64;
 
     let expiration_timestamp = timestamp + ttl.unwrap_or(DEFAULT_SIG_EXPIRATION);
+    let action = action.map(|action| FieldElement::from_arbitrary_raw_bytes(action.as_bytes()));
 
-    sign_rp_message(&signing_key, nonce, timestamp, expiration_timestamp)
+    sign_rp_message(&signing_key, nonce, timestamp, expiration_timestamp, action)
 }
 
 /// Deterministic RP signature computation.
 ///
 /// Given an already-parsed signing key, nonce, and timestamps, builds the
-/// message, hashes it, signs it, and returns the formatted result.
+/// message, signs it with the Ethereum message prefix, and returns the formatted result.
 /// All inputs are explicit — no randomness or clock access.
 ///
 /// # Errors
@@ -100,24 +106,17 @@ pub fn sign_rp_message(
     nonce: FieldElement,
     created_at: u64,
     expires_at: u64,
+    action: Option<FieldElement>,
 ) -> Result<RpSignature> {
-    let msg = compute_rp_signature_msg(*nonce, created_at, expires_at);
-
-    let mut hasher = Keccak::v256();
-    let mut hash = [0u8; 32];
-    hasher.update(&msg);
-    hasher.finalize(&mut hash);
-
-    let (sig, recovery_id) = signing_key
-        .sign_prehash_recoverable(&hash)
+    let msg =
+        compute_rp_signature_msg(*nonce, created_at, expires_at, action.map(|action| *action));
+    let signer = PrivateKeySigner::from_signing_key(signing_key.clone());
+    let signature = signer
+        .sign_message_sync(&msg)
         .map_err(|e| Error::Crypto(format!("Signing failed: {e}")))?;
 
-    let mut signature_bytes = [0u8; 65];
-    signature_bytes[..64].copy_from_slice(&sig.to_bytes());
-    signature_bytes[64] = recovery_id.to_byte() + 27; // Ethereum convention
-
     Ok(RpSignature {
-        sig: format!("0x{}", hex::encode(signature_bytes)),
+        sig: signature.to_string(),
         nonce: nonce.to_string(),
         created_at,
         expires_at,
@@ -127,7 +126,7 @@ pub fn sign_rp_message(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::Signature;
+    use alloy_primitives::{Address, Signature};
     use std::str::FromStr;
 
     // Valid 32-byte (64 hex chars) test key
@@ -136,7 +135,7 @@ mod tests {
 
     #[test]
     fn test_compute_rp_signature_success() {
-        let result = compute_rp_signature(TEST_KEY_0X, None).unwrap();
+        let result = compute_rp_signature(TEST_KEY_0X, None, None).unwrap();
 
         // Verify all fields are present
         assert!(!result.sig.is_empty());
@@ -147,7 +146,7 @@ mod tests {
 
     #[test]
     fn test_nonce_is_valid_hex() {
-        let result = compute_rp_signature(TEST_KEY, None).unwrap();
+        let result = compute_rp_signature(TEST_KEY, None, None).unwrap();
 
         assert!(result.nonce.starts_with("0x"));
         assert_eq!(result.nonce.len(), 66); // 0x + 64 hex chars
@@ -155,14 +154,14 @@ mod tests {
 
     #[test]
     fn test_timestamp_is_valid_number() {
-        let result = compute_rp_signature(TEST_KEY, None).unwrap();
+        let result = compute_rp_signature(TEST_KEY, None, None).unwrap();
 
         assert!(result.created_at > 1_700_000_000); // After 2023
     }
 
     #[test]
     fn test_default_ttl_is_5_minutes() {
-        let result = compute_rp_signature(TEST_KEY, None).unwrap();
+        let result = compute_rp_signature(TEST_KEY, None, None).unwrap();
 
         // Default TTL is 300 seconds (5 minutes)
         assert_eq!(result.expires_at - result.created_at, 300);
@@ -170,7 +169,7 @@ mod tests {
 
     #[test]
     fn test_custom_ttl() {
-        let result = compute_rp_signature(TEST_KEY, Some(600)).unwrap();
+        let result = compute_rp_signature(TEST_KEY, Some(600), None).unwrap();
 
         // Custom TTL of 600 seconds (10 minutes)
         assert_eq!(result.expires_at - result.created_at, 600);
@@ -178,7 +177,7 @@ mod tests {
 
     #[test]
     fn test_signature_is_65_bytes() {
-        let result = compute_rp_signature(TEST_KEY, None).unwrap();
+        let result = compute_rp_signature(TEST_KEY, None, None).unwrap();
 
         assert!(result.sig.starts_with("0x"));
         assert_eq!(result.sig.len(), 132); // 0x + 130 hex chars (65 bytes)
@@ -186,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_signature_v_value_is_27_or_28() {
-        let result = compute_rp_signature(TEST_KEY, None).unwrap();
+        let result = compute_rp_signature(TEST_KEY, None, None).unwrap();
         let sig_hex = result.sig.strip_prefix("0x").unwrap();
         let sig_bytes = hex::decode(sig_hex).unwrap();
 
@@ -200,14 +199,26 @@ mod tests {
         let timestamp = 1_700_000_000_u64;
         let expires_at = 1_700_000_300_u64;
 
-        let msg = compute_rp_signature_msg(*nonce, timestamp, expires_at);
+        let msg = compute_rp_signature_msg(*nonce, timestamp, expires_at, None);
 
         assert_eq!(msg.len(), 49); // 1 + 32 + 8 + 8 (version byte + nonce + timestamps)
     }
 
     #[test]
+    fn test_compute_rp_signature_msg_length_with_action() {
+        let nonce = FieldElement::from(123_u64);
+        let timestamp = 1_700_000_000_u64;
+        let expires_at = 1_700_000_300_u64;
+        let action = FieldElement::from_arbitrary_raw_bytes(b"test-action");
+
+        let msg = compute_rp_signature_msg(*nonce, timestamp, expires_at, Some(*action));
+
+        assert_eq!(msg.len(), 81); // 1 + 32 + 8 + 8 + 32
+    }
+
+    #[test]
     fn test_nonce_can_be_parsed_as_field_element() {
-        let result = compute_rp_signature(TEST_KEY, None).unwrap();
+        let result = compute_rp_signature(TEST_KEY, None, None).unwrap();
 
         // Should parse back into a FieldElement
         let parsed_nonce = FieldElement::from_str(&result.nonce);
@@ -220,7 +231,7 @@ mod tests {
 
     #[test]
     fn test_signature_can_be_parsed_as_alloy_signature() {
-        let result = compute_rp_signature(TEST_KEY, None).unwrap();
+        let result = compute_rp_signature(TEST_KEY, None, None).unwrap();
 
         // Should parse into alloy_primitives::Signature
         let parsed_signature = Signature::from_str(&result.sig);
@@ -239,7 +250,7 @@ mod tests {
 
     #[test]
     fn test_compute_rp_signature_invalid_hex() {
-        let result = compute_rp_signature("not_valid_hex", None);
+        let result = compute_rp_signature("not_valid_hex", None, None);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), Error::Crypto(_)));
     }
@@ -247,7 +258,7 @@ mod tests {
     #[test]
     fn test_compute_rp_signature_wrong_key_length() {
         // Too short key (only 4 bytes)
-        let result = compute_rp_signature("0xabababab", None);
+        let result = compute_rp_signature("0xabababab", None, None);
         assert!(result.is_err());
 
         let err = result.unwrap_err();
@@ -259,50 +270,64 @@ mod tests {
 
     #[test]
     fn test_compute_rp_signature_accepts_key_without_prefix() {
-        let result = compute_rp_signature(TEST_KEY, None);
+        let result = compute_rp_signature(TEST_KEY, None, None);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_compute_rp_signature_accepts_key_with_prefix() {
-        let result = compute_rp_signature(TEST_KEY_0X, None);
+        let result = compute_rp_signature(TEST_KEY_0X, None, None);
         assert!(result.is_ok());
     }
 
-    #[test]
-    fn test_signature_is_recoverable_to_correct_public_key() {
-        use k256::ecdsa::{RecoveryId, VerifyingKey};
-
-        let result = compute_rp_signature(TEST_KEY, None).unwrap();
-
-        // 1. Parse the signing key to get expected public key
+    fn expected_test_signer_address() -> Address {
         let key_bytes = hex::decode(TEST_KEY).unwrap();
         let signing_key = SigningKey::from_bytes(key_bytes.as_slice().into()).unwrap();
-        let expected_verifying_key = signing_key.verifying_key();
+        PrivateKeySigner::from_signing_key(signing_key).address()
+    }
 
-        // 2. Reconstruct the message hash (same as in compute_rp_signature)
+    #[test]
+    fn test_sign_rp_message_matches_protocol_signer_with_action() {
+        let key_bytes = hex::decode(TEST_KEY).unwrap();
+        let signing_key = SigningKey::from_bytes(key_bytes.as_slice().into()).unwrap();
+        let protocol_signer = PrivateKeySigner::from_signing_key(signing_key.clone());
+
+        let nonce = FieldElement::from(123_u64);
+        let created_at = 1_700_000_000_u64;
+        let expires_at = 1_700_000_300_u64;
+        let action = FieldElement::from_arbitrary_raw_bytes(b"test-action");
+        let msg = compute_rp_signature_msg(*nonce, created_at, expires_at, Some(*action));
+
+        let expected_sig = protocol_signer.sign_message_sync(&msg).unwrap().to_string();
+        let actual_sig =
+            sign_rp_message(&signing_key, nonce, created_at, expires_at, Some(action)).unwrap();
+
+        assert_eq!(actual_sig.sig, expected_sig);
+    }
+
+    #[test]
+    fn test_signature_recovers_expected_signer_address_without_action() {
+        let result = compute_rp_signature(TEST_KEY, None, None).unwrap();
         let nonce = FieldElement::from_str(&result.nonce).unwrap();
-        let msg = compute_rp_signature_msg(*nonce, result.created_at, result.expires_at);
+        let msg = compute_rp_signature_msg(*nonce, result.created_at, result.expires_at, None);
+        let signature = Signature::from_str(&result.sig).unwrap();
 
-        let mut hasher = Keccak::v256();
-        let mut hash = [0u8; 32];
-        hasher.update(&msg);
-        hasher.finalize(&mut hash);
+        let recovered = signature.recover_address_from_msg(&msg).unwrap();
 
-        // 3. Parse the signature
-        let sig_hex = result.sig.strip_prefix("0x").unwrap();
-        let sig_bytes = hex::decode(sig_hex).unwrap();
-        let signature = k256::ecdsa::Signature::from_slice(&sig_bytes[..64]).unwrap();
-        let recovery_id = RecoveryId::from_byte(sig_bytes[64] - 27).unwrap();
+        assert_eq!(recovered, expected_test_signer_address());
+    }
 
-        // 4. Recover the public key from the signature
-        let recovered_key = VerifyingKey::recover_from_prehash(&hash, &signature, recovery_id)
-            .expect("Failed to recover public key from signature");
+    #[test]
+    fn test_signature_recovers_expected_signer_address_with_action() {
+        let result = compute_rp_signature(TEST_KEY, None, Some("test-action")).unwrap();
+        let nonce = FieldElement::from_str(&result.nonce).unwrap();
+        let action = FieldElement::from_arbitrary_raw_bytes(b"test-action");
+        let msg =
+            compute_rp_signature_msg(*nonce, result.created_at, result.expires_at, Some(*action));
+        let signature = Signature::from_str(&result.sig).unwrap();
 
-        // 5. Verify recovered key matches expected key
-        assert_eq!(
-            recovered_key, *expected_verifying_key,
-            "Recovered public key does not match the signer's public key"
-        );
+        let recovered = signature.recover_address_from_msg(&msg).unwrap();
+
+        assert_eq!(recovered, expected_test_signer_address());
     }
 }

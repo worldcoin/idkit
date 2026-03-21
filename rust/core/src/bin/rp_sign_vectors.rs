@@ -1,6 +1,6 @@
 //! Deterministic RP signature CLI for cross-language parity tests.
 //!
-//! Usage: rp-sign-vectors <key_hex> <nonce_hex> <created_at> <expires_at>
+//! Usage: rp-sign-vectors <key_hex> <nonce_hex> <created_at> <expires_at> <action>
 //!
 //! Outputs JSON: {"sig":"0x...","nonce":"0x...","created_at":N,"expires_at":N}
 
@@ -12,8 +12,10 @@ use world_id_primitives::FieldElement;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 5 {
-        eprintln!("usage: rp-sign-vectors <key_hex> <nonce_hex> <created_at> <expires_at>");
+    if args.len() != 5 && args.len() != 6 {
+        eprintln!(
+            "usage: rp-sign-vectors <key_hex> <nonce_hex> <created_at> <expires_at> <action>"
+        );
         std::process::exit(1);
     }
 
@@ -25,9 +27,11 @@ fn main() {
     let nonce = FieldElement::from_str(&args[2]).expect("invalid nonce");
     let created_at: u64 = args[3].parse().expect("invalid created_at");
     let expires_at: u64 = args[4].parse().expect("invalid expires_at");
+    let action = args.get(5).map(String::as_str);
 
-    let result =
-        sign_rp_message(&signing_key, nonce, created_at, expires_at).expect("signing failed");
+    let action = action.map(|action| FieldElement::from_arbitrary_raw_bytes(action.as_bytes()));
+    let result = sign_rp_message(&signing_key, nonce, created_at, expires_at, action)
+        .expect("signing failed");
 
     let output = serde_json::json!({
         "sig": result.sig,

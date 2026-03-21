@@ -269,8 +269,8 @@ impl CredentialRequest {
         let identifier = self.credential_type.to_string();
         let issuer_schema_id = self.credential_type.issuer_schema_id();
 
-        // Hash signal if present
-        let signal = self.signal.as_ref().map(crate::crypto::hash_signal);
+        // Protocol request items now carry raw signal bytes and hash them downstream.
+        let signal = self.signal_bytes();
 
         Ok(world_id_primitives::RequestItem::new(
             identifier,
