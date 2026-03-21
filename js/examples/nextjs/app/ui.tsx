@@ -135,7 +135,9 @@ export function DemoClient(): ReactElement {
     environment === "staging" && useStagingConnectBaseUrl
       ? STAGING_CONNECT_BASE_URL
       : undefined;
-  const effectiveReturnTo = useReturnTo ? returnTo.trim() || undefined : undefined;
+  const effectiveReturnTo = useReturnTo
+    ? returnTo.trim() || undefined
+    : undefined;
 
   useEffect(() => {
     document.documentElement.setAttribute(
