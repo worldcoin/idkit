@@ -122,7 +122,8 @@ export function DemoClient(): ReactElement {
   );
   const [widgetError, setWidgetError] = useState<string | null>(null);
   const [widgetVerifyResult, setWidgetVerifyResult] = useState<unknown>(null);
-  const [widgetIdkitResult, setWidgetIdkitResult] = useState<IDKitResult | null>(null);
+  const [widgetIdkitResult, setWidgetIdkitResult] =
+    useState<IDKitResult | null>(null);
   const [widgetSignal, setWidgetSignal] = useState("demo-signal-initial");
   const [action, setAction] = useState("test-action");
   const [environment, setEnvironment] = useState<"production" | "staging">(
@@ -381,7 +382,9 @@ export function DemoClient(): ReactElement {
       {widgetIdkitResult && (
         <>
           <h3>IDKit response</h3>
-          <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{JSON.stringify(widgetIdkitResult, null, 2)}</pre>
+          <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+            {JSON.stringify(widgetIdkitResult, null, 2)}
+          </pre>
         </>
       )}
 
