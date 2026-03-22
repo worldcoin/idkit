@@ -1,4 +1,8 @@
-import type { IDKitErrorCodes, Preset } from "@worldcoin/idkit-core";
+import type {
+  IDKitErrorCodes,
+  Preset,
+  ConstraintNode,
+} from "@worldcoin/idkit-core";
 
 export type PollingConfig = {
   polling?: {
@@ -7,7 +11,11 @@ export type PollingConfig = {
   };
 };
 
-export type FlowConfig = PollingConfig & { preset: Preset };
+export type FlowConfig = PollingConfig &
+  (
+    | { preset: Preset; constraints?: never }
+    | { constraints: ConstraintNode; preset?: never }
+  );
 
 export type IDKitHookResult<TResult> = {
   open: () => void;

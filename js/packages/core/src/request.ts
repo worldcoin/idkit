@@ -734,19 +734,18 @@ function proveSession(
 export const IDKit = {
   /** Create a new verification request */
   request: createRequest,
-  // TODO: Re-enable when World ID 4.0 is live
-  // /** Create a new session (no action, no existing session_id) */
-  // createSession,
-  // /** Prove an existing session (no action, has session_id) */
-  // proveSession,
-  // /** Create a CredentialRequest for a credential type */
-  // CredentialRequest,
-  // /** Create an OR constraint - at least one child must be satisfied */
-  // any,
-  // /** Create an AND constraint - all children must be satisfied */
-  // all,
-  // /** Create an enumerate constraint - all satisfiable children should be selected */
-  // enumerate,
+  /** Create a new session (no action, no existing session_id) */
+  createSession,
+  /** Prove an existing session (no action, has session_id) */
+  proveSession,
+  /** Create a CredentialRequest for a credential type */
+  CredentialRequest,
+  /** Create an OR constraint - at least one child must be satisfied */
+  any,
+  /** Create an AND constraint - all children must be satisfied */
+  all,
+  /** Create an enumerate constraint - all satisfiable children should be selected */
+  enumerate,
   /** Create an OrbLegacy preset for World ID 3.0 legacy support */
   orbLegacy,
   /** Create a SecureDocumentLegacy preset for World ID 3.0 legacy support */

@@ -536,7 +536,7 @@ impl IDKitConfigWasm {
                     kind: crate::bridge::RequestKind::Uniqueness {
                         action: action.clone(),
                     },
-                    constraints,
+                    constraints: Some(constraints),
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
                     legacy_verification_level: crate::VerificationLevel::Deprecated,
@@ -571,7 +571,7 @@ impl IDKitConfigWasm {
                 Ok(crate::bridge::BridgeConnectionParams {
                     app_id,
                     kind: crate::bridge::RequestKind::CreateSession,
-                    constraints,
+                    constraints: Some(constraints),
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
                     legacy_verification_level: crate::VerificationLevel::Deprecated,
@@ -609,7 +609,7 @@ impl IDKitConfigWasm {
                     kind: crate::bridge::RequestKind::ProveSession {
                         session_id: session_id.clone(),
                     },
-                    constraints,
+                    constraints: Some(constraints),
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
                     legacy_verification_level: crate::VerificationLevel::Deprecated,
@@ -634,6 +634,7 @@ impl IDKitConfigWasm {
     ) -> Result<crate::bridge::BridgeConnectionParams, JsValue> {
         let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
         let mut params = self.to_params(constraints)?;
+        params.constraints = None;
         params.legacy_verification_level = legacy_verification_level;
         params.legacy_signal = legacy_signal.unwrap_or_default();
         Ok(params)

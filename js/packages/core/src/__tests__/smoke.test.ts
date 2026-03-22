@@ -6,10 +6,9 @@
 import { describe, it, expect } from "vitest";
 import {
   IDKit,
-  // TODO: Re-enable when World ID 4.0 is live
-  // CredentialRequest,
-  // any,
-  // enumerate,
+  CredentialRequest,
+  any,
+  enumerate,
   orbLegacy,
   deviceLegacy,
   selfieCheckLegacy,
@@ -32,36 +31,35 @@ describe("IDKitRequest API", () => {
     expect(typeof IDKit.request).toBe("function");
   });
 
-  // TODO: Re-enable when World ID 4.0 is live
-  // it("should export CredentialRequest and constraint helpers", () => {
-  //   expect(typeof CredentialRequest).toBe("function");
-  //   expect(typeof any).toBe("function");
-  //   expect(typeof enumerate).toBe("function");
-  //   expect(typeof orbLegacy).toBe("function");
-  //   expect(typeof selfieCheckLegacy).toBe("function");
-  // });
+  it("should export CredentialRequest and constraint helpers", () => {
+    expect(typeof CredentialRequest).toBe("function");
+    expect(typeof any).toBe("function");
+    expect(typeof enumerate).toBe("function");
+    expect(typeof orbLegacy).toBe("function");
+    expect(typeof selfieCheckLegacy).toBe("function");
+  });
 
-  // it("should create CredentialRequest correctly", () => {
-  //   const item = CredentialRequest("proof_of_human", { signal: "test-signal" });
-  //   expect(item).toHaveProperty("type", "proof_of_human");
-  //   expect(item).toHaveProperty("signal", "test-signal");
-  // });
+  it("should create CredentialRequest correctly", () => {
+    const item = CredentialRequest("proof_of_human", { signal: "test-signal" });
+    expect(item).toHaveProperty("type", "proof_of_human");
+    expect(item).toHaveProperty("signal", "test-signal");
+  });
 
-  // it("should create any() constraint correctly", () => {
-  //   const poh = CredentialRequest("proof_of_human");
-  //   const face = CredentialRequest("face");
-  //   const constraint = any(poh, face);
-  //   expect(constraint).toHaveProperty("any");
-  //   expect(constraint.any).toHaveLength(2);
-  // });
+  it("should create any() constraint correctly", () => {
+    const poh = CredentialRequest("proof_of_human");
+    const face = CredentialRequest("face");
+    const constraint = any(poh, face);
+    expect(constraint).toHaveProperty("any");
+    expect(constraint.any).toHaveLength(2);
+  });
 
-  // it("should create enumerate() constraint correctly", () => {
-  //   const secureDocument = CredentialRequest("secure_document");
-  //   const document = CredentialRequest("document");
-  //   const constraint = enumerate(secureDocument, document);
-  //   expect(constraint).toHaveProperty("enumerate");
-  //   expect(constraint.enumerate).toHaveLength(2);
-  // });
+  it("should create enumerate() constraint correctly", () => {
+    const poh = CredentialRequest("proof_of_human");
+    const face = CredentialRequest("face");
+    const constraint = enumerate(poh, face);
+    expect(constraint).toHaveProperty("enumerate");
+    expect(constraint.enumerate).toHaveLength(2);
+  });
 
   it("should create orbLegacy preset correctly", () => {
     const preset = orbLegacy({ signal: "test-signal" });
@@ -93,13 +91,12 @@ describe("IDKitRequest API", () => {
     ).toThrow("rp_context is required");
   });
 
-  // TODO: Re-enable when World ID 4.0 is live
-  // it("should allow any() with no items (validation happens in WASM)", () => {
-  //   // any() returns an empty constraint object - validation happens in WASM layer
-  //   const emptyConstraint = any();
-  //   expect(emptyConstraint).toHaveProperty("any");
-  //   expect(emptyConstraint.any).toHaveLength(0);
-  // });
+  it("should allow any() with no items (validation happens in WASM)", () => {
+    // any() returns an empty constraint object - validation happens in WASM layer
+    const emptyConstraint = any();
+    expect(emptyConstraint).toHaveProperty("any");
+    expect(emptyConstraint.any).toHaveLength(0);
+  });
 
   // TODO: re-enable once this is supported and World ID 4.0 is rolled out live
   // it("should reject empty constraints when creating session", async () => {
