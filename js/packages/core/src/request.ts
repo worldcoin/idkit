@@ -50,6 +50,8 @@ export type IDKitCompletionResult =
   | { success: true; result: IDKitResult }
   | { success: false; error: IDKitErrorCodes };
 
+const SESSION_ID_PATTERN = /^session_[0-9a-fA-F]{128}$/;
+
 // Re-export RpContext for convenience
 export type { RpContext };
 
@@ -660,9 +662,10 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
  * Creates a builder for proving an existing session (no action, has session_id)
  *
  * Use this when a returning user needs to prove they own an existing session.
- * The `sessionId` should be a value previously returned from `createSession()`.
+ * The `sessionId` should be the opaque `session_<hex>` value previously returned
+ * from `createSession()`.
  *
- * @param sessionId - The session ID from a previous session creation
+ * @param sessionId - The protocol session ID from a previous session creation
  * @param config - Session configuration (no action field)
  * @returns IDKitBuilder - A builder instance
  *
@@ -682,12 +685,17 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
  * ```
  */
 function proveSession(
-  sessionId: string,
+  sessionId: `session_${string}`,
   config: IDKitSessionConfig,
 ): IDKitBuilder {
   // Validate required fields
   if (!sessionId) {
     throw new Error("session_id is required");
+  }
+  if (!SESSION_ID_PATTERN.test(sessionId)) {
+    throw new Error(
+      "session_id must be in the format session_<128 hex characters>",
+    );
   }
   if (!config.app_id) {
     throw new Error("app_id is required");
@@ -734,11 +742,10 @@ function proveSession(
 export const IDKit = {
   /** Create a new verification request */
   request: createRequest,
-  // TODO: Re-enable when World ID 4.0 is live
-  // /** Create a new session (no action, no existing session_id) */
-  // createSession,
-  // /** Prove an existing session (no action, has session_id) */
-  // proveSession,
+  /** Create a new session (no action, no existing session_id) */
+  createSession,
+  /** Prove an existing session (no action, has session_id) */
+  proveSession,
   // /** Create a CredentialRequest for a credential type */
   // CredentialRequest,
   // /** Create an OR constraint - at least one child must be satisfied */
