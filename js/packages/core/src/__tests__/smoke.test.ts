@@ -107,7 +107,10 @@ describe("IDKitRequest API", () => {
 
   it("should reject malformed session_id values in proveSession", () => {
     expect(() =>
-      IDKit.proveSession("session_1" as `session_${string}`, TEST_SESSION_CONFIG),
+      IDKit.proveSession(
+        "session_1" as `session_${string}`,
+        TEST_SESSION_CONFIG,
+      ),
     ).toThrow("session_id must be in the format session_<128 hex characters>");
   });
 

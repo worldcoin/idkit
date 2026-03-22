@@ -18,10 +18,7 @@ function assertSessionId(
     return undefined;
   }
 
-  if (
-    sessionId.trim().length === 0 ||
-    !SESSION_ID_PATTERN.test(sessionId)
-  ) {
+  if (sessionId.trim().length === 0 || !SESSION_ID_PATTERN.test(sessionId)) {
     throw IDKitErrorCodes.MalformedRequest;
   }
 
