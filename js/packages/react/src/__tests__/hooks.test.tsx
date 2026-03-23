@@ -125,7 +125,7 @@ describe("request/session hooks", () => {
 
   it("session hook uses createSession when existing_session_id is absent", async () => {
     createSessionMock.mockReturnValue({
-      preset: vi.fn(async () => ({
+      constraints: vi.fn(async () => ({
         connectorURI: "wc://session-create",
         pollOnce: vi.fn(async () => ({
           type: "confirmed",
@@ -138,7 +138,7 @@ describe("request/session hooks", () => {
       useIDKitSession({
         app_id: "app_test",
         rp_context: baseRpContext,
-        preset: { type: "OrbLegacy" },
+        constraints: { type: "All", children: [] },
       }),
     );
 
@@ -157,7 +157,7 @@ describe("request/session hooks", () => {
 
   it("session hook uses proveSession when existing_session_id is provided", async () => {
     proveSessionMock.mockReturnValue({
-      preset: vi.fn(async () => ({
+      constraints: vi.fn(async () => ({
         connectorURI: "wc://session-prove",
         pollOnce: vi.fn(async () => ({
           type: "confirmed",
@@ -171,7 +171,7 @@ describe("request/session hooks", () => {
         app_id: "app_test",
         rp_context: baseRpContext,
         existing_session_id: "session_2",
-        preset: { type: "OrbLegacy" },
+        constraints: { type: "All", children: [] },
       }),
     );
 
@@ -200,7 +200,7 @@ describe("request/session hooks", () => {
         app_id: "app_test",
         rp_context: baseRpContext,
         existing_session_id: "   ",
-        preset: { type: "OrbLegacy" },
+        constraints: { type: "All", children: [] },
       }),
     );
 

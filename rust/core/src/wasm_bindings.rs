@@ -1342,7 +1342,7 @@ const TS_NATIVE_PAYLOAD: &str = r#"
 export interface NativePayloadResult {
     payload: unknown;
     signal_hashes: Record<string, string>;
-    legacy_signal_hash: string | null;
+    legacy_signal_hash: string;
 }
 
 /** V1 native payload sent to older World App versions (verify command v1) */

@@ -283,9 +283,8 @@ impl CachedSignalHashes {
             }
         }
 
-        let legacy_signal_hash = crate::crypto::hash_signal(&Signal::from_string(
-            params.legacy_signal.clone(),
-        ));
+        let legacy_signal_hash =
+            crate::crypto::hash_signal(&Signal::from_string(params.legacy_signal.clone()));
 
         Self {
             signal_hashes,
