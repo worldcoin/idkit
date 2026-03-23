@@ -43,9 +43,6 @@ export function useIDKitSession(
           override_connect_base_url: config.override_connect_base_url,
           environment: config.environment,
         });
-    if ("constraints" in config && config.constraints) {
-      return builder.constraints(config.constraints);
-    }
-    return builder.preset(config.preset!);
+    return builder.constraints(config.constraints);
   }, config);
 }

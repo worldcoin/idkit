@@ -1,5 +1,4 @@
 import type {
-  Preset,
   ConstraintNode,
   IDKitResultSession,
   IDKitSessionConfig,
@@ -8,10 +7,8 @@ import type { IDKitHookResult, PollingConfig } from "./common";
 
 export type IDKitSessionHookConfig = IDKitSessionConfig &
   PollingConfig & {
+    constraints: ConstraintNode;
     existing_session_id?: string;
-  } & (
-    | { preset: Preset; constraints?: never }
-    | { constraints: ConstraintNode; preset?: never }
-  );
+  };
 
 export type UseIDKitSessionHookResult = IDKitHookResult<IDKitResultSession>;

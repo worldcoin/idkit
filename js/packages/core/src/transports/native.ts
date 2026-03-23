@@ -66,7 +66,7 @@ export function getWorldAppVerifyVersion(): 1 | 2 {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface BuilderConfig {
-  type: "request" | "session" | "proveSession";
+  type: "request" | "createSession" | "proveSession";
   app_id: string;
   action?: string;
   session_id?: string;

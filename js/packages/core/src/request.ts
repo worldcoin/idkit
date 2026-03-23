@@ -478,6 +478,15 @@ class IDKitBuilder {
    * ```
    */
   async preset(preset: Preset): Promise<IDKitRequest> {
+    if (
+      this.config.type === "createSession" ||
+      this.config.type === "proveSession"
+    ) {
+      throw new Error(
+        "Presets are not supported for session flows. Use .constraints() instead.",
+      );
+    }
+
     await initIDKit();
 
     if (isInWorldApp()) {
@@ -646,7 +655,7 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
   }
 
   return new IDKitBuilder({
-    type: "session",
+    type: "createSession",
     app_id: config.app_id,
     rp_context: config.rp_context,
     action_description: config.action_description,

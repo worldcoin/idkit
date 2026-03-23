@@ -881,12 +881,19 @@ impl IDKitConfig {
         }
     }
 
-    /// Converts config + preset to `BridgeConnectionParams` (works for all types)
+    /// Converts config + preset to `BridgeConnectionParams` (works for requests only)
     #[allow(clippy::needless_pass_by_value)]
     fn to_params_from_preset(
         &self,
         preset: Preset,
     ) -> std::result::Result<BridgeConnectionParams, crate::error::IdkitError> {
+        if matches!(self, Self::CreateSession(_) | Self::ProveSession { .. }) {
+            return Err(crate::error::IdkitError::BridgeError {
+                details: "Presets are not supported for session flows. Use .constraints() instead."
+                    .to_string(),
+            });
+        }
+
         let (_constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
 
         match self {

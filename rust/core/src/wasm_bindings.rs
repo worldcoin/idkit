@@ -632,6 +632,11 @@ impl IDKitConfigWasm {
         &self,
         preset: Preset,
     ) -> Result<crate::bridge::BridgeConnectionParams, JsValue> {
+        if matches!(self, Self::CreateSession { .. } | Self::ProveSession { .. }) {
+            return Err(JsValue::from_str(
+                "Presets are not supported for session flows. Use .constraints() instead.",
+            ));
+        }
         let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
         let mut params = self.to_params(constraints)?;
         params.constraints = None;
