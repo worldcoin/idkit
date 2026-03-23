@@ -356,10 +356,11 @@ pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_js
         }
         RequestKind::CreateSession => (None, None, None),
         RequestKind::ProveSession { session_id } => {
-            let parsed = serde_json::from_value::<SessionId>(serde_json::Value::String(
-                session_id.clone(),
-            ))
-            .map_err(|_| Error::InvalidConfiguration("Invalid session_id format".to_string()))?;
+            let parsed =
+                serde_json::from_value::<SessionId>(serde_json::Value::String(session_id.clone()))
+                    .map_err(|_| {
+                        Error::InvalidConfiguration("Invalid session_id format".to_string())
+                    })?;
             (None, Some(parsed), None)
         }
     };
@@ -1275,8 +1276,10 @@ mod tests {
 
     #[test]
     fn test_invalid_session_id_format_is_rejected() {
-        assert!(serde_json::from_value::<SessionId>(serde_json::Value::String("session_1".into()))
-            .is_err());
+        assert!(
+            serde_json::from_value::<SessionId>(serde_json::Value::String("session_1".into()))
+                .is_err()
+        );
         assert!(
             serde_json::from_value::<SessionId>(serde_json::Value::String("0x1234".into()))
                 .is_err()
