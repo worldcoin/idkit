@@ -503,9 +503,8 @@ pub enum ResponseItem {
     V3 {
         /// Credential identifier (e.g., `proof_of_human`, `face`)
         identifier: String,
-        /// Signal hash (optional, included if signal was provided in request)
-        #[serde(skip_serializing_if = "Option::is_none")]
-        signal_hash: Option<String>,
+        /// Signal hash (hash of the signal provided in the request, or hash of empty signal)
+        signal_hash: String,
         /// ABI-encoded proof (hex string)
         proof: String,
         /// Merkle root (hex string)
@@ -926,11 +925,6 @@ pub enum VerificationLevel {
     Document,
     /// Secure document verification (secure document or orb)
     SecureDocument,
-    /// Invalid verification level (used to signal World App 4.0+ only)
-    ///
-    /// When this is sent, older World App versions will reject the request
-    /// with an error, ensuring only 4.0+ versions can process the request.
-    Deprecated,
 }
 
 // UniFFI helper function for CredentialType
@@ -1122,7 +1116,7 @@ mod tests {
     fn test_idkit_result_v3() {
         let responses = vec![ResponseItem::V3 {
             identifier: "face".to_string(),
-            signal_hash: None,
+            signal_hash: String::new(),
             proof: "0xproof".to_string(),
             merkle_root: "0xroot".to_string(),
             nullifier: "0xnullifier".to_string(),

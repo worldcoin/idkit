@@ -54,9 +54,9 @@ describe("native transport request lifecycle", () => {
   });
 
   it("reuses the in-flight native request instead of cancelling it", async () => {
-    const req1 = createNativeRequest({ payload: 1 }, baseConfig);
+    const req1 = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
     activeRequest = req1;
-    const req2 = createNativeRequest({ payload: 2 }, baseConfig);
+    const req2 = createNativeRequest({ payload: 2 }, baseConfig, {}, "");
 
     expect(req2).toBe(req1);
 
@@ -87,7 +87,7 @@ describe("native transport request lifecycle", () => {
   });
 
   it("resolves from MiniKit event channel", async () => {
-    const req = createNativeRequest({ payload: 1 }, baseConfig);
+    const req = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
     activeRequest = req;
 
     const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
@@ -112,7 +112,7 @@ describe("native transport request lifecycle", () => {
       face: hashSignal("face-signal"),
     };
 
-    const req = createNativeRequest({}, baseConfig, signalHashes);
+    const req = createNativeRequest({}, baseConfig, signalHashes, "");
     activeRequest = req;
 
     const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
@@ -152,7 +152,7 @@ describe("native transport request lifecycle", () => {
   it("prefers response signal_hash over signal hashes map", async () => {
     const signalHashes = { proof_of_human: hashSignal("from-constraints") };
 
-    const req = createNativeRequest({}, baseConfig, signalHashes);
+    const req = createNativeRequest({}, baseConfig, signalHashes, "");
     activeRequest = req;
 
     const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
@@ -179,7 +179,7 @@ describe("native transport request lifecycle", () => {
   it("allows creating a fresh request after timeout", async () => {
     vi.useFakeTimers();
 
-    const req1 = createNativeRequest({ payload: 1 }, baseConfig);
+    const req1 = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
     activeRequest = req1;
 
     const completionPromise = req1.pollUntilCompletion({ timeout: 1000 });
@@ -190,19 +190,13 @@ describe("native transport request lifecycle", () => {
       error: IDKitErrorCodes.Timeout,
     });
 
-    const req2 = createNativeRequest({ payload: 2 }, baseConfig);
+    const req2 = createNativeRequest({ payload: 2 }, baseConfig, {}, "");
     expect(req2).not.toBe(req1);
     activeRequest = req2;
   });
 
   it("sends version in postMessage envelope", () => {
-    const req = createNativeRequest(
-      { data: "test" },
-      baseConfig,
-      {},
-      undefined,
-      1,
-    );
+    const req = createNativeRequest({ data: "test" }, baseConfig, {}, "", 1);
     activeRequest = req;
 
     const postMessageFn = (globalThis as any).window.Android.postMessage;

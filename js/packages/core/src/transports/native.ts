@@ -104,7 +104,7 @@ export function createNativeRequest(
   wasmPayload: unknown,
   config: BuilderConfig,
   signalHashes: Record<string, string> = {},
-  legacySignalHash?: string,
+  legacySignalHash: string,
   version: 1 | 2 = 2,
 ): IDKitRequest {
   if (_activeNativeRequest?.isPending()) {
@@ -138,7 +138,7 @@ class NativeIDKitRequest implements IDKitRequest {
     wasmPayload: unknown,
     config: BuilderConfig,
     signalHashes: Record<string, string> = {},
-    legacySignalHash?: string,
+    legacySignalHash: string,
     version: 1 | 2 = 2,
   ) {
     this.requestId =
@@ -320,7 +320,7 @@ function nativeResultToIDKitResult(
   payload: unknown,
   config: BuilderConfig,
   signalHashes: Record<string, string>,
-  legacySignalHash?: string,
+  legacySignalHash: string,
 ): IDKitResult {
   const p = payload as Record<string, any>;
   const rpNonce = config.rp_context?.nonce ?? "";

@@ -539,7 +539,8 @@ impl IDKitConfigWasm {
                     constraints: Some(constraints),
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
-                    legacy_verification_level: crate::VerificationLevel::Deprecated,
+                    // Default to Device for v3 backwards compat — v4 uses proof_request instead.
+                    legacy_verification_level: crate::VerificationLevel::Device,
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: *allow_legacy_proofs,
@@ -574,7 +575,8 @@ impl IDKitConfigWasm {
                     constraints: Some(constraints),
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
-                    legacy_verification_level: crate::VerificationLevel::Deprecated,
+                    // Default to Device for v3 backwards compat — v4 uses proof_request instead.
+                    legacy_verification_level: crate::VerificationLevel::Device,
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
@@ -612,7 +614,8 @@ impl IDKitConfigWasm {
                     constraints: Some(constraints),
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
-                    legacy_verification_level: crate::VerificationLevel::Deprecated,
+                    // Default to Device for v3 backwards compat — v4 uses proof_request instead.
+                    legacy_verification_level: crate::VerificationLevel::Device,
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
@@ -837,8 +840,8 @@ impl IDKitBuilderWasm {
     /// Builds a v1 (legacy) native payload from a preset (synchronous, no bridge connection).
     ///
     /// Used by the native transport when the World App only supports verify v1.
-    /// Only legacy presets produce valid v1 payloads (constraints always have
-    /// `Deprecated` verification level and will fail).
+    /// Only legacy presets produce valid v1 payloads (constraint-based requests
+    /// default to `Device` level and may not carry the correct action).
     ///
     /// # Errors
     ///

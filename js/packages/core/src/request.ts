@@ -449,7 +449,7 @@ class IDKitBuilder {
         wasmResult.payload,
         this.config,
         wasmResult.signal_hashes ?? {},
-        wasmResult.legacy_signal_hash ?? undefined,
+        wasmResult.legacy_signal_hash,
         2,
       );
     }
@@ -500,7 +500,7 @@ class IDKitBuilder {
           wasmResult.payload,
           this.config,
           wasmResult.signal_hashes ?? {},
-          wasmResult.legacy_signal_hash ?? undefined,
+          wasmResult.legacy_signal_hash,
           2,
         );
       }
@@ -514,7 +514,7 @@ class IDKitBuilder {
           wasmResult.payload,
           this.config,
           wasmResult.signal_hashes ?? {},
-          wasmResult.legacy_signal_hash ?? undefined,
+          wasmResult.legacy_signal_hash,
           1,
         );
       } catch (err) {
