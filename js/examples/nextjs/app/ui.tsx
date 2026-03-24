@@ -24,6 +24,10 @@ const RP_ID = process.env.NEXT_PUBLIC_RP_ID;
 const STAGING_CONNECT_BASE_URL = "https://staging.world.org/verify";
 const CONNECT_URL_OVERRIDE_TOOLTIP =
   "Enable this to change the deeplink base URL to the staging verify endpoint. Useful when testing with a Staging iOS World App build that supports this override.";
+const GENESIS_ISSUED_AT_MIN_TOOLTIP =
+  "Minimum genesis_issued_at timestamp that the used Credential must meet. " +
+  "If present, the proof will include a constraint that the credential's genesis issued at timestamp " +
+  "is greater than or equal to this value. Useful for migration from previous protocol versions.";
 
 type PresetKind = "orb" | "secure_document" | "document" | "device" | "selfie";
 
@@ -136,6 +140,14 @@ export function DemoClient(): ReactElement {
   const [v4CredentialType, setV4CredentialType] =
     useState<V4CredentialType>("proof_of_human");
   const [presetKind, setPresetKind] = useState<PresetKind>("orb");
+  const [genesisEnabled, setGenesisEnabled] = useState(false);
+  const [genesisDate, setGenesisDate] = useState("");
+  const [isGenesisTooltipOpen, setIsGenesisTooltipOpen] = useState(false);
+
+  const genesisIssuedAtMin =
+    genesisEnabled && genesisDate
+      ? Math.floor(new Date(genesisDate).getTime() / 1000)
+      : undefined;
 
   const widgetConstraintsOrPreset:
     | {
@@ -146,9 +158,13 @@ export function DemoClient(): ReactElement {
       } = useMemo(
     () =>
       worldIdVersion === "4.0"
-        ? { constraints: CredentialRequest(v4CredentialType) }
+        ? {
+            constraints: CredentialRequest(v4CredentialType, {
+              genesis_issued_at_min: genesisIssuedAtMin,
+            }),
+          }
         : { preset: createPreset(presetKind, widgetSignal) },
-    [worldIdVersion, presetKind, v4CredentialType],
+    [worldIdVersion, presetKind, v4CredentialType, genesisIssuedAtMin],
   );
 
   const overrideConnectBaseUrl =
@@ -169,6 +185,13 @@ export function DemoClient(): ReactElement {
       setIsConnectUrlTooltipOpen(false);
     }
   }, [environment]);
+
+  useEffect(() => {
+    if (worldIdVersion !== "4.0") {
+      setGenesisEnabled(false);
+      setGenesisDate("");
+    }
+  }, [worldIdVersion]);
 
   const startWidgetFlow = async () => {
     setWidgetError(null);
@@ -320,19 +343,71 @@ export function DemoClient(): ReactElement {
         )}
 
         {worldIdVersion === "4.0" && (
-          <div className="config-row">
-            <label htmlFor="cfgCredentialv4">Credential</label>
-            <select
-              id="cfgCredentialv4"
-              value={v4CredentialType}
-              onChange={(e) =>
-                setV4CredentialType(e.target.value as V4CredentialType)
-              }
-            >
-              <option value="proof_of_human">Proof Of Human (Orb)</option>
-              <option value="passport">Passport</option>
-            </select>
-          </div>
+          <>
+            <div className="config-row">
+              <label htmlFor="cfgCredentialv4">Credential</label>
+              <select
+                id="cfgCredentialv4"
+                value={v4CredentialType}
+                onChange={(e) =>
+                  setV4CredentialType(e.target.value as V4CredentialType)
+                }
+              >
+                <option value="proof_of_human">Proof Of Human (Orb)</option>
+                <option value="passport">Passport</option>
+              </select>
+            </div>
+            <div className="config-row">
+              <label htmlFor="cfgGenesisEnabled">
+                Min. Genesis Issuing Date
+              </label>
+              <div
+                className="tooltip"
+                onMouseEnter={() => setIsGenesisTooltipOpen(true)}
+                onMouseLeave={() => setIsGenesisTooltipOpen(false)}
+              >
+                <button
+                  type="button"
+                  className="tooltip-trigger"
+                  aria-label="Explain Min. Genesis Issuing Date"
+                  aria-describedby={
+                    isGenesisTooltipOpen
+                      ? "genesis-issued-at-tooltip"
+                      : undefined
+                  }
+                  aria-expanded={isGenesisTooltipOpen}
+                  onFocus={() => setIsGenesisTooltipOpen(true)}
+                  onBlur={() => setIsGenesisTooltipOpen(false)}
+                  onClick={() => setIsGenesisTooltipOpen(true)}
+                >
+                  ?
+                </button>
+                {isGenesisTooltipOpen && (
+                  <span
+                    id="genesis-issued-at-tooltip"
+                    role="tooltip"
+                    className="tooltip-content"
+                  >
+                    {GENESIS_ISSUED_AT_MIN_TOOLTIP}
+                  </span>
+                )}
+              </div>
+              <input
+                type="checkbox"
+                id="cfgGenesisEnabled"
+                checked={genesisEnabled}
+                onChange={(e) => setGenesisEnabled(e.target.checked)}
+              />
+              {genesisEnabled && (
+                <input
+                  type="datetime-local"
+                  id="cfgGenesisDate"
+                  value={genesisDate}
+                  onChange={(e) => setGenesisDate(e.target.value)}
+                />
+              )}
+            </div>
+          </>
         )}
       </section>
 
