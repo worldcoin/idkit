@@ -164,7 +164,13 @@ export function DemoClient(): ReactElement {
             }),
           }
         : { preset: createPreset(presetKind, widgetSignal) },
-    [worldIdVersion, presetKind, v4CredentialType, genesisIssuedAtMin],
+    [
+      worldIdVersion,
+      presetKind,
+      v4CredentialType,
+      genesisIssuedAtMin,
+      widgetSignal,
+    ],
   );
 
   const overrideConnectBaseUrl =
