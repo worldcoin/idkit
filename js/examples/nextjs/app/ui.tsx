@@ -21,8 +21,15 @@ const RP_ID = process.env.NEXT_PUBLIC_RP_ID;
 const STAGING_CONNECT_BASE_URL = "https://staging.world.org/verify";
 const CONNECT_URL_OVERRIDE_TOOLTIP =
   "Enable this to change the deeplink base URL to the staging verify endpoint. Useful when testing with a Staging iOS World App build that supports this override.";
+const RETURN_TO_TOOLTIP =
+  "Enable this to append a return_to callback to the connector URL. The default value just reopens Chrome, and you can override it before starting a verification.";
 
 type PresetKind = "orb" | "secure_document" | "document" | "device" | "selfie";
+
+function createChromeAppDeeplink(url: string): string {
+  const parsed = new URL(url);
+  return parsed.protocol === "https:" ? "googlechromes://" : "googlechrome://";
+}
 
 function createPreset(kind: PresetKind, signal: string) {
   switch (kind) {
@@ -113,6 +120,9 @@ export function DemoClient(): ReactElement {
   const [useStagingConnectBaseUrl, setUseStagingConnectBaseUrl] =
     useState(false);
   const [isConnectUrlTooltipOpen, setIsConnectUrlTooltipOpen] = useState(false);
+  const [useReturnTo, setUseReturnTo] = useState(false);
+  const [returnTo, setReturnTo] = useState("");
+  const [isReturnToTooltipOpen, setIsReturnToTooltipOpen] = useState(false);
 
   const widgetPreset = useMemo(
     () => createPreset(widgetPresetKind, widgetSignal),
@@ -122,6 +132,9 @@ export function DemoClient(): ReactElement {
     environment === "staging" && useStagingConnectBaseUrl
       ? STAGING_CONNECT_BASE_URL
       : undefined;
+  const effectiveReturnTo = useReturnTo
+    ? returnTo.trim() || undefined
+    : undefined;
 
   useEffect(() => {
     document.documentElement.setAttribute(
@@ -136,6 +149,18 @@ export function DemoClient(): ReactElement {
       setIsConnectUrlTooltipOpen(false);
     }
   }, [environment]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    setReturnTo((current) =>
+      current.length > 0
+        ? current
+        : createChromeAppDeeplink(window.location.href),
+    );
+  }, []);
 
   const startWidgetFlow = async (presetKind: PresetKind) => {
     setWidgetError(null);
@@ -256,6 +281,52 @@ export function DemoClient(): ReactElement {
             <span className="config-note">{STAGING_CONNECT_BASE_URL}</span>
           </div>
         )}
+        <div className="config-row">
+          <label htmlFor="cfgReturnToEnabled">Return to</label>
+          <div
+            className="tooltip"
+            onMouseEnter={() => setIsReturnToTooltipOpen(true)}
+            onMouseLeave={() => setIsReturnToTooltipOpen(false)}
+          >
+            <button
+              type="button"
+              className="tooltip-trigger"
+              aria-label="Explain return_to"
+              aria-describedby={
+                isReturnToTooltipOpen ? "return-to-tooltip" : undefined
+              }
+              aria-expanded={isReturnToTooltipOpen}
+              onFocus={() => setIsReturnToTooltipOpen(true)}
+              onBlur={() => setIsReturnToTooltipOpen(false)}
+              onClick={() => setIsReturnToTooltipOpen(true)}
+            >
+              ?
+            </button>
+            {isReturnToTooltipOpen && (
+              <span
+                id="return-to-tooltip"
+                role="tooltip"
+                className="tooltip-content"
+              >
+                {RETURN_TO_TOOLTIP}
+              </span>
+            )}
+          </div>
+          <input
+            type="checkbox"
+            id="cfgReturnToEnabled"
+            checked={useReturnTo}
+            onChange={(e) => setUseReturnTo(e.target.checked)}
+          />
+          <input
+            type="text"
+            id="cfgReturnTo"
+            value={returnTo}
+            onChange={(e) => setReturnTo(e.target.value)}
+            disabled={!useReturnTo}
+            placeholder="googlechromes://"
+          />
+        </div>
       </section>
 
       <div className="stack">
@@ -294,6 +365,7 @@ export function DemoClient(): ReactElement {
           }}
           environment={environment}
           override_connect_base_url={overrideConnectBaseUrl}
+          return_to={effectiveReturnTo}
         />
       )}
 

@@ -46,6 +46,8 @@ export type IDKitRequestConfig = {
   action_description?: string;
   /** URL to a third-party bridge to use when connecting to the World App. Optional. */
   bridge_url?: string;
+  /** Optional deep-link callback URL appended as `return_to` on the connector URL. */
+  return_to?: string;
 
   /**
    * Whether to accept legacy (v3) World ID proofs as fallback.
@@ -80,6 +82,8 @@ export type IDKitSessionConfig = {
   action_description?: string;
   /** URL to a third-party bridge to use when connecting to the World App. Optional. */
   bridge_url?: string;
+  /** Optional deep-link callback URL appended as `return_to` on the connector URL. */
+  return_to?: string;
   /** Optional override for the connect base URL (e.g., for staging environments) */
   override_connect_base_url?: string;
 

@@ -33,6 +33,7 @@ export function useIDKitSession(
           action_description: config.action_description,
           bridge_url: config.bridge_url,
           override_connect_base_url: config.override_connect_base_url,
+          return_to: config.return_to,
           environment: config.environment,
         })
       : IDKit.createSession({
@@ -41,6 +42,7 @@ export function useIDKitSession(
           action_description: config.action_description,
           bridge_url: config.bridge_url,
           override_connect_base_url: config.override_connect_base_url,
+          return_to: config.return_to,
           environment: config.environment,
         });
     return builder.preset(config.preset);
