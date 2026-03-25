@@ -28,7 +28,7 @@ import {
 export interface WaitOptions {
   /** Milliseconds between polls (default: 1000) */
   pollInterval?: number;
-  /** Total timeout in milliseconds (default: 300000 = 5 minutes) */
+  /** Total timeout in milliseconds (default: 900000 = 15 minutes) */
   timeout?: number;
   /** AbortSignal for cancellation */
   signal?: AbortSignal;
@@ -100,7 +100,7 @@ class IDKitRequestImpl implements IDKitRequest {
     options?: WaitOptions,
   ): Promise<IDKitCompletionResult> {
     const pollInterval = options?.pollInterval ?? 1000;
-    const timeout = options?.timeout ?? 300000; // 5 minutes default
+    const timeout = options?.timeout ?? 900_000; // 15 minutes default
     const startTime = Date.now();
 
     while (true) {

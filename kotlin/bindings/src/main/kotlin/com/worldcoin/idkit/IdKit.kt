@@ -89,7 +89,7 @@ sealed interface IDKitCompletionResult {
 
 data class IDKitPollOptions(
     val pollIntervalMs: ULong = 1_000u,
-    val timeoutMs: ULong = 300_000u,
+    val timeoutMs: ULong = 900_000u,
 )
 
 // TODO: Re-enable when World ID 4.0 is live
