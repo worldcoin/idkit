@@ -29,7 +29,8 @@ func basicVerification() async throws {
         allowLegacyProofs: false,
         overrideConnectBaseUrl: nil,
         returnTo: nil,
-        environment: .staging
+        environment: .staging,
+        connectUrlMode: .appClip
     )
 
     let request = try IDKit

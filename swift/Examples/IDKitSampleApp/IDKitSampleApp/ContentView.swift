@@ -161,7 +161,8 @@ final class SampleModel: ObservableObject {
                     case .production: return .production
                     case .staging: return .staging
                     }
-                }()
+                }(),
+                connectUrlMode: nil
             )
 
             let request = try IDKit

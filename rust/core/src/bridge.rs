@@ -47,6 +47,16 @@ pub enum Environment {
     Staging,
 }
 
+/// Controls the format of the connect URL returned by `IDKitRequestWrapper`
+#[cfg(feature = "ffi")]
+#[derive(Debug, Clone, uniffi::Enum)]
+pub enum ConnectUrlMode {
+    /// Return the standard World App connect URL
+    Default,
+    /// Wrap the connect URL inside an Apple App Clip invocation URL
+    AppClip,
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Request Kind (internal)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -747,6 +757,8 @@ pub struct IDKitRequestConfig {
     pub return_to: Option<String>,
     /// Optional environment override (defaults to Production)
     pub environment: Option<Environment>,
+    /// Optional connect URL mode (defaults to `Default`)
+    pub connect_url_mode: Option<ConnectUrlMode>,
 }
 
 /// Configuration for session requests (no action field, v4 only)
@@ -785,6 +797,16 @@ enum IDKitConfig {
 
 #[cfg(feature = "ffi")]
 impl IDKitConfig {
+    fn connect_url_mode(&self) -> ConnectUrlMode {
+        match self {
+            Self::Request(config) => config
+                .connect_url_mode
+                .clone()
+                .unwrap_or(ConnectUrlMode::Default),
+            _ => ConnectUrlMode::Default,
+        }
+    }
+
     /// Converts config + constraints to `BridgeConnectionParams`
     fn to_params(
         &self,
@@ -1011,7 +1033,11 @@ impl IDKitBuilder {
             .block_on(BridgeConnection::create(params))
             .map_err(crate::error::IdkitError::from)?;
 
-        Ok(Arc::new(IDKitRequestWrapper { runtime, inner }))
+        Ok(Arc::new(IDKitRequestWrapper {
+            runtime,
+            inner,
+            connect_url_mode: self.config.connect_url_mode(),
+        }))
     }
 
     /// Creates a `BridgeConnection` from a preset (works for all request types)
@@ -1038,7 +1064,11 @@ impl IDKitBuilder {
             .block_on(BridgeConnection::create(params))
             .map_err(crate::error::IdkitError::from)?;
 
-        Ok(Arc::new(IDKitRequestWrapper { runtime, inner }))
+        Ok(Arc::new(IDKitRequestWrapper {
+            runtime,
+            inner,
+            connect_url_mode: self.config.connect_url_mode(),
+        }))
     }
 }
 
@@ -1072,6 +1102,7 @@ pub fn prove_session(session_id: String, config: IDKitSessionConfig) -> Arc<IDKi
 pub struct IDKitRequestWrapper {
     runtime: tokio::runtime::Runtime,
     inner: BridgeConnection,
+    connect_url_mode: ConnectUrlMode,
 }
 
 #[cfg(feature = "ffi")]
@@ -1140,7 +1171,17 @@ impl IDKitRequestWrapper {
     /// Returns the connect URL for World App
     #[must_use]
     pub fn connect_url(&self) -> String {
-        self.inner.connect_url()
+        let url = self.inner.connect_url();
+        match self.connect_url_mode {
+            ConnectUrlMode::AppClip => {
+                let encoded = crate::crypto::base64_url_encode(url.as_bytes());
+                format!(
+                    "https://appclip.apple.com/id?p=org.worldcoin.insight.Clip&experience={}",
+                    encoded
+                )
+            }
+            ConnectUrlMode::Default => url,
+        }
     }
 
     /// Returns the request ID for this request
