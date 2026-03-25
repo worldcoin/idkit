@@ -8,6 +8,13 @@ enum SampleEnvironment: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum SampleConnectUrlMode: String, CaseIterable, Identifiable {
+    case standard
+    case appClip = "app clip"
+
+    var id: String { rawValue }
+}
+
 enum SampleLegacyPreset: String, CaseIterable, Identifiable {
     case orb
     case secureDocument = "secure document"
@@ -58,6 +65,13 @@ struct ContentView: View {
                     Picker("Environment", selection: $model.environment) {
                         ForEach(SampleEnvironment.allCases) { env in
                             Text(env.rawValue).tag(env)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Picker("Connect URL mode", selection: $model.connectUrlMode) {
+                        ForEach(SampleConnectUrlMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -116,6 +130,7 @@ final class SampleModel: ObservableObject {
     @Published var action = "test-action"
     @Published var signal = "signal"
     @Published var environment: SampleEnvironment = .production
+    @Published var connectUrlMode: SampleConnectUrlMode = .standard
     @Published var legacyPreset: SampleLegacyPreset = .orb
     @Published var connectorURL: URL?
     @Published var logs = ""
@@ -162,7 +177,12 @@ final class SampleModel: ObservableObject {
                     case .staging: return .staging
                     }
                 }(),
-                connectUrlMode: nil
+                connectUrlMode: {
+                    switch connectUrlMode {
+                    case .standard: return .default
+                    case .appClip: return .appClip
+                    }
+                }()
             )
 
             let request = try IDKit

@@ -1175,10 +1175,7 @@ impl IDKitRequestWrapper {
         match self.connect_url_mode {
             ConnectUrlMode::AppClip => {
                 let encoded = crate::crypto::base64_url_encode(url.as_bytes());
-                format!(
-                    "https://appclip.apple.com/id?p=org.worldcoin.insight.Clip&experience={}",
-                    encoded
-                )
+                format!("https://appclip.apple.com/id?p=org.worldcoin.insight.Clip&experience={encoded}")
             }
             ConnectUrlMode::Default => url,
         }
