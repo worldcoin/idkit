@@ -6,6 +6,24 @@
       parallelizeBuildables = "YES"
       buildImplicitDependencies = "YES"
       runPostActionsOnFailure = "NO">
+      <PreActions>
+         <ExecutionAction
+            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+            <ActionContent
+               title = "Check IDKit Dependencies"
+               scriptText = "REPO_ROOT=&quot;${SRCROOT}/../../..&quot;&#10;XCFRAMEWORK=&quot;${REPO_ROOT}/IDKitFFI.xcframework&quot;&#10;GENERATED=&quot;${REPO_ROOT}/swift/Sources/IDKit/Generated/idkit_core.swift&quot;&#10;&#10;if [ ! -d &quot;${XCFRAMEWORK}&quot; ] || [ ! -f &quot;${GENERATED}&quot; ]; then&#10;  echo &quot;error: IDKit native artifacts not found.&quot; &gt;&amp;2&#10;  echo &quot;error: Run the following from the repo root, then build again:&quot; &gt;&amp;2&#10;  echo &quot;error:   ./scripts/package-swift.sh&quot; &gt;&amp;2&#10;  exit 1&#10;fi&#10;">
+               <EnvironmentBuildable>
+                  <BuildableReference
+                     BuildableIdentifier = "primary"
+                     BlueprintIdentifier = "5EFB68A938F232185A410A05"
+                     BuildableName = "IDKitSampleApp.app"
+                     BlueprintName = "IDKitSampleApp"
+                     ReferencedContainer = "container:IDKitSampleApp.xcodeproj">
+                  </BuildableReference>
+               </EnvironmentBuildable>
+            </ActionContent>
+         </ExecutionAction>
+      </PreActions>
       <BuildActionEntries>
          <BuildActionEntry
             buildForTesting = "YES"
