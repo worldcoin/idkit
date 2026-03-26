@@ -101,7 +101,7 @@ export function useIDKitFlow<TResult>(
         });
 
         const pollInterval = configRef.current.polling?.interval ?? 1000;
-        const timeout = configRef.current.polling?.timeout ?? 300000;
+        const timeout = configRef.current.polling?.timeout ?? 900_000;
         const startedAt = Date.now();
 
         while (true) {

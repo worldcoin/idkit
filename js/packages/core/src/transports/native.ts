@@ -275,7 +275,7 @@ class NativeIDKitRequest implements IDKitRequest {
   async pollUntilCompletion(
     options?: WaitOptions,
   ): Promise<IDKitCompletionResult> {
-    const timeout = options?.timeout ?? 300000;
+    const timeout = options?.timeout ?? 900_000;
 
     const timeoutId = setTimeout(() => {
       this.complete({ success: false, error: IDKitErrorCodes.Timeout });
