@@ -34,6 +34,8 @@ const baseRpContext = {
   expires_at: 2,
   signature: "0x1234",
 };
+const SESSION_ID_1 = `session_${"11".repeat(64)}` as const;
+const SESSION_ID_2 = `session_${"22".repeat(64)}` as const;
 
 function makeRequest(pollOnce: () => Promise<unknown>) {
   return {
@@ -140,7 +142,7 @@ describe("request/session hooks", () => {
         connectorURI: "wc://session-create",
         pollOnce: vi.fn(async () => ({
           type: "confirmed",
-          result: { session_id: "session_1", responses: [] },
+          result: { session_id: SESSION_ID_1, responses: [] },
         })),
       })),
     });
@@ -172,7 +174,7 @@ describe("request/session hooks", () => {
       environment: undefined,
     });
     expect(proveSessionMock).not.toHaveBeenCalled();
-    expect(result.current.result?.session_id).toBe("session_1");
+    expect(result.current.result?.session_id).toBe(SESSION_ID_1);
   });
 
   it("session hook uses proveSession when existing_session_id is provided", async () => {
@@ -181,7 +183,7 @@ describe("request/session hooks", () => {
         connectorURI: "wc://session-prove",
         pollOnce: vi.fn(async () => ({
           type: "confirmed",
-          result: { session_id: "session_2", responses: [] },
+          result: { session_id: SESSION_ID_2, responses: [] },
         })),
       })),
     });
@@ -190,7 +192,7 @@ describe("request/session hooks", () => {
       useIDKitSession({
         app_id: "app_test",
         rp_context: baseRpContext,
-        existing_session_id: "session_2",
+        existing_session_id: SESSION_ID_2,
         preset: { type: "OrbLegacy" },
       }),
     );
@@ -203,7 +205,7 @@ describe("request/session hooks", () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(proveSessionMock).toHaveBeenCalledWith("session_2", {
+    expect(proveSessionMock).toHaveBeenCalledWith(SESSION_ID_2, {
       app_id: "app_test",
       rp_context: baseRpContext,
       action_description: undefined,
@@ -212,7 +214,7 @@ describe("request/session hooks", () => {
       return_to: undefined,
       environment: undefined,
     });
-    expect(result.current.result?.session_id).toBe("session_2");
+    expect(result.current.result?.session_id).toBe(SESSION_ID_2);
   });
 
   it("request hook forwards return_to to core", async () => {
@@ -341,7 +343,28 @@ describe("request/session hooks", () => {
       useIDKitSession({
         app_id: "app_test",
         rp_context: baseRpContext,
-        existing_session_id: "   ",
+        existing_session_id: "   " as unknown as `session_${string}`,
+        preset: { type: "OrbLegacy" },
+      }),
+    );
+
+    act(() => {
+      result.current.open();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(result.current.errorCode).toBe(IDKitErrorCodes.MalformedRequest);
+  });
+
+  it("session hook fails on malformed existing_session_id format", async () => {
+    const { result } = renderHook(() =>
+      useIDKitSession({
+        app_id: "app_test",
+        rp_context: baseRpContext,
+        existing_session_id: "session_2" as `session_${string}`,
         preset: { type: "OrbLegacy" },
       }),
     );

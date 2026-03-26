@@ -21,6 +21,11 @@
       "types": "./dist/hashing.d.ts",
       "import": "./dist/hashing.js",
       "require": "./dist/hashing.cjs"
+    },
+    "./session": {
+      "types": "./dist/session.d.ts",
+      "import": "./dist/session.js",
+      "require": "./dist/session.cjs"
     }
   },
   "files": [

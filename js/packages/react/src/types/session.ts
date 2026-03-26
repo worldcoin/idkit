@@ -10,7 +10,7 @@ export type IDKitSessionHookConfig = IDKitSessionConfig &
     // TODO: Reintroduce `constraints` once core JS re-exposes
     // IDKitBuilder.constraints().
     preset: Preset;
-    existing_session_id?: string;
+    existing_session_id?: `session_${string}`;
   };
 
 export type UseIDKitSessionHookResult = IDKitHookResult<IDKitResultSession>;

@@ -367,9 +367,10 @@ pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_js
         RequestKind::CreateSession => (None, None, None),
         RequestKind::ProveSession { session_id } => {
             let parsed =
-                serde_json::from_str::<SessionId>(&format!("\"{session_id}\"")).map_err(|_| {
-                    Error::InvalidConfiguration("Invalid session_id format".to_string())
-                })?;
+                serde_json::from_value::<SessionId>(serde_json::Value::String(session_id.clone()))
+                    .map_err(|_| {
+                        Error::InvalidConfiguration("Invalid session_id format".to_string())
+                    })?;
             (None, Some(parsed), None)
         }
     };
@@ -660,10 +661,15 @@ impl BridgeConnection {
                             if let Some(session_id) = proof_response.session_id {
                                 IDKitResult::new_session(
                                     self.nonce.clone(),
-                                    format!(
-                                        "session_{}",
-                                        hex::encode(session_id.to_compressed_bytes())
-                                    ),
+                                    serde_json::to_value(session_id)?
+                                        .as_str()
+                                        .ok_or_else(|| {
+                                            Error::InvalidConfiguration(
+                                                "SessionId did not serialize as a string"
+                                                    .to_string(),
+                                            )
+                                        })?
+                                        .to_owned(),
                                     self.action_description.clone(),
                                     responses,
                                     self.environment.as_ref(),
@@ -1285,6 +1291,37 @@ mod tests {
         assert!(json.contains("proof_request"));
         assert!(json.contains("rp_1234567890abcdef"));
         assert!(json.contains("allow_legacy_proofs"));
+    }
+
+    #[test]
+    fn test_session_id_sdk_round_trip_uses_protocol_format() {
+        let session_id = SessionId::default();
+
+        let serialized = serde_json::to_value(session_id)
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert_eq!(
+            serialized,
+            format!("session_{}", hex::encode(session_id.to_compressed_bytes()))
+        );
+
+        let parsed =
+            serde_json::from_value::<SessionId>(serde_json::Value::String(serialized)).unwrap();
+        assert_eq!(parsed, session_id);
+    }
+
+    #[test]
+    fn test_invalid_session_id_format_is_rejected() {
+        assert!(
+            serde_json::from_value::<SessionId>(serde_json::Value::String("session_1".into()))
+                .is_err()
+        );
+        assert!(
+            serde_json::from_value::<SessionId>(serde_json::Value::String("0x1234".into()))
+                .is_err()
+        );
     }
 
     #[test]

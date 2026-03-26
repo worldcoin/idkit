@@ -69,7 +69,7 @@ export interface BuilderConfig {
   type: "request" | "session" | "proveSession";
   app_id: string;
   action?: string;
-  session_id?: string;
+  session_id?: `session_${string}`;
   rp_context?: import("../types/config").RpContext;
   action_description?: string;
   bridge_url?: string;

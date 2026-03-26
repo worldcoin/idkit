@@ -959,6 +959,9 @@ pub fn request(
 }
 
 /// Entry point for creating a new session (no existing `session_id`) (WASM)
+///
+/// The resulting `session_id` is returned in canonical protocol string form:
+/// `session_<hex>`.
 #[must_use]
 #[wasm_bindgen(js_name = createSession)]
 pub fn create_session(
@@ -982,6 +985,9 @@ pub fn create_session(
 }
 
 /// Entry point for proving an existing session (WASM)
+///
+/// `session_id` must be the opaque `session_<hex>` value returned by a prior
+/// call to `create_session`.
 #[must_use]
 #[wasm_bindgen(js_name = proveSession)]
 #[allow(clippy::too_many_arguments)]
@@ -1222,8 +1228,8 @@ export interface IDKitResultSession {
     nonce: string;
     /** Action description (only if provided in input) */
     action_description?: string;
-    /** Session ID returned by the World App */
-    session_id: string;
+    /** Opaque session identifier returned by the World App in `session_<hex>` format */
+    session_id: `session_${string}`;
     /** Array of session credential responses */
     responses: ResponseItemSession[];
     /** The environment used for this request ("production" or "staging") */
@@ -1372,7 +1378,8 @@ const TS_SESSION: &str = r#"
 /**
  * Creates a new session builder for creating a new session (no existing session_id).
  * Use this when creating a new session for a user who doesn't have one yet.
- * The response will include a session_id that should be saved for future session proofs.
+ * The response will include a session_id in `session_<hex>` format that should be
+ * saved for future session proofs.
  * Sessions are always World ID v4 - there is no legacy (v3) session support.
  */
 export function createSession(
@@ -1388,10 +1395,12 @@ export function createSession(
 /**
  * Creates a session builder for proving an existing session.
  * Use this when a returning user needs to prove they own an existing session.
+ * `session_id` must be the opaque `session_<hex>` value previously returned by
+ * `createSession()`.
  * Sessions are always World ID v4 - there is no legacy (v3) session support.
  */
 export function proveSession(
-    session_id: string,
+    session_id: `session_${string}`,
     app_id: string,
     rp_context: RpContextWasm,
     action_description?: string,

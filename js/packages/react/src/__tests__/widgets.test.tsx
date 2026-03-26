@@ -19,6 +19,7 @@ const { useIDKitRequestMock, useIDKitSessionMock } = vi.hoisted(() => ({
   useIDKitRequestMock: vi.fn(),
   useIDKitSessionMock: vi.fn(),
 }));
+const SESSION_ID = `session_${"11".repeat(64)}` as const;
 
 vi.mock("../hooks/useIDKitRequest", () => ({
   useIDKitRequest: useIDKitRequestMock,
@@ -378,7 +379,7 @@ describe("widgets", () => {
   it("session widget waits for handleVerify before calling onSuccess", async () => {
     const flow = createFlow({
       isSuccess: true,
-      result: { session_id: "session_1", responses: [] },
+      result: { session_id: SESSION_ID, responses: [] },
     });
     useIDKitSessionMock.mockReturnValue(flow);
 
@@ -409,7 +410,7 @@ describe("widgets", () => {
 
     await waitFor(() => {
       expect(onSuccess).toHaveBeenCalledWith({
-        session_id: "session_1",
+        session_id: SESSION_ID,
         responses: [],
       });
     });
