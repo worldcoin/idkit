@@ -261,7 +261,7 @@ describe("request/session hooks", () => {
 
   it("session hook forwards return_to to createSession", async () => {
     createSessionMock.mockReturnValue({
-      preset: vi.fn(async () => ({
+      constraints: vi.fn(async () => ({
         connectorURI: "wc://session-create",
         pollOnce: vi.fn(async () => ({
           type: "confirmed",
@@ -275,7 +275,7 @@ describe("request/session hooks", () => {
         app_id: "app_test",
         rp_context: baseRpContext,
         return_to: "idkit://callback?step=create",
-        preset: { type: "OrbLegacy" },
+        constraints: { type: "All", children: [] },
       }),
     );
 
@@ -300,7 +300,7 @@ describe("request/session hooks", () => {
 
   it("session hook forwards return_to to proveSession", async () => {
     proveSessionMock.mockReturnValue({
-      preset: vi.fn(async () => ({
+      constraints: vi.fn(async () => ({
         connectorURI: "wc://session-prove",
         pollOnce: vi.fn(async () => ({
           type: "confirmed",
@@ -309,11 +309,12 @@ describe("request/session hooks", () => {
       })),
     });
 
+    const validSessionId = `session_${"22".repeat(64)}` as const;
     const { result } = renderHook(() =>
       useIDKitSession({
         app_id: "app_test",
         rp_context: baseRpContext,
-        existing_session_id: "session_2",
+        existing_session_id: validSessionId,
         return_to: "idkit://callback?step=prove",
         constraints: { type: "All", children: [] },
       }),
@@ -327,7 +328,7 @@ describe("request/session hooks", () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    expect(proveSessionMock).toHaveBeenCalledWith("session_2", {
+    expect(proveSessionMock).toHaveBeenCalledWith(validSessionId, {
       app_id: "app_test",
       rp_context: baseRpContext,
       action_description: undefined,
