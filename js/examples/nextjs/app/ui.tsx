@@ -344,7 +344,6 @@ export function DemoClient(): ReactElement {
           </div>
         )}
 
-
         <div className="config-row">
           <label htmlFor="cfgWorldID">World ID</label>
           <select
