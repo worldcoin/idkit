@@ -172,6 +172,13 @@ pub fn base64_encode(input: &[u8]) -> String {
     STANDARD.encode(input)
 }
 
+/// Base64 URL-safe encodes bytes (no padding)
+#[must_use]
+pub fn base64_url_encode(input: &[u8]) -> String {
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+    URL_SAFE_NO_PAD.encode(input)
+}
+
 // ============================================================================
 // FFI exports for hashing utilities (Kotlin/Swift)
 // ============================================================================

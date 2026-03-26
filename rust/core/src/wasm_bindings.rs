@@ -485,6 +485,7 @@ enum IDKitConfigWasm {
         bridge_url: Option<String>,
         allow_legacy_proofs: bool,
         override_connect_base_url: Option<String>,
+        return_to: Option<String>,
         environment: Option<String>,
     },
     CreateSession {
@@ -493,6 +494,7 @@ enum IDKitConfigWasm {
         action_description: Option<String>,
         bridge_url: Option<String>,
         override_connect_base_url: Option<String>,
+        return_to: Option<String>,
         environment: Option<String>,
     },
     ProveSession {
@@ -502,6 +504,7 @@ enum IDKitConfigWasm {
         action_description: Option<String>,
         bridge_url: Option<String>,
         override_connect_base_url: Option<String>,
+        return_to: Option<String>,
         environment: Option<String>,
     },
 }
@@ -521,6 +524,7 @@ impl IDKitConfigWasm {
                 bridge_url,
                 allow_legacy_proofs,
                 override_connect_base_url,
+                return_to,
                 environment,
             } => {
                 let app_id = crate::AppId::new(app_id)
@@ -546,7 +550,7 @@ impl IDKitConfigWasm {
                     allow_legacy_proofs: *allow_legacy_proofs,
 
                     override_connect_base_url: override_connect_base_url.clone(),
-                    return_to: None,
+                    return_to: return_to.clone(),
                     environment: environment.as_deref().map(|e| match e {
                         "staging" => crate::bridge::Environment::Staging,
                         _ => crate::bridge::Environment::Production,
@@ -559,6 +563,7 @@ impl IDKitConfigWasm {
                 action_description,
                 bridge_url,
                 override_connect_base_url,
+                return_to,
                 environment,
             } => {
                 let app_id = crate::AppId::new(app_id)
@@ -582,7 +587,7 @@ impl IDKitConfigWasm {
                     allow_legacy_proofs: false,
 
                     override_connect_base_url: override_connect_base_url.clone(),
-                    return_to: None,
+                    return_to: return_to.clone(),
                     environment: environment.as_deref().map(|e| match e {
                         "staging" => crate::bridge::Environment::Staging,
                         _ => crate::bridge::Environment::Production,
@@ -596,6 +601,7 @@ impl IDKitConfigWasm {
                 action_description,
                 bridge_url,
                 override_connect_base_url,
+                return_to,
                 environment,
             } => {
                 let app_id = crate::AppId::new(app_id)
@@ -621,7 +627,7 @@ impl IDKitConfigWasm {
                     allow_legacy_proofs: false,
 
                     override_connect_base_url: override_connect_base_url.clone(),
-                    return_to: None,
+                    return_to: return_to.clone(),
                     environment: environment.as_deref().map(|e| match e {
                         "staging" => crate::bridge::Environment::Staging,
                         _ => crate::bridge::Environment::Production,
@@ -669,6 +675,7 @@ impl IDKitBuilderWasm {
         bridge_url: Option<String>,
         allow_legacy_proofs: bool,
         override_connect_base_url: Option<String>,
+        return_to: Option<String>,
         environment: Option<String>,
     ) -> Self {
         Self {
@@ -680,6 +687,7 @@ impl IDKitBuilderWasm {
                 bridge_url,
                 allow_legacy_proofs,
                 override_connect_base_url,
+                return_to,
                 environment,
             },
         }
@@ -694,6 +702,7 @@ impl IDKitBuilderWasm {
         action_description: Option<String>,
         bridge_url: Option<String>,
         override_connect_base_url: Option<String>,
+        return_to: Option<String>,
         environment: Option<String>,
     ) -> Self {
         Self {
@@ -703,6 +712,7 @@ impl IDKitBuilderWasm {
                 action_description,
                 bridge_url,
                 override_connect_base_url,
+                return_to,
                 environment,
             },
         }
@@ -718,6 +728,7 @@ impl IDKitBuilderWasm {
         action_description: Option<String>,
         bridge_url: Option<String>,
         override_connect_base_url: Option<String>,
+        return_to: Option<String>,
         environment: Option<String>,
     ) -> Self {
         Self {
@@ -728,6 +739,7 @@ impl IDKitBuilderWasm {
                 action_description,
                 bridge_url,
                 override_connect_base_url,
+                return_to,
                 environment,
             },
         }
@@ -939,6 +951,7 @@ pub fn request(
     bridge_url: Option<String>,
     allow_legacy_proofs: bool,
     override_connect_base_url: Option<String>,
+    return_to: Option<String>,
     environment: Option<String>,
 ) -> IDKitBuilderWasm {
     IDKitBuilderWasm::new(
@@ -949,11 +962,15 @@ pub fn request(
         bridge_url,
         allow_legacy_proofs,
         override_connect_base_url,
+        return_to,
         environment,
     )
 }
 
 /// Entry point for creating a new session (no existing `session_id`) (WASM)
+///
+/// The resulting `session_id` is returned in canonical protocol string form:
+/// `session_<hex>`.
 #[must_use]
 #[wasm_bindgen(js_name = createSession)]
 pub fn create_session(
@@ -962,6 +979,7 @@ pub fn create_session(
     action_description: Option<String>,
     bridge_url: Option<String>,
     override_connect_base_url: Option<String>,
+    return_to: Option<String>,
     environment: Option<String>,
 ) -> IDKitBuilderWasm {
     IDKitBuilderWasm::for_create_session(
@@ -970,13 +988,18 @@ pub fn create_session(
         action_description,
         bridge_url,
         override_connect_base_url,
+        return_to,
         environment,
     )
 }
 
 /// Entry point for proving an existing session (WASM)
+///
+/// `session_id` must be the opaque `session_<hex>` value returned by a prior
+/// call to `create_session`.
 #[must_use]
 #[wasm_bindgen(js_name = proveSession)]
+#[allow(clippy::too_many_arguments)]
 pub fn prove_session(
     session_id: String,
     app_id: String,
@@ -984,6 +1007,7 @@ pub fn prove_session(
     action_description: Option<String>,
     bridge_url: Option<String>,
     override_connect_base_url: Option<String>,
+    return_to: Option<String>,
     environment: Option<String>,
 ) -> IDKitBuilderWasm {
     IDKitBuilderWasm::for_prove_session(
@@ -993,6 +1017,7 @@ pub fn prove_session(
         action_description,
         bridge_url,
         override_connect_base_url,
+        return_to,
         environment,
     )
 }
@@ -1212,8 +1237,8 @@ export interface IDKitResultSession {
     nonce: string;
     /** Action description (only if provided in input) */
     action_description?: string;
-    /** Session ID returned by the World App */
-    session_id: string;
+    /** Opaque session identifier returned by the World App in `session_<hex>` format */
+    session_id: `session_${string}`;
     /** Array of session credential responses */
     responses: ResponseItemSession[];
     /** The environment used for this request ("production" or "staging") */
@@ -1238,6 +1263,8 @@ export interface IDKitSessionConfig {
     action_description?: string;
     /** Optional bridge URL (defaults to production) */
     bridge_url?: string;
+    /** Optional deep-link callback URL appended as `return_to` on the connector URL */
+    return_to?: string;
 }
 
 /** RpContext for proof requests */
@@ -1360,7 +1387,8 @@ const TS_SESSION: &str = r#"
 /**
  * Creates a new session builder for creating a new session (no existing session_id).
  * Use this when creating a new session for a user who doesn't have one yet.
- * The response will include a session_id that should be saved for future session proofs.
+ * The response will include a session_id in `session_<hex>` format that should be
+ * saved for future session proofs.
  * Sessions are always World ID v4 - there is no legacy (v3) session support.
  */
 export function createSession(
@@ -1369,21 +1397,104 @@ export function createSession(
     action_description?: string,
     bridge_url?: string,
     override_connect_base_url?: string,
+    return_to?: string,
     environment?: string
 ): IDKitBuilder;
 
 /**
  * Creates a session builder for proving an existing session.
  * Use this when a returning user needs to prove they own an existing session.
+ * `session_id` must be the opaque `session_<hex>` value previously returned by
+ * `createSession()`.
  * Sessions are always World ID v4 - there is no legacy (v3) session support.
  */
 export function proveSession(
-    session_id: string,
+    session_id: `session_${string}`,
     app_id: string,
     rp_context: RpContextWasm,
     action_description?: string,
     bridge_url?: string,
     override_connect_base_url?: string,
+    return_to?: string,
     environment?: string
 ): IDKitBuilder;
 "#;
+
+#[cfg(test)]
+mod tests {
+    use super::IDKitConfigWasm;
+    use crate::{ConstraintNode, RpContext};
+
+    fn sample_rp_context() -> RpContext {
+        RpContext::new("rp_123456789abcdef0", "0x01", 1, 2, "0x1234").expect("valid rp_context")
+    }
+
+    #[test]
+    fn request_params_preserve_return_to() {
+        let config = IDKitConfigWasm::Request {
+            app_id: "app_staging_test".to_string(),
+            action: "test-action".to_string(),
+            rp_context: sample_rp_context(),
+            action_description: None,
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            override_connect_base_url: None,
+            return_to: Some("idkit://callback?step=request".to_string()),
+            environment: None,
+        };
+
+        let params = config
+            .to_params(ConstraintNode::Any { any: Vec::new() })
+            .expect("request params");
+
+        assert_eq!(
+            params.return_to.as_deref(),
+            Some("idkit://callback?step=request")
+        );
+    }
+
+    #[test]
+    fn create_session_params_preserve_return_to() {
+        let config = IDKitConfigWasm::CreateSession {
+            app_id: "app_staging_test".to_string(),
+            rp_context: sample_rp_context(),
+            action_description: None,
+            bridge_url: None,
+            override_connect_base_url: None,
+            return_to: Some("idkit://callback?step=create".to_string()),
+            environment: None,
+        };
+
+        let params = config
+            .to_params(ConstraintNode::Any { any: Vec::new() })
+            .expect("create session params");
+
+        assert_eq!(
+            params.return_to.as_deref(),
+            Some("idkit://callback?step=create")
+        );
+    }
+
+    #[test]
+    fn prove_session_params_preserve_return_to() {
+        let config = IDKitConfigWasm::ProveSession {
+            session_id: "session_123".to_string(),
+            app_id: "app_staging_test".to_string(),
+            rp_context: sample_rp_context(),
+            action_description: None,
+            bridge_url: None,
+            override_connect_base_url: None,
+            return_to: Some("idkit://callback?step=prove".to_string()),
+            environment: None,
+        };
+
+        let params = config
+            .to_params(ConstraintNode::Any { any: Vec::new() })
+            .expect("prove session params");
+
+        assert_eq!(
+            params.return_to.as_deref(),
+            Some("idkit://callback?step=prove")
+        );
+    }
+}

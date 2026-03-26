@@ -534,7 +534,8 @@ pub struct IDKitResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub action_description: Option<String>,
 
-    /// Session ID (only present for session proofs)
+    /// Opaque session identifier in protocol string form (`session_<hex>`)
+    /// (only present for session proofs)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
 
@@ -567,7 +568,8 @@ impl IDKitResult {
         }
     }
 
-    /// Creates a new `IDKitResult` for a session proof with session ID and responses
+    /// Creates a new `IDKitResult` for a session proof with a protocol session ID
+    /// (`session_<hex>`) and responses
     #[must_use]
     pub fn new_session(
         nonce: impl Into<String>,

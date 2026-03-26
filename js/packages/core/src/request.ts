@@ -28,7 +28,7 @@ import {
 export interface WaitOptions {
   /** Milliseconds between polls (default: 1000) */
   pollInterval?: number;
-  /** Total timeout in milliseconds (default: 300000 = 5 minutes) */
+  /** Total timeout in milliseconds (default: 900000 = 15 minutes) */
   timeout?: number;
   /** AbortSignal for cancellation */
   signal?: AbortSignal;
@@ -49,6 +49,8 @@ export interface Status {
 export type IDKitCompletionResult =
   | { success: true; result: IDKitResult }
   | { success: false; error: IDKitErrorCodes };
+
+const SESSION_ID_PATTERN = /^session_[0-9a-fA-F]{128}$/;
 
 // Re-export RpContext for convenience
 export type { RpContext };
@@ -100,7 +102,7 @@ class IDKitRequestImpl implements IDKitRequest {
     options?: WaitOptions,
   ): Promise<IDKitCompletionResult> {
     const pollInterval = options?.pollInterval ?? 1000;
-    const timeout = options?.timeout ?? 300000; // 5 minutes default
+    const timeout = options?.timeout ?? 900_000; // 15 minutes default
     const startTime = Date.now();
 
     while (true) {
@@ -371,6 +373,7 @@ function createWasmBuilderFromConfig(
       config.bridge_url ?? null,
       config.allow_legacy_proofs ?? false,
       config.override_connect_base_url ?? null,
+      config.return_to ?? null,
       config.environment ?? null,
     );
   }
@@ -383,6 +386,7 @@ function createWasmBuilderFromConfig(
       config.action_description ?? null,
       config.bridge_url ?? null,
       config.override_connect_base_url ?? null,
+      config.return_to ?? null,
       config.environment ?? null,
     );
   }
@@ -394,6 +398,7 @@ function createWasmBuilderFromConfig(
     config.action_description ?? null,
     config.bridge_url ?? null,
     config.override_connect_base_url ?? null,
+    config.return_to ?? null,
     config.environment ?? null,
   );
 }
@@ -611,6 +616,7 @@ function createRequest(config: IDKitRequestConfig): IDKitBuilder {
     rp_context: config.rp_context,
     action_description: config.action_description,
     bridge_url: config.bridge_url,
+    return_to: config.return_to,
     allow_legacy_proofs: config.allow_legacy_proofs,
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
@@ -660,6 +666,7 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
     rp_context: config.rp_context,
     action_description: config.action_description,
     bridge_url: config.bridge_url,
+    return_to: config.return_to,
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
   });
@@ -669,9 +676,10 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
  * Creates a builder for proving an existing session (no action, has session_id)
  *
  * Use this when a returning user needs to prove they own an existing session.
- * The `sessionId` should be a value previously returned from `createSession()`.
+ * The `sessionId` should be the opaque `session_<hex>` value previously returned
+ * from `createSession()`.
  *
- * @param sessionId - The session ID from a previous session creation
+ * @param sessionId - The protocol session ID from a previous session creation
  * @param config - Session configuration (no action field)
  * @returns IDKitBuilder - A builder instance
  *
@@ -691,12 +699,17 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
  * ```
  */
 function proveSession(
-  sessionId: string,
+  sessionId: `session_${string}`,
   config: IDKitSessionConfig,
 ): IDKitBuilder {
   // Validate required fields
   if (!sessionId) {
     throw new Error("session_id is required");
+  }
+  if (!SESSION_ID_PATTERN.test(sessionId)) {
+    throw new Error(
+      "session_id must be in the format session_<128 hex characters>",
+    );
   }
   if (!config.app_id) {
     throw new Error("app_id is required");
@@ -714,6 +727,7 @@ function proveSession(
     rp_context: config.rp_context,
     action_description: config.action_description,
     bridge_url: config.bridge_url,
+    return_to: config.return_to,
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
   });

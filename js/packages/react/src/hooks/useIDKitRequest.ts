@@ -15,6 +15,7 @@ export function useIDKitRequest(
       rp_context: config.rp_context,
       action_description: config.action_description,
       bridge_url: config.bridge_url,
+      return_to: config.return_to,
       allow_legacy_proofs: config.allow_legacy_proofs,
       override_connect_base_url: config.override_connect_base_url,
       environment: config.environment,

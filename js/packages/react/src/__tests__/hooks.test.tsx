@@ -34,6 +34,8 @@ const baseRpContext = {
   expires_at: 2,
   signature: "0x1234",
 };
+const SESSION_ID_1 = `session_${"11".repeat(64)}` as const;
+const SESSION_ID_2 = `session_${"22".repeat(64)}` as const;
 
 function makeRequest(pollOnce: () => Promise<unknown>) {
   return {
@@ -119,6 +121,17 @@ describe("request/session hooks", () => {
     });
 
     expect(requestMock).toHaveBeenCalledTimes(1);
+    expect(requestMock).toHaveBeenCalledWith({
+      app_id: "app_test",
+      action: "test-action",
+      rp_context: baseRpContext,
+      action_description: undefined,
+      bridge_url: undefined,
+      return_to: undefined,
+      allow_legacy_proofs: false,
+      override_connect_base_url: undefined,
+      environment: undefined,
+    });
     expect(result.current.connectorURI).toBe("wc://request");
     expect(result.current.result).toEqual({ proof: "ok" });
   });
@@ -129,7 +142,7 @@ describe("request/session hooks", () => {
         connectorURI: "wc://session-create",
         pollOnce: vi.fn(async () => ({
           type: "confirmed",
-          result: { session_id: "session_1", responses: [] },
+          result: { session_id: SESSION_ID_1, responses: [] },
         })),
       })),
     });
@@ -151,13 +164,143 @@ describe("request/session hooks", () => {
     });
 
     expect(createSessionMock).toHaveBeenCalledTimes(1);
+    expect(createSessionMock).toHaveBeenCalledWith({
+      app_id: "app_test",
+      rp_context: baseRpContext,
+      action_description: undefined,
+      bridge_url: undefined,
+      override_connect_base_url: undefined,
+      return_to: undefined,
+      environment: undefined,
+    });
     expect(proveSessionMock).not.toHaveBeenCalled();
-    expect(result.current.result?.session_id).toBe("session_1");
+    expect(result.current.result?.session_id).toBe(SESSION_ID_1);
   });
 
   it("session hook uses proveSession when existing_session_id is provided", async () => {
     proveSessionMock.mockReturnValue({
       constraints: vi.fn(async () => ({
+        connectorURI: "wc://session-prove",
+        pollOnce: vi.fn(async () => ({
+          type: "confirmed",
+          result: { session_id: SESSION_ID_2, responses: [] },
+        })),
+      })),
+    });
+
+    const { result } = renderHook(() =>
+      useIDKitSession({
+        app_id: "app_test",
+        rp_context: baseRpContext,
+        existing_session_id: SESSION_ID_2,
+        preset: { type: "OrbLegacy" },
+      }),
+    );
+
+    act(() => {
+      result.current.open();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(proveSessionMock).toHaveBeenCalledWith(SESSION_ID_2, {
+      app_id: "app_test",
+      rp_context: baseRpContext,
+      action_description: undefined,
+      bridge_url: undefined,
+      override_connect_base_url: undefined,
+      return_to: undefined,
+      environment: undefined,
+    });
+    expect(result.current.result?.session_id).toBe(SESSION_ID_2);
+  });
+
+  it("request hook forwards return_to to core", async () => {
+    requestMock.mockReturnValue({
+      preset: vi.fn(async () =>
+        makeRequest(async () => ({
+          type: "confirmed",
+          result: { proof: "ok" },
+        })),
+      ),
+    });
+
+    const { result } = renderHook(() =>
+      useIDKitRequest({
+        app_id: "app_test",
+        action: "test-action",
+        rp_context: baseRpContext,
+        allow_legacy_proofs: false,
+        return_to: "idkit://callback?step=proof",
+        preset: { type: "OrbLegacy" },
+      }),
+    );
+
+    act(() => {
+      result.current.open();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(requestMock).toHaveBeenCalledWith({
+      app_id: "app_test",
+      action: "test-action",
+      rp_context: baseRpContext,
+      action_description: undefined,
+      bridge_url: undefined,
+      return_to: "idkit://callback?step=proof",
+      allow_legacy_proofs: false,
+      override_connect_base_url: undefined,
+      environment: undefined,
+    });
+  });
+
+  it("session hook forwards return_to to createSession", async () => {
+    createSessionMock.mockReturnValue({
+      preset: vi.fn(async () => ({
+        connectorURI: "wc://session-create",
+        pollOnce: vi.fn(async () => ({
+          type: "confirmed",
+          result: { session_id: "session_1", responses: [] },
+        })),
+      })),
+    });
+
+    const { result } = renderHook(() =>
+      useIDKitSession({
+        app_id: "app_test",
+        rp_context: baseRpContext,
+        return_to: "idkit://callback?step=create",
+        preset: { type: "OrbLegacy" },
+      }),
+    );
+
+    act(() => {
+      result.current.open();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(createSessionMock).toHaveBeenCalledWith({
+      app_id: "app_test",
+      rp_context: baseRpContext,
+      action_description: undefined,
+      bridge_url: undefined,
+      override_connect_base_url: undefined,
+      return_to: "idkit://callback?step=create",
+      environment: undefined,
+    });
+  });
+
+  it("session hook forwards return_to to proveSession", async () => {
+    proveSessionMock.mockReturnValue({
+      preset: vi.fn(async () => ({
         connectorURI: "wc://session-prove",
         pollOnce: vi.fn(async () => ({
           type: "confirmed",
@@ -171,6 +314,7 @@ describe("request/session hooks", () => {
         app_id: "app_test",
         rp_context: baseRpContext,
         existing_session_id: "session_2",
+        return_to: "idkit://callback?step=prove",
         constraints: { type: "All", children: [] },
       }),
     );
@@ -189,9 +333,9 @@ describe("request/session hooks", () => {
       action_description: undefined,
       bridge_url: undefined,
       override_connect_base_url: undefined,
+      return_to: "idkit://callback?step=prove",
       environment: undefined,
     });
-    expect(result.current.result?.session_id).toBe("session_2");
   });
 
   it("session hook fails on empty existing_session_id", async () => {
@@ -199,7 +343,28 @@ describe("request/session hooks", () => {
       useIDKitSession({
         app_id: "app_test",
         rp_context: baseRpContext,
-        existing_session_id: "   ",
+        existing_session_id: "   " as unknown as `session_${string}`,
+        constraints: { type: "All", children: [] },
+      }),
+    );
+
+    act(() => {
+      result.current.open();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(result.current.errorCode).toBe(IDKitErrorCodes.MalformedRequest);
+  });
+
+  it("session hook fails on malformed existing_session_id format", async () => {
+    const { result } = renderHook(() =>
+      useIDKitSession({
+        app_id: "app_test",
+        rp_context: baseRpContext,
+        existing_session_id: "session_2" as `session_${string}`,
         constraints: { type: "All", children: [] },
       }),
     );

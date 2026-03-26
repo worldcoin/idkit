@@ -9,16 +9,20 @@ import type {
 } from "../types";
 import { useIDKitFlow } from "./useIDKitFlow";
 
-function assertSessionId(sessionId: string | undefined): string | undefined {
+const SESSION_ID_PATTERN = /^session_[0-9a-fA-F]{128}$/;
+
+function assertSessionId(
+  sessionId: string | undefined,
+): `session_${string}` | undefined {
   if (sessionId === undefined) {
     return undefined;
   }
 
-  if (sessionId.trim().length === 0) {
+  if (sessionId.trim().length === 0 || !SESSION_ID_PATTERN.test(sessionId)) {
     throw IDKitErrorCodes.MalformedRequest;
   }
 
-  return sessionId;
+  return sessionId as `session_${string}`;
 }
 
 export function useIDKitSession(
@@ -33,6 +37,7 @@ export function useIDKitSession(
           action_description: config.action_description,
           bridge_url: config.bridge_url,
           override_connect_base_url: config.override_connect_base_url,
+          return_to: config.return_to,
           environment: config.environment,
         })
       : IDKit.createSession({
@@ -41,6 +46,7 @@ export function useIDKitSession(
           action_description: config.action_description,
           bridge_url: config.bridge_url,
           override_connect_base_url: config.override_connect_base_url,
+          return_to: config.return_to,
           environment: config.environment,
         });
     return builder.constraints(config.constraints);

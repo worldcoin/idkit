@@ -17,6 +17,18 @@ import {
   signRequest,
 } from "../index";
 
+const TEST_SESSION_ID = `session_${"11".repeat(64)}` as const;
+const TEST_SESSION_CONFIG = {
+  app_id: "app_staging_test" as const,
+  rp_context: {
+    rp_id: "rp_test",
+    nonce: "0x01",
+    created_at: 1,
+    expires_at: 2,
+    signature: "0x1234",
+  },
+};
+
 describe("Platform Detection", () => {
   it("should detect Node.js environment", () => {
     expect(isNode()).toBe(true);
@@ -89,6 +101,21 @@ describe("IDKitRequest API", () => {
         allow_legacy_proofs: false,
       }),
     ).toThrow("rp_context is required");
+  });
+
+  it("should reject malformed session_id values in proveSession", () => {
+    expect(() =>
+      IDKit.proveSession(
+        "session_1" as `session_${string}`,
+        TEST_SESSION_CONFIG,
+      ),
+    ).toThrow("session_id must be in the format session_<128 hex characters>");
+  });
+
+  it("should accept protocol-shaped session_id values in proveSession", () => {
+    expect(() =>
+      IDKit.proveSession(TEST_SESSION_ID, TEST_SESSION_CONFIG),
+    ).not.toThrow();
   });
 
   it("should allow any() with no items (validation happens in WASM)", () => {

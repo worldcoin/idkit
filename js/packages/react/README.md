@@ -31,6 +31,7 @@ function Example() {
     action: "my-action",
     rp_context,
     allow_legacy_proofs: false,
+    return_to: "myapp://idkit/callback",
     preset: orbLegacy({ signal: "user-123" }),
   });
   const isBusy =
@@ -72,6 +73,7 @@ function WidgetExample() {
       action="my-action"
       rp_context={rpContext}
       allow_legacy_proofs={false}
+      return_to="myapp://idkit/callback"
       preset={orbLegacy({ signal: "user-123" })}
       onSuccess={(result) => {
         // required: runs after verification succeeds

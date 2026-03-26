@@ -69,10 +69,11 @@ export interface BuilderConfig {
   type: "request" | "createSession" | "proveSession";
   app_id: string;
   action?: string;
-  session_id?: string;
+  session_id?: `session_${string}`;
   rp_context?: import("../types/config").RpContext;
   action_description?: string;
   bridge_url?: string;
+  return_to?: string;
   allow_legacy_proofs?: boolean;
   override_connect_base_url?: string;
   environment?: string;
@@ -274,7 +275,7 @@ class NativeIDKitRequest implements IDKitRequest {
   async pollUntilCompletion(
     options?: WaitOptions,
   ): Promise<IDKitCompletionResult> {
-    const timeout = options?.timeout ?? 300000;
+    const timeout = options?.timeout ?? 900_000;
 
     const timeoutId = setTimeout(() => {
       this.complete({ success: false, error: IDKitErrorCodes.Timeout });

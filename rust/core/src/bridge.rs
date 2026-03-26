@@ -47,6 +47,16 @@ pub enum Environment {
     Staging,
 }
 
+/// Controls the format of the connect URL returned by `IDKitRequestWrapper`
+#[cfg(feature = "ffi")]
+#[derive(Debug, Clone, uniffi::Enum)]
+pub enum ConnectUrlMode {
+    /// Return the standard World App connect URL
+    Default,
+    /// Wrap the connect URL inside an Apple App Clip invocation URL
+    AppClip,
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Request Kind (internal)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -358,9 +368,10 @@ pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_js
         RequestKind::CreateSession => (None, None, None),
         RequestKind::ProveSession { session_id } => {
             let parsed =
-                serde_json::from_str::<SessionId>(&format!("\"{session_id}\"")).map_err(|_| {
-                    Error::InvalidConfiguration("Invalid session_id format".to_string())
-                })?;
+                serde_json::from_value::<SessionId>(serde_json::Value::String(session_id.clone()))
+                    .map_err(|_| {
+                        Error::InvalidConfiguration("Invalid session_id format".to_string())
+                    })?;
             (None, Some(parsed), None)
         }
     };
@@ -648,10 +659,15 @@ impl BridgeConnection {
                             if let Some(session_id) = proof_response.session_id {
                                 IDKitResult::new_session(
                                     self.nonce.clone(),
-                                    format!(
-                                        "session_{}",
-                                        hex::encode(session_id.to_compressed_bytes())
-                                    ),
+                                    serde_json::to_value(session_id)?
+                                        .as_str()
+                                        .ok_or_else(|| {
+                                            Error::InvalidConfiguration(
+                                                "SessionId did not serialize as a string"
+                                                    .to_string(),
+                                            )
+                                        })?
+                                        .to_owned(),
                                     self.action_description.clone(),
                                     responses,
                                     self.environment.as_ref(),
@@ -745,6 +761,8 @@ pub struct IDKitRequestConfig {
     pub return_to: Option<String>,
     /// Optional environment override (defaults to Production)
     pub environment: Option<Environment>,
+    /// Optional connect URL mode (defaults to `Default`)
+    pub connect_url_mode: Option<ConnectUrlMode>,
 }
 
 /// Configuration for session requests (no action field, v4 only)
@@ -783,6 +801,16 @@ enum IDKitConfig {
 
 #[cfg(feature = "ffi")]
 impl IDKitConfig {
+    fn connect_url_mode(&self) -> ConnectUrlMode {
+        match self {
+            Self::Request(config) => config
+                .connect_url_mode
+                .clone()
+                .unwrap_or(ConnectUrlMode::Default),
+            _ => ConnectUrlMode::Default,
+        }
+    }
+
     /// Converts config + constraints to `BridgeConnectionParams`
     fn to_params(
         &self,
@@ -1021,7 +1049,11 @@ impl IDKitBuilder {
             .block_on(BridgeConnection::create(params))
             .map_err(crate::error::IdkitError::from)?;
 
-        Ok(Arc::new(IDKitRequestWrapper { runtime, inner }))
+        Ok(Arc::new(IDKitRequestWrapper {
+            runtime,
+            inner,
+            connect_url_mode: self.config.connect_url_mode(),
+        }))
     }
 
     /// Creates a `BridgeConnection` from a preset (works for all request types)
@@ -1048,7 +1080,11 @@ impl IDKitBuilder {
             .block_on(BridgeConnection::create(params))
             .map_err(crate::error::IdkitError::from)?;
 
-        Ok(Arc::new(IDKitRequestWrapper { runtime, inner }))
+        Ok(Arc::new(IDKitRequestWrapper {
+            runtime,
+            inner,
+            connect_url_mode: self.config.connect_url_mode(),
+        }))
     }
 }
 
@@ -1082,6 +1118,7 @@ pub fn prove_session(session_id: String, config: IDKitSessionConfig) -> Arc<IDKi
 pub struct IDKitRequestWrapper {
     runtime: tokio::runtime::Runtime,
     inner: BridgeConnection,
+    connect_url_mode: ConnectUrlMode,
 }
 
 #[cfg(feature = "ffi")]
@@ -1150,7 +1187,14 @@ impl IDKitRequestWrapper {
     /// Returns the connect URL for World App
     #[must_use]
     pub fn connect_url(&self) -> String {
-        self.inner.connect_url()
+        let url = self.inner.connect_url();
+        match self.connect_url_mode {
+            ConnectUrlMode::AppClip => {
+                let encoded = crate::crypto::base64_url_encode(url.as_bytes());
+                format!("https://appclip.apple.com/id?p=org.worldcoin.insight.Clip&experience={encoded}")
+            }
+            ConnectUrlMode::Default => url,
+        }
     }
 
     /// Returns the request ID for this request
@@ -1257,6 +1301,37 @@ mod tests {
         assert!(json.contains("proof_request"));
         assert!(json.contains("rp_1234567890abcdef"));
         assert!(json.contains("allow_legacy_proofs"));
+    }
+
+    #[test]
+    fn test_session_id_sdk_round_trip_uses_protocol_format() {
+        let session_id = SessionId::default();
+
+        let serialized = serde_json::to_value(session_id)
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert_eq!(
+            serialized,
+            format!("session_{}", hex::encode(session_id.to_compressed_bytes()))
+        );
+
+        let parsed =
+            serde_json::from_value::<SessionId>(serde_json::Value::String(serialized)).unwrap();
+        assert_eq!(parsed, session_id);
+    }
+
+    #[test]
+    fn test_invalid_session_id_format_is_rejected() {
+        assert!(
+            serde_json::from_value::<SessionId>(serde_json::Value::String("session_1".into()))
+                .is_err()
+        );
+        assert!(
+            serde_json::from_value::<SessionId>(serde_json::Value::String("0x1234".into()))
+                .is_err()
+        );
     }
 
     #[test]

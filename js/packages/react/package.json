@@ -1,6 +1,6 @@
 {
   "name": "@worldcoin/idkit",
-  "version": "4.0.10",
+  "version": "4.0.11",
   "description": "React SDK for World ID built on @worldcoin/idkit-core",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -21,6 +21,11 @@
       "types": "./dist/hashing.d.ts",
       "import": "./dist/hashing.js",
       "require": "./dist/hashing.cjs"
+    },
+    "./session": {
+      "types": "./dist/session.d.ts",
+      "import": "./dist/session.js",
+      "require": "./dist/session.cjs"
     }
   },
   "files": [

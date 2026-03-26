@@ -6,7 +6,7 @@ public typealias IDKitResult = IdKitResult
 
 /// Main entry point for IDKit Swift SDK.
 public enum IDKit {
-    public static let version = "4.0.5"
+    public static let version = "4.0.6"
 
     /// Creates a builder for uniqueness proof requests.
     public static func request(config: IDKitRequestConfig) -> IDKitBuilder {
@@ -75,7 +75,7 @@ public struct IDKitPollOptions: Equatable {
     public var pollIntervalMs: UInt64
     public var timeoutMs: UInt64
 
-    public init(pollIntervalMs: UInt64 = 1_000, timeoutMs: UInt64 = 300_000) {
+    public init(pollIntervalMs: UInt64 = 1_000, timeoutMs: UInt64 = 900_000) {
         self.pollIntervalMs = pollIntervalMs
         self.timeoutMs = timeoutMs
     }
