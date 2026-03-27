@@ -97,13 +97,19 @@ struct ContentView: View {
 
                 if let connectorURL = model.connectorURL {
                     Section("Connector URL") {
-                        Link(destination: connectorURL) {
-                            Label("Open Connector URL", systemImage: "link")
+                        HStack {
+                            Button("Open Connector URL", systemImage: "link") {
+                                UIApplication.shared.open(connectorURL)
+                            }
+                            Spacer()
+                            Button("", systemImage: "clipboard") {
+                                UIPasteboard.general.string = connectorURL.absoluteString
+                            }
                         }
                         Text(connectorURL.absoluteString)
                             .font(.footnote.monospaced())
                             .textSelection(.enabled)
-                    }
+                    }.buttonStyle(.borderless) // This is necessary to prevent the entire section from forwarding tap gestures to the first button in the Section.
                 }
 
                 Section("Logs") {
