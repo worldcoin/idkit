@@ -30,6 +30,20 @@ schemes:
     build:
       targets:
         IDKitSampleApp: all
+      preActions:
+        - script: |
+            REPO_ROOT="${SRCROOT}/../../.."
+            XCFRAMEWORK="${REPO_ROOT}/IDKitFFI.xcframework"
+            GENERATED="${REPO_ROOT}/swift/Sources/IDKit/Generated/idkit_core.swift"
+
+            if [ ! -d "${XCFRAMEWORK}" ] || [ ! -f "${GENERATED}" ]; then
+              echo "error: IDKit native artifacts not found." >&2
+              echo "error: Run the following from the repo root, then build again:" >&2
+              echo "error:   ./scripts/package-swift.sh" >&2
+              exit 1
+            fi
+          name: Check IDKit Dependencies
+          settingsTarget: IDKitSampleApp
     run:
       config: Debug
     test:
