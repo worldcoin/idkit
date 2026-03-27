@@ -1,5 +1,5 @@
 import type {
-  Preset,
+  ConstraintNode,
   IDKitResultSession,
   IDKitSessionConfig,
 } from "@worldcoin/idkit-core";
@@ -7,9 +7,7 @@ import type { IDKitHookResult, PollingConfig } from "./common";
 
 export type IDKitSessionHookConfig = IDKitSessionConfig &
   PollingConfig & {
-    // TODO: Reintroduce `constraints` once core JS re-exposes
-    // IDKitBuilder.constraints().
-    preset: Preset;
+    constraints: ConstraintNode;
     existing_session_id?: `session_${string}`;
   };
 

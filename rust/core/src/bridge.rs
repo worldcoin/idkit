@@ -99,8 +99,11 @@ struct BridgeRequestPayload {
     // -----------------------------------------------
     // -- New Proof Request fields for World ID 4.0 --
     // -----------------------------------------------
-    /// The protocol-level proof request
-    proof_request: ProofRequest,
+    /// The protocol-level proof request.
+    /// Only present for World ID 4.0 requests (constraint-based).
+    /// Not included for legacy preset requests (World ID 3.0 only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    proof_request: Option<ProofRequest>,
 
     /// Whether to accept legacy (v3) proofs as fallback.
     /// - `true`: Accept both v3 and v4 proofs. Use during migration.
@@ -144,7 +147,7 @@ struct BridgePollResponse {
 // ─────────────────────────────────────────────────────────────────────────────
 
 impl BridgeResponseV1 {
-    fn into_response_item(self, signal_hash: Option<String>) -> ResponseItem {
+    fn into_response_item(self, signal_hash: String) -> ResponseItem {
         ResponseItem::V3 {
             identifier: self.verification_level.to_string(),
             signal_hash,
@@ -242,7 +245,8 @@ pub enum Status {
 pub struct BridgeConnectionParams {
     pub app_id: AppId,
     pub kind: RequestKind,
-    pub constraints: ConstraintNode,
+    /// Present only on in World ID 4.0 requests
+    pub constraints: Option<ConstraintNode>,
     pub rp_context: RpContext,
     pub action_description: Option<String>,
     pub legacy_verification_level: VerificationLevel,
@@ -266,7 +270,7 @@ pub struct CachedSignalHashes {
     /// Legacy signal hash for v3 compatibility
     /// **Note** In legacy bridge requests requesting VerificationLevel.Device
     /// could return an ORB ZKP we still want to return that signal hash
-    pub(crate) legacy_signal_hash: Option<String>,
+    pub(crate) legacy_signal_hash: String,
 }
 
 impl CachedSignalHashes {
@@ -279,23 +283,18 @@ impl CachedSignalHashes {
     pub fn compute(params: &BridgeConnectionParams) -> Self {
         let mut signal_hashes = std::collections::HashMap::new();
 
-        // Compute signal hashes for V4 constraints
-        for item in params.constraints.collect_items() {
-            if let Some(ref signal) = item.signal {
-                let hash = crate::crypto::hash_signal(signal);
-                signal_hashes.insert(item.credential_type.to_string(), hash);
+        // Compute signal hashes for V4 constraints (when present)
+        if let Some(ref constraints) = params.constraints {
+            for item in constraints.collect_items() {
+                if let Some(ref signal) = item.signal {
+                    let hash = crate::crypto::hash_signal(signal);
+                    signal_hashes.insert(item.credential_type.to_string(), hash);
+                }
             }
         }
 
-        // Compute legacy signal hash if legacy verification level is set
         let legacy_signal_hash =
-            if params.legacy_verification_level == VerificationLevel::Deprecated {
-                None
-            } else {
-                Some(crate::crypto::hash_signal(&Signal::from_string(
-                    params.legacy_signal.clone(),
-                )))
-            };
+            crate::crypto::hash_signal(&Signal::from_string(params.legacy_signal.clone()));
 
         Self {
             signal_hashes,
@@ -311,7 +310,7 @@ impl CachedSignalHashes {
 
     /// Gets the legacy signal hash (used for V3 response matching)
     #[must_use]
-    pub fn legacy(&self) -> Option<String> {
+    pub fn legacy(&self) -> String {
         self.legacy_signal_hash.clone()
     }
 }
@@ -353,7 +352,9 @@ pub struct BridgeConnection {
 /// Returns an error if constraints are invalid, the signature/nonce format is
 /// wrong, or serialization fails.
 pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_json::Value> {
-    params.constraints.validate()?;
+    if let Some(ref constraints) = params.constraints {
+        constraints.validate()?;
+    }
 
     // Extract action and session_id from kind
     // TODO: Clean up session_id handling once the SDK surface can carry the
@@ -375,29 +376,35 @@ pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_js
         }
     };
 
-    // Build ProofRequest protocol type
-    let (request_items, constraint_expr) = params.constraints.to_protocol_top_level()?;
-    let signature = alloy_primitives::Signature::from_str(&params.rp_context.signature)
-        .map_err(|_| Error::InvalidConfiguration("Invalid signature".to_string()))?;
-    let nonce = FieldElement::from_str(&params.rp_context.nonce)
-        .map_err(|_| Error::InvalidConfiguration("Invalid nonce format".to_string()))?;
+    // Build ProofRequest only when v4 constraints are present
+    let proof_request = params
+        .constraints
+        .as_ref()
+        .map(|constraints| -> Result<ProofRequest> {
+            let (request_items, constraint_expr) = constraints.to_protocol_top_level()?;
+            let signature = alloy_primitives::Signature::from_str(&params.rp_context.signature)
+                .map_err(|_| Error::InvalidConfiguration("Invalid signature".to_string()))?;
+            let nonce = FieldElement::from_str(&params.rp_context.nonce)
+                .map_err(|_| Error::InvalidConfiguration("Invalid nonce format".to_string()))?;
 
-    let proof_request = ProofRequest {
-        id: uuid::Uuid::new_v4().to_string(),
-        version: world_id_primitives::RequestVersion::V1,
-        created_at: params.rp_context.created_at,
-        expires_at: params.rp_context.expires_at,
-        rp_id: params.rp_context.rp_id,
-        oprf_key_id: taceo_oprf::types::OprfKeyId::new(ruint::aliases::U160::from(
-            params.rp_context.rp_id.into_inner(),
-        )),
-        action: action_fe,
-        session_id: session_id_fe,
-        signature,
-        nonce,
-        requests: request_items,
-        constraints: constraint_expr,
-    };
+            Ok(ProofRequest {
+                id: uuid::Uuid::new_v4().to_string(),
+                version: world_id_primitives::RequestVersion::V1,
+                created_at: params.rp_context.created_at,
+                expires_at: params.rp_context.expires_at,
+                rp_id: params.rp_context.rp_id,
+                oprf_key_id: taceo_oprf::types::OprfKeyId::new(ruint::aliases::U160::from(
+                    params.rp_context.rp_id.into_inner(),
+                )),
+                action: action_fe,
+                session_id: session_id_fe,
+                signature,
+                nonce,
+                requests: request_items,
+                constraints: constraint_expr,
+            })
+        })
+        .transpose()?;
 
     // For backwards compatibility we hash the signal
     let legacy_signal_hash =
@@ -434,17 +441,8 @@ pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_js
 ///
 /// # Errors
 ///
-/// Returns an error if `legacy_verification_level` is `Deprecated` — this means
-/// the request uses v4-only constraints and cannot be represented as a v1 payload.
+/// Returns an error if the request kind is not a uniqueness proof.
 pub fn build_native_v1_payload(params: &BridgeConnectionParams) -> Result<serde_json::Value> {
-    if params.legacy_verification_level == VerificationLevel::Deprecated {
-        return Err(Error::InvalidConfiguration(
-            "Cannot build v1 native payload: legacy_verification_level is Deprecated. \
-             Use a legacy preset (e.g. orbLegacy()) or update the World App."
-                .to_string(),
-        ));
-    }
-
     let action = match &params.kind {
         RequestKind::Uniqueness { action } => action.clone(),
         _ => {
@@ -694,7 +692,7 @@ impl BridgeConnection {
                                 let signal_hash = self
                                     .cached_signal_hashes
                                     .get(item.verification_level.as_ref())
-                                    .or_else(|| self.cached_signal_hashes.legacy());
+                                    .unwrap_or_else(|| self.cached_signal_hashes.legacy());
                                 item.into_response_item(signal_hash)
                             })
                             .collect();
@@ -832,10 +830,13 @@ impl IDKitConfig {
                     kind: RequestKind::Uniqueness {
                         action: config.action.clone(),
                     },
-                    constraints,
+                    constraints: Some(constraints),
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
-                    legacy_verification_level: VerificationLevel::Deprecated,
+                    // Default to Device so existing World App versions can still parse
+                    // the bridge payload. V4 requests use `proof_request` for real
+                    // credential selection; this field is only for v3 backwards compat.
+                    legacy_verification_level: VerificationLevel::Device,
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: config.allow_legacy_proofs,
@@ -855,10 +856,11 @@ impl IDKitConfig {
                 Ok(BridgeConnectionParams {
                     app_id,
                     kind: RequestKind::CreateSession,
-                    constraints,
+                    constraints: Some(constraints),
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
-                    legacy_verification_level: VerificationLevel::Deprecated,
+                    // Default to Device for v3 backwards compat — v4 uses proof_request instead.
+                    legacy_verification_level: VerificationLevel::Device,
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
@@ -880,10 +882,11 @@ impl IDKitConfig {
                     kind: RequestKind::ProveSession {
                         session_id: session_id.clone(),
                     },
-                    constraints,
+                    constraints: Some(constraints),
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
-                    legacy_verification_level: VerificationLevel::Deprecated,
+                    // Default to Device for v3 backwards compat — v4 uses proof_request instead.
+                    legacy_verification_level: VerificationLevel::Device,
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
@@ -895,13 +898,20 @@ impl IDKitConfig {
         }
     }
 
-    /// Converts config + preset to `BridgeConnectionParams` (works for all types)
+    /// Converts config + preset to `BridgeConnectionParams` (works for requests only)
     #[allow(clippy::needless_pass_by_value)]
     fn to_params_from_preset(
         &self,
         preset: Preset,
     ) -> std::result::Result<BridgeConnectionParams, crate::error::IdkitError> {
-        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+        if matches!(self, Self::CreateSession(_) | Self::ProveSession { .. }) {
+            return Err(crate::error::IdkitError::BridgeError {
+                details: "Presets are not supported for session flows. Use .constraints() instead."
+                    .to_string(),
+            });
+        }
+
+        let (_constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
 
         match self {
             Self::Request(config) => {
@@ -917,7 +927,7 @@ impl IDKitConfig {
                     kind: RequestKind::Uniqueness {
                         action: config.action.clone(),
                     },
-                    constraints,
+                    constraints: None,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
                     legacy_verification_level,
@@ -940,7 +950,7 @@ impl IDKitConfig {
                 Ok(BridgeConnectionParams {
                     app_id,
                     kind: RequestKind::CreateSession,
-                    constraints,
+                    constraints: None,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
                     legacy_verification_level,
@@ -965,7 +975,7 @@ impl IDKitConfig {
                     kind: RequestKind::ProveSession {
                         session_id: session_id.clone(),
                     },
-                    constraints,
+                    constraints: None,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
                     legacy_verification_level,
@@ -1278,8 +1288,8 @@ mod tests {
             action: Some("test-action".to_string()),
             action_description: Some("Test description".to_string()),
             signal: String::new(),
-            verification_level: VerificationLevel::Deprecated,
-            proof_request,
+            verification_level: VerificationLevel::Device,
+            proof_request: Some(proof_request),
             allow_legacy_proofs: false,
             environment: Environment::Production,
         };
@@ -1462,7 +1472,7 @@ mod tests {
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
-            constraints,
+            constraints: Some(constraints),
             rp_context,
             action_description: Some("Selfie check".to_string()),
             legacy_verification_level,
@@ -1500,7 +1510,7 @@ mod tests {
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
-            constraints,
+            constraints: Some(constraints),
             rp_context,
             action_description: Some("Device check".to_string()),
             legacy_verification_level,
@@ -1562,7 +1572,7 @@ mod tests {
             kind: RequestKind::Uniqueness {
                 action: "my-action".to_string(),
             },
-            constraints,
+            constraints: Some(constraints),
             rp_context,
             action_description: None,
             legacy_verification_level: VerificationLevel::Orb,
@@ -1593,7 +1603,7 @@ mod tests {
             client: reqwest::Client::new(),
             cached_signal_hashes: CachedSignalHashes {
                 signal_hashes: std::collections::HashMap::new(),
-                legacy_signal_hash: None,
+                legacy_signal_hash: String::new(),
             },
             action: Some("test-action".to_string()),
             action_description: None,

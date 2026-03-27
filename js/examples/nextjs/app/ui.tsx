@@ -2,14 +2,17 @@
 
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 import {
+  CredentialRequest,
   documentLegacy,
   deviceLegacy,
   selfieCheckLegacy,
   IDKitRequestWidget,
   orbLegacy,
   secureDocumentLegacy,
+  type ConstraintNode,
   type IDKitResult,
   type RpContext,
+  Preset,
 } from "@worldcoin/idkit";
 
 if (typeof window !== "undefined") {
@@ -21,10 +24,29 @@ const RP_ID = process.env.NEXT_PUBLIC_RP_ID;
 const STAGING_CONNECT_BASE_URL = "https://staging.world.org/verify";
 const CONNECT_URL_OVERRIDE_TOOLTIP =
   "Enable this to change the deeplink base URL to the staging verify endpoint. Useful when testing with a Staging iOS World App build that supports this override.";
+const GENESIS_ISSUED_AT_MIN_TOOLTIP =
+  "Minimum genesis_issued_at timestamp that the used Credential must meet. " +
+  "If present, the proof will include a constraint that the credential's genesis issued at timestamp " +
+  "is greater than or equal to this value. Useful for migration from previous protocol versions.";
 const RETURN_TO_TOOLTIP =
   "Enable this to append a return_to callback to the connector URL. The default value just reopens Chrome, and you can override it before starting a verification.";
 
 type PresetKind = "orb" | "secure_document" | "document" | "device" | "selfie";
+
+type V4CredentialType = "proof_of_human" | "passport";
+
+const V4_CREDENTIAL_TO_NAME: Record<V4CredentialType, string> = {
+  proof_of_human: "Proof of Human",
+  passport: "Passport",
+};
+
+const PRESET_KIND_TO_NAME: Record<PresetKind, string> = {
+  orb: "Proof Of Human (Orb)",
+  secure_document: "Secure Document",
+  document: "Document",
+  device: "Device",
+  selfie: "Selfie Check",
+};
 
 function createChromeAppDeeplink(url: string): string {
   const parsed = new URL(url);
@@ -111,7 +133,8 @@ export function DemoClient(): ReactElement {
   );
   const [widgetError, setWidgetError] = useState<string | null>(null);
   const [widgetVerifyResult, setWidgetVerifyResult] = useState<unknown>(null);
-  const [widgetPresetKind, setWidgetPresetKind] = useState<PresetKind>("orb");
+  const [widgetIdkitResult, setWidgetIdkitResult] =
+    useState<IDKitResult | null>(null);
   const [widgetSignal, setWidgetSignal] = useState("demo-signal-initial");
   const [action, setAction] = useState("test-action");
   const [environment, setEnvironment] = useState<"production" | "staging">(
@@ -120,14 +143,46 @@ export function DemoClient(): ReactElement {
   const [useStagingConnectBaseUrl, setUseStagingConnectBaseUrl] =
     useState(false);
   const [isConnectUrlTooltipOpen, setIsConnectUrlTooltipOpen] = useState(false);
+  const [worldIdVersion, setWorldIdVersion] = useState<"3.0" | "4.0">("3.0");
+  const [v4CredentialType, setV4CredentialType] =
+    useState<V4CredentialType>("proof_of_human");
+  const [presetKind, setPresetKind] = useState<PresetKind>("orb");
+  const [genesisEnabled, setGenesisEnabled] = useState(false);
+  const [genesisDate, setGenesisDate] = useState("");
+  const [isGenesisTooltipOpen, setIsGenesisTooltipOpen] = useState(false);
   const [useReturnTo, setUseReturnTo] = useState(false);
   const [returnTo, setReturnTo] = useState("");
   const [isReturnToTooltipOpen, setIsReturnToTooltipOpen] = useState(false);
 
-  const widgetPreset = useMemo(
-    () => createPreset(widgetPresetKind, widgetSignal),
-    [widgetPresetKind, widgetSignal],
+  const genesisIssuedAtMin =
+    genesisEnabled && genesisDate
+      ? Math.floor(new Date(genesisDate).getTime() / 1000)
+      : undefined;
+
+  const widgetConstraintsOrPreset:
+    | {
+        constraints: ConstraintNode;
+      }
+    | {
+        preset: Preset;
+      } = useMemo(
+    () =>
+      worldIdVersion === "4.0"
+        ? {
+            constraints: CredentialRequest(v4CredentialType, {
+              genesis_issued_at_min: genesisIssuedAtMin,
+            }),
+          }
+        : { preset: createPreset(presetKind, widgetSignal) },
+    [
+      worldIdVersion,
+      presetKind,
+      v4CredentialType,
+      genesisIssuedAtMin,
+      widgetSignal,
+    ],
   );
+
   const overrideConnectBaseUrl =
     environment === "staging" && useStagingConnectBaseUrl
       ? STAGING_CONNECT_BASE_URL
@@ -151,6 +206,13 @@ export function DemoClient(): ReactElement {
   }, [environment]);
 
   useEffect(() => {
+    if (worldIdVersion !== "4.0") {
+      setGenesisEnabled(false);
+      setGenesisDate("");
+    }
+  }, [worldIdVersion]);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
@@ -162,13 +224,13 @@ export function DemoClient(): ReactElement {
     );
   }, []);
 
-  const startWidgetFlow = async (presetKind: PresetKind) => {
+  const startWidgetFlow = async () => {
     setWidgetError(null);
     setWidgetVerifyResult(null);
+    setWidgetIdkitResult(null);
 
     try {
       const rpContext = await fetchRpContext(action || "test-action");
-      setWidgetPresetKind(presetKind);
       setWidgetSignal(`demo-signal-${Date.now()}`);
       setWidgetRpContext(rpContext);
       setWidgetOpen(true);
@@ -281,6 +343,103 @@ export function DemoClient(): ReactElement {
             <span className="config-note">{STAGING_CONNECT_BASE_URL}</span>
           </div>
         )}
+
+        <div className="config-row">
+          <label htmlFor="cfgWorldID">World ID</label>
+          <select
+            id="cfgWorldID"
+            value={worldIdVersion}
+            onChange={(e) => setWorldIdVersion(e.target.value as "3.0" | "4.0")}
+          >
+            <option value="3.0">3.0</option>
+            <option value="4.0">4.0</option>
+          </select>
+        </div>
+
+        {worldIdVersion === "3.0" && (
+          <div className="config-row">
+            <label htmlFor="cfgCredentialv3">Credential</label>
+            <select
+              id="cfgCredentialv3"
+              value={presetKind}
+              onChange={(e) => setPresetKind(e.target.value as PresetKind)}
+            >
+              <option value="orb">Proof Of Human (Orb)</option>
+              <option value="selfie">Selfie Check</option>
+              <option value="secure_document">Secure Document</option>
+              <option value="document">Document</option>
+              <option value="device">Device</option>
+            </select>
+          </div>
+        )}
+
+        {worldIdVersion === "4.0" && (
+          <>
+            <div className="config-row">
+              <label htmlFor="cfgCredentialv4">Credential</label>
+              <select
+                id="cfgCredentialv4"
+                value={v4CredentialType}
+                onChange={(e) =>
+                  setV4CredentialType(e.target.value as V4CredentialType)
+                }
+              >
+                <option value="proof_of_human">Proof Of Human (Orb)</option>
+                <option value="passport">Passport</option>
+              </select>
+            </div>
+            <div className="config-row">
+              <label htmlFor="cfgGenesisEnabled">
+                Min. Genesis Issuing Date
+              </label>
+              <div
+                className="tooltip"
+                onMouseEnter={() => setIsGenesisTooltipOpen(true)}
+                onMouseLeave={() => setIsGenesisTooltipOpen(false)}
+              >
+                <button
+                  type="button"
+                  className="tooltip-trigger"
+                  aria-label="Explain Min. Genesis Issuing Date"
+                  aria-describedby={
+                    isGenesisTooltipOpen
+                      ? "genesis-issued-at-tooltip"
+                      : undefined
+                  }
+                  aria-expanded={isGenesisTooltipOpen}
+                  onFocus={() => setIsGenesisTooltipOpen(true)}
+                  onBlur={() => setIsGenesisTooltipOpen(false)}
+                  onClick={() => setIsGenesisTooltipOpen(true)}
+                >
+                  ?
+                </button>
+                {isGenesisTooltipOpen && (
+                  <span
+                    id="genesis-issued-at-tooltip"
+                    role="tooltip"
+                    className="tooltip-content"
+                  >
+                    {GENESIS_ISSUED_AT_MIN_TOOLTIP}
+                  </span>
+                )}
+              </div>
+              <input
+                type="checkbox"
+                id="cfgGenesisEnabled"
+                checked={genesisEnabled}
+                onChange={(e) => setGenesisEnabled(e.target.checked)}
+              />
+              {genesisEnabled && (
+                <input
+                  type="datetime-local"
+                  id="cfgGenesisDate"
+                  value={genesisDate}
+                  onChange={(e) => setGenesisDate(e.target.value)}
+                />
+              )}
+            </div>
+          </>
+        )}
         <div className="config-row">
           <label htmlFor="cfgReturnToEnabled">Return to</label>
           <div
@@ -330,19 +489,21 @@ export function DemoClient(): ReactElement {
       </section>
 
       <div className="stack">
-        <button onClick={() => startWidgetFlow("orb")}>Verify with Orb</button>
-        <button onClick={() => startWidgetFlow("secure_document")}>
-          Verify with Secure Document
-        </button>
-        <button onClick={() => startWidgetFlow("document")}>
-          Verify with Document
-        </button>
-        <button onClick={() => startWidgetFlow("device")}>
-          Verify with Device
-        </button>
-        <button onClick={() => startWidgetFlow("selfie")}>
-          Verify with Selfie Check
-        </button>
+        {worldIdVersion === "3.0" && (
+          <>
+            <button onClick={startWidgetFlow}>
+              Verify with {PRESET_KIND_TO_NAME[presetKind]}
+            </button>
+          </>
+        )}
+
+        {worldIdVersion === "4.0" && (
+          <>
+            <button onClick={startWidgetFlow}>
+              Verify with {V4_CREDENTIAL_TO_NAME[v4CredentialType]}
+            </button>
+          </>
+        )}
       </div>
       {widgetError && <p className="status">Error: {widgetError}</p>}
 
@@ -354,8 +515,10 @@ export function DemoClient(): ReactElement {
           action={action || "test-action"}
           rp_context={widgetRpContext}
           allow_legacy_proofs={true}
-          preset={widgetPreset}
-          onSuccess={() => {}}
+          {...widgetConstraintsOrPreset}
+          onSuccess={(result) => {
+            setWidgetIdkitResult(result);
+          }}
           handleVerify={async (result) => {
             const verified = await verifyProof(result);
             setWidgetVerifyResult(verified);
@@ -367,6 +530,15 @@ export function DemoClient(): ReactElement {
           override_connect_base_url={overrideConnectBaseUrl}
           return_to={effectiveReturnTo}
         />
+      )}
+
+      {widgetIdkitResult && (
+        <>
+          <h3>IDKit response</h3>
+          <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+            {JSON.stringify(widgetIdkitResult, null, 2)}
+          </pre>
+        </>
       )}
 
       {widgetVerifyResult && (

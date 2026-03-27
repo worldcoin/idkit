@@ -49,6 +49,6 @@ export function useIDKitSession(
           return_to: config.return_to,
           environment: config.environment,
         });
-    return builder.preset(config.preset);
+    return builder.constraints(config.constraints);
   }, config);
 }

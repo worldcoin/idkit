@@ -454,7 +454,7 @@ class IDKitBuilder {
         wasmResult.payload,
         this.config,
         wasmResult.signal_hashes ?? {},
-        wasmResult.legacy_signal_hash ?? undefined,
+        wasmResult.legacy_signal_hash,
         2,
       );
     }
@@ -483,6 +483,15 @@ class IDKitBuilder {
    * ```
    */
   async preset(preset: Preset): Promise<IDKitRequest> {
+    if (
+      this.config.type === "createSession" ||
+      this.config.type === "proveSession"
+    ) {
+      throw new Error(
+        "Presets are not supported for session flows. Use .constraints() instead.",
+      );
+    }
+
     await initIDKit();
 
     if (isInWorldApp()) {
@@ -496,7 +505,7 @@ class IDKitBuilder {
           wasmResult.payload,
           this.config,
           wasmResult.signal_hashes ?? {},
-          wasmResult.legacy_signal_hash ?? undefined,
+          wasmResult.legacy_signal_hash,
           2,
         );
       }
@@ -510,7 +519,7 @@ class IDKitBuilder {
           wasmResult.payload,
           this.config,
           wasmResult.signal_hashes ?? {},
-          wasmResult.legacy_signal_hash ?? undefined,
+          wasmResult.legacy_signal_hash,
           1,
         );
       } catch (err) {
@@ -652,7 +661,7 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
   }
 
   return new IDKitBuilder({
-    type: "session",
+    type: "createSession",
     app_id: config.app_id,
     rp_context: config.rp_context,
     action_description: config.action_description,
@@ -752,14 +761,14 @@ export const IDKit = {
   createSession,
   /** Prove an existing session (no action, has session_id) */
   proveSession,
-  // /** Create a CredentialRequest for a credential type */
-  // CredentialRequest,
-  // /** Create an OR constraint - at least one child must be satisfied */
-  // any,
-  // /** Create an AND constraint - all children must be satisfied */
-  // all,
-  // /** Create an enumerate constraint - all satisfiable children should be selected */
-  // enumerate,
+  /** Create a CredentialRequest for a credential type */
+  CredentialRequest,
+  /** Create an OR constraint - at least one child must be satisfied */
+  any,
+  /** Create an AND constraint - all children must be satisfied */
+  all,
+  /** Create an enumerate constraint - all satisfiable children should be selected */
+  enumerate,
   /** Create an OrbLegacy preset for World ID 3.0 legacy support */
   orbLegacy,
   /** Create a SecureDocumentLegacy preset for World ID 3.0 legacy support */

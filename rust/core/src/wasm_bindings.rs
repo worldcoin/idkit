@@ -540,10 +540,11 @@ impl IDKitConfigWasm {
                     kind: crate::bridge::RequestKind::Uniqueness {
                         action: action.clone(),
                     },
-                    constraints,
+                    constraints: Some(constraints),
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
-                    legacy_verification_level: crate::VerificationLevel::Deprecated,
+                    // Default to Device for v3 backwards compat — v4 uses proof_request instead.
+                    legacy_verification_level: crate::VerificationLevel::Device,
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: *allow_legacy_proofs,
@@ -576,10 +577,11 @@ impl IDKitConfigWasm {
                 Ok(crate::bridge::BridgeConnectionParams {
                     app_id,
                     kind: crate::bridge::RequestKind::CreateSession,
-                    constraints,
+                    constraints: Some(constraints),
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
-                    legacy_verification_level: crate::VerificationLevel::Deprecated,
+                    // Default to Device for v3 backwards compat — v4 uses proof_request instead.
+                    legacy_verification_level: crate::VerificationLevel::Device,
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
@@ -615,10 +617,11 @@ impl IDKitConfigWasm {
                     kind: crate::bridge::RequestKind::ProveSession {
                         session_id: session_id.clone(),
                     },
-                    constraints,
+                    constraints: Some(constraints),
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
-                    legacy_verification_level: crate::VerificationLevel::Deprecated,
+                    // Default to Device for v3 backwards compat — v4 uses proof_request instead.
+                    legacy_verification_level: crate::VerificationLevel::Device,
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
@@ -638,8 +641,14 @@ impl IDKitConfigWasm {
         &self,
         preset: Preset,
     ) -> Result<crate::bridge::BridgeConnectionParams, JsValue> {
+        if matches!(self, Self::CreateSession { .. } | Self::ProveSession { .. }) {
+            return Err(JsValue::from_str(
+                "Presets are not supported for session flows. Use .constraints() instead.",
+            ));
+        }
         let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
         let mut params = self.to_params(constraints)?;
+        params.constraints = None;
         params.legacy_verification_level = legacy_verification_level;
         params.legacy_signal = legacy_signal.unwrap_or_default();
         Ok(params)
@@ -843,8 +852,8 @@ impl IDKitBuilderWasm {
     /// Builds a v1 (legacy) native payload from a preset (synchronous, no bridge connection).
     ///
     /// Used by the native transport when the World App only supports verify v1.
-    /// Only legacy presets produce valid v1 payloads (constraints always have
-    /// `Deprecated` verification level and will fail).
+    /// Only legacy presets produce valid v1 payloads (constraint-based requests
+    /// default to `Device` level and may not carry the correct action).
     ///
     /// # Errors
     ///
@@ -1360,7 +1369,7 @@ const TS_NATIVE_PAYLOAD: &str = r#"
 export interface NativePayloadResult {
     payload: unknown;
     signal_hashes: Record<string, string>;
-    legacy_signal_hash: string | null;
+    legacy_signal_hash: string;
 }
 
 /** V1 native payload sent to older World App versions (verify command v1) */
