@@ -32,6 +32,8 @@ export {
   selfieCheckLegacy,
   IDKitErrorCodes,
   signRequest,
+  isDebug,
+  setDebug,
 } from "@worldcoin/idkit-core";
 
 export type {
