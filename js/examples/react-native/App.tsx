@@ -243,15 +243,10 @@ export default function App(): React.JSX.Element {
     }
   }
 
-  async function openConnectorUri(): Promise<void> {
-    const request = pendingRequestRef.current;
-    if (!connectorUri || !request) return;
-
-    const currentRunId = runIdRef.current;
+  function openConnectorUri(): void {
+    if (!connectorUri) return;
     log("Opening connector URI...");
-    await Linking.openURL(connectorUri);
-    setFlowState("waiting_for_connection");
-    await pollRequest(currentRunId, request);
+    void Linking.openURL(connectorUri);
   }
 
   function copyConnectorUri(): void {
@@ -397,7 +392,9 @@ export default function App(): React.JSX.Element {
           {requestId && <Text style={styles.mono}>Request: {requestId}</Text>}
           {connectorUri && (
             <>
-              <Text style={styles.mono} selectable>{connectorUri}</Text>
+              <Text style={styles.mono} selectable>
+                {connectorUri}
+              </Text>
               <View style={styles.buttonRow}>
                 <Pressable
                   onPress={() => void openConnectorUri()}
