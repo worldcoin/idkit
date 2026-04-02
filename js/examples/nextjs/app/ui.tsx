@@ -7,11 +7,13 @@ import {
   deviceLegacy,
   selfieCheckLegacy,
   IDKitRequestWidget,
+  IDKitSessionWidget,
   orbLegacy,
   secureDocumentLegacy,
   setDebug,
   type ConstraintNode,
   type IDKitResult,
+  type IDKitResultSession,
   type RpContext,
   Preset,
 } from "@worldcoin/idkit";
@@ -71,11 +73,11 @@ function createPreset(kind: PresetKind, signal: string) {
   }
 }
 
-async function fetchRpContext(action: string): Promise<RpContext> {
+async function fetchRpContext(action?: string): Promise<RpContext> {
   const response = await fetch("/api/rp-signature", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ action }),
+    body: JSON.stringify(action ? { action } : {}),
   });
 
   if (!response.ok) {
@@ -149,6 +151,12 @@ export function DemoClient(): ReactElement {
   const [genesisEnabled, setGenesisEnabled] = useState(false);
   const [genesisDate, setGenesisDate] = useState("");
   const [isGenesisTooltipOpen, setIsGenesisTooltipOpen] = useState(false);
+  const [flowType, setFlowType] = useState<"uniqueness" | "session">(
+    "uniqueness",
+  );
+  const [sessionId, setSessionId] = useState("");
+  const [widgetSessionResult, setWidgetSessionResult] =
+    useState<IDKitResultSession | null>(null);
   const [useReturnTo, setUseReturnTo] = useState(false);
   const [returnTo, setReturnTo] = useState("");
   const [isReturnToTooltipOpen, setIsReturnToTooltipOpen] = useState(false);
@@ -208,6 +216,8 @@ export function DemoClient(): ReactElement {
     if (worldIdVersion !== "4.0") {
       setGenesisEnabled(false);
       setGenesisDate("");
+      setFlowType("uniqueness");
+      setSessionId("");
     }
   }, [worldIdVersion]);
 
@@ -223,13 +233,18 @@ export function DemoClient(): ReactElement {
     );
   }, []);
 
+  const isSessionFlow = worldIdVersion === "4.0" && flowType === "session";
+
   const startWidgetFlow = async () => {
     setWidgetError(null);
     setWidgetVerifyResult(null);
     setWidgetIdkitResult(null);
+    setWidgetSessionResult(null);
 
     try {
-      const rpContext = await fetchRpContext(action || "test-action");
+      const rpContext = isSessionFlow
+        ? await fetchRpContext()
+        : await fetchRpContext(action || "test-action");
       setWidgetSignal(`demo-signal-${Date.now()}`);
       setWidgetRpContext(rpContext);
       setWidgetOpen(true);
@@ -275,15 +290,17 @@ export function DemoClient(): ReactElement {
           <label htmlFor="cfgRpId">RP ID</label>
           <input type="text" id="cfgRpId" value={RP_ID} readOnly />
         </div>
-        <div className="config-row">
-          <label htmlFor="cfgAction">Action</label>
-          <input
-            type="text"
-            id="cfgAction"
-            value={action}
-            onChange={(e) => setAction(e.target.value)}
-          />
-        </div>
+        {!isSessionFlow && (
+          <div className="config-row">
+            <label htmlFor="cfgAction">Action</label>
+            <input
+              type="text"
+              id="cfgAction"
+              value={action}
+              onChange={(e) => setAction(e.target.value)}
+            />
+          </div>
+        )}
         <div className="config-row">
           <label htmlFor="cfgEnv">Environment</label>
           <select
@@ -374,6 +391,31 @@ export function DemoClient(): ReactElement {
 
         {worldIdVersion === "4.0" && (
           <>
+            <div className="config-row">
+              <label htmlFor="cfgFlowType">Flow Type</label>
+              <select
+                id="cfgFlowType"
+                value={flowType}
+                onChange={(e) =>
+                  setFlowType(e.target.value as "uniqueness" | "session")
+                }
+              >
+                <option value="uniqueness">Uniqueness</option>
+                <option value="session">Session</option>
+              </select>
+            </div>
+            {flowType === "session" && (
+              <div className="config-row">
+                <label htmlFor="cfgSessionId">Session ID</label>
+                <input
+                  type="text"
+                  id="cfgSessionId"
+                  value={sessionId}
+                  onChange={(e) => setSessionId(e.target.value)}
+                  placeholder="session_... (optional, for returning users)"
+                />
+              </div>
+            )}
             <div className="config-row">
               <label htmlFor="cfgCredentialv4">Credential</label>
               <select
@@ -496,17 +538,21 @@ export function DemoClient(): ReactElement {
           </>
         )}
 
-        {worldIdVersion === "4.0" && (
-          <>
-            <button onClick={startWidgetFlow}>
-              Verify with {V4_CREDENTIAL_TO_NAME[v4CredentialType]}
-            </button>
-          </>
+        {worldIdVersion === "4.0" && !isSessionFlow && (
+          <button onClick={startWidgetFlow}>
+            Verify with {V4_CREDENTIAL_TO_NAME[v4CredentialType]}
+          </button>
+        )}
+
+        {isSessionFlow && (
+          <button onClick={startWidgetFlow}>
+            {sessionId.trim() ? "Prove Session" : "Start Session"}
+          </button>
         )}
       </div>
       {widgetError && <p className="status">Error: {widgetError}</p>}
 
-      {widgetRpContext && (
+      {widgetRpContext && !isSessionFlow && (
         <IDKitRequestWidget
           open={widgetOpen}
           onOpenChange={setWidgetOpen}
@@ -531,11 +577,61 @@ export function DemoClient(): ReactElement {
         />
       )}
 
+      {widgetRpContext && isSessionFlow && (
+        <IDKitSessionWidget
+          open={widgetOpen}
+          onOpenChange={setWidgetOpen}
+          app_id={APP_ID}
+          rp_context={widgetRpContext}
+          constraints={
+            CredentialRequest(v4CredentialType, {
+              genesis_issued_at_min: genesisIssuedAtMin,
+            })
+          }
+          {...(sessionId.trim()
+            ? {
+                existing_session_id:
+                  sessionId.trim() as `session_${string}`,
+              }
+            : {})}
+          onSuccess={(result) => {
+            setWidgetSessionResult(result);
+          }}
+          handleVerify={async (result) => {
+            const verified = await verifyProof(
+              result as unknown as IDKitResult,
+            );
+            setWidgetVerifyResult(verified);
+          }}
+          onError={(errorCode) => {
+            setWidgetError(`Verification failed: ${errorCode}`);
+          }}
+          environment={environment}
+          override_connect_base_url={overrideConnectBaseUrl}
+          return_to={effectiveReturnTo}
+        />
+      )}
+
       {widgetIdkitResult && (
         <>
           <h3>IDKit response</h3>
           <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
             {JSON.stringify(widgetIdkitResult, null, 2)}
+          </pre>
+        </>
+      )}
+
+      {widgetSessionResult && (
+        <>
+          <h3>Session response</h3>
+          <p>
+            <strong>Session ID:</strong>{" "}
+            <code style={{ wordBreak: "break-all" }}>
+              {widgetSessionResult.session_id}
+            </code>
+          </p>
+          <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+            {JSON.stringify(widgetSessionResult, null, 2)}
           </pre>
         </>
       )}
