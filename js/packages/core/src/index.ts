@@ -62,6 +62,7 @@ export type { IDKitErrorCode } from "./types/result";
 // Utilities
 export { isReactNative, isWeb, isNode } from "./lib/platform";
 export { isInWorldApp } from "./transports/native";
+export { isDebug, setDebug } from "./lib/debug";
 
 // RP Request Signing (server-side only)
 export { signRequest } from "./signing";

@@ -9,15 +9,14 @@ import {
   IDKitRequestWidget,
   orbLegacy,
   secureDocumentLegacy,
+  setDebug,
   type ConstraintNode,
   type IDKitResult,
   type RpContext,
   Preset,
 } from "@worldcoin/idkit";
 
-if (typeof window !== "undefined") {
-  (window as any).IDKIT_DEBUG = true;
-}
+setDebug(true);
 
 const APP_ID = process.env.NEXT_PUBLIC_APP_ID as `app_${string}` | undefined;
 const RP_ID = process.env.NEXT_PUBLIC_RP_ID;

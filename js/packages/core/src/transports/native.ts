@@ -28,6 +28,7 @@ import type {
   IDKitResultV4,
   IDKitResultSession,
 } from "../lib/wasm";
+import { isDebug } from "../lib/debug";
 
 const MINIAPP_VERIFY_ACTION = "miniapp-verify-action";
 
@@ -109,9 +110,10 @@ export function createNativeRequest(
   version: 1 | 2 = 2,
 ): IDKitRequest {
   if (_activeNativeRequest?.isPending()) {
-    console.warn(
-      "IDKit native request already in flight. Reusing active request.",
-    );
+    if (isDebug())
+      console.warn(
+        "[IDKit] Native: request already in flight, reusing active request",
+      );
     return _activeNativeRequest;
   }
   const request = new NativeIDKitRequest(
@@ -153,6 +155,11 @@ class NativeIDKitRequest implements IDKitRequest {
         if (this.completionResult) return;
 
         if (responsePayload?.status === "error") {
+          if (isDebug())
+            console.warn(
+              "[IDKit] Native: received error response",
+              responsePayload.error_code,
+            );
           this.complete({
             success: false,
             error: responsePayload.error_code ?? IDKitErrorCodes.GenericError,
@@ -194,8 +201,9 @@ class NativeIDKitRequest implements IDKitRequest {
           this.miniKitHandler = miniKitHandler;
           miniKit.subscribe(MINIAPP_VERIFY_ACTION, miniKitHandler);
         }
-      } catch {
-        // Ignore MiniKit subscription failures and rely on postMessage path.
+      } catch (err) {
+        if (isDebug())
+          console.warn("[IDKit] Native: MiniKit subscribe failed", err);
       }
 
       // Wrap the WASM-built payload in the postMessage envelope
@@ -208,16 +216,29 @@ class NativeIDKitRequest implements IDKitRequest {
       try {
         const w = window as any;
         if (w.webkit?.messageHandlers?.minikit) {
+          if (isDebug())
+            console.debug(
+              `[IDKit] Native: sending verify command (version=${version}, platform=ios)`,
+            );
           w.webkit.messageHandlers.minikit.postMessage(sendPayload);
         } else if (w.Android) {
+          if (isDebug())
+            console.debug(
+              `[IDKit] Native: sending verify command (version=${version}, platform=android)`,
+            );
           w.Android.postMessage(JSON.stringify(sendPayload));
         } else {
+          if (isDebug())
+            console.warn(
+              "[IDKit] Native: no native bridge found (no webkit/Android)",
+            );
           this.complete({
             success: false,
             error: IDKitErrorCodes.GenericError,
           });
         }
-      } catch {
+      } catch (err) {
+        if (isDebug()) console.warn("[IDKit] Native: postMessage failed", err);
         this.complete({
           success: false,
           error: IDKitErrorCodes.GenericError,
@@ -229,6 +250,11 @@ class NativeIDKitRequest implements IDKitRequest {
   // Single entry point for finishing the request. Idempotent — first caller wins.
   private complete(result: IDKitCompletionResult): void {
     if (this.completionResult) return;
+    if (isDebug())
+      console.debug(
+        "[IDKit] Native: request completed",
+        result.success ? "success" : `error=${result.error}`,
+      );
     this.completionResult = result;
     this.cleanup();
     this.resolveFn?.(result);
@@ -251,8 +277,9 @@ class NativeIDKitRequest implements IDKitRequest {
       try {
         const miniKit = (window as any).MiniKit as MiniKitBridge | undefined;
         miniKit?.unsubscribe?.(MINIAPP_VERIFY_ACTION);
-      } catch {
-        // no-op
+      } catch (err) {
+        if (isDebug())
+          console.warn("[IDKit] Native: MiniKit unsubscribe failed", err);
       }
       this.miniKitHandler = null;
     }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   IDKitErrorCodes,
   isInWorldApp as isInWorldAppCheck,
+  isDebug,
   type IDKitRequest,
 } from "@worldcoin/idkit-core";
 import type { FlowConfig, IDKitHookResult } from "../types";
@@ -12,9 +13,6 @@ import {
   toErrorCode,
   type HookState,
 } from "./common";
-
-const isDebug = () =>
-  typeof window !== "undefined" && (window as any).IDKIT_DEBUG;
 
 export function useIDKitFlow<TResult>(
   createFlowHandle: () => Promise<IDKitRequest>,

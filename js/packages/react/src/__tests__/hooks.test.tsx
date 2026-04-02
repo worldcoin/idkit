@@ -25,6 +25,7 @@ vi.mock("@worldcoin/idkit-core", () => ({
     UnexpectedResponse: "unexpected_response",
   },
   isInWorldApp: () => false,
+  isDebug: () => false,
 }));
 
 const baseRpContext = {
