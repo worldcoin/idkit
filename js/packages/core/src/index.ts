@@ -8,6 +8,9 @@
 export {
   // IDKit namespace (main entry point)
   IDKit,
+  // Session entry points
+  createSession,
+  proveSession,
   CredentialRequest,
   any,
   all,
@@ -74,6 +77,9 @@ export type { IDKitErrorCode } from "./types/result";
 export { isReactNative, isWeb, isNode } from "./lib/platform";
 export { isInWorldApp } from "./transports/native";
 export { isDebug, setDebug } from "./lib/debug";
+
+// Session utilities
+export { getSessionCommitment } from "./session";
 
 // RP Request Signing (server-side only)
 export { signRequest } from "./signing";
