@@ -170,7 +170,7 @@ class NativeIDKitRequest implements IDKitRequest {
         this.complete({
           success: true,
           result: nativeResultToIDKitResult(
-            responsePayload?.proof_response,
+            responsePayload,
             config,
             signalHashes,
             legacySignalHash,
@@ -353,19 +353,17 @@ function nativeResultToIDKitResult(
   const p = payload as Record<string, any>;
   const rpNonce = config.rp_context?.nonce ?? "";
 
-  // V4 response — World App returns `responses` array directly.
-  // signal_hash is NOT on the raw V4 response; it's injected from the
-  // pre-computed signal_hashes map (same pattern as the bridge path).
-  if ("responses" in p && Array.isArray(p.responses)) {
-    const items = p.responses as Record<string, any>[];
+  // V4 response wrapped in `proof_response` envelope.
+  if ("proof_response" in p && p.proof_response != null) {
+    const proof_response = p.proof_response as Record<string, any>;
+    const items = (proof_response.responses ?? []) as Record<string, any>[];
 
-    // Session proof (has session_id, no action)
-    if (p.session_id) {
+    if (proof_response.session_id) {
       return {
         protocol_version: "4.0" as const,
-        nonce: p.nonce ?? rpNonce,
-        action_description: p.action_description,
-        session_id: p.session_id,
+        nonce: proof_response.nonce ?? rpNonce,
+        action_description: proof_response.action_description,
+        session_id: proof_response.session_id,
         responses: items.map((item) => ({
           identifier: item.identifier,
           signal_hash: signalHashes[item.identifier],
@@ -378,12 +376,11 @@ function nativeResultToIDKitResult(
       } satisfies IDKitResultSession;
     }
 
-    // Uniqueness proof (has action, no session_id)
     return {
       protocol_version: "4.0" as const,
-      nonce: p.nonce ?? rpNonce,
-      action: p.action ?? config.action ?? "",
-      action_description: p.action_description,
+      nonce: proof_response.nonce ?? rpNonce,
+      action: proof_response.action ?? config.action ?? "",
+      action_description: proof_response.action_description,
       responses: items.map((item) => ({
         identifier: item.identifier,
         signal_hash: signalHashes[item.identifier],
