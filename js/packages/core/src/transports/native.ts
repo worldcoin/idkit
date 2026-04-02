@@ -170,7 +170,7 @@ class NativeIDKitRequest implements IDKitRequest {
         this.complete({
           success: true,
           result: nativeResultToIDKitResult(
-            responsePayload,
+            responsePayload?.proof_response,
             config,
             signalHashes,
             legacySignalHash,
