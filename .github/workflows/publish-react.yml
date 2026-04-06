@@ -155,13 +155,16 @@ jobs:
         with:
           version: 9
 
-      - name: Verify npm version
+      - name: Update npm for OIDC trusted publishing
         run: |
-          # npm trusted publishing requires npm >= 11
-          NPM_MAJOR=$(npm --version | cut -d. -f1)
-          echo "npm version: $(npm --version)"
-          if [ "$NPM_MAJOR" -lt 11 ]; then
-            echo "::error::npm >= 11 is required for OIDC trusted publishing, got $(npm --version)"
+          # npm trusted publishing requires npm >= 11.5.1
+          echo "Current npm version: $(npm --version)"
+          npm install -g npm@latest
+          NPM_VER=$(npm --version)
+          echo "Updated npm version: $NPM_VER"
+          REQUIRED="11.5.1"
+          if [ "$(printf '%s\n' "$REQUIRED" "$NPM_VER" | sort -V | head -n1)" != "$REQUIRED" ]; then
+            echo "::error::npm >= $REQUIRED is required for OIDC trusted publishing, got $NPM_VER"
             exit 1
           fi
 
