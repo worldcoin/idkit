@@ -1173,8 +1173,7 @@ export function DemoClient(): ReactElement {
           constraints={sessionConstraints}
           {...(isProveSessionFlow
             ? {
-                existing_session_id:
-                  sessionId.trim() as `session_${string}`,
+                existing_session_id: sessionId.trim() as `session_${string}`,
               }
             : {})}
           onSuccess={() => {}}
