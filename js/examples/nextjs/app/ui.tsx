@@ -583,15 +583,12 @@ export function DemoClient(): ReactElement {
           onOpenChange={setWidgetOpen}
           app_id={APP_ID}
           rp_context={widgetRpContext}
-          constraints={
-            CredentialRequest(v4CredentialType, {
-              genesis_issued_at_min: genesisIssuedAtMin,
-            })
-          }
+          constraints={CredentialRequest(v4CredentialType, {
+            genesis_issued_at_min: genesisIssuedAtMin,
+          })}
           {...(sessionId.trim()
             ? {
-                existing_session_id:
-                  sessionId.trim() as `session_${string}`,
+                existing_session_id: sessionId.trim() as `session_${string}`,
               }
             : {})}
           onSuccess={(result) => {
