@@ -138,7 +138,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
       - name: Install pnpm
@@ -146,12 +146,15 @@ jobs:
         with:
           version: 9
 
-      - name: Update npm for OIDC trusted publishing
+      - name: Verify npm version
         run: |
-          # npm trusted publishing requires npm >= 11.5.1
-          echo "Current npm version: $(npm --version)"
-          npm install -g npm@latest
-          echo "Updated npm version: $(npm --version)"
+          # npm trusted publishing requires npm >= 11
+          NPM_MAJOR=$(npm --version | cut -d. -f1)
+          echo "npm version: $(npm --version)"
+          if [ "$NPM_MAJOR" -lt 11 ]; then
+            echo "::error::npm >= 11 is required for OIDC trusted publishing, got $(npm --version)"
+            exit 1
+          fi
 
       - name: Set package version
         working-directory: js/packages/server
