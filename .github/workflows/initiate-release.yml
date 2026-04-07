@@ -182,38 +182,6 @@ jobs:
               ;;
           esac
 
-      - name: Generate Release Notes
-        id: release_notes
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_REPO: ${{ github.repository }}
-          NEW_VERSION: ${{ steps.version.outputs.new_version }}
-        run: |
-          # Get the latest release tag
-          LATEST_TAG=$(gh release list -L 1 --json tagName -q '.[0].tagName' 2>/dev/null || echo "")
-
-          if [ -z "$LATEST_TAG" ]; then
-            echo "No previous releases found, generating notes from all commits"
-            NOTES="Initial release $NEW_VERSION"
-          else
-            # Generate release notes between latest tag and current branch
-            NOTES=$(gh api \
-              --method POST \
-              -H "Accept: application/vnd.github+json" \
-              "/repos/${GITHUB_REPO}/releases/generate-notes" \
-              -f tag_name="${NEW_VERSION}" \
-              -f previous_tag_name="${LATEST_TAG}" \
-              | jq -r .body) || NOTES="Release $NEW_VERSION"
-          fi
-
-          if [[ "$NOTES" == "null" || -z "${NOTES// }" ]]; then
-            NOTES="Release $NEW_VERSION"
-          fi
-
-          echo "release_notes<<DELIM" >> "$GITHUB_OUTPUT"
-          echo "$NOTES" >> "$GITHUB_OUTPUT"
-          echo "DELIM" >> "$GITHUB_OUTPUT"
-
       - name: Get branch name
         id: branch_name
         env:
@@ -234,7 +202,6 @@ jobs:
         if: ${{ !env.ACT }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          RELEASE_NOTES: ${{ steps.release_notes.outputs.release_notes }}
           BRANCH_NAME: ${{ steps.branch_name.outputs.branch_name }}
           NEW_VERSION: ${{ steps.version.outputs.new_version }}
           RELEASE_TARGET: ${{ steps.version.outputs.release_target }}
@@ -252,17 +219,9 @@ jobs:
           git commit -m "Release ${TARGET_NAME} ${NEW_VERSION}"
           git push origin "$BRANCH_NAME"
 
-          echo "Creating PR with release notes:"
-          echo "$RELEASE_NOTES"
-
-          {
-            printf '<!-- release_target:%s -->\n\n' "$RELEASE_TARGET"
-            printf '%s\n' "$RELEASE_NOTES"
-          } > /tmp/release-pr-body.md
-
           gh pr create \
             --title "IDKit ${TARGET_NAME} Release $NEW_VERSION" \
-            --body-file /tmp/release-pr-body.md \
+            --body "<!-- release_target:${RELEASE_TARGET} -->" \
             --base main \
             --label "release" \
             --head "$BRANCH_NAME"

@@ -154,7 +154,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
       - name: Install pnpm
@@ -167,7 +167,13 @@ jobs:
           # npm trusted publishing requires npm >= 11.5.1
           echo "Current npm version: $(npm --version)"
           npm install -g npm@latest
-          echo "Updated npm version: $(npm --version)"
+          NPM_VER=$(npm --version)
+          echo "Updated npm version: $NPM_VER"
+          REQUIRED="11.5.1"
+          if [ "$(printf '%s\n' "$REQUIRED" "$NPM_VER" | sort -V | head -n1)" != "$REQUIRED" ]; then
+            echo "::error::npm >= $REQUIRED is required for OIDC trusted publishing, got $NPM_VER"
+            exit 1
+          fi
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
