@@ -30,9 +30,15 @@
   },
   "typesVersions": {
     "*": {
-      "signing": ["./dist/signing.d.ts"],
-      "hashing": ["./dist/hashing.d.ts"],
-      "session": ["./dist/session.d.ts"]
+      "signing": [
+        "./dist/signing.d.ts"
+      ],
+      "hashing": [
+        "./dist/hashing.d.ts"
+      ],
+      "session": [
+        "./dist/session.d.ts"
+      ]
     }
   },
   "files": [
