@@ -5,6 +5,12 @@ import { sha256 } from "@noble/hashes/sha2";
 import { sign, etc } from "@noble/secp256k1";
 import { isServerEnvironment } from "./platform";
 
+// Node <19 CJS doesn't expose globalThis.crypto; polyfill it so @noble libs and our code can use it
+if (typeof globalThis.crypto === "undefined") {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  globalThis.crypto = require("node:crypto").webcrypto;
+}
+
 // Configure @noble/secp256k1 with synchronous HMAC-SHA256 from @noble/hashes
 etc.hmacSha256Sync = (key: Uint8Array, ...msgs: Uint8Array[]) =>
   hmac(sha256, key, etc.concatBytes(...msgs));

@@ -23,4 +23,13 @@ describe("CJS bundle compatibility", () => {
     expect(mod).toBeDefined();
     expect(typeof mod.signRequest).toBe("function");
   });
+
+  it("should call signRequest without crypto errors", async () => {
+    const mod = await import(cjsPath);
+    const result = mod.signRequest({ signingKeyHex: "aa".repeat(32) });
+    expect(result.sig).toMatch(/^0x[0-9a-f]{130}$/);
+    expect(result.nonce).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(result.createdAt).toBeTypeOf("number");
+    expect(result.expiresAt).toBeTypeOf("number");
+  });
 });
