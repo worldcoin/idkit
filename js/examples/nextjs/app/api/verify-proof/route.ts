@@ -22,6 +22,14 @@ export async function POST(request: Request): Promise<Response> {
 
     const payload = await response.json();
 
+    if (!response.ok) {
+      console.error(
+        `Error verifying proof: ${response.status} ${response.statusText} - ${JSON.stringify(payload)} ${JSON.stringify(body)}`,
+      );
+    } else {
+      console.log(`Successfully verified proof: ${JSON.stringify(payload)}`);
+    }
+
     return NextResponse.json(payload, {
       status: response.status,
     });
