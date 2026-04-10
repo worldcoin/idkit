@@ -3,6 +3,12 @@
  *
  * Matches the Rust implementation in rust/core/src/crypto.rs.
  * Key: 32 bytes, Nonce: 12 bytes (standard AES-GCM).
+ *
+ * React Native does not provide globalThis.crypto by default.
+ * Users must install a polyfill and import it before this package:
+ *
+ *   import 'react-native-get-random-values';  // must be first import
+ *   import { IDKit } from '@worldcoin/idkit-react-native';
  */
 
 import { gcm } from "@noble/ciphers/aes";
@@ -10,11 +16,29 @@ import { gcm } from "@noble/ciphers/aes";
 const KEY_LENGTH = 32;
 const NONCE_LENGTH = 12;
 
+function getRandomValues<T extends ArrayBufferView>(array: T): T {
+  if (
+    typeof globalThis.crypto === "undefined" ||
+    typeof globalThis.crypto.getRandomValues !== "function"
+  ) {
+    throw new Error(
+      "crypto.getRandomValues is not available. " +
+        "React Native does not provide a built-in Web Crypto API.\n\n" +
+        "Install a polyfill and import it at the top of your entry file " +
+        "(before any other imports):\n\n" +
+        "  npm install react-native-get-random-values\n\n" +
+        "Then in your App.tsx (or index.js):\n\n" +
+        "  import 'react-native-get-random-values'; // must be first import\n",
+    );
+  }
+  return globalThis.crypto.getRandomValues(array);
+}
+
 export function generateKey(): { key: Uint8Array; nonce: Uint8Array } {
   const key = new Uint8Array(KEY_LENGTH);
   const nonce = new Uint8Array(NONCE_LENGTH);
-  crypto.getRandomValues(key);
-  crypto.getRandomValues(nonce);
+  getRandomValues(key);
+  getRandomValues(nonce);
   return { key, nonce };
 }
 

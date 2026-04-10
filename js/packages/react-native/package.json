@@ -1,7 +1,7 @@
 {
-  "name": "@worldcoin/idkit-react-native",
+  "name": "idkit-react-native-preview",
   "version": "0.1.0-preview",
-  "description": "React Native bindings for IDKit — pure TypeScript, no native modules",
+  "description": "React Native bindings for IDKit",
   "homepage": "https://github.com/worldcoin/idkit",
   "author": "World Contributors",
   "license": "MIT",
@@ -39,6 +39,7 @@
   },
   "peerDependencies": {
     "react": "*",
-    "react-native": "*"
+    "react-native": "*",
+    "react-native-get-random-values": ">=1.8.0"
   }
 }

@@ -2,8 +2,12 @@
  * @worldcoin/idkit-react-native
  *
  * Pure TypeScript React Native package for World ID verification.
- * No native modules, no WASM — just standard crypto + HTTP.
+ * No WASM — just standard crypto + HTTP.
  */
+
+// Polyfill globalThis.crypto for React Native (Hermes doesn't provide it).
+// Must run before any @noble/* imports access the crypto global.
+import "react-native-get-random-values";
 
 export {
   IDKitErrorCodes,
