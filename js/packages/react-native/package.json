@@ -1,6 +1,6 @@
 {
   "name": "idkit-react-native-preview",
-  "version": "0.1.0-preview",
+  "version": "0.1.1-preview",
   "description": "React Native bindings for IDKit",
   "homepage": "https://github.com/worldcoin/idkit",
   "author": "World Contributors",
