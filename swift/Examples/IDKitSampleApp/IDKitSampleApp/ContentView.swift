@@ -28,6 +28,7 @@ enum SampleLegacyPreset: String, CaseIterable, Identifiable {
     case document
     case device
     case selfieCheck = "selfie check"
+    case identityCheckWith = "identity check"
 
     var id: String { rawValue }
 
@@ -43,6 +44,14 @@ enum SampleLegacyPreset: String, CaseIterable, Identifiable {
             deviceLegacy(signal: signal)
         case .selfieCheck:
             selfieCheckLegacy(signal: signal)
+        case .identityCheckWith:
+            identityCheck(
+                attributes: [
+                    .minimumAge(21),
+                    .nationality("JPN"),
+                    .documentType(.passport),
+                ]
+            )
         }
     }
 }
@@ -102,7 +111,7 @@ struct ContentView: View {
                         .pickerStyle(.segmented)
                     }
 
-                    Picker("Legacy preset", selection: $model.legacyPreset) {
+                    Picker("Preset", selection: $model.legacyPreset) {
                         ForEach(SampleLegacyPreset.allCases) { preset in
                             Text(preset.rawValue).tag(preset)
                         }
@@ -272,7 +281,7 @@ final class SampleModel: ObservableObject {
                 deepLinkReceivedForPendingRequest = false
 
                 print("IDKit invite-code URL: \(request.connectorURL.absoluteString)")
-                log("Using legacy preset: \(legacyPreset.rawValue)")
+                log("Using preset: \(legacyPreset.rawValue)")
                 log("Generated request ID: \(request.requestID)")
                 log("Verify URL expires \(ISO8601DateFormatter().string(from: request.expiresAt))")
                 startPolling(

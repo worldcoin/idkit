@@ -246,6 +246,13 @@ func legacyPresetHelpers() {
     let doc = documentLegacy(signal: "z")
     let device = deviceLegacy(signal: "d")
     let face = selfieCheckLegacy(signal: "f")
+    let identity = identityCheck(
+        attributes: [
+            .minimumAge(21),
+            .nationality("JPN"),
+            .documentType(.passport)
+        ]
+    )
 
     switch orb {
     case .orbLegacy(let signal):
@@ -285,6 +292,32 @@ func legacyPresetHelpers() {
     case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy,
          .identityCheck, .proofOfHuman, .passport:
         Issue.record("Expected selfieCheckLegacy preset")
+    }
+
+    switch identity {
+    case let .identityCheck(attributes: attributes, legacySignal: legacySignal):
+        let expected: [IdentityAttribute] = [
+            .minimumAge(21),
+            .nationality("JPN"),
+            .documentType(.passport)
+        ]
+        #expect(attributes == expected)
+        #expect(legacySignal == nil)
+    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy,
+         .proofOfHuman, .passport:
+        Issue.record("Expected identityCheck preset")
+    }
+
+    let identityWithSignal = identityCheck(
+        attributes: [.minimumAge(18)],
+        legacySignal: "my-signal"
+    )
+    switch identityWithSignal {
+    case let .identityCheck(attributes: _, legacySignal: legacySignal):
+        #expect(legacySignal == "my-signal")
+    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy,
+         .proofOfHuman, .passport:
+        Issue.record("Expected identityCheck preset with signal")
     }
 }
 

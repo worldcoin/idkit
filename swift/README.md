@@ -75,6 +75,22 @@ let request = try IDKit
     .preset(selfieCheckLegacy(signal: "user-123"))
 ```
 
+For document-based identity attestation, use:
+
+```swift
+let request = try IDKit
+    .request(config: config)
+    .preset(
+        identityCheck(
+            attributes: [
+                .minimumAge(21),
+                .nationality("JPN"),
+                .documentType(.passport),
+            ]
+        )
+    )
+```
+
 ## Canonical Swift API
 
 - Entry points:
