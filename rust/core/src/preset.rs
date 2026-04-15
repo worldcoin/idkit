@@ -101,8 +101,7 @@ pub enum Preset {
     ///
     /// Requests an NFC document or MNC (JP My Number Card) credential.
     ///
-    /// This preset requires World ID 4.0-compatible clients. It is not supported
-    /// for native v1 payloads or session flows.
+    /// It is not supported for native v1 payloads or session flows.
     IdentityCheck {
         /// Identity attribute filters the verifier wants to assert.
         attributes: Vec<IdentityAttribute>,

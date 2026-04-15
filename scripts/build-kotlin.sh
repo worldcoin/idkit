@@ -20,6 +20,9 @@ esac
 
 HOST_LIB="$PROJECT_ROOT/target/release/libidkit.$LIB_EXT"
 
+echo "🎯 Installing Android Rust targets"
+rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android >/dev/null
+
 echo "🔧 Building Rust library (host) for binding generation"
 CARGO_PROFILE_RELEASE_STRIP=none cargo build --package idkit-core --release --locked --features uniffi-bindings
 
@@ -32,8 +35,12 @@ CARGO_PROFILE_RELEASE_STRIP=none cargo run -p uniffi-bindgen generate \
 
 if [ -n "${CI:-}" ]; then
   echo "🧹 Cleaning host build artifacts to free disk space for Android builds"
+  # Preserve the host library — JVM unit tests need it via jna.library.path
+  cp "$HOST_LIB" "/tmp/libidkit.$LIB_EXT"
   cargo clean --package idkit-core --release || true
   rm -rf ~/.cargo/registry/cache || true
+  mkdir -p "$(dirname "$HOST_LIB")"
+  mv "/tmp/libidkit.$LIB_EXT" "$HOST_LIB"
 fi
 
 echo "🤖 Building Android ABIs"
