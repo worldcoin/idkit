@@ -24,9 +24,10 @@ echo ""
 echo "🔧 Step 2/3: Generating Swift bindings..."
 mkdir -p "$GENERATED_DIR"
 
-uniffi-bindgen generate \
+cargo run -p uniffi-bindgen generate \
     --library target/release/libidkit.dylib \
     --language swift \
+    --no-format \
     --out-dir "$GENERATED_DIR"
 
 echo "✅ Generated Swift bindings to: $GENERATED_DIR"

@@ -363,6 +363,19 @@ public func selfieCheckLegacy(signal: String? = nil) -> Preset {
     .selfieCheckLegacy(signal: signal)
 }
 
+/// Returns the identity check preset.
+///
+/// This preset requires World ID 4.0-compatible clients.
+public func identityCheck(
+    attributes: [IdentityAttribute],
+    requireProofOfHumanity: Bool = false
+) -> Preset {
+    .identityCheck(
+        attributes: attributes,
+        requireProofOfHumanity: requireProofOfHumanity
+    )
+}
+
 // TODO: Re-enable when World ID 4.0 is live
 // private struct CredentialRequestJSON: Encodable {
 //     let type: String
