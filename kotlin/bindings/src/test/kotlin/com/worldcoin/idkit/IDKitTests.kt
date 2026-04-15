@@ -9,7 +9,9 @@ import kotlin.test.assertTrue
 import uniffi.idkit_core.AppError
 // TODO: Re-enable when World ID 4.0 is live
 // import uniffi.idkit_core.CredentialType
+import uniffi.idkit_core.DocumentType
 import uniffi.idkit_core.Environment
+import uniffi.idkit_core.IdentityAttribute
 import uniffi.idkit_core.Preset
 import uniffi.idkit_core.ResponseItem
 import uniffi.idkit_core.RpContext
@@ -260,6 +262,25 @@ class IDKitTests {
         assertEquals("z", (doc as Preset.DocumentLegacy).signal)
         assertEquals("d", (device as Preset.DeviceLegacy).signal)
         assertEquals("f", (face as Preset.SelfieCheckLegacy).signal)
+    }
+
+    @Test
+    fun `identityCheck helper exposes canonical preset`() {
+        val attributes = listOf(
+            IdentityAttribute.MinimumAge(21u),
+            IdentityAttribute.Nationality("JPN"),
+            IdentityAttribute.DocumentType(DocumentType.PASSPORT),
+        )
+
+        val preset = identityCheck(
+            attributes = attributes,
+            requireProofOfHumanity = true,
+        )
+
+        assertTrue(preset is Preset.IdentityCheck)
+        preset as Preset.IdentityCheck
+        assertEquals(attributes, preset.attributes)
+        assertTrue(preset.requireProofOfHumanity)
     }
 
     @Test

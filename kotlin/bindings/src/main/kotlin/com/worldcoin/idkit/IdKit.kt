@@ -37,6 +37,8 @@ typealias IDKitRequestConfig = IdKitRequestConfig
 typealias IDKitResult = IdKitResult
 typealias RpContext = uniffi.idkit_core.RpContext
 typealias Environment = uniffi.idkit_core.Environment
+typealias DocumentType = uniffi.idkit_core.DocumentType
+typealias IdentityAttribute = uniffi.idkit_core.IdentityAttribute
 
 class IDKitClientError(message: String) : IllegalArgumentException(message)
 
@@ -309,6 +311,19 @@ fun deviceLegacy(signal: String? = null): Preset = Preset.DeviceLegacy(signal = 
  * Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
  */
 fun selfieCheckLegacy(signal: String? = null): Preset = Preset.SelfieCheckLegacy(signal = signal)
+
+/**
+ * Returns the identity check preset.
+ *
+ * This preset requires World ID 4.0-compatible clients.
+ */
+fun identityCheck(
+    attributes: List<IdentityAttribute>,
+    requireProofOfHumanity: Boolean = false,
+): Preset = Preset.IdentityCheck(
+    attributes = attributes,
+    requireProofOfHumanity = requireProofOfHumanity,
+)
 
 fun idkitResultToJson(result: IDKitResult): String = nativeIdkitResultToJson(result)
 

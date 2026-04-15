@@ -63,9 +63,12 @@ import com.worldcoin.idkit.IDKit
 import com.worldcoin.idkit.IDKitPollOptions
 import com.worldcoin.idkit.IDKitRequestConfig
 import com.worldcoin.idkit.IDKitCompletionResult
+import com.worldcoin.idkit.IdentityAttribute
 import com.worldcoin.idkit.selfieCheckLegacy
+import com.worldcoin.idkit.identityCheck
 import com.worldcoin.idkit.orbLegacy
 import com.worldcoin.idkit.deviceLegacy
+import uniffi.idkit_core.DocumentType
 import uniffi.idkit_core.Environment
 import uniffi.idkit_core.RpContext
 
@@ -115,6 +118,23 @@ For selfie-check verification, use:
 val request = IDKit
     .request(config)
     .preset(selfieCheckLegacy(signal = "user-123"))
+```
+
+For document-based identity attestation, use:
+
+```kotlin
+val request = IDKit
+    .request(config)
+    .preset(
+        identityCheck(
+            attributes = listOf(
+                IdentityAttribute.MinimumAge(21u),
+                IdentityAttribute.Nationality("JPN"),
+                IdentityAttribute.DocumentType(DocumentType.PASSPORT),
+            ),
+            requireProofOfHumanity = true,
+        ),
+    )
 ```
 
 ## Credential request options parity
