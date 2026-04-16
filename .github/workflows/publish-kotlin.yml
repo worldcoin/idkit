@@ -126,8 +126,14 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.ref }}
 
+      - name: Read rust-toolchain
+        id: rust-version
+        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust-version.outputs.toolchain }}
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
@@ -208,8 +214,14 @@ jobs:
           echo "Disk space after cleanup:"
           df -h
 
+      - name: Read rust-toolchain
+        id: rust-version
+        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust-version.outputs.toolchain }}
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2

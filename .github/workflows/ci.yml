@@ -17,8 +17,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Read rust-toolchain
+        id: rust-version
+        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: ${{ steps.rust-version.outputs.toolchain }}
           components: rustfmt,clippy
 
       - name: Cache dependencies
@@ -77,7 +83,14 @@ jobs:
         with:
           go-version-file: go/idkit/go.mod
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Read rust-toolchain
+        id: rust-version
+        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust-version.outputs.toolchain }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -97,19 +110,43 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-15
-            xcode: "16.0"
-          - os: macos-15
-            xcode: "16.1"
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
+          - os: macos-26
+            xcode: "26.0.1"
+            sdk: "iphoneos26.0"
+          - os: macos-26
+            xcode: "26.1.1"
+            sdk: "iphoneos26.1"
+          - os: macos-26
+            xcode: "26.2"
+            sdk: "iphoneos26.2"
+          - os: macos-26
+            xcode: "26.3"
+            sdk: "iphoneos26.2"
+          # - os: macos-26
+          #   xcode: "26.4"
+          #   sdk: "iphoneos26.4"
+          # - os: macos-26
+          #   xcode: "26.5-beta"
+          #   sdk: "iphoneos26.5"
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v6
 
+      - name: Set Xcode developer directory
+        run: |
+          XCODE_APP_VERSION="${{ matrix.xcode }}"
+          XCODE_APP_VERSION="${XCODE_APP_VERSION//-/_}"
+          echo "DEVELOPER_DIR=/Applications/Xcode_${XCODE_APP_VERSION}.app/Contents/Developer" >> "$GITHUB_ENV"
+
+      - name: Read rust-toolchain
+        id: rust-version
+        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust-version.outputs.toolchain }}
 
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
@@ -131,7 +168,37 @@ jobs:
 
       - name: Run Swift tests
         working-directory: swift
-        run: xcodebuild test -scheme IDKit -destination "platform=macOS"
+        run: set -o pipefail; xcodebuild test -scheme IDKit -destination "platform=macOS" | xcbeautify
+
+      - name: Check Swift sample app destinations
+        id: check-destinations
+        run: |
+          DESTINATIONS=$(xcodebuild -showdestinations \
+            -project swift/Examples/IDKitSampleApp/IDKitSampleApp.xcodeproj \
+            -scheme IDKitSampleApp 2>&1)
+          echo "$DESTINATIONS"
+          if echo "$DESTINATIONS" | grep -q "Available destinations"; then
+            echo "has_destinations=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_destinations=false" >> $GITHUB_OUTPUT
+            echo "No available destinations — skipping build"
+          fi
+
+      - name: Download iOS platform
+        if: steps.check-destinations.outputs.has_destinations == 'false'
+        run: xcodebuild -downloadPlatform iOS
+
+      - name: Build Swift sample app
+        run: |
+          xcodebuild -version
+
+          set -o pipefail; xcodebuild \
+            -project swift/Examples/IDKitSampleApp/IDKitSampleApp.xcodeproj \
+            -scheme IDKitSampleApp \
+            -sdk ${{ matrix.sdk }} \
+            -destination "generic/platform=iOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            build | xcbeautify
 
       - name: Cache Swift .build
         if: steps.restore-swift-build.outputs.cache-hit != 'true'
@@ -160,8 +227,14 @@ jobs:
         with:
           version: 9
 
+      - name: Read rust-toolchain
+        id: rust-version
+        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust-version.outputs.toolchain }}
 
       - name: Cache dependencies
         uses: Swatinem/rust-cache@v2
@@ -193,8 +266,7 @@ jobs:
       - name: Free disk space
         run: |
           df -h
-          sudo rm -rf /usr/local/lib/android \
-                      /opt/hostedtoolcache/CodeQL \
+          sudo rm -rf /opt/hostedtoolcache/CodeQL \
                       /usr/share/dotnet \
                       /opt/ghc || true
           sudo apt-get clean
@@ -203,26 +275,35 @@ jobs:
           docker builder prune -af || true
           df -h
 
-      - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
+      - name: Read rust-toolchain
+        id: rust-version
+        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
 
-      - name: Cache Cargo dependencies
-        uses: actions/cache@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          toolchain: ${{ steps.rust-version.outputs.toolchain }}
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
 
       - name: Install cross (for Android targets, if not cached)
         run: command -v cross || cargo install cross --git https://github.com/cross-rs/cross --locked
 
       - name: Build Kotlin bindings (host + Android ABIs)
         run: ./scripts/build-kotlin.sh
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: tools platform-tools platforms;android-35 build-tools;35.0.0
+
+      - name: Build Kotlin sample app
+        working-directory: kotlin/Examples/IDKitSampleApp
+        run: ./gradlew :app:assembleDebug
