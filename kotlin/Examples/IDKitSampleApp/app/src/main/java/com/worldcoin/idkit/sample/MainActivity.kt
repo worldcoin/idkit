@@ -352,6 +352,7 @@ private class SampleModel {
                         SampleEnvironment.PRODUCTION -> Environment.PRODUCTION
                         SampleEnvironment.STAGING -> Environment.STAGING
                     },
+                    connectUrlMode = null
                 )
                 val preset = legacyPreset.toPreset(signal)
 
