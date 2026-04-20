@@ -175,8 +175,14 @@ jobs:
             exit 1
           fi
 
+      - name: Read rust-toolchain
+        id: rust-version
+        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust-version.outputs.toolchain }}
 
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked

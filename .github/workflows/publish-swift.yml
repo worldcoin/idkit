@@ -146,10 +146,14 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.ref }}
 
+      - name: Read rust-toolchain
+        id: rust-version
+        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
+
       - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: ${{ steps.rust-version.outputs.toolchain }}
 
       - name: Setup Swift
         uses: swift-actions/setup-swift@v2
