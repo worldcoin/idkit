@@ -1,4 +1,4 @@
-import { useEffect, type ReactElement } from "react";
+import { useEffect, useRef, type ReactElement } from "react";
 import { __ } from "../../lang";
 import { LoadingIcon } from "../Icons/LoadingIcon";
 
@@ -13,18 +13,15 @@ export function HostAppVerificationState({
   onPass,
   onFail,
 }: Props): ReactElement {
+  const calledRef = useRef(false);
+
   useEffect(() => {
-    let cancelled = false;
+    if (calledRef.current) return;
+    calledRef.current = true;
+
     void Promise.resolve(onVerify())
-      .then(() => {
-        if (!cancelled) onPass();
-      })
-      .catch(() => {
-        if (!cancelled) onFail();
-      });
-    return () => {
-      cancelled = true;
-    };
+      .then(() => onPass())
+      .catch(() => onFail());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -54,6 +54,7 @@ export function IDKitWidgetBase<TResult>({
   >(null);
   const lastResultRef = useRef<TResult | null>(null);
   const lastErrorCodeRef = useRef<IDKitErrorCodes | null>(null);
+  const hostVerifyCalledRef = useRef(false);
 
   // Set language config
   useEffect(() => {
@@ -72,6 +73,7 @@ export function IDKitWidgetBase<TResult>({
     setHostVerifyResult(null);
     lastResultRef.current = null;
     lastErrorCodeRef.current = null;
+    hostVerifyCalledRef.current = false;
     resetFlow();
   }, [open, openFlow, resetFlow]);
 
@@ -116,22 +118,17 @@ export function IDKitWidgetBase<TResult>({
       !flow.isInWorldApp ||
       !isHostVerifying ||
       !flow.result ||
-      !handleVerify
+      !handleVerify ||
+      hostVerifyCalledRef.current
     ) {
       return;
     }
 
-    let cancelled = false;
+    hostVerifyCalledRef.current = true;
+
     void Promise.resolve(handleVerify(flow.result))
-      .then(() => {
-        if (!cancelled) setHostVerifyResult("passed");
-      })
-      .catch(() => {
-        if (!cancelled) setHostVerifyResult("failed");
-      });
-    return () => {
-      cancelled = true;
-    };
+      .then(() => setHostVerifyResult("passed"))
+      .catch(() => setHostVerifyResult("failed"));
   }, [flow.isInWorldApp, isHostVerifying, flow.result, handleVerify]);
 
   // In World App there's no visible UI, so auto-close immediately on success or error.
@@ -176,6 +173,7 @@ export function IDKitWidgetBase<TResult>({
             setHostVerifyResult(null);
             lastResultRef.current = null;
             lastErrorCodeRef.current = null;
+            hostVerifyCalledRef.current = false;
             resetFlow();
             openFlow();
           }}
