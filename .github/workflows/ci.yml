@@ -110,16 +110,28 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-15
-            xcode: "16.0"
-          - os: macos-15
-            xcode: "16.1"
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
+          - os: macos-26
+            xcode: "26.0.1"
+          - os: macos-26
+            xcode: "26.1.1"
+          - os: macos-26
+            xcode: "26.2"
+          - os: macos-26
+            xcode: "26.3"
+          # - os: macos-26
+          #   xcode: "26.4"
+          # - os: macos-26
+          #   xcode: "26.5-beta"
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v6
+
+      - name: Set Xcode developer directory
+        run: |
+          XCODE_APP_VERSION="${{ matrix.xcode }}"
+          XCODE_APP_VERSION="${XCODE_APP_VERSION//-/_}"
+          echo "DEVELOPER_DIR=/Applications/Xcode_${XCODE_APP_VERSION}.app/Contents/Developer" >> "$GITHUB_ENV"
 
       - name: Read rust-toolchain
         id: rust-version
@@ -150,7 +162,47 @@ jobs:
 
       - name: Run Swift tests
         working-directory: swift
-        run: xcodebuild test -scheme IDKit -destination "platform=macOS"
+        run: set -o pipefail; xcodebuild test -scheme IDKit -destination "platform=macOS" | xcbeautify
+
+      - name: Check Swift sample app destinations
+        id: check-destinations
+        run: |
+          xcodebuild -version
+
+          DESTINATIONS=$(xcodebuild -showdestinations \
+            -project swift/Examples/IDKitSampleApp/IDKitSampleApp.xcodeproj \
+            -scheme IDKitSampleApp 2>&1)
+          echo "$DESTINATIONS"
+          if echo "$DESTINATIONS" | grep -q "Available destinations"; then
+            echo "has_destinations=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_destinations=false" >> $GITHUB_OUTPUT
+            echo "No available destinations — skipping build"
+          fi
+
+      - name: Download iOS platform
+        if: steps.check-destinations.outputs.has_destinations == 'false'
+        run: xcodebuild -downloadPlatform iOS
+
+      - name: Build Swift sample app for iOS
+        run: |
+          set -o pipefail; xcodebuild \
+            -project swift/Examples/IDKitSampleApp/IDKitSampleApp.xcodeproj \
+            -scheme IDKitSampleApp \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            build | xcbeautify
+
+      - name: Build Swift sample app for iOS Simulator
+        run: |
+          set -o pipefail; xcodebuild \
+            -project swift/Examples/IDKitSampleApp/IDKitSampleApp.xcodeproj \
+            -scheme IDKitSampleApp \
+            -sdk iphonesimulator \
+            -destination "generic/platform=iOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            build | xcbeautify
 
       - name: Cache Swift .build
         if: steps.restore-swift-build.outputs.cache-hit != 'true'
