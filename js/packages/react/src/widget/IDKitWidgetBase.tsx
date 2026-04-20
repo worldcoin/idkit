@@ -54,7 +54,9 @@ export function IDKitWidgetBase<TResult>({
   >(null);
   const lastResultRef = useRef<TResult | null>(null);
   const lastErrorCodeRef = useRef<IDKitErrorCodes | null>(null);
-  const hostVerifyCalledRef = useRef(false);
+  // Generation counter: incremented on close/retry to invalidate stale
+  // handleVerify resolutions and prevent cross-run state leaks.
+  const verifyGenRef = useRef(0);
 
   // Set language config
   useEffect(() => {
@@ -73,7 +75,7 @@ export function IDKitWidgetBase<TResult>({
     setHostVerifyResult(null);
     lastResultRef.current = null;
     lastErrorCodeRef.current = null;
-    hostVerifyCalledRef.current = false;
+    verifyGenRef.current++;
     resetFlow();
   }, [open, openFlow, resetFlow]);
 
@@ -118,17 +120,20 @@ export function IDKitWidgetBase<TResult>({
       !flow.isInWorldApp ||
       !isHostVerifying ||
       !flow.result ||
-      !handleVerify ||
-      hostVerifyCalledRef.current
+      !handleVerify
     ) {
       return;
     }
 
-    hostVerifyCalledRef.current = true;
+    const gen = ++verifyGenRef.current;
 
     void Promise.resolve(handleVerify(flow.result))
-      .then(() => setHostVerifyResult("passed"))
-      .catch(() => setHostVerifyResult("failed"));
+      .then(() => {
+        if (verifyGenRef.current === gen) setHostVerifyResult("passed");
+      })
+      .catch(() => {
+        if (verifyGenRef.current === gen) setHostVerifyResult("failed");
+      });
   }, [flow.isInWorldApp, isHostVerifying, flow.result, handleVerify]);
 
   // In World App there's no visible UI, so auto-close immediately on success or error.
@@ -160,9 +165,19 @@ export function IDKitWidgetBase<TResult>({
       )}
       {stage === "host_verification" && (
         <HostAppVerificationState
-          onVerify={() => handleVerify!(flow.result!)}
-          onPass={() => setHostVerifyResult("passed")}
-          onFail={() => setHostVerifyResult("failed")}
+          onVerify={() => {
+            const gen = ++verifyGenRef.current;
+            return Promise.resolve(handleVerify!(flow.result!)).then(
+              () => {
+                if (verifyGenRef.current === gen)
+                  setHostVerifyResult("passed");
+              },
+              () => {
+                if (verifyGenRef.current === gen)
+                  setHostVerifyResult("failed");
+              },
+            );
+          }}
         />
       )}
       {stage === "success" && <SuccessState />}
@@ -173,7 +188,7 @@ export function IDKitWidgetBase<TResult>({
             setHostVerifyResult(null);
             lastResultRef.current = null;
             lastErrorCodeRef.current = null;
-            hostVerifyCalledRef.current = false;
+            verifyGenRef.current++;
             resetFlow();
             openFlow();
           }}

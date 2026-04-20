@@ -4,14 +4,10 @@ import { LoadingIcon } from "../Icons/LoadingIcon";
 
 type Props = {
   onVerify: () => Promise<void> | void;
-  onPass: () => void;
-  onFail: () => void;
 };
 
 export function HostAppVerificationState({
   onVerify,
-  onPass,
-  onFail,
 }: Props): ReactElement {
   const calledRef = useRef(false);
 
@@ -19,9 +15,7 @@ export function HostAppVerificationState({
     if (calledRef.current) return;
     calledRef.current = true;
 
-    void Promise.resolve(onVerify())
-      .then(() => onPass())
-      .catch(() => onFail());
+    void onVerify();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
