@@ -1171,6 +1171,7 @@ fn to_app_error(error: &Error) -> AppError {
 /// Networking errors are network/transport-level failures where the bridge
 /// never returned a meaningful response. These are safe to retry because
 /// the request itself is valid — only the delivery failed.
+#[cfg(feature = "ffi")]
 fn is_networking_error(error: &Error) -> bool {
     match error {
         Error::Timeout | Error::ConnectionFailed | Error::BridgeError(_) => true,
