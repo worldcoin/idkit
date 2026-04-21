@@ -438,6 +438,125 @@ impl CredentialRequest {
     }
 }
 
+/// A single identity attribute criterion for identity attestation.
+///
+/// Each variant carries the expected value for that attribute.
+/// Numeric variants (e.g. `MinimumAge`) serialize their value as a JSON integer;
+/// all other variants serialize as a JSON string.
+///
+/// Wire format: `{"type": "minimum_age", "value": 18}`
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
+pub enum IdentityAttribute {
+    /// The type of identity document presented
+    DocumentType(DocumentType),
+    /// Document number
+    DocumentNumber(String),
+    /// Issuing country (ISO 3166-1 alpha-3, e.g., "JPN")
+    IssuingCountry(String),
+    /// Full name as it appears on the document
+    FullName(String),
+    /// Minimum age in years
+    MinimumAge(u8),
+    /// Nationality (ISO 3166-1 alpha-3, e.g., "JPN")
+    Nationality(String),
+}
+
+impl Serialize for IdentityAttribute {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(Some(2))?;
+        match self {
+            Self::DocumentType(v) => {
+                map.serialize_entry("type", "document_type")?;
+                map.serialize_entry("value", v)?;
+            }
+            Self::DocumentNumber(v) => {
+                map.serialize_entry("type", "document_number")?;
+                map.serialize_entry("value", v)?;
+            }
+            Self::IssuingCountry(v) => {
+                map.serialize_entry("type", "issuing_country")?;
+                map.serialize_entry("value", v)?;
+            }
+            Self::FullName(v) => {
+                map.serialize_entry("type", "full_name")?;
+                map.serialize_entry("value", v)?;
+            }
+            Self::MinimumAge(v) => {
+                map.serialize_entry("type", "minimum_age")?;
+                map.serialize_entry("value", v)?;
+            }
+            Self::Nationality(v) => {
+                map.serialize_entry("type", "nationality")?;
+                map.serialize_entry("value", v)?;
+            }
+        }
+        map.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for IdentityAttribute {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Helper {
+            #[serde(rename = "type")]
+            attribute_type: String,
+            value: serde_json::Value,
+        }
+
+        let h = Helper::deserialize(deserializer)?;
+        let str_val = |attr: &str| {
+            h.value.as_str().map(String::from).ok_or_else(|| {
+                serde::de::Error::custom(format!("expected string value for {attr}"))
+            })
+        };
+        let u8_val = |attr: &str| {
+            let n = h.value.as_u64().ok_or_else(|| {
+                serde::de::Error::custom(format!("expected integer value for {attr}"))
+            })?;
+            u8::try_from(n).map_err(|_| {
+                serde::de::Error::custom(format!("value {n} is out of range for {attr}"))
+            })
+        };
+
+        match h.attribute_type.as_str() {
+            "document_type" => {
+                let doc_type = serde_json::from_value::<DocumentType>(h.value)
+                    .map_err(serde::de::Error::custom)?;
+                Ok(Self::DocumentType(doc_type))
+            }
+            "document_number" => Ok(Self::DocumentNumber(str_val("document_number")?)),
+            "issuing_country" => Ok(Self::IssuingCountry(str_val("issuing_country")?)),
+            "full_name" => Ok(Self::FullName(str_val("full_name")?)),
+            "minimum_age" => Ok(Self::MinimumAge(u8_val("minimum_age")?)),
+            "nationality" => Ok(Self::Nationality(str_val("nationality")?)),
+            other => Err(serde::de::Error::custom(format!(
+                "unknown identity attribute type: {other}"
+            ))),
+        }
+    }
+}
+
+/// Identity document type used in [`IdentityAttribute::DocumentType`].
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
+pub enum DocumentType {
+    /// Biometric passport (ICAO 9303)
+    Passport,
+    /// National electronic identity card
+    Eid,
+    /// Japan's My Number Card
+    Mnc,
+}
+
 /// Legacy bridge response (protocol v1 / World ID v3)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
@@ -594,6 +713,11 @@ pub struct IDKitResult {
 
     /// The environment used for this request ("production" or "staging")
     pub environment: String,
+
+    /// Whether identity attributes were attested.
+    /// Only present on responses from an `IdentityCheck` request.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub identity_attested: Option<bool>,
 }
 
 impl IDKitResult {
@@ -615,6 +739,7 @@ impl IDKitResult {
             session_id: None,
             responses,
             environment: environment.into(),
+            identity_attested: None,
         }
     }
 
@@ -636,6 +761,7 @@ impl IDKitResult {
             session_id: Some(session_id),
             responses,
             environment: environment.into(),
+            identity_attested: None,
         }
     }
 
@@ -1326,5 +1452,83 @@ mod tests {
     fn test_bridge_url_prod_rejects_localhost() {
         let prod_app = AppId::new("app_123").unwrap();
         assert!(BridgeUrl::new("http://localhost:3000", &prod_app).is_err());
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // IdentityAttribute serialization / deserialization
+    // ─────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_identity_attribute_string_variants_serialize() {
+        let cases: &[(IdentityAttribute, &str)] = &[
+            (
+                IdentityAttribute::DocumentType(DocumentType::Passport),
+                r#"{"type":"document_type","value":"passport"}"#,
+            ),
+            (
+                IdentityAttribute::DocumentType(DocumentType::Eid),
+                r#"{"type":"document_type","value":"eid"}"#,
+            ),
+            (
+                IdentityAttribute::DocumentType(DocumentType::Mnc),
+                r#"{"type":"document_type","value":"mnc"}"#,
+            ),
+            (
+                IdentityAttribute::DocumentNumber("X12345678".into()),
+                r#"{"type":"document_number","value":"X12345678"}"#,
+            ),
+            (
+                IdentityAttribute::IssuingCountry("JPN".into()),
+                r#"{"type":"issuing_country","value":"JPN"}"#,
+            ),
+            (
+                IdentityAttribute::FullName("John Smith".into()),
+                r#"{"type":"full_name","value":"John Smith"}"#,
+            ),
+            (
+                IdentityAttribute::Nationality("JPN".into()),
+                r#"{"type":"nationality","value":"JPN"}"#,
+            ),
+        ];
+        for (attr, expected) in cases {
+            assert_eq!(serde_json::to_string(attr).unwrap(), *expected);
+        }
+    }
+
+    #[test]
+    fn test_identity_attribute_roundtrip() {
+        let attrs = vec![
+            IdentityAttribute::DocumentType(DocumentType::Passport),
+            IdentityAttribute::DocumentType(DocumentType::Eid),
+            IdentityAttribute::DocumentType(DocumentType::Mnc),
+            IdentityAttribute::DocumentNumber("X12345678".into()),
+            IdentityAttribute::IssuingCountry("JPN".into()),
+            IdentityAttribute::FullName("John Smith".into()),
+            IdentityAttribute::MinimumAge(18),
+            IdentityAttribute::Nationality("JPN".into()),
+        ];
+        for attr in &attrs {
+            let json = serde_json::to_string(attr).unwrap();
+            let back: IdentityAttribute = serde_json::from_str(&json).unwrap();
+            assert_eq!(attr, &back);
+        }
+    }
+
+    #[test]
+    fn test_identity_attribute_full_array_matches_spec() {
+        let json = r#"[
+            {"type":"document_type","value":"passport"},
+            {"type":"document_number","value":"X12345678"},
+            {"type":"issuing_country","value":"JPN"},
+            {"type":"full_name","value":"John Smith"},
+            {"type":"minimum_age","value":18},
+            {"type":"nationality","value":"JPN"}
+        ]"#;
+        let attrs: Vec<IdentityAttribute> = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            attrs[0],
+            IdentityAttribute::DocumentType(DocumentType::Passport)
+        );
+        assert_eq!(attrs[4], IdentityAttribute::MinimumAge(18));
     }
 }
