@@ -507,7 +507,7 @@ impl IDKitConfigWasm {
     #[allow(clippy::too_many_lines)]
     fn to_params(
         &self,
-        constraints: ConstraintNode,
+        constraints: Option<ConstraintNode>,
     ) -> Result<crate::bridge::BridgeConnectionParams, JsValue> {
         match self {
             Self::Request {
@@ -534,7 +534,7 @@ impl IDKitConfigWasm {
                     kind: crate::bridge::RequestKind::Uniqueness {
                         action: action.clone(),
                     },
-                    constraints: Some(constraints),
+                    constraints,
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
                     // Default to Device for v3 backwards compat — v4 uses proof_request instead.
@@ -549,6 +549,7 @@ impl IDKitConfigWasm {
                         "staging" => crate::bridge::Environment::Staging,
                         _ => crate::bridge::Environment::Production,
                     }),
+                    identity_attributes: None,
                 })
             }
             Self::CreateSession {
@@ -571,7 +572,7 @@ impl IDKitConfigWasm {
                 Ok(crate::bridge::BridgeConnectionParams {
                     app_id,
                     kind: crate::bridge::RequestKind::CreateSession,
-                    constraints: Some(constraints),
+                    constraints,
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
                     // Default to Device for v3 backwards compat — v4 uses proof_request instead.
@@ -586,6 +587,7 @@ impl IDKitConfigWasm {
                         "staging" => crate::bridge::Environment::Staging,
                         _ => crate::bridge::Environment::Production,
                     }),
+                    identity_attributes: None,
                 })
             }
             Self::ProveSession {
@@ -611,7 +613,7 @@ impl IDKitConfigWasm {
                     kind: crate::bridge::RequestKind::ProveSession {
                         session_id: session_id.clone(),
                     },
-                    constraints: Some(constraints),
+                    constraints,
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
                     // Default to Device for v3 backwards compat — v4 uses proof_request instead.
@@ -626,6 +628,7 @@ impl IDKitConfigWasm {
                         "staging" => crate::bridge::Environment::Staging,
                         _ => crate::bridge::Environment::Production,
                     }),
+                    identity_attributes: None,
                 })
             }
         }
@@ -640,11 +643,16 @@ impl IDKitConfigWasm {
                 "Presets are not supported for session flows. Use .constraints() instead.",
             ));
         }
-        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
-        let mut params = self.to_params(constraints)?;
-        params.constraints = None;
-        params.legacy_verification_level = legacy_verification_level;
-        params.legacy_signal = legacy_signal.unwrap_or_default();
+        let bridge_params = preset.into_bridge_params();
+        let mut params = self.to_params(bridge_params.constraints)?;
+        params.legacy_verification_level = bridge_params
+            .legacy_verification_level
+            .unwrap_or(crate::VerificationLevel::Device);
+        params.legacy_signal = bridge_params.legacy_signal.unwrap_or_default();
+        params.identity_attributes = bridge_params.identity_attributes;
+        if let Some(v) = bridge_params.allow_legacy_proofs_override {
+            params.allow_legacy_proofs = v;
+        }
         Ok(params)
     }
 }
@@ -752,7 +760,7 @@ impl IDKitBuilderWasm {
         let constraints: ConstraintNode = serde_wasm_bindgen::from_value(constraints_json)
             .map_err(|e| JsValue::from_str(&format!("Invalid constraints: {e}")))?;
 
-        let params = self.config.to_params(constraints)?;
+        let params = self.config.to_params(Some(constraints))?;
 
         let payload = crate::bridge::build_request_payload(&params, true)
             .map_err(|e| JsValue::from_str(&format!("Failed to build payload: {e}")))?;
@@ -903,7 +911,7 @@ impl IDKitBuilderWasm {
             let constraints: ConstraintNode = serde_wasm_bindgen::from_value(constraints_json)
                 .map_err(|e| JsValue::from_str(&format!("Invalid constraints: {e}")))?;
 
-            let params = config.to_params(constraints)?;
+            let params = config.to_params(Some(constraints))?;
             let connection = crate::bridge::BridgeConnection::create(params)
                 .await
                 .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
@@ -1447,7 +1455,7 @@ mod tests {
         };
 
         let params = config
-            .to_params(ConstraintNode::Any { any: Vec::new() })
+            .to_params(Some(ConstraintNode::Any { any: Vec::new() }))
             .expect("request params");
 
         assert_eq!(
@@ -1469,7 +1477,7 @@ mod tests {
         };
 
         let params = config
-            .to_params(ConstraintNode::Any { any: Vec::new() })
+            .to_params(Some(ConstraintNode::Any { any: Vec::new() }))
             .expect("create session params");
 
         assert_eq!(
@@ -1492,7 +1500,7 @@ mod tests {
         };
 
         let params = config
-            .to_params(ConstraintNode::Any { any: Vec::new() })
+            .to_params(Some(ConstraintNode::Any { any: Vec::new() }))
             .expect("prove session params");
 
         assert_eq!(
