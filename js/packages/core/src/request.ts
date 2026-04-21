@@ -8,6 +8,7 @@ import type {
   IDKitSessionConfig,
   RpContext,
 } from "./types/config";
+import { getSessionCommitment } from "./session";
 import type {
   IDKitResult,
   ConstraintNode,
@@ -589,7 +590,7 @@ class IDKitBuilder {
  * const proof = await request.pollUntilCompletion();
  * ```
  */
-function createRequest(config: IDKitRequestConfig): IDKitBuilder {
+export function createRequest(config: IDKitRequestConfig): IDKitBuilder {
   // Validate required fields
   if (!config.app_id) {
     throw new Error("app_id is required");
@@ -649,7 +650,7 @@ function createRequest(config: IDKitRequestConfig): IDKitBuilder {
  * // result.responses[0].session_nullifier -> for session tracking
  * ```
  */
-function createSession(config: IDKitSessionConfig): IDKitBuilder {
+export function createSession(config: IDKitSessionConfig): IDKitBuilder {
   // Validate required fields
   if (!config.app_id) {
     throw new Error("app_id is required");
@@ -698,7 +699,7 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
  * // result.responses[0].session_nullifier -> should match for same user
  * ```
  */
-function proveSession(
+export function proveSession(
   sessionId: `session_${string}`,
   config: IDKitSessionConfig,
 ): IDKitBuilder {
@@ -761,6 +762,8 @@ export const IDKit = {
   createSession,
   /** Prove an existing session (no action, has session_id) */
   proveSession,
+  /** Extract the commitment from an opaque session_id */
+  getSessionCommitment,
   /** Create a CredentialRequest for a credential type */
   CredentialRequest,
   /** Create an OR constraint - at least one child must be satisfied */
