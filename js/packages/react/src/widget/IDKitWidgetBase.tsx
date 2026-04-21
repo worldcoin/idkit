@@ -169,12 +169,10 @@ export function IDKitWidgetBase<TResult>({
             const gen = ++verifyGenRef.current;
             return Promise.resolve(handleVerify!(flow.result!)).then(
               () => {
-                if (verifyGenRef.current === gen)
-                  setHostVerifyResult("passed");
+                if (verifyGenRef.current === gen) setHostVerifyResult("passed");
               },
               () => {
-                if (verifyGenRef.current === gen)
-                  setHostVerifyResult("failed");
+                if (verifyGenRef.current === gen) setHostVerifyResult("failed");
               },
             );
           }}

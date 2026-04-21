@@ -6,9 +6,7 @@ type Props = {
   onVerify: () => Promise<void> | void;
 };
 
-export function HostAppVerificationState({
-  onVerify,
-}: Props): ReactElement {
+export function HostAppVerificationState({ onVerify }: Props): ReactElement {
   const calledRef = useRef(false);
 
   useEffect(() => {
