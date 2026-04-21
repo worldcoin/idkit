@@ -60,6 +60,8 @@ export type {
   CredentialType,
   ConstraintNode,
   CredentialRequestType,
+  DocumentType,
+  IdentityAttribute,
   // Preset types
   Preset,
   OrbLegacyPreset,
@@ -67,6 +69,7 @@ export type {
   DocumentLegacyPreset,
   DeviceLegacyPreset,
   SelfieCheckLegacyPreset,
+  IdentityCheckPreset,
   // Native transport types
   NativePayloadResult,
 } from "../../wasm/idkit_wasm.js";
