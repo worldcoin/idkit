@@ -110,16 +110,28 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-15
-            xcode: "16.0"
-          - os: macos-15
-            xcode: "16.1"
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
+          - os: macos-26
+            xcode: "26.0.1"
+          - os: macos-26
+            xcode: "26.1.1"
+          - os: macos-26
+            xcode: "26.2"
+          - os: macos-26
+            xcode: "26.3"
+          # - os: macos-26
+          #   xcode: "26.4"
+          # - os: macos-26
+          #   xcode: "26.5-beta"
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v6
+
+      - name: Set Xcode developer directory
+        run: |
+          XCODE_APP_VERSION="${{ matrix.xcode }}"
+          XCODE_APP_VERSION="${XCODE_APP_VERSION//-/_}"
+          echo "DEVELOPER_DIR=/Applications/Xcode_${XCODE_APP_VERSION}.app/Contents/Developer" >> "$GITHUB_ENV"
 
       - name: Read rust-toolchain
         id: rust-version
@@ -150,7 +162,47 @@ jobs:
 
       - name: Run Swift tests
         working-directory: swift
-        run: xcodebuild test -scheme IDKit -destination "platform=macOS"
+        run: set -o pipefail; xcodebuild test -scheme IDKit -destination "platform=macOS" | xcbeautify
+
+      - name: Check Swift sample app destinations
+        id: check-destinations
+        run: |
+          xcodebuild -version
+
+          DESTINATIONS=$(xcodebuild -showdestinations \
+            -project swift/Examples/IDKitSampleApp/IDKitSampleApp.xcodeproj \
+            -scheme IDKitSampleApp 2>&1)
+          echo "$DESTINATIONS"
+          if echo "$DESTINATIONS" | grep -q "Available destinations"; then
+            echo "has_destinations=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_destinations=false" >> $GITHUB_OUTPUT
+            echo "No available destinations — skipping build"
+          fi
+
+      - name: Download iOS platform
+        if: steps.check-destinations.outputs.has_destinations == 'false'
+        run: xcodebuild -downloadPlatform iOS
+
+      - name: Build Swift sample app for iOS
+        run: |
+          set -o pipefail; xcodebuild \
+            -project swift/Examples/IDKitSampleApp/IDKitSampleApp.xcodeproj \
+            -scheme IDKitSampleApp \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            build | xcbeautify
+
+      - name: Build Swift sample app for iOS Simulator
+        run: |
+          set -o pipefail; xcodebuild \
+            -project swift/Examples/IDKitSampleApp/IDKitSampleApp.xcodeproj \
+            -scheme IDKitSampleApp \
+            -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            build | xcbeautify
 
       - name: Cache Swift .build
         if: steps.restore-swift-build.outputs.cache-hit != 'true'
@@ -218,8 +270,7 @@ jobs:
       - name: Free disk space
         run: |
           df -h
-          sudo rm -rf /usr/local/lib/android \
-                      /opt/hostedtoolcache/CodeQL \
+          sudo rm -rf /opt/hostedtoolcache/CodeQL \
                       /usr/share/dotnet \
                       /opt/ghc || true
           sudo apt-get clean
@@ -237,21 +288,26 @@ jobs:
         with:
           toolchain: ${{ steps.rust-version.outputs.toolchain }}
 
-      - name: Cache Cargo dependencies
-        uses: actions/cache@v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
 
       - name: Install cross (for Android targets, if not cached)
         run: command -v cross || cargo install cross --git https://github.com/cross-rs/cross --locked
 
       - name: Build Kotlin bindings (host + Android ABIs)
         run: ./scripts/build-kotlin.sh
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: tools platform-tools platforms;android-35 build-tools;35.0.0
+
+      - name: Build Kotlin sample app
+        working-directory: kotlin/Examples/IDKitSampleApp
+        run: ./gradlew :app:assembleDebug
