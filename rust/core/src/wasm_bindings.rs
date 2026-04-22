@@ -760,7 +760,7 @@ impl IDKitBuilderWasm {
 
         let params = self.config.to_params(constraints)?;
 
-        let payload = crate::bridge::build_request_payload(&params)
+        let payload = crate::bridge::build_request_payload(&params, true)
             .map_err(|e| JsValue::from_str(&format!("Failed to build payload: {e}")))?;
 
         let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
@@ -812,7 +812,7 @@ impl IDKitBuilderWasm {
 
         let params = self.config.to_params_from_preset(preset)?;
 
-        let payload = crate::bridge::build_request_payload(&params)
+        let payload = crate::bridge::build_request_payload(&params, true)
             .map_err(|e| JsValue::from_str(&format!("Failed to build payload: {e}")))?;
 
         let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
