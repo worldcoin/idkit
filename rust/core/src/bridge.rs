@@ -96,6 +96,12 @@ struct BridgeRequestPayload {
     /// Min verification level derived from requests (World App 3.0 compatibility)
     verification_level: VerificationLevel,
 
+    /// RFC 3339 timestamp derived from `rp_context.created_at`.
+    /// Only included for the native transport path — World App Android requires it
+    /// for request freshness validation (±10 min window).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    timestamp: Option<String>,
+
     // -----------------------------------------------
     // -- New Proof Request fields for World ID 4.0 --
     // -----------------------------------------------
@@ -351,7 +357,10 @@ pub struct BridgeConnection {
 ///
 /// Returns an error if constraints are invalid, the signature/nonce format is
 /// wrong, or serialization fails.
-pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_json::Value> {
+pub fn build_request_payload(
+    params: &BridgeConnectionParams,
+    native: bool,
+) -> Result<serde_json::Value> {
     if let Some(ref constraints) = params.constraints {
         constraints.validate()?;
     }
@@ -410,6 +419,19 @@ pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_js
     let legacy_signal_hash =
         crate::crypto::hash_signal(&Signal::from_string(params.legacy_signal.clone()));
 
+    let timestamp = if native {
+        Some(
+            time::OffsetDateTime::from_unix_timestamp(params.rp_context.created_at.cast_signed())
+                .map_err(|_| Error::InvalidConfiguration("Invalid timestamp".to_string()))?
+                .format(&time::format_description::well_known::Rfc3339)
+                .map_err(|_| {
+                    Error::InvalidConfiguration("Failed to format timestamp".to_string())
+                })?,
+        )
+    } else {
+        None
+    };
+
     // Prepare the payload
     let payload = BridgeRequestPayload {
         app_id: params.app_id.as_str().to_string(),
@@ -418,6 +440,7 @@ pub fn build_request_payload(params: &BridgeConnectionParams) -> Result<serde_js
         proof_request,
         verification_level: params.legacy_verification_level,
         signal: legacy_signal_hash,
+        timestamp,
         allow_legacy_proofs: params.allow_legacy_proofs,
         environment: params.environment.unwrap_or_default(),
     };
@@ -493,8 +516,9 @@ impl BridgeConnection {
         #[cfg(not(feature = "native-crypto"))]
         let (key_bytes, nonce_bytes) = crate::crypto::generate_key()?;
 
-        // Build the payload using the shared function (borrows params)
-        let payload_value = build_request_payload(&params)?;
+        // Build the payload using the shared function (borrows params).
+        // Bridge path does not need the timestamp field.
+        let payload_value = build_request_payload(&params, false)?;
         let payload_json = serde_json::to_vec(&payload_value)?;
 
         // Compute signal hashes before partial moves
@@ -1290,6 +1314,7 @@ mod tests {
             action_description: Some("Test description".to_string()),
             signal: String::new(),
             verification_level: VerificationLevel::Device,
+            timestamp: None,
             proof_request: Some(proof_request),
             allow_legacy_proofs: false,
             environment: Environment::Production,
@@ -1486,7 +1511,7 @@ mod tests {
             environment: Some(Environment::Production),
         };
 
-        let payload = build_request_payload(&params).unwrap();
+        let payload = build_request_payload(&params, false).unwrap();
         assert_eq!(payload["verification_level"], serde_json::json!("face"));
     }
 
@@ -1524,7 +1549,7 @@ mod tests {
             environment: Some(Environment::Production),
         };
 
-        let payload = build_request_payload(&params).unwrap();
+        let payload = build_request_payload(&params, false).unwrap();
         assert_eq!(payload["verification_level"], serde_json::json!("device"));
     }
 
@@ -1592,6 +1617,51 @@ mod tests {
         assert_eq!(payload["action"], "my-action");
         assert_eq!(payload["timestamp"], "2023-11-14T22:13:20Z");
         assert!(payload["signal"].as_str().unwrap().starts_with("0x"));
+    }
+
+    #[test]
+    fn test_build_request_payload_native_includes_timestamp() {
+        let app_id = AppId::new("app_test").unwrap();
+        let sig = "0x".to_string() + &"00".repeat(64) + "1b";
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &sig,
+        )
+        .unwrap();
+
+        let item = CredentialRequest::new(
+            CredentialType::ProofOfHuman,
+            Some(Signal::from_string("test")),
+        );
+        let constraints = ConstraintNode::item(item);
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::Uniqueness {
+                action: "my-action".to_string(),
+            },
+            constraints: Some(constraints),
+            rp_context,
+            action_description: None,
+            legacy_verification_level: VerificationLevel::Orb,
+            legacy_signal: "test-signal".to_string(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: None,
+        };
+
+        // native=true includes timestamp
+        let payload = build_request_payload(&params, true).unwrap();
+        assert_eq!(payload["timestamp"], "2023-11-14T22:13:20Z");
+
+        // native=false omits timestamp
+        let payload_bridge = build_request_payload(&params, false).unwrap();
+        assert!(payload_bridge.get("timestamp").is_none());
     }
 
     fn sample_connection(return_to: Option<String>) -> BridgeConnection {
