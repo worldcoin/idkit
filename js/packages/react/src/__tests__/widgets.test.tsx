@@ -308,6 +308,11 @@ describe("widgets", () => {
       isSuccess: true,
       result: { proof: "pending" },
     });
+    // Simulate real resetFlow() behavior: clears success state.
+    flow.reset.mockImplementation(() => {
+      flow.isSuccess = false;
+      flow.result = null;
+    });
     useIDKitRequestMock.mockReturnValue(flow);
 
     let resolveVerify = () => {};
