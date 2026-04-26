@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use world_id_primitives::rp::RpId;
 
-use std::str::FromStr;
+use std::{borrow::Cow, str::FromStr};
 
 #[cfg(feature = "ffi")]
 use std::sync::Arc;
@@ -79,10 +79,23 @@ pub enum Signal {
 }
 
 impl Signal {
-    /// Creates a signal from a string
+    /// Creates a signal from a JS-facing string using `IDKit` signal hashing semantics.
+    ///
+    /// This intentionally mirrors `@worldcoin/idkit-core`'s `hashSignal`:
+    /// valid non-empty even-length `0x` hex strings are decoded as raw bytes,
+    /// and all other strings are hashed as UTF-8 text. This keeps
+    /// address-shaped signals aligned with Solidity `abi.encodePacked(address)`.
+    /// Call `from_bytes` with UTF-8 bytes if a literal valid `0x...` string
+    /// must be hashed as text.
     #[must_use]
     pub fn from_string(s: impl Into<String>) -> Self {
-        Self::String(s.into())
+        let s = s.into();
+
+        if let Some(bytes) = decode_prefixed_hex_signal(&s) {
+            return Self::Bytes(bytes);
+        }
+
+        Self::String(s)
     }
 
     /// Creates a signal from raw bytes
@@ -97,11 +110,22 @@ impl Signal {
     /// Gets the raw bytes of the signal
     ///
     /// For strings, returns UTF-8 bytes. For ABI-encoded signals, returns the encoded bytes.
+    /// Use `crypto::hash_signal` when hashing, since signal hashing applies
+    /// `IDKit`'s `0x` string decoding semantics.
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         match self {
             Self::String(s) => s.as_bytes(),
             Self::Bytes(b) => b,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn hash_input_bytes(&self) -> Cow<'_, [u8]> {
+        match self {
+            Self::String(s) => decode_prefixed_hex_signal(s)
+                .map_or_else(|| Cow::Borrowed(s.as_bytes()), Cow::Owned),
+            Self::Bytes(b) => Cow::Borrowed(b),
         }
     }
 
@@ -119,6 +143,24 @@ impl Signal {
             Self::Bytes(_) => None,
         }
     }
+}
+
+fn decode_prefixed_hex_signal(s: &str) -> Option<Vec<u8>> {
+    let stripped = s.strip_prefix("0x")?;
+
+    if stripped.is_empty() || stripped.len() % 2 != 0 {
+        return None;
+    }
+
+    hex::decode(stripped).ok()
+}
+
+fn decode_serialized_hex_signal(s: &str) -> Option<Vec<u8>> {
+    if s == "0x" {
+        return Some(Vec::new());
+    }
+
+    decode_prefixed_hex_signal(s)
 }
 
 // UniFFI exports for Signal
@@ -174,11 +216,12 @@ impl<'de> Deserialize<'de> for Signal {
     {
         let s = String::deserialize(deserializer)?;
 
-        // Only decode as bytes if it has the "0x" prefix
-        if let Some(stripped) = s.strip_prefix("0x") {
-            if let Ok(bytes) = hex::decode(stripped) {
-                return Ok(Self::Bytes(bytes));
-            }
+        // `Signal::Bytes([])` serializes as "0x", so serde accepts that empty
+        // payload to keep byte signals stable across JSON boundaries. The
+        // JS-facing `Signal::from_string` path still treats "0x" as text to
+        // match `hashSignal("0x")`.
+        if let Some(bytes) = decode_serialized_hex_signal(&s) {
+            return Ok(Self::Bytes(bytes));
         }
 
         // Else, treat as a UTF-8 string
@@ -254,10 +297,16 @@ impl CredentialRequest {
         }
     }
 
-    /// Gets the signal as bytes
+    /// Gets the signal bytes used by protocol proof requests.
+    ///
+    /// These are the bytes the protocol hashes into the proof. Keep this aligned
+    /// with `crypto::hash_signal`, including `IDKit`'s `0x` string decoding
+    /// semantics for address-shaped signals.
     #[must_use]
     pub fn signal_bytes(&self) -> Option<Vec<u8>> {
-        self.signal.as_ref().map(Signal::to_bytes)
+        self.signal
+            .as_ref()
+            .map(|signal| signal.hash_input_bytes().into_owned())
     }
 
     /// Converts to a protocol `RequestItem`
@@ -269,7 +318,8 @@ impl CredentialRequest {
         let identifier = self.credential_type.to_string();
         let issuer_schema_id = self.credential_type.issuer_schema_id();
 
-        // Protocol request items now carry raw signal bytes and hash them downstream.
+        // Protocol request items carry signal bytes and hash them downstream.
+        // Keep this byte encoding in lockstep with `crypto::hash_signal`.
         let signal = self.signal_bytes();
 
         Ok(world_id_primitives::RequestItem::new(
@@ -1015,6 +1065,19 @@ mod tests {
     }
 
     #[test]
+    fn test_request_item_with_direct_hex_string_signal_uses_hash_input_bytes() {
+        let signal = "0x3df41d9d0ba00d8fbe5a9896bb01efc4b3787b7c";
+        let expected = hex::decode(signal.strip_prefix("0x").unwrap()).unwrap();
+        let item = CredentialRequest::new(
+            CredentialType::Face,
+            Some(Signal::String(signal.to_string())),
+        );
+
+        assert_eq!(item.signal_bytes(), Some(expected.clone()));
+        assert_eq!(item.to_protocol_item().unwrap().signal, Some(expected));
+    }
+
+    #[test]
     fn test_request_item_without_signal() {
         let item = CredentialRequest::new(CredentialType::Passport, None);
         assert_eq!(item.signal, None);
@@ -1032,6 +1095,17 @@ mod tests {
         let bytes_signal = Signal::from_bytes(vec![0x48, 0x65, 0x6c, 0x6c, 0x6f]); // "Hello" bytes
         let json = serde_json::to_string(&bytes_signal).unwrap();
         assert_eq!(json, r#""0x48656c6c6f""#);
+
+        // Empty bytes serialize as "0x" and must round-trip as bytes, not text.
+        let empty_bytes_signal = Signal::from_bytes(Vec::<u8>::new());
+        let json = serde_json::to_string(&empty_bytes_signal).unwrap();
+        assert_eq!(json, r#""0x""#);
+        let deserialized: Signal = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, empty_bytes_signal);
+        assert_eq!(
+            crate::crypto::hash_signal(&deserialized),
+            crate::crypto::hash_signal(&Signal::from_bytes(Vec::<u8>::new()))
+        );
     }
 
     #[test]
@@ -1040,6 +1114,10 @@ mod tests {
         let signal: Signal = serde_json::from_str(r#""0x48656c6c6f""#).unwrap();
         assert_eq!(signal.as_bytes(), b"Hello");
         assert!(matches!(signal, Signal::Bytes(_)));
+
+        // Test empty 0x-prefixed hex deserialization preserves serialized bytes
+        let signal: Signal = serde_json::from_str(r#""0x""#).unwrap();
+        assert_eq!(signal, Signal::Bytes(Vec::new()));
 
         // Test non-prefixed hex is treated as a plain string (not bytes)
         // This prevents ambiguity with strings like "cafe" or "deadbeef"
@@ -1057,6 +1135,26 @@ mod tests {
         let signal: Signal = serde_json::from_str(r#""cafe""#).unwrap();
         assert_eq!(signal.as_str(), Some("cafe"));
         assert!(matches!(signal, Signal::String(_)));
+    }
+
+    #[test]
+    fn test_signal_from_string_decodes_valid_prefixed_hex() {
+        let signal = Signal::from_string("0x48656c6c6f");
+        assert_eq!(signal.as_bytes(), b"Hello");
+        assert!(matches!(signal, Signal::Bytes(_)));
+
+        let address = Signal::from_string("0x3df41d9d0ba00d8fbe5a9896bb01efc4b3787b7c");
+        assert_eq!(address.as_bytes().len(), 20);
+        assert!(matches!(address, Signal::Bytes(_)));
+    }
+
+    #[test]
+    fn test_signal_from_string_keeps_invalid_hex_as_string() {
+        for value in ["0x", "0x0", "0xabc", "0xzz"] {
+            let signal = Signal::from_string(value);
+            assert_eq!(signal.as_str(), Some(value));
+            assert!(matches!(signal, Signal::String(_)));
+        }
     }
 
     #[test]

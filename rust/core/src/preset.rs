@@ -247,4 +247,24 @@ mod tests {
             _ => panic!("expected deviceLegacy constraints to be a single orb item"),
         }
     }
+
+    #[test]
+    fn orb_legacy_preset_decodes_address_shaped_signal_as_bytes() {
+        let address = "0x3df41d9d0ba00d8fbe5a9896bb01efc4b3787b7c";
+        let preset = Preset::orb_legacy(Some(address.to_string()));
+        let (constraints, verification_level, legacy_signal) = preset.to_bridge_params();
+
+        assert_eq!(verification_level, VerificationLevel::Orb);
+        assert_eq!(legacy_signal, Some(address.to_string()));
+
+        match constraints {
+            ConstraintNode::Item(orb) => {
+                assert_eq!(orb.credential_type, CredentialType::ProofOfHuman);
+                let signal = orb.signal.expect("expected signal");
+                assert!(matches!(signal, Signal::Bytes(_)));
+                assert_eq!(signal.as_bytes().len(), 20);
+            }
+            _ => panic!("expected orbLegacy constraints to be a single orb item"),
+        }
+    }
 }

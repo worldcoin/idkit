@@ -415,7 +415,9 @@ pub fn build_request_payload(
         })
         .transpose()?;
 
-    // For backwards compatibility we hash the signal
+    // Legacy v3 payloads send only the signal hash. `Signal::from_string`
+    // intentionally mirrors JS `hashSignal`, including decoding valid `0x`
+    // strings as bytes so address signals match `abi.encodePacked(address)`.
     let legacy_signal_hash =
         crate::crypto::hash_signal(&Signal::from_string(params.legacy_signal.clone()));
 
@@ -1662,6 +1664,56 @@ mod tests {
         // native=false omits timestamp
         let payload_bridge = build_request_payload(&params, false).unwrap();
         assert!(payload_bridge.get("timestamp").is_none());
+    }
+
+    #[test]
+    fn test_legacy_payload_hashes_address_shaped_signal_as_raw_bytes() {
+        let address = "0x3df41d9d0ba00d8fbe5a9896bb01efc4b3787b7c";
+        let address_bytes = hex::decode(address.strip_prefix("0x").unwrap()).unwrap();
+        let expected = crate::crypto::hash_signal(&Signal::from_bytes(address_bytes));
+        let utf8_hash = crate::crypto::hash_signal(&Signal::from_bytes(address.as_bytes()));
+
+        assert_ne!(expected, utf8_hash);
+        let app_id = AppId::new("app_test").unwrap();
+        let sig = "0x".to_string() + &"00".repeat(64) + "1b";
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &sig,
+        )
+        .unwrap();
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::Uniqueness {
+                action: "my-action".to_string(),
+            },
+            constraints: None,
+            rp_context,
+            action_description: None,
+            legacy_verification_level: VerificationLevel::Orb,
+            legacy_signal: address.to_string(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+
+            override_connect_base_url: None,
+            return_to: None,
+            environment: None,
+        };
+
+        let cached = CachedSignalHashes::compute(&params);
+        assert_eq!(cached.legacy_signal_hash, expected);
+
+        let bridge_payload = build_request_payload(&params, false).unwrap();
+        assert_eq!(bridge_payload["signal"], expected);
+
+        let native_payload = build_request_payload(&params, true).unwrap();
+        assert_eq!(native_payload["signal"], expected);
+
+        let native_v1_payload = build_native_v1_payload(&params).unwrap();
+        assert_eq!(native_v1_payload["signal"], expected);
     }
 
     fn sample_connection(return_to: Option<String>) -> BridgeConnection {

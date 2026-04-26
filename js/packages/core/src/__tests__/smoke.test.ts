@@ -15,7 +15,9 @@ import {
   isNode,
   IDKitErrorCodes,
   signRequest,
+  hashSignal,
 } from "../index";
+import { initIDKit, WasmModule } from "../lib/wasm";
 
 const TEST_SESSION_ID = `session_${"11".repeat(64)}` as const;
 const TEST_SESSION_CONFIG = {
@@ -150,6 +152,41 @@ describe("IDKitRequest API", () => {
   //   });
   //   await expect(builder.constraints({ any: [] })).rejects.toThrow();
   // });
+
+  it("should hash address-shaped legacy preset signals as raw bytes in WASM payloads", async () => {
+    await initIDKit();
+
+    const signal = "0x3df41d9d0ba00d8fbe5a9896bb01efc4b3787b7c";
+    const utf8SignalHash = hashSignal(new TextEncoder().encode(signal));
+    const rawAddressSignalHash = hashSignal(signal);
+    const rpContext = new WasmModule.RpContextWasm(
+      "rp_1234567890abcdef",
+      "0x0000000000000000000000000000000000000000000000000000000000000001",
+      1_700_000_000n,
+      1_700_003_600n,
+      "0x" + "00".repeat(64) + "1b",
+    );
+    const builder = new WasmModule.IDKitBuilder(
+      "app_test",
+      "test-action",
+      rpContext,
+      null,
+      null,
+      true,
+      null,
+      null,
+      "production",
+    );
+
+    const result = builder.nativePayloadFromPreset(orbLegacy({ signal })) as {
+      payload: { signal: string };
+      legacy_signal_hash: string;
+    };
+
+    expect(rawAddressSignalHash).not.toBe(utf8SignalHash);
+    expect(result.payload.signal).toBe(rawAddressSignalHash);
+    expect(result.legacy_signal_hash).toBe(rawAddressSignalHash);
+  });
 });
 
 describe("Enums", () => {
