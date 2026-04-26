@@ -111,11 +111,11 @@ impl CredentialRequestWasm {
         serde_wasm_bindgen::to_value(&self.0.credential_type).unwrap_or(JsValue::NULL)
     }
 
-    /// Gets the signal as raw bytes
+    /// Gets the signal bytes used by protocol proof requests
     #[must_use]
     #[wasm_bindgen(js_name = getSignalBytes)]
     pub fn get_signal_bytes(&self) -> Option<Vec<u8>> {
-        self.0.signal.as_ref().map(Signal::as_bytes).map(Vec::from)
+        self.0.signal_bytes()
     }
 
     /// Converts the request item to JSON
@@ -285,12 +285,6 @@ impl RpContextWasm {
 pub fn hash_signal_wasm(signal: JsValue) -> Result<String, JsValue> {
     // Check if it's a string
     if let Some(s) = signal.as_string() {
-        // Use existing 0x prefix detection for backwards compat
-        if let Some(stripped) = s.strip_prefix("0x") {
-            if let Ok(bytes) = hex::decode(stripped) {
-                return Ok(crate::crypto::hash_signal(&Signal::from_bytes(bytes)));
-            }
-        }
         return Ok(crate::crypto::hash_signal(&Signal::from_string(s)));
     }
 

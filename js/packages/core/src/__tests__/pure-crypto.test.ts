@@ -71,6 +71,18 @@ describe("hashSignal (pure JS)", () => {
       "0x001c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36dea",
     );
   });
+
+  it("should hash address-shaped signals as raw address bytes", () => {
+    const signal = "0x3df41d9d0ba00d8fbe5a9896bb01efc4b3787b7c";
+    const rawAddressBytes = hexToBytes(signal.slice(2));
+    const utf8AddressString = new TextEncoder().encode(signal);
+
+    expect(hashSignal(signal)).toBe(hashSignal(rawAddressBytes));
+    expect(hashSignal(signal)).toBe(
+      "0x008c8aee1da6dd63c3fd6c420eab6a55882e7f1a3f97b27853e75eb8ffc8032f",
+    );
+    expect(hashSignal(signal)).not.toBe(hashSignal(utf8AddressString));
+  });
 });
 
 // Rust ref: https://github.com/worldcoin/world-id-protocol/blob/0008eab1efe200e572f27258793f9be5cb32858b/crates/primitives/src/rp.rs#L95-L105

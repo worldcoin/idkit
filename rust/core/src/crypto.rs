@@ -158,10 +158,14 @@ pub fn hash_signal_abi<V: alloy_sol_types::SolValue>(signal: &V) -> U256 {
 /// Hashes a signal using keccak256 hash
 ///
 /// Takes a `Signal` (either string or bytes) and returns the keccak256 hash,
-/// shifted right by 8 bits, formatted as a hex string with 0x prefix
+/// shifted right by 8 bits, formatted as a hex string with 0x prefix.
+/// String signals intentionally use the same `0x` decoding semantics as the
+/// JS `hashSignal` helper: valid non-empty even-length hex strings are hashed
+/// as raw bytes, and all other strings are hashed as UTF-8 text.
 #[must_use]
 pub fn hash_signal(signal: &crate::Signal) -> String {
-    let hash = hash_to_field(signal.as_bytes());
+    let input = signal.hash_input_bytes();
+    let hash = hash_to_field(input.as_ref());
     format!("{hash:#066x}")
 }
 
@@ -273,6 +277,20 @@ mod tests {
         let hashed_bytes = hash_signal(&bytes_signal);
         assert!(hashed_bytes.starts_with("0x"));
         assert_eq!(hashed_bytes.len(), 66);
+    }
+
+    #[test]
+    fn test_hash_signal_decodes_prefixed_hex_strings() {
+        use crate::Signal;
+
+        let signal = "0x3df41d9d0ba00d8fbe5a9896bb01efc4b3787b7c";
+        let address_bytes = hex::decode(signal.strip_prefix("0x").unwrap()).unwrap();
+        let expected = hash_signal(&Signal::from_bytes(address_bytes));
+        let utf8_hash = hash_signal(&Signal::from_bytes(signal.as_bytes()));
+
+        assert_ne!(expected, utf8_hash);
+        assert_eq!(hash_signal(&Signal::String(signal.to_string())), expected);
+        assert_eq!(hash_signal(&Signal::from_string(signal)), expected);
     }
 
     #[test]
