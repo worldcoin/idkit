@@ -142,7 +142,7 @@ export function DemoClient(): ReactElement {
   const [useStagingConnectBaseUrl, setUseStagingConnectBaseUrl] =
     useState(false);
   const [isConnectUrlTooltipOpen, setIsConnectUrlTooltipOpen] = useState(false);
-  const [worldIdVersion, setWorldIdVersion] = useState<"3.0" | "4.0">("3.0");
+  const [worldIdVersion, setWorldIdVersion] = useState<"3.0" | "4.0">("4.0");
   const [v4CredentialType, setV4CredentialType] =
     useState<V4CredentialType>("proof_of_human");
   const [presetKind, setPresetKind] = useState<PresetKind>("orb");

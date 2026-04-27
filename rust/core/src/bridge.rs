@@ -662,7 +662,13 @@ impl BridgeConnection {
                 #[cfg(not(feature = "native-crypto"))]
                 let plaintext = decrypt(&self.key_bytes, &iv, &ciphertext)?;
 
-                let bridge_response: BridgeResponse = serde_json::from_slice(&plaintext)?;
+                let bridge_response: BridgeResponse =
+                    serde_json::from_slice(&plaintext).map_err(|_| {
+                        let raw = String::from_utf8_lossy(&plaintext);
+                        Error::BridgeError(format!(
+                            "World App returned an unrecognized response. This may indicate a version mismatch. Raw response: {raw}"
+                        ))
+                    })?;
 
                 match bridge_response {
                     BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
