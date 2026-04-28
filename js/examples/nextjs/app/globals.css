@@ -113,17 +113,21 @@ pre {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-height: 34px;
 }
 
 .config-row > label {
-  min-width: 100px;
+  width: 200px;
+  flex-shrink: 0;
   opacity: 0.7;
   font-size: 14px;
 }
 
 .config-row input[type="text"],
+.config-row input[type="number"],
 .config-row select {
   flex: 1;
+  height: 34px;
   font-family: monospace;
   font-size: 14px;
   padding: 6px 10px;

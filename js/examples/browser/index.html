@@ -23,6 +23,14 @@
         --border-color: #ddd;
       }
 
+      * {
+        box-sizing: border-box;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
       body {
         background-color: var(--bg-color);
         color: var(--text-color);
@@ -30,10 +38,12 @@
           system-ui,
           -apple-system,
           sans-serif;
-        padding: 20px;
+        padding: 40px 16px 80px;
         transition:
           background-color 0.3s,
           color 0.3s;
+        max-width: 980px;
+        margin: 0 auto;
       }
 
       button {
@@ -88,7 +98,6 @@
         background-color: #22c55e;
         color: white;
       }
-
       .verify-result.error {
         background-color: #ef4444;
         color: white;
@@ -105,12 +114,10 @@
         background-color: #22c55e;
         color: white;
       }
-
       .verify-summary.partial-success {
         background-color: #f59e0b;
         color: white;
       }
-
       .verify-summary.all-failed {
         background-color: #ef4444;
         color: white;
@@ -126,17 +133,21 @@
         display: flex;
         align-items: center;
         gap: 10px;
+        min-height: 34px;
       }
 
       .config-row > label {
-        min-width: 100px;
+        width: 200px;
+        flex-shrink: 0;
         opacity: 0.7;
         font-size: 14px;
       }
 
       .config-row input[type="text"],
+      .config-row input[type="number"],
       .config-row select {
         flex: 1;
+        height: 34px;
         font-family: monospace;
         font-size: 14px;
         padding: 6px 10px;
@@ -146,8 +157,47 @@
         color: var(--text-color);
       }
 
+      .config-row input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        margin: 0;
+      }
+
       .config-row input[type="text"][readonly] {
         opacity: 0.5;
+      }
+
+      .config-note {
+        font-family: monospace;
+        font-size: 12px;
+        opacity: 0.7;
+      }
+
+      .config-divider {
+        border: none;
+        border-top: 1px solid var(--border-color);
+        margin: 4px 0;
+      }
+
+      .config-section-label {
+        font-size: 12px;
+        opacity: 0.5;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      #v3Options,
+      #v4Options,
+      #identityCheckOptions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      #v3Options[hidden],
+      #v4Options[hidden],
+      #identityCheckOptions[hidden] {
+        display: none;
       }
     </style>
   </head>
@@ -183,14 +233,138 @@
           <option value="staging">Staging</option>
         </select>
       </div>
+      <div class="config-row" id="stagingConnectRow" hidden>
+        <label for="cfgOverrideConnectUrl">Connect URL override</label>
+        <input type="checkbox" id="cfgOverrideConnectUrl" />
+        <span class="config-note" style="flex: none"
+          >https://staging.world.org/verify</span
+        >
+      </div>
+      <div class="config-row">
+        <label for="cfgWorldId">World ID</label>
+        <select id="cfgWorldId">
+          <option value="4.0">4.0</option>
+          <option value="3.0">3.0</option>
+        </select>
+      </div>
+
+      <!-- World ID 3.0 options -->
+      <div id="v3Options" hidden>
+        <div class="config-row">
+          <label for="cfgV3Credential">Credential</label>
+          <select id="cfgV3Credential">
+            <option value="orb">Proof Of Human (Orb)</option>
+            <option value="selfie">Selfie Check</option>
+            <option value="secure_document">Secure Document</option>
+            <option value="document">Document</option>
+            <option value="device">Device</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- World ID 4.0 options -->
+      <div id="v4Options">
+        <div class="config-row">
+          <label for="cfgV4RequestType">Request type</label>
+          <select id="cfgV4RequestType">
+            <option value="credential_request">Credential Request</option>
+            <option value="identity_check">Identity Check</option>
+          </select>
+        </div>
+
+        <div id="v4CredentialRow" class="config-row">
+          <label for="cfgV4Credential">Credential</label>
+          <select id="cfgV4Credential">
+            <option value="proof_of_human">Proof Of Human (Orb)</option>
+            <option value="passport">Passport</option>
+          </select>
+        </div>
+
+        <div id="identityCheckOptions" hidden>
+          <hr class="config-divider" />
+          <div class="config-section-label">Identity Check</div>
+
+          <div class="config-row">
+            <label for="cfgRequirePoH">Require Proof of Humanity</label>
+            <input type="checkbox" id="cfgRequirePoH" />
+          </div>
+          <div class="config-row">
+            <label for="cfgAttrDocumentType">Document type</label>
+            <input type="checkbox" id="cfgAttrDocumentType" checked />
+            <select id="cfgDocumentTypeValue">
+              <option value="passport">Passport</option>
+              <option value="eid">eID</option>
+              <option value="mnc">MNC</option>
+            </select>
+          </div>
+          <div class="config-row">
+            <label for="cfgAttrDocumentNumber">Document number</label>
+            <input type="checkbox" id="cfgAttrDocumentNumber" />
+            <input
+              type="text"
+              id="cfgDocumentNumberValue"
+              placeholder="e.g. A1234567"
+              hidden
+            />
+          </div>
+          <div class="config-row">
+            <label for="cfgAttrIssuingCountry">Issuing country</label>
+            <input type="checkbox" id="cfgAttrIssuingCountry" />
+            <input
+              type="text"
+              id="cfgIssuingCountryValue"
+              placeholder="e.g. JPN"
+              hidden
+            />
+            <span
+              id="cfgIssuingCountryHint"
+              class="config-note"
+              style="flex: none; display: none"
+            ></span>
+          </div>
+          <div class="config-row">
+            <label for="cfgAttrFullName">Full name</label>
+            <input type="checkbox" id="cfgAttrFullName" />
+            <input
+              type="text"
+              id="cfgFullNameValue"
+              placeholder="e.g. Jane Doe"
+              hidden
+            />
+          </div>
+          <div class="config-row">
+            <label for="cfgAttrMinimumAge">Minimum age</label>
+            <input type="checkbox" id="cfgAttrMinimumAge" />
+            <input
+              type="number"
+              id="cfgMinimumAgeValue"
+              placeholder="e.g. 18"
+              min="0"
+              max="255"
+              hidden
+            />
+          </div>
+          <div class="config-row">
+            <label for="cfgAttrNationality">Nationality</label>
+            <input type="checkbox" id="cfgAttrNationality" />
+            <input
+              type="text"
+              id="cfgNationalityValue"
+              placeholder="e.g. JPN"
+              hidden
+            />
+            <span
+              id="cfgNationalityHint"
+              class="config-note"
+              style="flex: none; display: none"
+            ></span>
+          </div>
+        </div>
+      </div>
     </section>
 
     <div>
-      <button id="verifyOrb">Verify with Orb</button>
-      <button id="verifySecureDocument">Verify with Secure Document</button>
-      <button id="verifyDocument">Verify with Document</button>
-      <button id="verifyDeviceLegacy">Verify with Device</button>
-      <button id="verifySelfieCheckLegacy">Verify with Selfie Check</button>
+      <button id="verify">Verify</button>
     </div>
 
     <section id="qr" hidden>
@@ -215,13 +389,12 @@
     </section>
 
     <script>
-      // Theme toggle functionality
       const themeToggle = document.getElementById("themeToggle");
       const html = document.documentElement;
 
       function updateToggleText() {
-        const isDark = html.getAttribute("data-theme") !== "light";
-        themeToggle.textContent = isDark ? "Light" : "Dark";
+        themeToggle.textContent =
+          html.getAttribute("data-theme") !== "light" ? "Light" : "Dark";
       }
 
       themeToggle.addEventListener("click", () => {
@@ -230,56 +403,215 @@
         updateToggleText();
       });
 
-      // Initialize toggle text
       updateToggleText();
     </script>
 
     <script type="module">
-      // Import IDKit core (pure TypeScript, no dependencies)
       import {
         IDKit,
+        CredentialRequest,
         orbLegacy,
         secureDocumentLegacy,
         documentLegacy,
         deviceLegacy,
         selfieCheckLegacy,
+        identityCheck,
       } from "@worldcoin/idkit-core";
+      import countries from "i18n-iso-countries";
+      import enLocale from "i18n-iso-countries/langs/en.json";
 
-      // Format V4 verify response with visual indicators
+      countries.registerLocale(enLocale);
+
+      // ─── Visibility ───────────────────────────────────────────────────────────
+
+      function updateVisibility() {
+        const worldId = document.getElementById("cfgWorldId").value;
+        const requestType = document.getElementById("cfgV4RequestType").value;
+        const isV4 = worldId === "4.0";
+        const isIdentityCheck = isV4 && requestType === "identity_check";
+
+        document.getElementById("v3Options").hidden = isV4;
+        document.getElementById("v4Options").hidden = !isV4;
+        document.getElementById("v4CredentialRow").hidden =
+          !isV4 || isIdentityCheck;
+        document.getElementById("identityCheckOptions").hidden =
+          !isIdentityCheck;
+      }
+
+      document
+        .getElementById("cfgWorldId")
+        .addEventListener("change", updateVisibility);
+      document
+        .getElementById("cfgV4RequestType")
+        .addEventListener("change", updateVisibility);
+
+      updateVisibility();
+
+      // ─── Country hints ────────────────────────────────────────────────────────
+
+      function isValidAlpha3(code) {
+        return code.length === 3 && countries.isValid(code.toUpperCase());
+      }
+
+      function updateCountryHint(inputId, hintId) {
+        const input = document.getElementById(inputId);
+        const hint = document.getElementById(hintId);
+        const val = input.value.trim();
+        if (!val) {
+          hint.style.display = "none";
+          input.style.borderColor = "";
+          return;
+        }
+        hint.style.display = "inline";
+        if (isValidAlpha3(val)) {
+          hint.textContent = countries.getName(val.toUpperCase(), "en");
+          hint.style.color = "";
+          input.style.borderColor = "";
+        } else {
+          hint.textContent = "ISO 3166-1 alpha-3";
+          hint.style.color = "#ef4444";
+          input.style.borderColor = "#ef4444";
+        }
+      }
+
+      document
+        .getElementById("cfgIssuingCountryValue")
+        .addEventListener("input", () =>
+          updateCountryHint("cfgIssuingCountryValue", "cfgIssuingCountryHint"),
+        );
+      document
+        .getElementById("cfgNationalityValue")
+        .addEventListener("input", () =>
+          updateCountryHint("cfgNationalityValue", "cfgNationalityHint"),
+        );
+
+      // ─── Attribute field toggles ──────────────────────────────────────────────
+
+      function toggleField(checkboxId, fieldId, hintId) {
+        const checked = document.getElementById(checkboxId).checked;
+        document.getElementById(fieldId).hidden = !checked;
+        if (hintId && !checked) {
+          document.getElementById(hintId).style.display = "none";
+        }
+      }
+
+      document
+        .getElementById("cfgAttrDocumentType")
+        .addEventListener("change", () =>
+          toggleField("cfgAttrDocumentType", "cfgDocumentTypeValue"),
+        );
+      document
+        .getElementById("cfgAttrDocumentNumber")
+        .addEventListener("change", () =>
+          toggleField("cfgAttrDocumentNumber", "cfgDocumentNumberValue"),
+        );
+      document
+        .getElementById("cfgAttrIssuingCountry")
+        .addEventListener("change", () =>
+          toggleField(
+            "cfgAttrIssuingCountry",
+            "cfgIssuingCountryValue",
+            "cfgIssuingCountryHint",
+          ),
+        );
+      document
+        .getElementById("cfgAttrFullName")
+        .addEventListener("change", () =>
+          toggleField("cfgAttrFullName", "cfgFullNameValue"),
+        );
+      document
+        .getElementById("cfgAttrMinimumAge")
+        .addEventListener("change", () =>
+          toggleField("cfgAttrMinimumAge", "cfgMinimumAgeValue"),
+        );
+      document
+        .getElementById("cfgAttrNationality")
+        .addEventListener("change", () =>
+          toggleField(
+            "cfgAttrNationality",
+            "cfgNationalityValue",
+            "cfgNationalityHint",
+          ),
+        );
+
+      // ─── Build identity attributes ────────────────────────────────────────────
+
+      function buildIdentityAttributes() {
+        const attrs = [];
+        if (document.getElementById("cfgAttrDocumentType").checked) {
+          attrs.push({
+            type: "document_type",
+            value: document.getElementById("cfgDocumentTypeValue").value,
+          });
+        }
+        const docNum = document
+          .getElementById("cfgDocumentNumberValue")
+          .value.trim();
+        if (
+          document.getElementById("cfgAttrDocumentNumber").checked &&
+          docNum
+        ) {
+          attrs.push({ type: "document_number", value: docNum });
+        }
+        const country = document
+          .getElementById("cfgIssuingCountryValue")
+          .value.trim();
+        if (
+          document.getElementById("cfgAttrIssuingCountry").checked &&
+          country
+        ) {
+          attrs.push({ type: "issuing_country", value: country.toUpperCase() });
+        }
+        const fullName = document
+          .getElementById("cfgFullNameValue")
+          .value.trim();
+        if (document.getElementById("cfgAttrFullName").checked && fullName) {
+          attrs.push({ type: "full_name", value: fullName });
+        }
+        const age = document.getElementById("cfgMinimumAgeValue").value;
+        if (document.getElementById("cfgAttrMinimumAge").checked && age) {
+          attrs.push({ type: "minimum_age", value: parseInt(age, 10) });
+        }
+        const nationality = document
+          .getElementById("cfgNationalityValue")
+          .value.trim();
+        if (
+          document.getElementById("cfgAttrNationality").checked &&
+          nationality
+        ) {
+          attrs.push({ type: "nationality", value: nationality.toUpperCase() });
+        }
+        return attrs;
+      }
+
+      // ─── Verification ─────────────────────────────────────────────────────────
+
       function formatVerifyResult(response) {
         const results = response.results || [];
         const successCount = results.filter((r) => r.success).length;
         const total = results.length;
 
-        // Determine summary class
         let summaryClass = "all-failed";
-        if (response.success && successCount === total) {
+        if (response.success && successCount === total)
           summaryClass = "all-success";
-        } else if (successCount > 0) {
-          summaryClass = "partial-success";
-        }
+        else if (successCount > 0) summaryClass = "partial-success";
 
-        // Build summary HTML
         let html = `<div class="verify-summary ${summaryClass}">`;
         html += response.success
           ? `Verification Successful - ${successCount}/${total} proofs verified`
           : `Verification Failed - ${response.detail || response.code}`;
         html += "</div>";
 
-        // Build individual result cards
         for (const result of results) {
           const cardClass = result.success ? "success" : "error";
           html += `<div class="verify-result ${cardClass}">`;
           html += `<strong>Credential: ${result.identifier}</strong>`;
-          if (result.success) {
-            html += `<br>Nullifier: ${result.nullifier}...`;
-          } else {
-            html += `<br>Error: ${result.code} - ${result.detail}`;
-          }
+          html += result.success
+            ? `<br>Nullifier: ${result.nullifier}...`
+            : `<br>Error: ${result.code} - ${result.detail}`;
           html += "</div>";
         }
 
-        // Add raw JSON in collapsible details
         html += "<details><summary>Raw JSON</summary>";
         html += `<pre>${JSON.stringify(response, null, 2)}</pre>`;
         html += "</details>";
@@ -287,27 +619,33 @@
         return html;
       }
 
-      // Demo app configuration
-      // Replace with your actual app ID and RP ID from the World App dashboard
-      const APP_ID = "app_d8bbd5341f16fb97a61e644b7e169c0e"; // Replace with your actual app ID
+      const APP_ID = "app_d8bbd5341f16fb97a61e644b7e169c0e";
       const RP_ID = "rp_7b4f23dd5fb2a826";
 
-      // Populate readonly config inputs
       document.getElementById("cfgAppId").value = APP_ID;
       document.getElementById("cfgRpId").value = RP_ID;
 
-      // Config helpers
-      function getAction() {
-        return (
-          document.getElementById("cfgAction").value.trim() || "test-action"
-        );
-      }
+      const STAGING_CONNECT_BASE_URL = "https://staging.world.org/verify";
 
-      function getEnvironment() {
-        return document.getElementById("cfgEnv").value;
-      }
+      const getAction = () =>
+        document.getElementById("cfgAction").value.trim() || "test-action";
+      const getEnvironment = () => document.getElementById("cfgEnv").value;
+      const getOverrideConnectBaseUrl = () => {
+        const isStaging = getEnvironment() === "staging";
+        const checked = document.getElementById(
+          "cfgOverrideConnectUrl",
+        ).checked;
+        return isStaging && checked ? STAGING_CONNECT_BASE_URL : undefined;
+      };
+      const makeSignal = () => "demo-signal-" + Date.now();
 
-      // UI elements
+      document.getElementById("cfgEnv").addEventListener("change", () => {
+        const isStaging = getEnvironment() === "staging";
+        document.getElementById("stagingConnectRow").hidden = !isStaging;
+        if (!isStaging)
+          document.getElementById("cfgOverrideConnectUrl").checked = false;
+      });
+
       const qrDiv = document.getElementById("qr");
       const qrUrl = document.getElementById("qrUrl");
       const qrCode = document.getElementById("qrCode");
@@ -325,33 +663,26 @@
         errorDiv.hidden = true;
       };
 
-      // Fetch RP signature from the backend
       async function fetchRpSignature(action) {
         const res = await fetch("/api/rp-signature", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action }),
         });
-
         if (!res.ok) {
-          const error = await res.json();
-          throw new Error(error.error || "Failed to fetch RP signature");
+          const err = await res.json();
+          throw new Error(err.error || "Failed to fetch RP signature");
         }
-
         return res.json();
       }
 
-      // Function to verify with World ID using the new IDKit.request().constraints() API
-      async function startVerification(preset) {
+      async function startVerification(configure) {
         try {
           hideAll();
-
           statusDiv.hidden = false;
           statusText.textContent = "Fetching RP signature...";
 
-          // Fetch RP signature from the backend
           const rpSig = await fetchRpSignature(getAction());
-          console.log("RP signature response:", rpSig);
           const rpContext = {
             rp_id: RP_ID,
             nonce: rpSig.nonce,
@@ -359,44 +690,35 @@
             expires_at: rpSig.expires_at,
             signature: rpSig.sig,
           };
-          console.log("RP context:", rpContext);
 
           statusText.textContent = "Creating verification request...";
 
-          // Create a new request using the builder pattern
-          const request = await IDKit.request({
+          const builder = IDKit.request({
             app_id: APP_ID,
             action: getAction(),
             rp_context: rpContext,
             allow_legacy_proofs: true,
             environment: getEnvironment(),
-          }).preset(preset);
+            override_connect_base_url: getOverrideConnectBaseUrl(),
+          });
 
-          // Get the connector URL from the request
+          const request = await configure(builder);
           const url = request.connectorURI;
-          console.log("Connect URL:", url);
 
           qrDiv.hidden = false;
           qrUrl.textContent = url;
-
           qrCode.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}" alt="QR Code">`;
-
           statusText.textContent = "Waiting for scan...";
 
-          // Poll until completion
           const completion = await request.pollUntilCompletion({
-            pollInterval: 2000, // Poll every 2 seconds
-            timeout: 120000, // 2 minute timeout
+            pollInterval: 2000,
+            timeout: 120000,
           });
 
           if (!completion.success) {
             throw new Error(`Verification failed: ${completion.error}`);
           }
 
-          const result = completion.result;
-          console.log("Received proof:", result);
-
-          // Build portal request and verify proof
           statusText.textContent = "Verifying proof...";
 
           const verifyResponse = await fetch("/api/verify-proof", {
@@ -404,12 +726,11 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               rp_id: RP_ID,
-              devPortalPayload: result,
+              devPortalPayload: completion.result,
             }),
           });
 
           const verifyResult = await verifyResponse.json();
-
           statusDiv.hidden = true;
           qrDiv.hidden = true;
           resultDiv.hidden = false;
@@ -422,35 +743,43 @@
         }
       }
 
-      // Helper to create a signal with timestamp
-      const makeSignal = () => "demo-signal-" + Date.now();
+      document.getElementById("verify").addEventListener("click", () => {
+        const worldId = document.getElementById("cfgWorldId").value;
 
-      // Button event listeners
-      document
-        .getElementById("verifyOrb")
-        .addEventListener("click", () =>
-          startVerification(orbLegacy({ signal: makeSignal() })),
-        );
-      document
-        .getElementById("verifySecureDocument")
-        .addEventListener("click", () =>
-          startVerification(secureDocumentLegacy({ signal: makeSignal() })),
-        );
-      document
-        .getElementById("verifyDocument")
-        .addEventListener("click", () =>
-          startVerification(documentLegacy({ signal: makeSignal() })),
-        );
-      document
-        .getElementById("verifyDeviceLegacy")
-        .addEventListener("click", () =>
-          startVerification(deviceLegacy({ signal: makeSignal() })),
-        );
-      document
-        .getElementById("verifySelfieCheckLegacy")
-        .addEventListener("click", () =>
-          startVerification(selfieCheckLegacy({ signal: makeSignal() })),
-        );
+        if (worldId === "3.0") {
+          const kind = document.getElementById("cfgV3Credential").value;
+          const signal = makeSignal();
+          const presets = {
+            orb: () => orbLegacy({ signal }),
+            selfie: () => selfieCheckLegacy({ signal }),
+            secure_document: () => secureDocumentLegacy({ signal }),
+            document: () => documentLegacy({ signal }),
+            device: () => deviceLegacy({ signal }),
+          };
+          startVerification((b) => b.preset(presets[kind]()));
+          return;
+        }
+
+        const requestType = document.getElementById("cfgV4RequestType").value;
+
+        if (requestType === "identity_check") {
+          startVerification((b) =>
+            b.preset(
+              identityCheck({
+                attributes: buildIdentityAttributes(),
+                require_proof_of_humanity:
+                  document.getElementById("cfgRequirePoH").checked,
+              }),
+            ),
+          );
+        } else {
+          const credentialType =
+            document.getElementById("cfgV4Credential").value;
+          startVerification((b) =>
+            b.constraints(CredentialRequest(credentialType)),
+          );
+        }
+      });
     </script>
   </body>
 </html>

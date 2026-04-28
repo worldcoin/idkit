@@ -30,6 +30,7 @@ export {
   secureDocumentLegacy,
   deviceLegacy,
   selfieCheckLegacy,
+  identityCheck,
   IDKitErrorCodes,
   signRequest,
   isDebug,
@@ -50,4 +51,6 @@ export type {
   ResponseItemV4,
   ResponseItemSession,
   IDKitErrorCode,
+  IdentityAttribute,
+  IdentityCheckPreset,
 } from "@worldcoin/idkit-core";
