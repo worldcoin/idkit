@@ -232,6 +232,14 @@ func legacyPresetHelpers() {
     let doc = documentLegacy(signal: "z")
     let device = deviceLegacy(signal: "d")
     let face = selfieCheckLegacy(signal: "f")
+    let identity = identityCheck(
+        attributes: [
+            .minimumAge(21),
+            .nationality("JPN"),
+            .documentType(.passport)
+        ],
+        requireProofOfHumanity: true
+    )
 
     switch orb {
     case .orbLegacy(let signal):
@@ -266,6 +274,19 @@ func legacyPresetHelpers() {
         #expect(signal == "f")
     case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .identityCheck:
         Issue.record("Expected selfieCheckLegacy preset")
+    }
+
+    switch identity {
+    case let .identityCheck(attributes, requireProofOfHumanity):
+        let expected: [IdentityAttribute] = [
+            .minimumAge(21),
+            .nationality("JPN"),
+            .documentType(.passport)
+        ]
+        #expect(attributes == expected)
+        #expect(requireProofOfHumanity)
+    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy:
+        Issue.record("Expected identityCheck preset")
     }
 }
 
