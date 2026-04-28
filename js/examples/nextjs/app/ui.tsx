@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactElement } from "react";
+import countries from "i18n-iso-countries";
+import enLocale from "i18n-iso-countries/langs/en.json";
 import {
   CredentialRequest,
   documentLegacy,
   deviceLegacy,
+  identityCheck,
   selfieCheckLegacy,
   IDKitRequestWidget,
   orbLegacy,
@@ -13,10 +16,16 @@ import {
   type ConstraintNode,
   type IDKitResult,
   type RpContext,
+  type IdentityAttribute,
   Preset,
 } from "@worldcoin/idkit";
 
 setDebug(true);
+countries.registerLocale(enLocale);
+
+function isValidAlpha3(code: string): boolean {
+  return code.length === 3 && countries.isValid(code.toUpperCase());
+}
 
 const APP_ID = process.env.NEXT_PUBLIC_APP_ID as `app_${string}` | undefined;
 const RP_ID = process.env.NEXT_PUBLIC_RP_ID;
@@ -33,6 +42,50 @@ const RETURN_TO_TOOLTIP =
 type PresetKind = "orb" | "secure_document" | "document" | "device" | "selfie";
 
 type V4CredentialType = "proof_of_human" | "passport";
+
+type V4RequestType = "credential_request" | "identity_check";
+
+type DocumentType = "passport" | "eid" | "mnc";
+
+type IdentityAttributesConfig = {
+  document_type: { enabled: boolean; value: DocumentType };
+  document_number: { enabled: boolean; value: string };
+  issuing_country: { enabled: boolean; value: string };
+  full_name: { enabled: boolean; value: string };
+  minimum_age: { enabled: boolean; value: string };
+  nationality: { enabled: boolean; value: string };
+};
+
+const DEFAULT_IDENTITY_ATTRIBUTES: IdentityAttributesConfig = {
+  document_type: { enabled: true, value: "passport" },
+  document_number: { enabled: false, value: "" },
+  issuing_country: { enabled: false, value: "" },
+  full_name: { enabled: false, value: "" },
+  minimum_age: { enabled: false, value: "" },
+  nationality: { enabled: false, value: "" },
+};
+
+function buildIdentityAttributes(
+  cfg: IdentityAttributesConfig,
+): IdentityAttribute[] {
+  const attrs: IdentityAttribute[] = [];
+  if (cfg.document_type.enabled)
+    attrs.push({ type: "document_type", value: cfg.document_type.value });
+  if (cfg.document_number.enabled && cfg.document_number.value)
+    attrs.push({ type: "document_number", value: cfg.document_number.value });
+  if (cfg.issuing_country.enabled && cfg.issuing_country.value)
+    attrs.push({ type: "issuing_country", value: cfg.issuing_country.value });
+  if (cfg.full_name.enabled && cfg.full_name.value)
+    attrs.push({ type: "full_name", value: cfg.full_name.value });
+  if (cfg.minimum_age.enabled && cfg.minimum_age.value)
+    attrs.push({
+      type: "minimum_age",
+      value: parseInt(cfg.minimum_age.value, 10),
+    });
+  if (cfg.nationality.enabled && cfg.nationality.value)
+    attrs.push({ type: "nationality", value: cfg.nationality.value });
+  return attrs;
+}
 
 const V4_CREDENTIAL_TO_NAME: Record<V4CredentialType, string> = {
   proof_of_human: "Proof of Human",
@@ -142,9 +195,14 @@ export function DemoClient(): ReactElement {
   const [useStagingConnectBaseUrl, setUseStagingConnectBaseUrl] =
     useState(false);
   const [isConnectUrlTooltipOpen, setIsConnectUrlTooltipOpen] = useState(false);
-  const [worldIdVersion, setWorldIdVersion] = useState<"3.0" | "4.0">("3.0");
+  const [worldIdVersion, setWorldIdVersion] = useState<"3.0" | "4.0">("4.0");
   const [v4CredentialType, setV4CredentialType] =
     useState<V4CredentialType>("proof_of_human");
+  const [v4RequestType, setV4RequestType] =
+    useState<V4RequestType>("credential_request");
+  const [requireProofOfHumanity, setRequireProofOfHumanity] = useState(false);
+  const [identityAttributes, setIdentityAttributes] =
+    useState<IdentityAttributesConfig>(DEFAULT_IDENTITY_ATTRIBUTES);
   const [presetKind, setPresetKind] = useState<PresetKind>("orb");
   const [genesisEnabled, setGenesisEnabled] = useState(false);
   const [genesisDate, setGenesisDate] = useState("");
@@ -167,17 +225,27 @@ export function DemoClient(): ReactElement {
       } = useMemo(
     () =>
       worldIdVersion === "4.0"
-        ? {
-            constraints: CredentialRequest(v4CredentialType, {
-              genesis_issued_at_min: genesisIssuedAtMin,
-            }),
-          }
+        ? v4RequestType === "identity_check"
+          ? {
+              preset: identityCheck({
+                attributes: buildIdentityAttributes(identityAttributes),
+                require_proof_of_humanity: requireProofOfHumanity,
+              }),
+            }
+          : {
+              constraints: CredentialRequest(v4CredentialType, {
+                genesis_issued_at_min: genesisIssuedAtMin,
+              }),
+            }
         : { preset: createPreset(presetKind, widgetSignal) },
     [
       worldIdVersion,
+      v4RequestType,
       presetKind,
       v4CredentialType,
       genesisIssuedAtMin,
+      requireProofOfHumanity,
+      identityAttributes,
       widgetSignal,
     ],
   );
@@ -208,6 +276,9 @@ export function DemoClient(): ReactElement {
     if (worldIdVersion !== "4.0") {
       setGenesisEnabled(false);
       setGenesisDate("");
+      setV4RequestType("credential_request");
+      setRequireProofOfHumanity(false);
+      setIdentityAttributes(DEFAULT_IDENTITY_ATTRIBUTES);
     }
   }, [worldIdVersion]);
 
@@ -375,68 +446,362 @@ export function DemoClient(): ReactElement {
         {worldIdVersion === "4.0" && (
           <>
             <div className="config-row">
-              <label htmlFor="cfgCredentialv4">Credential</label>
+              <label htmlFor="cfgV4RequestType">Request type</label>
               <select
-                id="cfgCredentialv4"
-                value={v4CredentialType}
+                id="cfgV4RequestType"
+                value={v4RequestType}
                 onChange={(e) =>
-                  setV4CredentialType(e.target.value as V4CredentialType)
+                  setV4RequestType(e.target.value as V4RequestType)
                 }
               >
-                <option value="proof_of_human">Proof Of Human (Orb)</option>
-                <option value="passport">Passport</option>
+                <option value="credential_request">Credential Request</option>
+                <option value="identity_check">Identity Check</option>
               </select>
             </div>
-            <div className="config-row">
-              <label htmlFor="cfgGenesisEnabled">
-                Min. Genesis Issuing Date
-              </label>
-              <div
-                className="tooltip"
-                onMouseEnter={() => setIsGenesisTooltipOpen(true)}
-                onMouseLeave={() => setIsGenesisTooltipOpen(false)}
-              >
-                <button
-                  type="button"
-                  className="tooltip-trigger"
-                  aria-label="Explain Min. Genesis Issuing Date"
-                  aria-describedby={
-                    isGenesisTooltipOpen
-                      ? "genesis-issued-at-tooltip"
-                      : undefined
-                  }
-                  aria-expanded={isGenesisTooltipOpen}
-                  onFocus={() => setIsGenesisTooltipOpen(true)}
-                  onBlur={() => setIsGenesisTooltipOpen(false)}
-                  onClick={() => setIsGenesisTooltipOpen(true)}
-                >
-                  ?
-                </button>
-                {isGenesisTooltipOpen && (
-                  <span
-                    id="genesis-issued-at-tooltip"
-                    role="tooltip"
-                    className="tooltip-content"
+            {v4RequestType === "credential_request" && (
+              <>
+                <div className="config-row">
+                  <label htmlFor="cfgCredentialv4">Credential</label>
+                  <select
+                    id="cfgCredentialv4"
+                    value={v4CredentialType}
+                    onChange={(e) =>
+                      setV4CredentialType(e.target.value as V4CredentialType)
+                    }
                   >
-                    {GENESIS_ISSUED_AT_MIN_TOOLTIP}
-                  </span>
-                )}
-              </div>
-              <input
-                type="checkbox"
-                id="cfgGenesisEnabled"
-                checked={genesisEnabled}
-                onChange={(e) => setGenesisEnabled(e.target.checked)}
-              />
-              {genesisEnabled && (
-                <input
-                  type="datetime-local"
-                  id="cfgGenesisDate"
-                  value={genesisDate}
-                  onChange={(e) => setGenesisDate(e.target.value)}
-                />
-              )}
-            </div>
+                    <option value="proof_of_human">Proof Of Human (Orb)</option>
+                    <option value="passport">Passport</option>
+                  </select>
+                </div>
+                <div className="config-row">
+                  <label htmlFor="cfgGenesisEnabled">
+                    Min. Genesis Issuing Date
+                  </label>
+                  <div
+                    className="tooltip"
+                    onMouseEnter={() => setIsGenesisTooltipOpen(true)}
+                    onMouseLeave={() => setIsGenesisTooltipOpen(false)}
+                  >
+                    <button
+                      type="button"
+                      className="tooltip-trigger"
+                      aria-label="Explain Min. Genesis Issuing Date"
+                      aria-describedby={
+                        isGenesisTooltipOpen
+                          ? "genesis-issued-at-tooltip"
+                          : undefined
+                      }
+                      aria-expanded={isGenesisTooltipOpen}
+                      onFocus={() => setIsGenesisTooltipOpen(true)}
+                      onBlur={() => setIsGenesisTooltipOpen(false)}
+                      onClick={() => setIsGenesisTooltipOpen(true)}
+                    >
+                      ?
+                    </button>
+                    {isGenesisTooltipOpen && (
+                      <span
+                        id="genesis-issued-at-tooltip"
+                        role="tooltip"
+                        className="tooltip-content"
+                      >
+                        {GENESIS_ISSUED_AT_MIN_TOOLTIP}
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="checkbox"
+                    id="cfgGenesisEnabled"
+                    checked={genesisEnabled}
+                    onChange={(e) => setGenesisEnabled(e.target.checked)}
+                  />
+                  {genesisEnabled && (
+                    <input
+                      type="datetime-local"
+                      id="cfgGenesisDate"
+                      value={genesisDate}
+                      onChange={(e) => setGenesisDate(e.target.value)}
+                    />
+                  )}
+                </div>
+              </>
+            )}
+            {v4RequestType === "identity_check" && (
+              <>
+                <div className="config-row">
+                  <label htmlFor="cfgRequirePoH">
+                    Require Proof of Humanity
+                  </label>
+                  <input
+                    type="checkbox"
+                    id="cfgRequirePoH"
+                    checked={requireProofOfHumanity}
+                    onChange={(e) =>
+                      setRequireProofOfHumanity(e.target.checked)
+                    }
+                  />
+                </div>
+                <div className="config-row">
+                  <label htmlFor="cfgAttrDocumentType">Document type</label>
+                  <input
+                    type="checkbox"
+                    id="cfgAttrDocumentType"
+                    checked={identityAttributes.document_type.enabled}
+                    onChange={(e) =>
+                      setIdentityAttributes((prev) => ({
+                        ...prev,
+                        document_type: {
+                          ...prev.document_type,
+                          enabled: e.target.checked,
+                        },
+                      }))
+                    }
+                  />
+                  {identityAttributes.document_type.enabled && (
+                    <select
+                      value={identityAttributes.document_type.value}
+                      onChange={(e) =>
+                        setIdentityAttributes((prev) => ({
+                          ...prev,
+                          document_type: {
+                            ...prev.document_type,
+                            value: e.target.value as DocumentType,
+                          },
+                        }))
+                      }
+                    >
+                      <option value="passport">Passport</option>
+                      <option value="eid">eID</option>
+                      <option value="mnc">MNC</option>
+                    </select>
+                  )}
+                </div>
+                <div className="config-row">
+                  <label htmlFor="cfgAttrDocumentNumber">Document number</label>
+                  <input
+                    type="checkbox"
+                    id="cfgAttrDocumentNumber"
+                    checked={identityAttributes.document_number.enabled}
+                    onChange={(e) =>
+                      setIdentityAttributes((prev) => ({
+                        ...prev,
+                        document_number: {
+                          ...prev.document_number,
+                          enabled: e.target.checked,
+                        },
+                      }))
+                    }
+                  />
+                  {identityAttributes.document_number.enabled && (
+                    <input
+                      type="text"
+                      placeholder="e.g. A1234567"
+                      value={identityAttributes.document_number.value}
+                      onChange={(e) =>
+                        setIdentityAttributes((prev) => ({
+                          ...prev,
+                          document_number: {
+                            ...prev.document_number,
+                            value: e.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  )}
+                </div>
+                <div className="config-row">
+                  <label htmlFor="cfgAttrIssuingCountry">Issuing country</label>
+                  <input
+                    type="checkbox"
+                    id="cfgAttrIssuingCountry"
+                    checked={identityAttributes.issuing_country.enabled}
+                    onChange={(e) =>
+                      setIdentityAttributes((prev) => ({
+                        ...prev,
+                        issuing_country: {
+                          ...prev.issuing_country,
+                          enabled: e.target.checked,
+                        },
+                      }))
+                    }
+                  />
+                  {identityAttributes.issuing_country.enabled && (
+                    <>
+                      <input
+                        type="text"
+                        placeholder="e.g. JPN"
+                        value={identityAttributes.issuing_country.value}
+                        style={
+                          identityAttributes.issuing_country.value &&
+                          !isValidAlpha3(
+                            identityAttributes.issuing_country.value,
+                          )
+                            ? { borderColor: "#ef4444" }
+                            : undefined
+                        }
+                        onChange={(e) =>
+                          setIdentityAttributes((prev) => ({
+                            ...prev,
+                            issuing_country: {
+                              ...prev.issuing_country,
+                              value: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      {identityAttributes.issuing_country.value &&
+                        (isValidAlpha3(
+                          identityAttributes.issuing_country.value,
+                        ) ? (
+                          <span
+                            className="config-note"
+                            style={{ flex: "none" }}
+                          >
+                            {countries.getName(
+                              identityAttributes.issuing_country.value.toUpperCase(),
+                              "en",
+                            )}
+                          </span>
+                        ) : (
+                          <span
+                            className="config-note"
+                            style={{ flex: "none", color: "#ef4444" }}
+                          >
+                            ISO 3166-1 alpha-3
+                          </span>
+                        ))}
+                    </>
+                  )}
+                </div>
+                <div className="config-row">
+                  <label htmlFor="cfgAttrFullName">Full name</label>
+                  <input
+                    type="checkbox"
+                    id="cfgAttrFullName"
+                    checked={identityAttributes.full_name.enabled}
+                    onChange={(e) =>
+                      setIdentityAttributes((prev) => ({
+                        ...prev,
+                        full_name: {
+                          ...prev.full_name,
+                          enabled: e.target.checked,
+                        },
+                      }))
+                    }
+                  />
+                  {identityAttributes.full_name.enabled && (
+                    <input
+                      type="text"
+                      placeholder="e.g. Jane Doe"
+                      value={identityAttributes.full_name.value}
+                      onChange={(e) =>
+                        setIdentityAttributes((prev) => ({
+                          ...prev,
+                          full_name: {
+                            ...prev.full_name,
+                            value: e.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  )}
+                </div>
+                <div className="config-row">
+                  <label htmlFor="cfgAttrMinimumAge">Minimum age</label>
+                  <input
+                    type="checkbox"
+                    id="cfgAttrMinimumAge"
+                    checked={identityAttributes.minimum_age.enabled}
+                    onChange={(e) =>
+                      setIdentityAttributes((prev) => ({
+                        ...prev,
+                        minimum_age: {
+                          ...prev.minimum_age,
+                          enabled: e.target.checked,
+                        },
+                      }))
+                    }
+                  />
+                  {identityAttributes.minimum_age.enabled && (
+                    <input
+                      type="number"
+                      min={0}
+                      max={255}
+                      placeholder="e.g. 18"
+                      value={identityAttributes.minimum_age.value}
+                      onChange={(e) =>
+                        setIdentityAttributes((prev) => ({
+                          ...prev,
+                          minimum_age: {
+                            ...prev.minimum_age,
+                            value: e.target.value,
+                          },
+                        }))
+                      }
+                    />
+                  )}
+                </div>
+                <div className="config-row">
+                  <label htmlFor="cfgAttrNationality">Nationality</label>
+                  <input
+                    type="checkbox"
+                    id="cfgAttrNationality"
+                    checked={identityAttributes.nationality.enabled}
+                    onChange={(e) =>
+                      setIdentityAttributes((prev) => ({
+                        ...prev,
+                        nationality: {
+                          ...prev.nationality,
+                          enabled: e.target.checked,
+                        },
+                      }))
+                    }
+                  />
+                  {identityAttributes.nationality.enabled && (
+                    <>
+                      <input
+                        type="text"
+                        placeholder="e.g. JPN"
+                        value={identityAttributes.nationality.value}
+                        style={
+                          identityAttributes.nationality.value &&
+                          !isValidAlpha3(identityAttributes.nationality.value)
+                            ? { borderColor: "#ef4444" }
+                            : undefined
+                        }
+                        onChange={(e) =>
+                          setIdentityAttributes((prev) => ({
+                            ...prev,
+                            nationality: {
+                              ...prev.nationality,
+                              value: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      {identityAttributes.nationality.value &&
+                        (isValidAlpha3(identityAttributes.nationality.value) ? (
+                          <span
+                            className="config-note"
+                            style={{ flex: "none" }}
+                          >
+                            {countries.getName(
+                              identityAttributes.nationality.value.toUpperCase(),
+                              "en",
+                            )}
+                          </span>
+                        ) : (
+                          <span
+                            className="config-note"
+                            style={{ flex: "none", color: "#ef4444" }}
+                          >
+                            ISO 3166-1 alpha-3
+                          </span>
+                        ))}
+                    </>
+                  )}
+                </div>
+              </>
+            )}
           </>
         )}
         <div className="config-row">
@@ -499,7 +864,10 @@ export function DemoClient(): ReactElement {
         {worldIdVersion === "4.0" && (
           <>
             <button onClick={startWidgetFlow}>
-              Verify with {V4_CREDENTIAL_TO_NAME[v4CredentialType]}
+              Verify with{" "}
+              {v4RequestType === "identity_check"
+                ? "Identity Check"
+                : V4_CREDENTIAL_TO_NAME[v4CredentialType]}
             </button>
           </>
         )}
