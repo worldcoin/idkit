@@ -25,7 +25,8 @@ private func sampleResult(sessionId: String? = nil) -> IDKitResult {
         actionDescription: "Sample action",
         sessionId: sessionId,
         responses: [],
-        environment: "production"
+        environment: "production",
+        identityAttested: nil
     )
 }
 
@@ -235,35 +236,35 @@ func legacyPresetHelpers() {
     switch orb {
     case .orbLegacy(let signal):
         #expect(signal == "x")
-    case .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy:
+    case .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy, .identityCheck:
         Issue.record("Expected orbLegacy preset")
     }
 
     switch secureDoc {
     case .secureDocumentLegacy(let signal):
         #expect(signal == "y")
-    case .orbLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy:
+    case .orbLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy, .identityCheck:
         Issue.record("Expected secureDocumentLegacy preset")
     }
 
     switch doc {
     case .documentLegacy(let signal):
         #expect(signal == "z")
-    case .orbLegacy, .secureDocumentLegacy, .deviceLegacy, .selfieCheckLegacy:
+    case .orbLegacy, .secureDocumentLegacy, .deviceLegacy, .selfieCheckLegacy, .identityCheck:
         Issue.record("Expected documentLegacy preset")
     }
 
     switch device {
     case .deviceLegacy(let signal):
         #expect(signal == "d")
-    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .selfieCheckLegacy:
+    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .selfieCheckLegacy, .identityCheck:
         Issue.record("Expected deviceLegacy preset")
     }
 
     switch face {
     case .selfieCheckLegacy(let signal):
         #expect(signal == "f")
-    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy:
+    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .identityCheck:
         Issue.record("Expected selfieCheckLegacy preset")
     }
 }

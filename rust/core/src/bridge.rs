@@ -6,7 +6,8 @@ use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
     types::{
-        AppId, BridgeResponseV1, BridgeUrl, IDKitResult, ResponseItem, RpContext, VerificationLevel,
+        AppId, BridgeResponseV1, BridgeUrl, IDKitResult, IdentityAttribute, ResponseItem,
+        RpContext, VerificationLevel,
     },
     ConstraintNode, Signal,
 };
@@ -110,6 +111,11 @@ struct BridgeRequestPayload {
     /// Not included for legacy preset requests (World ID 3.0 only).
     #[serde(skip_serializing_if = "Option::is_none")]
     proof_request: Option<ProofRequest>,
+
+    /// Optional identity attribute filters for identity-attestation presets.
+    /// Only present for World ID 4.0 identity check requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    identity_attributes: Option<Vec<IdentityAttribute>>,
 
     /// Whether to accept legacy (v3) proofs as fallback.
     /// - `true`: Accept both v3 and v4 proofs. Use during migration.
@@ -265,6 +271,8 @@ pub struct BridgeConnectionParams {
     pub return_to: Option<String>,
     /// Optional environment override (defaults to Production when not specified)
     pub environment: Option<Environment>,
+    /// Present only on World ID 4.0 requests created from `IdentityCheck` presets
+    pub identity_attributes: Option<Vec<IdentityAttribute>>,
 }
 
 /// A helper struct to cache the signal hashes of a request
@@ -440,6 +448,7 @@ pub fn build_request_payload(
         action: action_str,
         action_description: params.action_description.clone(),
         proof_request,
+        identity_attributes: params.identity_attributes.clone(),
         verification_level: params.legacy_verification_level,
         signal: legacy_signal_hash,
         timestamp,
@@ -869,6 +878,7 @@ impl IDKitConfig {
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes: None,
                 })
             }
             Self::CreateSession(config) => {
@@ -893,6 +903,7 @@ impl IDKitConfig {
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes: None,
                 })
             }
             Self::ProveSession { session_id, config } => {
@@ -919,6 +930,7 @@ impl IDKitConfig {
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes: None,
                 })
             }
         }
@@ -937,7 +949,22 @@ impl IDKitConfig {
             });
         }
 
-        let (_constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+        let (constraints, legacy_verification_level, legacy_signal, identity_attributes) =
+            preset.into_bridge_params();
+
+        // Default to Device so existing World App versions can still parse
+        // the bridge payload. V4 requests use `proof_request` for real
+        // credential selection; this field is only for v3 backwards compat.
+        let legacy_verification_level =
+            legacy_verification_level.unwrap_or(VerificationLevel::Device);
+        let allow_legacy_proofs = if identity_attributes.is_some() {
+            false
+        } else {
+            match self {
+                Self::Request(config) => config.allow_legacy_proofs,
+                Self::CreateSession(_) | Self::ProveSession { .. } => false,
+            }
+        };
 
         match self {
             Self::Request(config) => {
@@ -953,16 +980,17 @@ impl IDKitConfig {
                     kind: RequestKind::Uniqueness {
                         action: config.action.clone(),
                     },
-                    constraints: None,
+                    constraints,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
                     legacy_verification_level,
                     legacy_signal: legacy_signal.unwrap_or_default(),
                     bridge_url,
-                    allow_legacy_proofs: config.allow_legacy_proofs,
+                    allow_legacy_proofs,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes,
                 })
             }
             Self::CreateSession(config) => {
@@ -976,7 +1004,7 @@ impl IDKitConfig {
                 Ok(BridgeConnectionParams {
                     app_id,
                     kind: RequestKind::CreateSession,
-                    constraints: None,
+                    constraints,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
                     legacy_verification_level,
@@ -986,6 +1014,7 @@ impl IDKitConfig {
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes,
                 })
             }
             Self::ProveSession { session_id, config } => {
@@ -1001,7 +1030,7 @@ impl IDKitConfig {
                     kind: RequestKind::ProveSession {
                         session_id: session_id.clone(),
                     },
-                    constraints: None,
+                    constraints,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
                     legacy_verification_level,
@@ -1011,6 +1040,7 @@ impl IDKitConfig {
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes,
                 })
             }
         }
@@ -1318,6 +1348,7 @@ mod tests {
             verification_level: VerificationLevel::Device,
             timestamp: None,
             proof_request: Some(proof_request),
+            identity_attributes: None,
             allow_legacy_proofs: false,
             environment: Environment::Production,
         };
@@ -1329,6 +1360,55 @@ mod tests {
         assert!(json.contains("proof_request"));
         assert!(json.contains("rp_1234567890abcdef"));
         assert!(json.contains("allow_legacy_proofs"));
+    }
+
+    #[test]
+    fn test_build_request_payload_serializes_identity_attributes() {
+        let app_id = AppId::new("app_test").unwrap();
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &("0x".to_string() + &"00".repeat(64) + "1b"),
+        )
+        .unwrap();
+        let constraints = ConstraintNode::any(vec![
+            ConstraintNode::item(CredentialRequest::new(CredentialType::Passport, None)),
+            ConstraintNode::item(CredentialRequest::new(CredentialType::Mnc, None)),
+        ]);
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::Uniqueness {
+                action: "test-action".to_string(),
+            },
+            constraints: Some(constraints),
+            rp_context,
+            action_description: Some("Identity check".to_string()),
+            legacy_verification_level: VerificationLevel::Device,
+            legacy_signal: String::new(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: Some(Environment::Production),
+            identity_attributes: Some(vec![
+                IdentityAttribute::MinimumAge(21),
+                IdentityAttribute::Nationality("JPN".to_string()),
+            ]),
+        };
+
+        let payload = build_request_payload(&params, false).unwrap();
+
+        assert_eq!(
+            payload["identity_attributes"],
+            serde_json::json!([
+                {"type": "minimum_age", "value": 21},
+                {"type": "nationality", "value": "JPN"}
+            ])
+        );
+        assert!(payload.get("proof_request").is_some());
     }
 
     #[test]
@@ -1482,7 +1562,8 @@ mod tests {
     #[test]
     fn test_selfie_check_legacy_preset_serializes_face_verification_level() {
         let preset = crate::preset::Preset::selfie_check_legacy(Some("face-signal".to_string()));
-        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+        let (constraints, legacy_verification_level, legacy_signal, _identity_attributes) =
+            preset.into_bridge_params();
 
         let app_id = AppId::new("app_test").unwrap();
         let signature = "0x".to_string() + &"00".repeat(64) + "1b";
@@ -1500,10 +1581,11 @@ mod tests {
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
-            constraints: Some(constraints),
+            constraints,
             rp_context,
             action_description: Some("Selfie check".to_string()),
-            legacy_verification_level,
+            legacy_verification_level: legacy_verification_level
+                .expect("this preset should return legacy_verification_level"),
             legacy_signal: legacy_signal.unwrap_or_default(),
             bridge_url: None,
             allow_legacy_proofs: false,
@@ -1511,6 +1593,7 @@ mod tests {
             override_connect_base_url: None,
             return_to: None,
             environment: Some(Environment::Production),
+            identity_attributes: None,
         };
 
         let payload = build_request_payload(&params, false).unwrap();
@@ -1520,7 +1603,8 @@ mod tests {
     #[test]
     fn test_device_legacy_preset_serializes_device_verification_level() {
         let preset = crate::preset::Preset::device_legacy(Some("device-signal".to_string()));
-        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+        let (constraints, legacy_verification_level, legacy_signal, _identity_attributes) =
+            preset.into_bridge_params();
 
         let app_id = AppId::new("app_test").unwrap();
         let signature = "0x".to_string() + &"00".repeat(64) + "1b";
@@ -1538,10 +1622,11 @@ mod tests {
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
-            constraints: Some(constraints),
+            constraints,
             rp_context,
             action_description: Some("Device check".to_string()),
-            legacy_verification_level,
+            legacy_verification_level: legacy_verification_level
+                .expect("this preset should return legacy_verification_level"),
             legacy_signal: legacy_signal.unwrap_or_default(),
             bridge_url: None,
             allow_legacy_proofs: false,
@@ -1549,6 +1634,7 @@ mod tests {
             override_connect_base_url: None,
             return_to: None,
             environment: Some(Environment::Production),
+            identity_attributes: None,
         };
 
         let payload = build_request_payload(&params, false).unwrap();
@@ -1611,6 +1697,7 @@ mod tests {
             override_connect_base_url: None,
             return_to: None,
             environment: None,
+            identity_attributes: None,
         };
 
         let payload = build_native_v1_payload(&params).unwrap();
@@ -1655,6 +1742,7 @@ mod tests {
             override_connect_base_url: None,
             return_to: None,
             environment: None,
+            identity_attributes: None,
         };
 
         // native=true includes timestamp
@@ -1701,6 +1789,7 @@ mod tests {
             override_connect_base_url: None,
             return_to: None,
             environment: None,
+            identity_attributes: None,
         };
 
         let cached = CachedSignalHashes::compute(&params);
