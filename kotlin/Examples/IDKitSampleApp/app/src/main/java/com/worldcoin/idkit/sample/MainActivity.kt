@@ -36,6 +36,7 @@ import com.worldcoin.idkit.IDKitRequestConfig
 import com.worldcoin.idkit.documentLegacy
 import com.worldcoin.idkit.idkitResultToJson
 import com.worldcoin.idkit.deviceLegacy
+import com.worldcoin.idkit.identityCheck
 import com.worldcoin.idkit.orbLegacy
 import com.worldcoin.idkit.secureDocumentLegacy
 import com.worldcoin.idkit.selfieCheckLegacy
@@ -53,7 +54,9 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import uniffi.idkit_core.DocumentType
 import uniffi.idkit_core.Environment
+import uniffi.idkit_core.IdentityAttribute
 import uniffi.idkit_core.RpContext
 
 class MainActivity : ComponentActivity() {
@@ -239,7 +242,7 @@ private fun LegacyPresetSelector(
     onSelect: (SampleLegacyPreset) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Legacy preset", style = MaterialTheme.typography.labelLarge)
+        Text("Preset", style = MaterialTheme.typography.labelLarge)
 
         SampleLegacyPreset.entries
             .chunked(2)
@@ -281,6 +284,7 @@ private enum class SampleLegacyPreset(val label: String) {
     DOCUMENT("document"),
     DEVICE("device"),
     SELFIE_CHECK("selfie check"),
+    IDENTITY_CHECK("identity check"),
     ;
 
     fun toPreset(signal: String) = when (this) {
@@ -289,6 +293,14 @@ private enum class SampleLegacyPreset(val label: String) {
         DOCUMENT -> documentLegacy(signal = signal)
         DEVICE -> deviceLegacy(signal = signal)
         SELFIE_CHECK -> selfieCheckLegacy(signal = signal)
+        IDENTITY_CHECK -> identityCheck(
+            attributes = listOf(
+                IdentityAttribute.MinimumAge(21u),
+                IdentityAttribute.Nationality("JPN"),
+                IdentityAttribute.DocumentType(DocumentType.PASSPORT),
+            ),
+            requireProofOfHumanity = true,
+        )
     }
 }
 
@@ -366,7 +378,7 @@ private class SampleModel {
                 deepLinkReceivedForPendingRequest = false
 
                 android.util.Log.i("IDKitSample", "IDKit connector URL: ${request.connectorURI}")
-                log("Using legacy preset: ${legacyPreset.label}")
+                log("Using preset: ${legacyPreset.label}")
                 log("Generated request ID: ${request.requestId}")
                 log("Configured return_to callback: $returnToURL")
                 startPollingForRequest(

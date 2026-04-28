@@ -20,6 +20,9 @@ esac
 
 HOST_LIB="$PROJECT_ROOT/target/release/libidkit.$LIB_EXT"
 
+echo "🎯 Installing Android Rust targets"
+rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android >/dev/null
+
 echo "🔧 Building Rust library (host) for binding generation"
 CARGO_PROFILE_RELEASE_STRIP=none cargo build --package idkit-core --release --locked --features uniffi-bindings
 
