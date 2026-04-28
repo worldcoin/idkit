@@ -12,6 +12,7 @@ import {
   orbLegacy,
   deviceLegacy,
   selfieCheckLegacy,
+  identityCheck,
   isNode,
   IDKitErrorCodes,
   signRequest,
@@ -91,6 +92,36 @@ describe("IDKitRequest API", () => {
     const preset = deviceLegacy({ signal: "device-signal" });
     expect(preset).toHaveProperty("type", "DeviceLegacy");
     expect(preset).toHaveProperty("signal", "device-signal");
+  });
+
+  it("should create identityCheck preset correctly", () => {
+    const preset = identityCheck({
+      attributes: [
+        { type: "minimum_age", value: 21 },
+        { type: "nationality", value: "JPN" },
+      ],
+      require_proof_of_humanity: false,
+    });
+    expect(preset).toEqual({
+      type: "IdentityCheck",
+      attributes: [
+        { type: "minimum_age", value: 21 },
+        { type: "nationality", value: "JPN" },
+      ],
+      require_proof_of_humanity: false,
+    });
+  });
+
+  it("should create identityCheck preset with proof-of-humanity requirement correctly", () => {
+    const preset = identityCheck({
+      attributes: [{ type: "document_number", value: "AB123456" }],
+      require_proof_of_humanity: true,
+    });
+    expect(preset).toEqual({
+      type: "IdentityCheck",
+      attributes: [{ type: "document_number", value: "AB123456" }],
+      require_proof_of_humanity: true,
+    });
   });
 
   it("should throw error when rp_context is missing", () => {
@@ -186,6 +217,46 @@ describe("IDKitRequest API", () => {
     expect(rawAddressSignalHash).not.toBe(utf8SignalHash);
     expect(result.payload.signal).toBe(rawAddressSignalHash);
     expect(result.legacy_signal_hash).toBe(rawAddressSignalHash);
+  });
+
+  it("should include identity attributes in native payload from preset", () => {
+    const rpContext = new WasmModule.RpContextWasm(
+      "rp_123456789abcdef0",
+      "0x0000000000000000000000000000000000000000000000000000000000000001",
+      1n,
+      2n,
+      "0x" + "00".repeat(64) + "1b",
+    );
+    const builder = WasmModule.request(
+      "app_staging_test",
+      "test-action",
+      rpContext,
+      null,
+      null,
+      false,
+      null,
+      null,
+      null,
+    );
+
+    const result = builder.nativePayloadFromPreset(
+      identityCheck({
+        attributes: [
+          { type: "minimum_age", value: 21 },
+          { type: "nationality", value: "JPN" },
+        ],
+        require_proof_of_humanity: false,
+      }),
+    ) as {
+      payload: {
+        identity_attributes: Array<{ type: string; value: number | string }>;
+      };
+    };
+
+    expect(result.payload.identity_attributes).toEqual([
+      { type: "minimum_age", value: 21 },
+      { type: "nationality", value: "JPN" },
+    ]);
   });
 });
 
