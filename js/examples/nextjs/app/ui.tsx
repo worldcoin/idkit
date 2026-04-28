@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactElement } from "react";
+import countries from "i18n-iso-countries";
+import enLocale from "i18n-iso-countries/langs/en.json";
 import {
   CredentialRequest,
   documentLegacy,
@@ -20,6 +22,7 @@ import {
 } from "@worldcoin/idkit";
 
 setDebug(true);
+countries.registerLocale(enLocale);
 
 const APP_ID = process.env.NEXT_PUBLIC_APP_ID as `app_${string}` | undefined;
 const RP_ID = process.env.NEXT_PUBLIC_RP_ID;
@@ -51,6 +54,10 @@ const PRESET_KIND_TO_NAME: Record<PresetKind, string> = {
   device: "Device",
   selfie: "Selfie Check",
 };
+
+function isValidAlpha3(code: string): boolean {
+  return code.length === 3 && countries.isValid(code.toUpperCase());
+}
 
 function normalizeAlpha3(value: string): string {
   return value.trim().toUpperCase();
@@ -195,7 +202,7 @@ export function DemoClient(): ReactElement {
   const [useStagingConnectBaseUrl, setUseStagingConnectBaseUrl] =
     useState(false);
   const [isConnectUrlTooltipOpen, setIsConnectUrlTooltipOpen] = useState(false);
-  const [worldIdVersion, setWorldIdVersion] = useState<"3.0" | "4.0">("3.0");
+  const [worldIdVersion, setWorldIdVersion] = useState<"3.0" | "4.0">("4.0");
   const [v4CredentialType, setV4CredentialType] =
     useState<V4CredentialType>("proof_of_human");
   const [identityAttributes, setIdentityAttributes] =
@@ -636,22 +643,45 @@ export function DemoClient(): ReactElement {
                     }
                   />
                   {identityAttributes.issuing_country.enabled && (
-                    <input
-                      type="text"
-                      aria-label="Issuing country value"
-                      value={identityAttributes.issuing_country.value}
-                      onChange={(e) =>
-                        setIdentityAttributes((current) => ({
-                          ...current,
-                          issuing_country: {
-                            ...current.issuing_country,
-                            value: normalizeAlpha3(e.target.value),
-                          },
-                        }))
-                      }
-                      maxLength={3}
-                      placeholder="JPN"
-                    />
+                    <>
+                      <input
+                        type="text"
+                        aria-label="Issuing country value"
+                        value={identityAttributes.issuing_country.value}
+                        onChange={(e) =>
+                          setIdentityAttributes((current) => ({
+                            ...current,
+                            issuing_country: {
+                              ...current.issuing_country,
+                              value: normalizeAlpha3(e.target.value),
+                            },
+                          }))
+                        }
+                        maxLength={3}
+                        placeholder="JPN"
+                      />
+                      {identityAttributes.issuing_country.value &&
+                        (isValidAlpha3(
+                          identityAttributes.issuing_country.value,
+                        ) ? (
+                          <span
+                            className="config-note"
+                            style={{ flex: "none" }}
+                          >
+                            {countries.getName(
+                              identityAttributes.issuing_country.value,
+                              "en",
+                            )}
+                          </span>
+                        ) : (
+                          <span
+                            className="config-note"
+                            style={{ flex: "none", color: "#ef4444" }}
+                          >
+                            ISO 3166-1 alpha-3
+                          </span>
+                        ))}
+                    </>
                   )}
                 </div>
                 <div className="config-row">
@@ -741,22 +771,43 @@ export function DemoClient(): ReactElement {
                     }
                   />
                   {identityAttributes.nationality.enabled && (
-                    <input
-                      type="text"
-                      aria-label="Nationality value"
-                      value={identityAttributes.nationality.value}
-                      onChange={(e) =>
-                        setIdentityAttributes((current) => ({
-                          ...current,
-                          nationality: {
-                            ...current.nationality,
-                            value: normalizeAlpha3(e.target.value),
-                          },
-                        }))
-                      }
-                      maxLength={3}
-                      placeholder="JPN"
-                    />
+                    <>
+                      <input
+                        type="text"
+                        aria-label="Nationality value"
+                        value={identityAttributes.nationality.value}
+                        onChange={(e) =>
+                          setIdentityAttributes((current) => ({
+                            ...current,
+                            nationality: {
+                              ...current.nationality,
+                              value: normalizeAlpha3(e.target.value),
+                            },
+                          }))
+                        }
+                        maxLength={3}
+                        placeholder="JPN"
+                      />
+                      {identityAttributes.nationality.value &&
+                        (isValidAlpha3(identityAttributes.nationality.value) ? (
+                          <span
+                            className="config-note"
+                            style={{ flex: "none" }}
+                          >
+                            {countries.getName(
+                              identityAttributes.nationality.value,
+                              "en",
+                            )}
+                          </span>
+                        ) : (
+                          <span
+                            className="config-note"
+                            style={{ flex: "none", color: "#ef4444" }}
+                          >
+                            ISO 3166-1 alpha-3
+                          </span>
+                        ))}
+                    </>
                   )}
                 </div>
               </>
@@ -861,6 +912,22 @@ export function DemoClient(): ReactElement {
       {widgetIdkitResult && (
         <>
           <h3>IDKit response</h3>
+          {widgetIdkitResult.protocol_version === "4.0" &&
+            !("session_id" in widgetIdkitResult) &&
+            widgetIdkitResult.identity_attested !== undefined && (
+              <p
+                style={{
+                  color: widgetIdkitResult.identity_attested
+                    ? "#22c55e"
+                    : "#ef4444",
+                  fontWeight: "bold",
+                  margin: "8px 0",
+                }}
+              >
+                Identity Attested:{" "}
+                {widgetIdkitResult.identity_attested ? "✓ Yes" : "✗ No"}
+              </p>
+            )}
           <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
             {JSON.stringify(widgetIdkitResult, null, 2)}
           </pre>
