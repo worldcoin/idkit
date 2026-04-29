@@ -668,8 +668,8 @@ impl BridgeConnection {
                     BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
                     BridgeResponse::ResponseV2(proof_response) => {
                         // Check for protocol-level error
-                        if proof_response.error.is_some() {
-                            return Ok(Status::Failed(AppError::GenericError));
+                        if let Some(error_code) = proof_response.error.as_deref() {
+                            return Ok(Status::Failed(AppError::from_code(error_code)));
                         }
 
                         let responses: Vec<ResponseItem> = proof_response
@@ -1477,6 +1477,49 @@ mod tests {
 
         let response: BridgeResponse = serde_json::from_str(json).unwrap();
         assert!(matches!(response, BridgeResponse::Error { .. }));
+    }
+
+    #[test]
+    fn test_bridge_response_new_error_codes_deserialization() {
+        let invalid_signature: BridgeResponse =
+            serde_json::from_str(r#"{"error_code": "invalid_rp_signature"}"#).unwrap();
+        assert!(matches!(
+            invalid_signature,
+            BridgeResponse::Error {
+                error_code: AppError::InvalidRpSignature
+            }
+        ));
+
+        let nullifier_replayed: BridgeResponse =
+            serde_json::from_str(r#"{"error_code": "nullifier_replayed"}"#).unwrap();
+        assert!(matches!(
+            nullifier_replayed,
+            BridgeResponse::Error {
+                error_code: AppError::NullifierReplayed
+            }
+        ));
+
+        let cases = [
+            ("duplicate_nonce", AppError::DuplicateNonce),
+            ("unknown_rp", AppError::UnknownRp),
+            ("inactive_rp", AppError::InactiveRp),
+            ("timestamp_too_old", AppError::TimestampTooOld),
+            (
+                "timestamp_too_far_in_future",
+                AppError::TimestampTooFarInFuture,
+            ),
+            ("invalid_timestamp", AppError::InvalidTimestamp),
+            ("rp_signature_expired", AppError::RpSignatureExpired),
+        ];
+
+        for (code, expected) in cases {
+            let response: BridgeResponse =
+                serde_json::from_str(&format!(r#"{{"error_code": "{code}"}}"#)).unwrap();
+            match response {
+                BridgeResponse::Error { error_code } => assert_eq!(error_code, expected),
+                other => panic!("Expected error response for {code}, got: {other:?}"),
+            }
+        }
     }
 
     #[test]
