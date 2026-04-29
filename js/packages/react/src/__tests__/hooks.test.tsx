@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IDKitErrorCodes } from "@worldcoin/idkit-core";
+import { toErrorCode } from "../hooks/common";
 import { useIDKitRequest } from "../hooks/useIDKitRequest";
 import { useIDKitSession } from "../hooks/useIDKitSession";
 
@@ -23,6 +24,16 @@ vi.mock("@worldcoin/idkit-core", () => ({
     Cancelled: "cancelled",
     MalformedRequest: "malformed_request",
     UnexpectedResponse: "unexpected_response",
+    InvalidRpSignature: "invalid_rp_signature",
+    NullifierReplayed: "nullifier_replayed",
+    DuplicateNonce: "duplicate_nonce",
+    UnknownRp: "unknown_rp",
+    InactiveRp: "inactive_rp",
+    TimestampTooOld: "timestamp_too_old",
+    TimestampTooFarInFuture: "timestamp_too_far_in_future",
+    InvalidTimestamp: "invalid_timestamp",
+    RpSignatureExpired: "rp_signature_expired",
+    InvalidRpIdFormat: "invalid_rp_id_format",
   },
   isInWorldApp: () => false,
   isDebug: () => false,
@@ -441,6 +452,26 @@ describe("request/session hooks", () => {
     });
 
     expect(result.current.errorCode).toBe(IDKitErrorCodes.UnexpectedResponse);
+  });
+
+  it("maps local RpContext validation errors to specific error codes", () => {
+    expect(
+      toErrorCode(
+        new Error(
+          "Invalid RpContext: Invalid configuration: Invalid RP ID: must start with 'rp_'",
+        ),
+      ),
+    ).toBe(IDKitErrorCodes.InvalidRpIdFormat);
+    expect(
+      toErrorCode(
+        "Invalid RpContext: Invalid configuration: created_at cannot be in the future",
+      ),
+    ).toBe(IDKitErrorCodes.TimestampTooFarInFuture);
+    expect(
+      toErrorCode(
+        "Invalid RpContext: Invalid configuration: expires_at must be greater than created_at",
+      ),
+    ).toBe(IDKitErrorCodes.InvalidTimestamp);
   });
 
   it("reset/close aborts active run and prevents stale result updates", async () => {
