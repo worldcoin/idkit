@@ -106,6 +106,53 @@ describe("native transport request lifecycle", () => {
     expect(completion.success).toBe(true);
   });
 
+  it("defaults missing user_presence_completed to false on success", async () => {
+    const req = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      protocol_version: "3.0",
+      verification_level: "orb",
+      signal_hash: "0xabc",
+      proof: "0x01",
+      merkle_root: "0x02",
+      nullifier_hash: "0x03",
+    });
+
+    const completion = await completionPromise;
+    expect(completion.success).toBe(true);
+    if (completion.success) {
+      expect(completion.result.user_presence_completed).toBe(false);
+    }
+  });
+
+  it("preserves completed user presence on success", async () => {
+    const req = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      user_presence_completed: true,
+      protocol_version: "3.0",
+      verification_level: "orb",
+      signal_hash: "0xabc",
+      proof: "0x01",
+      merkle_root: "0x02",
+      nullifier_hash: "0x03",
+    });
+
+    const completion = await completionPromise;
+    expect(completion.success).toBe(true);
+    if (completion.success) {
+      expect(completion.result.user_presence_completed).toBe(true);
+    }
+  });
+
   it("uses per-identifier signal hashes when response omits signal_hash", async () => {
     const signalHashes = {
       proof_of_human: hashSignal("poh-signal"),

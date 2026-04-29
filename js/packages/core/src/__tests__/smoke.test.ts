@@ -196,6 +196,7 @@ describe("Enums", () => {
     expect(IDKitErrorCodes.CredentialUnavailable).toBe(
       "credential_unavailable",
     );
+    expect(IDKitErrorCodes.UserPresenceFailed).toBe("user_presence_failed");
     expect(IDKitErrorCodes.Timeout).toBe("timeout");
     expect(IDKitErrorCodes.Cancelled).toBe("cancelled");
   });

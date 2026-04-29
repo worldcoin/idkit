@@ -167,6 +167,8 @@ class NativeIDKitRequest implements IDKitRequest {
           return;
         }
 
+        const userPresenceCompleted = getUserPresenceCompleted(responsePayload);
+
         this.complete({
           success: true,
           result: nativeResultToIDKitResult(
@@ -174,6 +176,7 @@ class NativeIDKitRequest implements IDKitRequest {
             config,
             signalHashes,
             legacySignalHash,
+            userPresenceCompleted,
           ),
         });
       };
@@ -349,6 +352,7 @@ function nativeResultToIDKitResult(
   config: BuilderConfig,
   signalHashes: Record<string, string>,
   legacySignalHash: string,
+  userPresenceCompleted: boolean,
 ): IDKitResult {
   const p = payload as Record<string, any>;
   const rpNonce = config.rp_context?.nonce ?? "";
@@ -372,6 +376,7 @@ function nativeResultToIDKitResult(
           issuer_schema_id: item.issuer_schema_id,
           expires_at_min: item.expires_at_min,
         })),
+        user_presence_completed: userPresenceCompleted,
         environment: config.environment ?? "production",
       } satisfies IDKitResultSession;
     }
@@ -389,6 +394,7 @@ function nativeResultToIDKitResult(
         issuer_schema_id: item.issuer_schema_id,
         expires_at_min: item.expires_at_min,
       })),
+      user_presence_completed: userPresenceCompleted,
       environment: config.environment ?? "production",
     } satisfies IDKitResultV4;
   }
@@ -414,6 +420,7 @@ function nativeResultToIDKitResult(
         merkle_root: v.merkle_root,
         nullifier: v.nullifier_hash,
       })),
+      user_presence_completed: userPresenceCompleted,
       environment: config.environment ?? "production",
     } satisfies IDKitResultV3;
   }
@@ -435,6 +442,16 @@ function nativeResultToIDKitResult(
         nullifier: p.nullifier_hash,
       },
     ],
+    user_presence_completed: userPresenceCompleted,
     environment: config.environment ?? "production",
   } satisfies IDKitResultV3;
+}
+
+function getUserPresenceCompleted(payload: unknown): boolean {
+  const p = payload as Record<string, any>;
+  return (
+    p?.user_presence_completed === true ||
+    (p?.proof_response as Record<string, any> | undefined)
+      ?.user_presence_completed === true
+  );
 }

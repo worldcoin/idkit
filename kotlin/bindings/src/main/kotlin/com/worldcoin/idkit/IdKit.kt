@@ -52,6 +52,7 @@ enum class IDKitErrorCode(val rawValue: String) {
     CONNECTION_FAILED("connection_failed"),
     MAX_VERIFICATIONS_REACHED("max_verifications_reached"),
     FAILED_BY_HOST_APP("failed_by_host_app"),
+    USER_PRESENCE_FAILED("user_presence_failed"),
     GENERIC_ERROR("generic_error"),
     TIMEOUT("timeout"),
     CANCELLED("cancelled");
@@ -69,6 +70,7 @@ enum class IDKitErrorCode(val rawValue: String) {
             AppError.CONNECTION_FAILED -> CONNECTION_FAILED
             AppError.MAX_VERIFICATIONS_REACHED -> MAX_VERIFICATIONS_REACHED
             AppError.FAILED_BY_HOST_APP -> FAILED_BY_HOST_APP
+            AppError.USER_PRESENCE_FAILED -> USER_PRESENCE_FAILED
             AppError.GENERIC_ERROR -> GENERIC_ERROR
         }
     }

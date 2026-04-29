@@ -152,7 +152,7 @@ describe("request/session hooks", () => {
       useIDKitSession({
         app_id: "app_test",
         rp_context: baseRpContext,
-        constraints: { type: "All", children: [] },
+        constraints: { all: [] },
       }),
     );
 
@@ -194,7 +194,7 @@ describe("request/session hooks", () => {
         app_id: "app_test",
         rp_context: baseRpContext,
         existing_session_id: SESSION_ID_2,
-        preset: { type: "OrbLegacy" },
+        constraints: { all: [] },
       }),
     );
 
@@ -276,7 +276,7 @@ describe("request/session hooks", () => {
         app_id: "app_test",
         rp_context: baseRpContext,
         return_to: "idkit://callback?step=create",
-        constraints: { type: "All", children: [] },
+        constraints: { all: [] },
       }),
     );
 
@@ -317,7 +317,7 @@ describe("request/session hooks", () => {
         rp_context: baseRpContext,
         existing_session_id: validSessionId,
         return_to: "idkit://callback?step=prove",
-        constraints: { type: "All", children: [] },
+        constraints: { all: [] },
       }),
     );
 
@@ -346,7 +346,7 @@ describe("request/session hooks", () => {
         app_id: "app_test",
         rp_context: baseRpContext,
         existing_session_id: "   " as unknown as `session_${string}`,
-        constraints: { type: "All", children: [] },
+        constraints: { all: [] },
       }),
     );
 
@@ -367,7 +367,7 @@ describe("request/session hooks", () => {
         app_id: "app_test",
         rp_context: baseRpContext,
         existing_session_id: "session_2" as `session_${string}`,
-        constraints: { type: "All", children: [] },
+        constraints: { all: [] },
       }),
     );
 

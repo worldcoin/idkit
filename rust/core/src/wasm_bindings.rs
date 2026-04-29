@@ -542,6 +542,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: *allow_legacy_proofs,
+                    require_user_presence: false,
 
                     override_connect_base_url: override_connect_base_url.clone(),
                     return_to: return_to.clone(),
@@ -579,6 +580,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    require_user_presence: false,
 
                     override_connect_base_url: override_connect_base_url.clone(),
                     return_to: return_to.clone(),
@@ -619,6 +621,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    require_user_presence: false,
 
                     override_connect_base_url: override_connect_base_url.clone(),
                     return_to: return_to.clone(),
@@ -967,6 +970,7 @@ pub fn request(
 /// `session_<hex>`.
 #[must_use]
 #[wasm_bindgen(js_name = createSession)]
+#[allow(clippy::too_many_arguments)]
 pub fn create_session(
     app_id: String,
     rp_context: RpContextWasm,
@@ -1203,6 +1207,8 @@ export interface IDKitResultV3 {
     action_description?: string;
     /** Array of V3 credential responses */
     responses: ResponseItemV3[];
+    /** Whether World App completed the requested user-presence check. */
+    user_presence_completed: boolean;
     /** The environment used for this request ("production" or "staging") */
     environment: string;
 }
@@ -1219,6 +1225,8 @@ export interface IDKitResultV4 {
     action_description?: string;
     /** Array of V4 credential responses */
     responses: ResponseItemV4[];
+    /** Whether World App completed the requested user-presence check. */
+    user_presence_completed: boolean;
     /** The environment used for this request ("production" or "staging") */
     environment: string;
 }
@@ -1235,6 +1243,8 @@ export interface IDKitResultSession {
     session_id: `session_${string}`;
     /** Array of session credential responses */
     responses: ResponseItemSession[];
+    /** Whether World App completed the requested user-presence check. */
+    user_presence_completed: boolean;
     /** The environment used for this request ("production" or "staging") */
     environment: string;
 }
@@ -1288,6 +1298,7 @@ export type IDKitErrorCode =
     | "connection_failed"
     | "max_verifications_reached"
     | "failed_by_host_app"
+    | "user_presence_failed"
     | "generic_error";
 
 /** Status returned from pollForStatus() */
