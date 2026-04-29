@@ -50,6 +50,7 @@ func idkitEntrypoints() throws {
         actionDescription: nil,
         bridgeUrl: nil,
         allowLegacyProofs: false,
+        requireUserPresence: false,
         overrideConnectBaseUrl: nil,
         returnTo: nil,
         environment: nil,
@@ -62,6 +63,7 @@ func idkitEntrypoints() throws {
     //     rpContext: try sampleRpContext(),
     //     actionDescription: nil,
     //     bridgeUrl: nil,
+    //     requireUserPresence: false,
     //     overrideConnectBaseUrl: nil,
     //     returnTo: nil,
     //     environment: nil

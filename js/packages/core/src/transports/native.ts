@@ -76,6 +76,7 @@ export interface BuilderConfig {
   bridge_url?: string;
   return_to?: string;
   allow_legacy_proofs?: boolean;
+  require_user_presence?: boolean;
   override_connect_base_url?: string;
   environment?: string;
 }
@@ -168,6 +169,14 @@ class NativeIDKitRequest implements IDKitRequest {
         }
 
         const userPresenceCompleted = getUserPresenceCompleted(responsePayload);
+
+        if (config.require_user_presence === true && !userPresenceCompleted) {
+          this.complete({
+            success: false,
+            error: IDKitErrorCodes.UserPresenceFailed,
+          });
+          return;
+        }
 
         this.complete({
           success: true,
