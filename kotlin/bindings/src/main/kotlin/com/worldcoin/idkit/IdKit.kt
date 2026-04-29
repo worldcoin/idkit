@@ -52,6 +52,15 @@ enum class IDKitErrorCode(val rawValue: String) {
     CONNECTION_FAILED("connection_failed"),
     MAX_VERIFICATIONS_REACHED("max_verifications_reached"),
     FAILED_BY_HOST_APP("failed_by_host_app"),
+    INVALID_RP_SIGNATURE("invalid_rp_signature"),
+    NULLIFIER_REPLAYED("nullifier_replayed"),
+    DUPLICATE_NONCE("duplicate_nonce"),
+    UNKNOWN_RP("unknown_rp"),
+    INACTIVE_RP("inactive_rp"),
+    TIMESTAMP_TOO_OLD("timestamp_too_old"),
+    TIMESTAMP_TOO_FAR_IN_FUTURE("timestamp_too_far_in_future"),
+    INVALID_TIMESTAMP("invalid_timestamp"),
+    RP_SIGNATURE_EXPIRED("rp_signature_expired"),
     GENERIC_ERROR("generic_error"),
     TIMEOUT("timeout"),
     CANCELLED("cancelled");
@@ -69,6 +78,15 @@ enum class IDKitErrorCode(val rawValue: String) {
             AppError.CONNECTION_FAILED -> CONNECTION_FAILED
             AppError.MAX_VERIFICATIONS_REACHED -> MAX_VERIFICATIONS_REACHED
             AppError.FAILED_BY_HOST_APP -> FAILED_BY_HOST_APP
+            AppError.INVALID_RP_SIGNATURE -> INVALID_RP_SIGNATURE
+            AppError.NULLIFIER_REPLAYED -> NULLIFIER_REPLAYED
+            AppError.DUPLICATE_NONCE -> DUPLICATE_NONCE
+            AppError.UNKNOWN_RP -> UNKNOWN_RP
+            AppError.INACTIVE_RP -> INACTIVE_RP
+            AppError.TIMESTAMP_TOO_OLD -> TIMESTAMP_TOO_OLD
+            AppError.TIMESTAMP_TOO_FAR_IN_FUTURE -> TIMESTAMP_TOO_FAR_IN_FUTURE
+            AppError.INVALID_TIMESTAMP -> INVALID_TIMESTAMP
+            AppError.RP_SIGNATURE_EXPIRED -> RP_SIGNATURE_EXPIRED
             AppError.GENERIC_ERROR -> GENERIC_ERROR
         }
     }
