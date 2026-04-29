@@ -108,10 +108,76 @@ pub enum AppError {
     #[error("Verification failed by host app")]
     FailedByHostApp,
 
+    /// RP signature is invalid
+    #[error("Invalid RP signature")]
+    InvalidRpSignature,
+
+    /// Nullifier was already used
+    #[error("Nullifier was already used")]
+    NullifierReplayed,
+
+    /// RP reused a signature nonce
+    #[error("Duplicate RP signature nonce")]
+    DuplicateNonce,
+
+    /// RP is unknown to the registry
+    #[error("Unknown RP")]
+    UnknownRp,
+
+    /// RP is inactive
+    #[error("Inactive RP")]
+    InactiveRp,
+
+    /// RP request timestamp is too old
+    #[error("Timestamp is too old")]
+    TimestampTooOld,
+
+    /// RP request timestamp is too far in the future
+    #[error("Timestamp is too far in the future")]
+    TimestampTooFarInFuture,
+
+    /// RP request timestamp is invalid
+    #[error("Invalid timestamp")]
+    InvalidTimestamp,
+
+    /// RP signature has expired
+    #[error("RP signature expired")]
+    RpSignatureExpired,
+
     /// Generic error
     #[error("An error occurred")]
     #[serde(other)]
     GenericError,
+}
+
+impl AppError {
+    /// Parses a raw World App/bridge error code.
+    #[must_use]
+    pub fn from_code(code: &str) -> Self {
+        match code {
+            "user_rejected" => Self::UserRejected,
+            "verification_rejected" => Self::VerificationRejected,
+            "credential_unavailable" => Self::CredentialUnavailable,
+            "malformed_request" => Self::MalformedRequest,
+            "invalid_network" => Self::InvalidNetwork,
+            "inclusion_proof_pending" => Self::InclusionProofPending,
+            "inclusion_proof_failed" => Self::InclusionProofFailed,
+            "unexpected_response" => Self::UnexpectedResponse,
+            "connection_failed" => Self::ConnectionFailed,
+            "max_verifications_reached" => Self::MaxVerificationsReached,
+            "failed_by_host_app" => Self::FailedByHostApp,
+            "invalid_rp_signature" => Self::InvalidRpSignature,
+            "nullifier_replayed" => Self::NullifierReplayed,
+            "duplicate_nonce" => Self::DuplicateNonce,
+            "unknown_rp" => Self::UnknownRp,
+            "inactive_rp" => Self::InactiveRp,
+            "timestamp_too_old" => Self::TimestampTooOld,
+            "timestamp_too_far_in_future" => Self::TimestampTooFarInFuture,
+            "invalid_timestamp" => Self::InvalidTimestamp,
+            "rp_signature_expired" => Self::RpSignatureExpired,
+            _ => Self::GenericError,
+        }
+    }
 }
 
 // UniFFI error type wrapper
