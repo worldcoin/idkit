@@ -59,8 +59,7 @@ export function computeRpSignatureMessage(
   expiresAt: number,
   action?: string,
 ): Uint8Array {
-  const actionBytes =
-    action === undefined ? undefined : hashToField(textEncoder.encode(action));
+  const actionBytes = action ? hexToBytes(action.startsWith('0x') ? action.slice(2) : action) : undefined;
   const message = new Uint8Array(49 + (actionBytes?.length ?? 0));
   message[0] = RP_SIGNATURE_MSG_VERSION;
   message.set(nonceBytes, 1);
