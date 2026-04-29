@@ -182,6 +182,7 @@ export function IDKitWidgetBase<TResult>({
       {stage === "error" && (
         <ErrorState
           errorCode={effectiveErrorCode}
+          onClose={() => onOpenChange(false)}
           onRetry={() => {
             setHostVerifyResult(null);
             lastResultRef.current = null;

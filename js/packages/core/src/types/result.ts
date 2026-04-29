@@ -40,8 +40,18 @@ export enum IDKitErrorCodes {
   ConnectionFailed = "connection_failed",
   MaxVerificationsReached = "max_verifications_reached",
   FailedByHostApp = "failed_by_host_app",
+  InvalidRpSignature = "invalid_rp_signature",
+  NullifierReplayed = "nullifier_replayed",
+  DuplicateNonce = "duplicate_nonce",
+  UnknownRp = "unknown_rp",
+  InactiveRp = "inactive_rp",
+  TimestampTooOld = "timestamp_too_old",
+  TimestampTooFarInFuture = "timestamp_too_far_in_future",
+  InvalidTimestamp = "invalid_timestamp",
+  RpSignatureExpired = "rp_signature_expired",
   GenericError = "generic_error",
   // Client-side errors
+  InvalidRpIdFormat = "invalid_rp_id_format",
   Timeout = "timeout",
   Cancelled = "cancelled",
 }
