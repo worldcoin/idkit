@@ -129,8 +129,40 @@ describe("native transport request lifecycle", () => {
     }
   });
 
+  it("fails when user presence is required but not completed", async () => {
+    const req = createNativeRequest(
+      { payload: 1 },
+      { ...baseConfig, require_user_presence: true },
+      {},
+      "",
+    );
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      protocol_version: "3.0",
+      verification_level: "orb",
+      signal_hash: "0xabc",
+      proof: "0x01",
+      merkle_root: "0x02",
+      nullifier_hash: "0x03",
+    });
+
+    await expect(completionPromise).resolves.toEqual({
+      success: false,
+      error: IDKitErrorCodes.UserPresenceFailed,
+    });
+  });
+
   it("preserves completed user presence on success", async () => {
-    const req = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
+    const req = createNativeRequest(
+      { payload: 1 },
+      { ...baseConfig, require_user_presence: true },
+      {},
+      "",
+    );
     activeRequest = req;
 
     const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
