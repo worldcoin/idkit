@@ -38,6 +38,7 @@ let config = IDKitRequestConfig(
     actionDescription: "Log in",
     bridgeUrl: nil,
     allowLegacyProofs: false,
+    requireUserPresence: false,
     overrideConnectBaseUrl: nil,
     returnTo: nil,
     environment: .staging
