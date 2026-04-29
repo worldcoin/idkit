@@ -22,6 +22,11 @@ export async function POST(request: Request): Promise<Response> {
 
     const payload = await response.json();
 
+    console.log("Received response from Dev Portal:", {
+      payload,
+      status: response.status,
+    });
+
     return NextResponse.json(payload, {
       status: response.status,
     });

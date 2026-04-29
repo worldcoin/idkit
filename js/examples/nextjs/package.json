@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@worldcoin/idkit": "workspace:*",
+    "@worldcoin/idkit-server": "workspace:*",
     "takis-minikit-js": "2.0.0-dev.1",
     "eruda": "^3.4.1",
     "next": "^15.4.0",
