@@ -76,7 +76,7 @@ function createRequestProps(
     allow_legacy_proofs: false,
     preset: { type: "OrbLegacy" },
     ...overrides,
-  };
+  } as IDKitRequestWidgetProps;
 }
 
 function createSessionProps(
@@ -88,7 +88,7 @@ function createSessionProps(
     onSuccess: vi.fn(),
     app_id: "app_test",
     rp_context: baseRpContext,
-    preset: { type: "OrbLegacy" },
+    constraints: { all: [] },
     ...overrides,
   };
 }

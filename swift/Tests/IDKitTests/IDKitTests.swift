@@ -17,7 +17,7 @@ private actor StatusPoller {
     }
 }
 
-private func sampleResult(sessionId: String? = nil) -> IDKitResult {
+private func sampleResult(sessionId: String? = nil, userPresenceCompleted: Bool = false) -> IDKitResult {
     IDKitResult(
         protocolVersion: "4.0",
         nonce: "0x1234",
@@ -25,6 +25,7 @@ private func sampleResult(sessionId: String? = nil) -> IDKitResult {
         actionDescription: "Sample action",
         sessionId: sessionId,
         responses: [],
+        userPresenceCompleted: userPresenceCompleted,
         environment: "production"
     )
 }
@@ -82,6 +83,7 @@ func statusMapping() {
     #expect(IDKitRequest.mapStatus(.awaitingConfirmation) == .awaitingConfirmation)
     #expect(IDKitRequest.mapStatus(.confirmed(result: result)) == .confirmed(result))
     #expect(IDKitRequest.mapStatus(.failed(error: .invalidNetwork)) == .failed(.invalidNetwork))
+    #expect(IDKitRequest.mapStatus(.failed(error: .userPresenceFailed)) == .failed(.userPresenceFailed))
     #expect(IDKitRequest.mapStatus(.networkingError(error: .connectionFailed)) == .networkingError(.connectionFailed))
 }
 

@@ -40,6 +40,7 @@ export enum IDKitErrorCodes {
   ConnectionFailed = "connection_failed",
   MaxVerificationsReached = "max_verifications_reached",
   FailedByHostApp = "failed_by_host_app",
+  UserPresenceFailed = "user_presence_failed",
   GenericError = "generic_error",
   // Client-side errors
   Timeout = "timeout",

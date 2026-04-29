@@ -108,6 +108,10 @@ pub enum AppError {
     #[error("Verification failed by host app")]
     FailedByHostApp,
 
+    /// User presence check failed or was not completed
+    #[error("User presence check failed")]
+    UserPresenceFailed,
+
     /// Generic error
     #[error("An error occurred")]
     #[serde(other)]
