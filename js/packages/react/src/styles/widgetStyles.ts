@@ -426,18 +426,18 @@ export const WIDGET_STYLES = `
   line-height: 1.56;
 }
 
-/* Responsive: mobile full-screen bottom-anchored */
+/* Responsive: mobile centered deeplink flow */
 @media (max-width: 1024px) {
   .idkit-backdrop {
-    align-items: flex-end;
-    padding: 0;
+    align-items: center;
+    padding: 16px;
   }
   .idkit-modal {
-    max-width: 100%;
-    min-height: auto;
+    max-width: 448px;
+    min-height: 35rem;
     max-height: 95vh;
-    border-radius: 24px 24px 0 0;
-    animation: idkit-slide-up 0.3s ease-out;
+    border-radius: 24px;
+    animation: idkit-scale-in 0.25s ease-out;
   }
 
   /* Hide desktop QR on mobile */
