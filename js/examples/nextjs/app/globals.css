@@ -83,6 +83,11 @@ button.secondary {
   color: var(--text-color);
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 pre {
   background: var(--code-bg);
   color: var(--code-text);
@@ -136,6 +141,8 @@ pre {
 }
 
 .config-row input[type="text"],
+.config-row input[type="number"],
+.config-row input[type="datetime-local"],
 .config-row select {
   flex: 1;
   font-family: monospace;

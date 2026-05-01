@@ -6,8 +6,8 @@ export default function HomePage(): ReactElement {
     <main>
       <h1>IDKit Next.js Example</h1>
       <p>
-        This example shows the widget request flow with the same legacy presets
-        as the browser example.
+        This example shows the widget request flow for legacy presets, World ID
+        4.0 credential requests, and identity checks.
       </p>
       <p>
         <a className="nav-link" href="/error-cases">
