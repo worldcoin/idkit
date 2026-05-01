@@ -90,6 +90,42 @@ class IDKitTests {
             IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.INVALID_NETWORK)),
         )
         assertEquals(
+            IDKitStatus.Failed(IDKitErrorCode.INVALID_RP_SIGNATURE),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.INVALID_RP_SIGNATURE)),
+        )
+        assertEquals(
+            IDKitStatus.Failed(IDKitErrorCode.NULLIFIER_REPLAYED),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.NULLIFIER_REPLAYED)),
+        )
+        assertEquals(
+            IDKitStatus.Failed(IDKitErrorCode.DUPLICATE_NONCE),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.DUPLICATE_NONCE)),
+        )
+        assertEquals(
+            IDKitStatus.Failed(IDKitErrorCode.UNKNOWN_RP),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.UNKNOWN_RP)),
+        )
+        assertEquals(
+            IDKitStatus.Failed(IDKitErrorCode.INACTIVE_RP),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.INACTIVE_RP)),
+        )
+        assertEquals(
+            IDKitStatus.Failed(IDKitErrorCode.TIMESTAMP_TOO_OLD),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.TIMESTAMP_TOO_OLD)),
+        )
+        assertEquals(
+            IDKitStatus.Failed(IDKitErrorCode.TIMESTAMP_TOO_FAR_IN_FUTURE),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.TIMESTAMP_TOO_FAR_IN_FUTURE)),
+        )
+        assertEquals(
+            IDKitStatus.Failed(IDKitErrorCode.INVALID_TIMESTAMP),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.INVALID_TIMESTAMP)),
+        )
+        assertEquals(
+            IDKitStatus.Failed(IDKitErrorCode.RP_SIGNATURE_EXPIRED),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.RP_SIGNATURE_EXPIRED)),
+        )
+        assertEquals(
             IDKitStatus.NetworkingError(IDKitErrorCode.CONNECTION_FAILED),
             IDKitRequest.mapStatus(StatusWrapper.NetworkingError(AppError.CONNECTION_FAILED)),
         )

@@ -63,6 +63,49 @@ function asKnownErrorCode(value: unknown): IDKitErrorCodes | null {
   return null;
 }
 
+function getErrorMessage(error: unknown): string | null {
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    return typeof message === "string" ? message : null;
+  }
+
+  return null;
+}
+
+function errorCodeFromMessage(message: string): IDKitErrorCodes | null {
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes("invalid rp id") ||
+    normalized.includes("valid rp id must start with") ||
+    normalized.includes("expected hex string")
+  ) {
+    return IDKitErrorCodes.InvalidRpIdFormat;
+  }
+
+  if (normalized.includes("created_at cannot be in the future")) {
+    return IDKitErrorCodes.TimestampTooFarInFuture;
+  }
+
+  if (
+    normalized.includes("expires_at must be greater than created_at") ||
+    normalized.includes("invalid timestamp") ||
+    normalized.includes("failed to format timestamp")
+  ) {
+    return IDKitErrorCodes.InvalidTimestamp;
+  }
+
+  return null;
+}
+
 export function toErrorCode(error: unknown): IDKitErrorCodes {
   const directCode = asKnownErrorCode(error);
   if (directCode) {
@@ -73,6 +116,14 @@ export function toErrorCode(error: unknown): IDKitErrorCodes {
     const nestedCode = asKnownErrorCode((error as { code?: unknown }).code);
     if (nestedCode) {
       return nestedCode;
+    }
+  }
+
+  const message = getErrorMessage(error);
+  if (message) {
+    const messageCode = errorCodeFromMessage(message);
+    if (messageCode) {
+      return messageCode;
     }
   }
 

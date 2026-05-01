@@ -1288,6 +1288,15 @@ export type IDKitErrorCode =
     | "connection_failed"
     | "max_verifications_reached"
     | "failed_by_host_app"
+    | "invalid_rp_signature"
+    | "nullifier_replayed"
+    | "duplicate_nonce"
+    | "unknown_rp"
+    | "inactive_rp"
+    | "timestamp_too_old"
+    | "timestamp_too_far_in_future"
+    | "invalid_timestamp"
+    | "rp_signature_expired"
     | "generic_error";
 
 /** Status returned from pollForStatus() */

@@ -196,6 +196,18 @@ describe("Enums", () => {
     expect(IDKitErrorCodes.CredentialUnavailable).toBe(
       "credential_unavailable",
     );
+    expect(IDKitErrorCodes.InvalidRpSignature).toBe("invalid_rp_signature");
+    expect(IDKitErrorCodes.NullifierReplayed).toBe("nullifier_replayed");
+    expect(IDKitErrorCodes.DuplicateNonce).toBe("duplicate_nonce");
+    expect(IDKitErrorCodes.UnknownRp).toBe("unknown_rp");
+    expect(IDKitErrorCodes.InactiveRp).toBe("inactive_rp");
+    expect(IDKitErrorCodes.TimestampTooOld).toBe("timestamp_too_old");
+    expect(IDKitErrorCodes.TimestampTooFarInFuture).toBe(
+      "timestamp_too_far_in_future",
+    );
+    expect(IDKitErrorCodes.InvalidTimestamp).toBe("invalid_timestamp");
+    expect(IDKitErrorCodes.RpSignatureExpired).toBe("rp_signature_expired");
+    expect(IDKitErrorCodes.InvalidRpIdFormat).toBe("invalid_rp_id_format");
     expect(IDKitErrorCodes.Timeout).toBe("timeout");
     expect(IDKitErrorCodes.Cancelled).toBe("cancelled");
   });

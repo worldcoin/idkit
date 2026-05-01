@@ -9,6 +9,10 @@
   --status-color: #cbd5e1;
   --code-bg: #0f172a;
   --code-text: #e2e8f0;
+  --success-color: #22c55e;
+  --danger-color: #ef4444;
+  --warning-color: #f59e0b;
+  --muted-color: #94a3b8;
 }
 
 [data-theme="light"] {
@@ -22,6 +26,10 @@
   --status-color: #334155;
   --code-bg: #0f172a;
   --code-text: #e2e8f0;
+  --success-color: #15803d;
+  --danger-color: #b91c1c;
+  --warning-color: #b45309;
+  --muted-color: #64748b;
 }
 
 * {
@@ -82,6 +90,12 @@ pre {
   padding: 12px;
   overflow-x: auto;
   font-size: 12px;
+}
+
+.nav-link {
+  color: var(--text-color);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .stack {
@@ -196,4 +210,88 @@ pre {
   font-size: 12px;
   opacity: 0.7;
   word-break: break-all;
+}
+
+.error-cases {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.test-case-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+}
+
+.test-case-copy h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.test-case-copy p {
+  margin: 0 0 8px;
+  color: var(--status-color);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.test-case-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.test-case-result {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  color: var(--status-color);
+  font-size: 13px;
+}
+
+.test-case-status {
+  min-width: 74px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 6px 9px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.test-case-status.pass {
+  border-color: color-mix(in srgb, var(--success-color) 65%, transparent);
+  color: var(--success-color);
+}
+
+.test-case-status.fail {
+  border-color: color-mix(in srgb, var(--danger-color) 65%, transparent);
+  color: var(--danger-color);
+}
+
+.test-case-status.running,
+.test-case-status.ready {
+  border-color: color-mix(in srgb, var(--warning-color) 65%, transparent);
+  color: var(--warning-color);
+}
+
+.test-case-status.skipped,
+.test-case-status.idle {
+  color: var(--muted-color);
+}
+
+@media (max-width: 700px) {
+  .test-case-row {
+    grid-template-columns: 1fr;
+  }
+
+  .test-case-actions {
+    justify-content: space-between;
+  }
 }

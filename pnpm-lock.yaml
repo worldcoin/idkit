@@ -45,6 +45,9 @@ importers:
       '@worldcoin/idkit':
         specifier: workspace:*
         version: link:../../packages/react
+      '@worldcoin/idkit-server':
+        specifier: workspace:*
+        version: link:../../packages/server
       eruda:
         specifier: ^3.4.1
         version: 3.4.3

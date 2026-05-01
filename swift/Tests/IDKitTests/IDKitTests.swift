@@ -82,6 +82,15 @@ func statusMapping() {
     #expect(IDKitRequest.mapStatus(.awaitingConfirmation) == .awaitingConfirmation)
     #expect(IDKitRequest.mapStatus(.confirmed(result: result)) == .confirmed(result))
     #expect(IDKitRequest.mapStatus(.failed(error: .invalidNetwork)) == .failed(.invalidNetwork))
+    #expect(IDKitRequest.mapStatus(.failed(error: .invalidRpSignature)) == .failed(.invalidRpSignature))
+    #expect(IDKitRequest.mapStatus(.failed(error: .nullifierReplayed)) == .failed(.nullifierReplayed))
+    #expect(IDKitRequest.mapStatus(.failed(error: .duplicateNonce)) == .failed(.duplicateNonce))
+    #expect(IDKitRequest.mapStatus(.failed(error: .unknownRp)) == .failed(.unknownRp))
+    #expect(IDKitRequest.mapStatus(.failed(error: .inactiveRp)) == .failed(.inactiveRp))
+    #expect(IDKitRequest.mapStatus(.failed(error: .timestampTooOld)) == .failed(.timestampTooOld))
+    #expect(IDKitRequest.mapStatus(.failed(error: .timestampTooFarInFuture)) == .failed(.timestampTooFarInFuture))
+    #expect(IDKitRequest.mapStatus(.failed(error: .invalidTimestamp)) == .failed(.invalidTimestamp))
+    #expect(IDKitRequest.mapStatus(.failed(error: .rpSignatureExpired)) == .failed(.rpSignatureExpired))
     #expect(IDKitRequest.mapStatus(.networkingError(error: .connectionFailed)) == .networkingError(.connectionFailed))
 }
 
