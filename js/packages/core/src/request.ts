@@ -227,21 +227,26 @@ export function enumerate(...nodes: ConstraintNode[]): {
 // Re-export preset types from WASM (source of truth in rust/core/src/wasm_bindings.rs)
 export type {
   Preset,
+  IdentityAttribute,
+  DocumentType,
   OrbLegacyPreset,
   SecureDocumentLegacyPreset,
   DocumentLegacyPreset,
   SelfieCheckLegacyPreset,
   DeviceLegacyPreset,
+  IdentityCheckPreset,
 } from "./lib/wasm";
 
 // Import WASM preset type for function return types
 import type {
   Preset,
+  IdentityAttribute,
   OrbLegacyPreset,
   SecureDocumentLegacyPreset,
   DocumentLegacyPreset,
   SelfieCheckLegacyPreset,
   DeviceLegacyPreset,
+  IdentityCheckPreset,
 } from "./lib/wasm";
 
 /**
@@ -343,6 +348,25 @@ export function selfieCheckLegacy(
   opts: { signal?: string } = {},
 ): SelfieCheckLegacyPreset {
   return { type: "SelfieCheckLegacy", signal: opts.signal };
+}
+
+/**
+ * Creates an IdentityCheck preset for document-based identity attestation.
+ *
+ * This preset requires World ID 4.0-compatible clients.
+ *
+ * @param params - Identity attribute filters and proof-of-humanity requirement
+ * @returns An IdentityCheck preset
+ */
+export function identityCheck(params: {
+  attributes: IdentityAttribute[];
+  require_proof_of_humanity: boolean;
+}): IdentityCheckPreset {
+  return {
+    type: "IdentityCheck",
+    attributes: params.attributes,
+    require_proof_of_humanity: params.require_proof_of_humanity,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -779,4 +803,6 @@ export const IDKit = {
   deviceLegacy,
   /** Create a SelfieCheckLegacy preset for face verification */
   selfieCheckLegacy,
+  /** Create an IdentityCheck preset for World ID 4.0 identity attestation */
+  identityCheck,
 };
