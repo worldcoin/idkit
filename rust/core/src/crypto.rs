@@ -167,10 +167,16 @@ mod invite_code {
     /// The check digit is the last character; the first 5 are uniformly random
     /// over the 32-char alphabet. UI may insert a separator between the two
     /// 3-char halves for display, but the canonical form has no separator.
-    pub fn generate_invite_code() -> String {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the random number generator fails. Mirrors the
+    /// shape of `generate_nonce` so callers can propagate uniformly via `?`.
+    pub fn generate_invite_code() -> crate::Result<String> {
         let mut rng_bytes = [0u8; DATA_LEN];
-        getrandom::getrandom(&mut rng_bytes)
-            .expect("getrandom must succeed for invite-code generation");
+        getrandom::getrandom(&mut rng_bytes).map_err(|e| {
+            crate::Error::Crypto(format!("Failed to generate invite code entropy: {e}"))
+        })?;
 
         let mut values = [0u32; DATA_LEN];
         let mut code = String::with_capacity(TOTAL_LEN);
@@ -181,7 +187,7 @@ mod invite_code {
             code.push(CROCKFORD[v as usize] as char);
         }
         code.push(CROCKFORD[checksum(&values) as usize] as char);
-        code
+        Ok(code)
     }
 
     /// Parses user input back to canonical form, validating the check digit.
@@ -494,7 +500,7 @@ mod tests {
         #[test]
         fn generate_produces_canonical_six_char_codes() {
             for _ in 0..200 {
-                let code = generate_invite_code();
+                let code = generate_invite_code().unwrap();
                 assert_eq!(code.len(), 6, "code must be exactly 6 chars");
                 assert!(
                     code.chars()
@@ -507,7 +513,7 @@ mod tests {
         #[test]
         fn generated_codes_round_trip_through_parser() {
             for _ in 0..200 {
-                let code = generate_invite_code();
+                let code = generate_invite_code().unwrap();
                 let parsed = parse_invite_code(&code).expect("freshly generated codes must parse");
                 assert_eq!(parsed, code);
             }
@@ -516,7 +522,7 @@ mod tests {
         #[test]
         fn parser_strips_separators_and_whitespace() {
             // First generate a real code so the check digit is correct.
-            let code = generate_invite_code();
+            let code = generate_invite_code().unwrap();
             let formatted = format!("{}-{}", &code[..3], &code[3..]);
             assert_eq!(parse_invite_code(&formatted).unwrap(), code);
 
@@ -529,7 +535,7 @@ mod tests {
 
         #[test]
         fn parser_normalizes_lowercase_input() {
-            let code = generate_invite_code();
+            let code = generate_invite_code().unwrap();
             let lower = code.to_lowercase();
             assert_eq!(parse_invite_code(&lower).unwrap(), code);
         }
@@ -539,7 +545,7 @@ mod tests {
             // Find a real code that contains a `1` so we can confirm the
             // I/L → 1 normalization round-trips. Generate until we find one.
             let code_with_one = (0..1000)
-                .map(|_| generate_invite_code())
+                .map(|_| generate_invite_code().unwrap())
                 .find(|c| c.contains('1'))
                 .expect("statistically certain to find a 1 in 1000 attempts");
             let with_i = code_with_one.replace('1', "I");
@@ -548,7 +554,7 @@ mod tests {
             assert_eq!(parse_invite_code(&with_l).unwrap(), code_with_one);
 
             let code_with_zero = (0..1000)
-                .map(|_| generate_invite_code())
+                .map(|_| generate_invite_code().unwrap())
                 .find(|c| c.contains('0'))
                 .expect("statistically certain to find a 0 in 1000 attempts");
             let with_o = code_with_zero.replace('0', "O");
@@ -559,7 +565,7 @@ mod tests {
         fn parser_rejects_u_outright() {
             // Pick a code, replace one data char with U. U is not in the data
             // alphabet and we explicitly do NOT normalize U → V.
-            let code = generate_invite_code();
+            let code = generate_invite_code().unwrap();
             let mut bytes = code.into_bytes();
             bytes[0] = b'U';
             let mangled = String::from_utf8(bytes).unwrap();
@@ -581,7 +587,7 @@ mod tests {
 
         #[test]
         fn parser_rejects_bad_check_digit() {
-            let code = generate_invite_code();
+            let code = generate_invite_code().unwrap();
             // Flip the check digit to something else in the alphabet.
             let mut bytes = code.into_bytes();
             let last = bytes[5];
@@ -597,7 +603,7 @@ mod tests {
         fn parser_catches_single_char_substitutions() {
             // The check digit's primary job. Try every possible single-char
             // substitution at every data position; all should reject.
-            let code = generate_invite_code();
+            let code = generate_invite_code().unwrap();
             let alphabet = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
             for pos in 0..5 {
                 let original = code.as_bytes()[pos];

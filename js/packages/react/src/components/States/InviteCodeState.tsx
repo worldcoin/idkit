@@ -2,21 +2,13 @@ import { useEffect, useState, type ReactElement } from "react";
 import { __ } from "../../lang";
 import { WorldcoinIcon } from "../Icons/WorldIcon";
 import { LoadingIcon } from "../Icons/LoadingIcon";
+import { QRCode } from "../../widget/QRCode";
 
 type InviteCodeStateProps = {
-  code: string | null;
+  connectorURI: string | null;
   codeExpiresAt: number | null;
   isAwaitingUserConfirmation: boolean;
 };
-
-function formatCodeForDisplay(code: string): string {
-  // Canonical form is 6-char Crockford Base32 (no separator).
-  // For display, format as "ABC-DEF" when length is exactly 6.
-  if (code.length === 6) {
-    return `${code.slice(0, 3)}-${code.slice(3)}`;
-  }
-  return code;
-}
 
 function useNowInSeconds(): number {
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
@@ -30,7 +22,7 @@ function useNowInSeconds(): number {
 }
 
 export function InviteCodeState({
-  code,
+  connectorURI,
   codeExpiresAt,
   isAwaitingUserConfirmation,
 }: InviteCodeStateProps): ReactElement {
@@ -47,20 +39,16 @@ export function InviteCodeState({
         textAlign: "center",
       }}
     >
-      {/* World logo */}
       <div className="idkit-worldid-icon">
         <WorldcoinIcon />
       </div>
 
-      {/* Heading */}
       <h2 className="idkit-heading">{__("Connect your World ID")}</h2>
 
-      {/* Instruction */}
       <p className="idkit-subtext">
-        {__("Open World App on your phone and enter this code")}
+        {__("Scan with your phone to continue verifying")}
       </p>
 
-      {/* Code display container — mirrors qr-container layout for the spinner overlay */}
       <div className="idkit-qr-container">
         {isAwaitingUserConfirmation && (
           <div className="idkit-qr-overlay">
@@ -77,45 +65,73 @@ export function InviteCodeState({
         <div
           className={`idkit-qr-blur ${isAwaitingUserConfirmation ? "blurred" : ""}`}
         >
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 12,
-              padding: "24px 16px",
-            }}
-          >
-            <div
-              aria-label={
-                code ? `Invite code ${formatCodeForDisplay(code)}` : undefined
-              }
-              style={{
-                fontFamily:
-                  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-                fontSize: 36,
-                fontWeight: 600,
-                letterSpacing: "0.15em",
-                color: "var(--idkit-text-primary)",
-                userSelect: "all",
-              }}
-            >
-              {code ? formatCodeForDisplay(code) : "------"}
-            </div>
-            {secondsRemaining !== null && (
-              <div
-                style={{
-                  fontSize: 14,
-                  color: "var(--idkit-text-secondary)",
-                }}
-              >
-                {__("Expires in")} {secondsRemaining}s
-              </div>
-            )}
-          </div>
+          {connectorURI ? <QRCode data={connectorURI} /> : null}
         </div>
       </div>
+
+      {connectorURI && (
+        <div
+          style={{
+            marginTop: 16,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            width: "100%",
+            maxWidth: 360,
+          }}
+        >
+          <code
+            style={{
+              flex: 1,
+              fontFamily:
+                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+              fontSize: 12,
+              padding: "8px 10px",
+              borderRadius: 6,
+              background: "var(--idkit-surface-muted, rgba(0,0,0,0.04))",
+              color: "var(--idkit-text-primary)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              userSelect: "all",
+            }}
+            title={connectorURI}
+          >
+            {connectorURI}
+          </code>
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof navigator !== "undefined" && navigator.clipboard) {
+                void navigator.clipboard.writeText(connectorURI);
+              }
+            }}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: "1px solid var(--idkit-border, rgba(0,0,0,0.1))",
+              background: "var(--idkit-surface, transparent)",
+              color: "var(--idkit-text-primary)",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            {__("Copy")}
+          </button>
+        </div>
+      )}
+
+      {secondsRemaining !== null && (
+        <div
+          style={{
+            marginTop: 12,
+            fontSize: 14,
+            color: "var(--idkit-text-secondary)",
+          }}
+        >
+          {__("Expires in")} {secondsRemaining}s
+        </div>
+      )}
     </div>
   );
 }

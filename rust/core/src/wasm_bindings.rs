@@ -1119,43 +1119,8 @@ impl IDKitRequest {
         let inner = self.inner.clone();
 
         future_to_promise(async move {
-            // Take request temporarily for async operation
-            let request = inner
-                .borrow_mut()
-                .take()
-                .ok_or_else(|| JsValue::from_str("Request closed"))?;
-
-            let status = request
-                .poll_for_status()
-                .await
-                .map_err(|e| JsValue::from_str(&format!("Poll failed: {e}")))?;
-
-            // Put request back
-            *inner.borrow_mut() = Some(request);
-
-            // Convert Rust Status enum to plain JS object
-            // Use serialize_maps_as_objects(true) to return plain objects instead of Maps
-            let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
-
-            let js_status = match status {
-                crate::Status::WaitingForConnection => {
-                    serde_json::json!({"type": "waiting_for_connection"}).serialize(&serializer)
-                }
-                crate::Status::AwaitingConfirmation => {
-                    serde_json::json!({"type": "awaiting_confirmation"}).serialize(&serializer)
-                }
-                crate::Status::Confirmed(result) => {
-                    serde_json::json!({"type": "confirmed", "result": result})
-                        .serialize(&serializer)
-                }
-                crate::Status::Failed(error) => {
-                    serde_json::json!({"type": "failed", "error": serde_json::to_value(error).unwrap_or_else(|_| serde_json::Value::String(format!("{error:?}")))})
-                        .serialize(&serializer)
-                }
-            }
-            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
-
-            Ok(js_status)
+            let status = poll_taking_inner(&inner).await?;
+            status_to_js_value(&status)
         })
     }
 }
@@ -1178,23 +1143,22 @@ pub struct IDKitInviteCodeRequest {
 
 #[wasm_bindgen]
 impl IDKitInviteCodeRequest {
-    /// Returns the canonical 6-char Crockford Base32 invite code (no separator).
-    /// UI may format as "ABC-DEF" for display.
+    /// Returns the connector URL the RP should display to the user.
+    ///
+    /// This is the same URL shape the URL/QR mode produces, with two extra
+    /// query params (`c=<canonical_code>`, `a=<app_id>`) the `world.org/verify`
+    /// landing page uses to render an invite-code-aware view.
     ///
     /// # Errors
     ///
     /// Returns an error if the request has been closed.
-    #[wasm_bindgen(js_name = code)]
-    pub fn code(&self) -> Result<String, JsValue> {
+    #[wasm_bindgen(js_name = connectUrl)]
+    pub fn connect_url(&self) -> Result<String, JsValue> {
         self.inner
             .borrow()
             .as_ref()
             .ok_or_else(|| JsValue::from_str("Request closed"))
-            .map(|s| {
-                s.invite_code()
-                    .expect("invite-code wrapper always has invite_code populated")
-                    .to_string()
-            })
+            .map(crate::BridgeConnection::connect_url)
     }
 
     /// Unix-seconds expiry of the unredeemed code.
@@ -1246,41 +1210,56 @@ impl IDKitInviteCodeRequest {
         let inner = self.inner.clone();
 
         future_to_promise(async move {
-            let request = inner
-                .borrow_mut()
-                .take()
-                .ok_or_else(|| JsValue::from_str("Request closed"))?;
-
-            let status = request
-                .poll_for_status()
-                .await
-                .map_err(|e| JsValue::from_str(&format!("Poll failed: {e}")))?;
-
-            *inner.borrow_mut() = Some(request);
-
-            let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
-
-            let js_status = match status {
-                crate::Status::WaitingForConnection => {
-                    serde_json::json!({"type": "waiting_for_connection"}).serialize(&serializer)
-                }
-                crate::Status::AwaitingConfirmation => {
-                    serde_json::json!({"type": "awaiting_confirmation"}).serialize(&serializer)
-                }
-                crate::Status::Confirmed(result) => {
-                    serde_json::json!({"type": "confirmed", "result": result})
-                        .serialize(&serializer)
-                }
-                crate::Status::Failed(error) => {
-                    serde_json::json!({"type": "failed", "error": serde_json::to_value(error).unwrap_or_else(|_| serde_json::Value::String(format!("{error:?}")))})
-                        .serialize(&serializer)
-                }
-            }
-            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
-
-            Ok(js_status)
+            let status = poll_taking_inner(&inner).await?;
+            status_to_js_value(&status)
         })
     }
+}
+
+/// Polls a `BridgeConnection` while taking it out of the `Rc<RefCell<Option<…>>>`
+/// for the await, then **always** puts it back — including on poll error.
+///
+/// Without this, a transient network blip would cause the `?` on the poll
+/// result to drop out of scope before the request is reinserted, leaving
+/// `inner` as `None` and turning every subsequent poll into a hard "Request
+/// closed" failure (which has the same shape as a deliberately-closed
+/// request, making it indistinguishable from a real teardown).
+async fn poll_taking_inner(
+    inner: &Rc<RefCell<Option<crate::BridgeConnection>>>,
+) -> Result<crate::Status, JsValue> {
+    let request = inner
+        .borrow_mut()
+        .take()
+        .ok_or_else(|| JsValue::from_str("Request closed"))?;
+
+    let result = request.poll_for_status().await;
+    *inner.borrow_mut() = Some(request);
+
+    result.map_err(|e| JsValue::from_str(&format!("Poll failed: {e}")))
+}
+
+/// Converts a Rust `Status` to a plain JS object via
+/// `serialize_maps_as_objects(true)` so JS sees `{ type: "..." }` instead of a
+/// `Map`. Pulled out so both URL/QR and invite-code wrappers can reuse it.
+fn status_to_js_value(status: &crate::Status) -> Result<JsValue, JsValue> {
+    let ser = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+
+    let result = match status {
+        crate::Status::WaitingForConnection => {
+            serde_json::json!({"type": "waiting_for_connection"}).serialize(&ser)
+        }
+        crate::Status::AwaitingConfirmation => {
+            serde_json::json!({"type": "awaiting_confirmation"}).serialize(&ser)
+        }
+        crate::Status::Confirmed(result) => {
+            serde_json::json!({"type": "confirmed", "result": result}).serialize(&ser)
+        }
+        crate::Status::Failed(error) => {
+            serde_json::json!({"type": "failed", "error": serde_json::to_value(error).unwrap_or_else(|_| serde_json::Value::String(format!("{error:?}")))}).serialize(&ser)
+        }
+    };
+
+    result.map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
 }
 
 // TypeScript type definitions

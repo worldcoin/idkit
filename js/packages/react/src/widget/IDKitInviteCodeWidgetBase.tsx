@@ -156,7 +156,7 @@ export function IDKitInviteCodeWidgetBase<TResult>({
     <IDKitModal open={open} onOpenChange={onOpenChange}>
       {stage === "invite_code" && (
         <InviteCodeState
-          code={flow.code}
+          connectorURI={flow.connectorURI}
           codeExpiresAt={flow.codeExpiresAt}
           isAwaitingUserConfirmation={flow.isAwaitingUserConfirmation}
         />
@@ -180,6 +180,7 @@ export function IDKitInviteCodeWidgetBase<TResult>({
       {stage === "error" && (
         <ErrorState
           errorCode={effectiveErrorCode}
+          onClose={() => onOpenChange(false)}
           onRetry={() => {
             setHostVerifyResult(null);
             lastResultRef.current = null;

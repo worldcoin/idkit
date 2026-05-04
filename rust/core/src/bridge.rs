@@ -361,6 +361,10 @@ pub struct BridgeConnection {
     key: CryptoKey,
     key_bytes: Vec<u8>,
     request_id: String,
+    /// Application ID, kept on the struct so `connect_url()` can stamp it
+    /// onto the connector URL as the `a` query param (consumed by the
+    /// `world.org/verify` landing page in invite-code mode).
+    app_id: String,
     client: reqwest::Client,
     /// Cached signal hashes of the request
     /// Used to add the `signal_hash` back to the idkit response for convenience
@@ -613,12 +617,15 @@ impl BridgeConnection {
             _ => None,
         };
 
+        let app_id = params.app_id.as_str().to_string();
+
         Ok(Self {
             bridge_url,
             #[cfg(feature = "native-crypto")]
             key,
             key_bytes: key_bytes.to_vec(),
             request_id: create_response.request_id,
+            app_id,
             client,
             cached_signal_hashes,
             action,
@@ -672,7 +679,14 @@ impl BridgeConnection {
         unreachable!("loop returns or errors on the final attempt")
     }
 
-    /// Returns the connect URL for World App
+    /// Returns the connect URL for World App.
+    ///
+    /// In URL/QR mode this is the deeplink that opens World App. In
+    /// invite-code mode it is the same URL with `&c=<canonical_code>&a=<app_id>`
+    /// appended; the `world.org/verify` server inspects those params and
+    /// renders a landing page that displays the code (rather than redirecting
+    /// straight into World App). Backwards-compatible: clients that ignore
+    /// `c` / `a` see the original URL/QR-mode shape.
     #[must_use]
     pub fn connect_url(&self) -> String {
         let key_b64 = base64_encode(&self.key_bytes);
@@ -688,6 +702,15 @@ impl BridgeConnection {
             .filter(|value| !value.is_empty())
             .map(|value| format!("&return_to={}", urlencoding::encode(value)))
             .unwrap_or_default();
+        // Invite-code mode adds `c` (canonical code) and `a` (app id). The
+        // canonical code is Crockford Base32, so it's URL-safe by construction
+        // and doesn't need percent-encoding; the app id is too, but we encode
+        // it defensively in case the format ever loosens.
+        let invite_code_params = self
+            .invite_code
+            .as_deref()
+            .map(|code| format!("&c={}&a={}", code, urlencoding::encode(&self.app_id)))
+            .unwrap_or_default();
 
         let base_url = self
             .override_connect_base_url
@@ -695,12 +718,13 @@ impl BridgeConnection {
             .unwrap_or("https://world.org/verify");
 
         format!(
-            "{}?t=wld&i={}&k={}{}{}",
+            "{}?t=wld&i={}&k={}{}{}{}",
             base_url,
             self.request_id,
             urlencoding::encode(&key_b64),
             return_to_param,
-            bridge_param
+            bridge_param,
+            invite_code_params
         )
     }
 
@@ -862,13 +886,6 @@ impl BridgeConnection {
         &self.request_id
     }
 
-    /// Returns the canonical 6-char Crockford Base32 invite code, if this
-    /// connection was created in invite-code mode.
-    #[must_use]
-    pub fn invite_code(&self) -> Option<&str> {
-        self.invite_code.as_deref()
-    }
-
     /// Unix-seconds expiry of the unredeemed code, if this connection was
     /// created in invite-code mode.
     #[must_use]
@@ -921,7 +938,7 @@ async fn try_create_invite_code_request(
         generate_invite_code, generate_nonce, hkdf_invite_index_hex, hkdf_invite_key,
     };
 
-    let code = generate_invite_code();
+    let code = generate_invite_code()?;
     let key_bytes = hkdf_invite_key(&code);
     // HKDF(C, "dx") becomes the request_id we hand to the bridge directly —
     // no separate `index` field. The bridge has been simplified to a generic
@@ -975,11 +992,24 @@ async fn try_create_invite_code_request(
         .into());
     }
 
-    // Discard the echoed request_id — we already have ours.
-    let _: BridgeCreateResponse = response
+    // Validate that the bridge stored the request under the id we sent.
+    // World App will derive the same id from the user-typed code and read via
+    // `GET /request/:request_id`; if a misbehaving bridge or proxy silently
+    // assigned a different id, the request would never be retrievable from
+    // the World App side and we'd fail in a confusing way much later in the
+    // poll loop. Catching the mismatch here surfaces the contract violation
+    // at creation time.
+    let echoed: BridgeCreateResponse = response
         .json()
         .await
         .map_err(|e| Error::BridgeError(format!("Failed to parse bridge response: {e}")))?;
+    if echoed.request_id != request_id {
+        return Err(Error::BridgeError(format!(
+            "Bridge echoed mismatched request_id (sent {request_id}, got {})",
+            echoed.request_id
+        ))
+        .into());
+    }
 
     // Bridge no longer reports the unredeemed-code expiry; it ships
     // `EXPIRE_AFTER_SECONDS` (900s) on every row, including code-mode rows,
@@ -1001,6 +1031,7 @@ async fn try_create_invite_code_request(
         key,
         key_bytes: key_bytes.to_vec(),
         request_id,
+        app_id: params.app_id.as_str().to_string(),
         client,
         cached_signal_hashes,
         action,
@@ -1609,28 +1640,21 @@ pub struct IDKitInviteCodeRequest {
 #[uniffi::export]
 #[allow(clippy::needless_pass_by_value)]
 impl IDKitInviteCodeRequest {
-    /// Returns the canonical 6-char Crockford Base32 invite code (no separator).
-    /// UI may format as "ABC-DEF" for display.
+    /// Returns the connector URL the RP should display to the user.
     ///
-    /// # Panics
-    ///
-    /// Never panics in correct use — `IDKitInviteCodeRequest` is only
-    /// constructed via `BridgeConnection::create_for_invite_code`, which
-    /// always populates the inner `invite_code`. The expect documents that
-    /// invariant rather than guarding against an error path callers can hit.
+    /// Same URL shape as URL/QR mode (`https://world.org/verify?t=wld&i=…&k=…`),
+    /// with two extra query params (`c=<canonical_code>`, `a=<app_id>`) the
+    /// `world.org/verify` landing page uses to render an invite-code-aware view.
     #[must_use]
-    pub fn code(&self) -> String {
-        self.inner
-            .invite_code()
-            .expect("invite-code wrapper always has invite_code populated")
-            .to_string()
+    pub fn connect_url(&self) -> String {
+        self.inner.connect_url()
     }
 
     /// Unix-seconds expiry of the unredeemed code.
     ///
     /// # Panics
     ///
-    /// Never panics in correct use — see `code()`.
+    /// Never panics in correct use — see `connect_url()`.
     #[must_use]
     pub fn expires_at(&self) -> u64 {
         self.inner
@@ -2407,6 +2431,7 @@ mod tests {
             key: crate::crypto::CryptoKey::new([0; 32], [0; 12]),
             key_bytes: vec![1, 2, 3, 4],
             request_id: "64e0ec6b-b4ca-47cc-8f70-504a95189e26".to_string(),
+            app_id: "app_test".to_string(),
             client: reqwest::Client::new(),
             cached_signal_hashes: CachedSignalHashes {
                 signal_hashes: std::collections::HashMap::new(),

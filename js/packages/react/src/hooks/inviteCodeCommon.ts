@@ -10,7 +10,7 @@ type IDKitHookStatus =
 export type InviteCodeHookState<TResult> = {
   isOpen: boolean;
   status: IDKitHookStatus;
-  code: string | null;
+  connectorURI: string | null;
   codeExpiresAt: number | null;
   result: TResult | null;
   errorCode: IDKitErrorCodes | null;
@@ -22,7 +22,7 @@ export function createInitialInviteCodeHookState<
   return {
     isOpen: false,
     status: "idle",
-    code: null,
+    connectorURI: null,
     codeExpiresAt: null,
     result: null,
     errorCode: null,

@@ -67,7 +67,7 @@ public final class IDKitBuilder {
     /// as `IDKitRequest`.
     public func presetWithInviteCode(_ preset: Preset) throws -> IDKitInviteCodeRequest {
         let request = try inner.presetWithInviteCode(preset: preset)
-        return IDKitInviteCodeRequest(inner: request)
+        return try IDKitInviteCodeRequest(inner: request)
     }
 }
 
@@ -298,11 +298,12 @@ private func idkitPollUntilCompletion(
 
 /// Canonical invite-code request wrapper.
 ///
-/// Sibling to `IDKitRequest` for the invite-code flow. Exposes the displayable
-/// 6-character code (no separator — UI may format as `ABC-DEF`) and an expiry
-/// timestamp instead of a connector URL. The poll surface mirrors `IDKitRequest`.
+/// Sibling to `IDKitRequest` for the invite-code flow. The connector URL has
+/// the same shape as URL/QR mode plus `&c=<canonical_code>&a=<app_id>`; the
+/// `world.org/verify` landing page reads those params and renders an
+/// invite-code-aware view. The poll surface mirrors `IDKitRequest`.
 public final class IDKitInviteCodeRequest {
-    public let code: String
+    public let connectorURL: URL
     public let expiresAt: Date
     /// Bridge-assigned request identifier. In invite-code mode this is the
     /// lowercase-hex `HKDF(C, "dx")` the SDK derived from the code, not a
@@ -311,8 +312,12 @@ public final class IDKitInviteCodeRequest {
 
     private let pollOnceImpl: @Sendable () async -> IDKitStatus
 
-    fileprivate init(inner: IdKitInviteCodeRequest) {
-        self.code = inner.code()
+    fileprivate init(inner: IdKitInviteCodeRequest) throws {
+        let rawURL = inner.connectUrl()
+        guard let connectorURL = URL(string: rawURL) else {
+            throw IDKitClientError.invalidConnectorURL(rawURL)
+        }
+        self.connectorURL = connectorURL
         self.expiresAt = Date(timeIntervalSince1970: TimeInterval(inner.expiresAt()))
         self.requestID = inner.requestId()
         self.pollOnceImpl = {
@@ -321,8 +326,8 @@ public final class IDKitInviteCodeRequest {
     }
 
     // Internal initializer for deterministic polling tests.
-    init(code: String, expiresAt: Date, requestID: String, pollOnce: @escaping @Sendable () async -> IDKitStatus) {
-        self.code = code
+    init(connectorURL: URL, expiresAt: Date, requestID: String, pollOnce: @escaping @Sendable () async -> IDKitStatus) {
+        self.connectorURL = connectorURL
         self.expiresAt = expiresAt
         self.requestID = requestID
         self.pollOnceImpl = pollOnce

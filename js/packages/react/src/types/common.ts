@@ -39,8 +39,8 @@ export type IDKitInviteCodeHookResult<TResult> = {
   isAwaitingUserConfirmation: boolean;
   isSuccess: boolean;
   isError: boolean;
-  /** Canonical 6-char Crockford Base32 invite code (no separator). UI may format as "ABC-DEF". */
-  code: string | null;
+  /** URL to display to the user (same shape as URL/QR mode's `connectorURI`, with `&c=<code>&a=<app_id>` appended for the `world.org/verify` landing page). */
+  connectorURI: string | null;
   /** Unix-seconds expiry of the unredeemed code. */
   codeExpiresAt: number | null;
   result: TResult | null;

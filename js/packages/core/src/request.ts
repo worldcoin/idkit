@@ -147,15 +147,14 @@ class IDKitRequestImpl implements IDKitRequest {
  * An invite-code mode World ID verification request (WDP-73).
  *
  * Sibling shape to {@link IDKitRequest}, but discovery happens through a
- * 6-character code the user types into World App instead of a QR scan. The
- * polling lifecycle is byte-identical to URL mode — same `Status`, same
- * `IDKitCompletionResult` — so adopters write the same poll loop.
- *
- * Only the constructor and the displayable `code` differ between modes.
+ * URL pointing at the `world.org/verify` landing page (which displays the
+ * code for the user to type into World App). The polling lifecycle is
+ * byte-identical to URL mode — same `Status`, same `IDKitCompletionResult` —
+ * so adopters write the same poll loop.
  */
 export interface IDKitInviteCodeRequest {
-  /** Canonical 6-char Crockford Base32 code (no separator). UI may format as "ABC-DEF" for display. */
-  readonly code: string;
+  /** URL to display to the user. Same shape as URL/QR mode's `connectorURI` with `&c=<code>&a=<app_id>` appended. */
+  readonly connectorURI: string;
   /** Unix-seconds expiry of the unredeemed code. After this point bridge will reject the redeem. */
   readonly expiresAt: number;
   /** Unique request ID for this verification */
@@ -173,19 +172,19 @@ export interface IDKitInviteCodeRequest {
  */
 class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
   private wasmRequest: WasmModule.IDKitInviteCodeRequest;
-  private _code: string;
+  private _connectorURI: string;
   private _expiresAt: number;
   private _requestId: string;
 
   constructor(wasmRequest: WasmModule.IDKitInviteCodeRequest) {
     this.wasmRequest = wasmRequest;
-    this._code = wasmRequest.code();
+    this._connectorURI = wasmRequest.connectUrl();
     this._expiresAt = wasmRequest.expiresAt();
     this._requestId = wasmRequest.requestId();
   }
 
-  get code(): string {
-    return this._code;
+  get connectorURI(): string {
+    return this._connectorURI;
   }
 
   get expiresAt(): number {
@@ -644,7 +643,7 @@ class IDKitInviteCodeBuilder {
    * ```typescript
    * const request = await IDKit.requestWithInviteCode({ app_id, action, rp_context, allow_legacy_proofs: false })
    *   .constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('face')));
-   * showCode(request.code);
+   * displayLink(request.connectorURI);
    * ```
    */
   async constraints(
@@ -653,11 +652,7 @@ class IDKitInviteCodeBuilder {
     await initIDKit();
 
     const wasmBuilder = createWasmBuilderFromConfig(this.config);
-    const wasmRequest = (await (
-      wasmBuilder as unknown as {
-        constraintsWithInviteCode: (c: ConstraintNode) => Promise<unknown>;
-      }
-    ).constraintsWithInviteCode(
+    const wasmRequest = (await wasmBuilder.constraintsWithInviteCode(
       constraints,
     )) as unknown as WasmModule.IDKitInviteCodeRequest;
     return new IDKitInviteCodeRequestImpl(wasmRequest);
@@ -682,11 +677,7 @@ class IDKitInviteCodeBuilder {
     await initIDKit();
 
     const wasmBuilder = createWasmBuilderFromConfig(this.config);
-    const wasmRequest = (await (
-      wasmBuilder as unknown as {
-        presetWithInviteCode: (p: Preset) => Promise<unknown>;
-      }
-    ).presetWithInviteCode(
+    const wasmRequest = (await wasmBuilder.presetWithInviteCode(
       preset,
     )) as unknown as WasmModule.IDKitInviteCodeRequest;
     return new IDKitInviteCodeRequestImpl(wasmRequest);
@@ -785,7 +776,7 @@ function createRequest(config: IDKitRequestConfig): IDKitBuilder {
  *   allow_legacy_proofs: false,
  * }).constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('face')));
  *
- * showCode(request.code);                     // user types this into World App
+ * displayLink(request.connectorURI);          // user opens this URL on their phone
  * const proof = await request.pollUntilCompletion();
  * ```
  */

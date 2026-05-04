@@ -48,7 +48,7 @@ export function useIDKitInviteCodeFlow<TResult>(
       return {
         isOpen: true,
         status: "waiting_for_connection",
-        code: null,
+        connectorURI: null,
         codeExpiresAt: null,
         result: null,
         errorCode: null,
@@ -86,18 +86,21 @@ export function useIDKitInviteCodeFlow<TResult>(
         ensureNotAborted(controller.signal);
         if (isDebug())
           console.debug("[IDKit] Invite-code flow created", {
-            code: request.code,
+            connectorURI: request.connectorURI,
             expiresAt: request.expiresAt,
             requestId: request.requestId,
           });
 
-        const code = request.code;
+        const connectorURI = request.connectorURI;
         const codeExpiresAt = request.expiresAt;
         setState((prev) => {
-          if (prev.code === code && prev.codeExpiresAt === codeExpiresAt) {
+          if (
+            prev.connectorURI === connectorURI &&
+            prev.codeExpiresAt === codeExpiresAt
+          ) {
             return prev;
           }
-          return { ...prev, code, codeExpiresAt };
+          return { ...prev, connectorURI, codeExpiresAt };
         });
 
         const pollInterval = configRef.current.polling?.interval ?? 1000;
@@ -176,7 +179,7 @@ export function useIDKitInviteCodeFlow<TResult>(
     isAwaitingUserConfirmation: state.status === "awaiting_confirmation",
     isSuccess: state.status === "confirmed",
     isError: state.status === "failed",
-    code: state.code,
+    connectorURI: state.connectorURI,
     codeExpiresAt: state.codeExpiresAt,
     result: state.result,
     errorCode: state.errorCode,
