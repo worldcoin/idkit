@@ -831,15 +831,15 @@ impl BridgeConnection {
         identity_attested: Option<bool>,
         user_presence_completed: bool,
     ) -> Result<Status> {
+        // Protocol-level errors take precedence over user-presence enforcement.
+        if let Some(error_code) = proof_response.error.as_deref() {
+            return Ok(Status::Failed(AppError::from_code(error_code)));
+        }
+
         if let Some(status) =
             user_presence_failure_status(self.require_user_presence, user_presence_completed)
         {
             return Ok(status);
-        }
-
-        // Check for protocol-level error
-        if let Some(error_code) = proof_response.error.as_deref() {
-            return Ok(Status::Failed(AppError::from_code(error_code)));
         }
 
         let responses: Vec<ResponseItem> = proof_response
@@ -1726,6 +1726,26 @@ mod tests {
         );
         assert_eq!(user_presence_failure_status(true, true), None);
         assert_eq!(user_presence_failure_status(false, false), None);
+    }
+
+    #[test]
+    fn test_protocol_error_takes_precedence_over_user_presence_failure() {
+        let mut connection = sample_connection(None);
+        connection.require_user_presence = true;
+
+        let proof_response = ProofResponse {
+            id: "req_failed".to_string(),
+            version: RequestVersion::V1,
+            session_id: None,
+            error: Some("invalid_rp_signature".to_string()),
+            responses: vec![],
+        };
+
+        let status = connection
+            .handle_bridge_v2_response(proof_response, None, false)
+            .unwrap();
+
+        assert_eq!(status, Status::Failed(AppError::InvalidRpSignature));
     }
 
     #[test]
