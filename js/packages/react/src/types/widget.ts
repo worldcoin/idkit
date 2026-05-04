@@ -1,4 +1,7 @@
-import type { IDKitRequestHookConfig } from "./request";
+import type {
+  IDKitInviteCodeRequestHookConfig,
+  IDKitRequestHookConfig,
+} from "./request";
 import type { IDKitSessionHookConfig } from "./session";
 import type {
   IDKitErrorCodes,
@@ -21,6 +24,9 @@ type WidgetSharedProps<TResult> = {
 
 export type IDKitRequestWidgetProps = IDKitRequestHookConfig &
   WidgetSharedProps<IDKitResult>;
+
+export type IDKitInviteCodeRequestWidgetProps =
+  IDKitInviteCodeRequestHookConfig & WidgetSharedProps<IDKitResult>;
 
 export type IDKitSessionWidgetProps = IDKitSessionHookConfig &
   WidgetSharedProps<IDKitResultSession>;

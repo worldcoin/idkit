@@ -31,3 +31,21 @@ export type IDKitHookResult<TResult> = {
   /** Use `isInWorldApp` to determine if the widget is running inside the World App (mini app context). */
   isInWorldApp: boolean;
 };
+
+export type IDKitInviteCodeHookResult<TResult> = {
+  open: () => void;
+  reset: () => void;
+  isAwaitingUserConnection: boolean;
+  isAwaitingUserConfirmation: boolean;
+  isSuccess: boolean;
+  isError: boolean;
+  /** Canonical 6-char Crockford Base32 invite code (no separator). UI may format as "ABC-DEF". */
+  code: string | null;
+  /** Unix-seconds expiry of the unredeemed code. */
+  codeExpiresAt: number | null;
+  result: TResult | null;
+  errorCode: IDKitErrorCodes | null;
+  isOpen: boolean;
+  /** Use `isInWorldApp` to determine if the widget is running inside the World App (mini app context). */
+  isInWorldApp: boolean;
+};

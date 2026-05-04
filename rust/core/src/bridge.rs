@@ -12,7 +12,6 @@ use crate::{
     ConstraintNode, Signal,
 };
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use world_id_primitives::{FieldElement, ProofRequest, SessionId};
 
 #[cfg(feature = "native-crypto")]
@@ -136,13 +135,31 @@ pub struct EncryptedPayload {
     pub payload: String,
 }
 
-/// Response from bridge when creating a request
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)]
-struct BridgeCreateResponse {
-    /// Unique request ID
-    request_id: Uuid,
+/// Body sent on `POST /request`. `request_id` is optional: when present, the
+/// bridge stores under that key with NX semantics (409 on collision); when
+/// absent, the bridge generates a UUID v4. Invite-code mode supplies
+/// `Some(HKDF(C, "dx"))`; the URL/QR path leaves it `None` and accepts the
+/// bridge's UUID.
+#[derive(Debug, Serialize)]
+struct CreateRequestBody {
+    iv: String,
+    payload: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    request_id: Option<String>,
 }
+
+/// Response from bridge when creating a request. `request_id` is now an
+/// opaque string — UUID v4 in URL/QR mode, hex-encoded HKDF output in code
+/// mode.
+#[derive(Debug, Deserialize)]
+struct BridgeCreateResponse {
+    request_id: String,
+}
+
+/// TTL applied to an invite-code request by the bridge (`EXPIRE_AFTER_SECONDS`
+/// in wallet-bridge). Used to compute `code_expires_at` locally since the
+/// bridge no longer returns it on `POST /request`.
+const INVITE_CODE_TTL_SECONDS: u64 = 900;
 
 /// Response from bridge when polling for status
 #[derive(Debug, Deserialize)]
@@ -343,7 +360,7 @@ pub struct BridgeConnection {
     #[cfg(feature = "native-crypto")]
     key: CryptoKey,
     key_bytes: Vec<u8>,
-    request_id: Uuid,
+    request_id: String,
     client: reqwest::Client,
     /// Cached signal hashes of the request
     /// Used to add the `signal_hash` back to the idkit response for convenience
@@ -360,6 +377,11 @@ pub struct BridgeConnection {
     return_to: Option<String>,
     /// Resolved environment for this connection
     environment: Environment,
+    // ─── Invite-code mode (WDP-73) — None for the legacy URL/QR path ────────
+    /// Canonical 6-char Crockford Base32 invite code shown to the user.
+    pub(crate) invite_code: Option<String>,
+    /// Unix-seconds expiry of the unredeemed code.
+    pub(crate) code_expires_at: Option<u64>,
 }
 
 /// Builds a `BridgeRequestPayload` from params without connecting to the bridge.
@@ -551,9 +573,11 @@ impl BridgeConnection {
         #[cfg(not(feature = "native-crypto"))]
         let encrypted = encrypt(&key_bytes, &nonce_bytes, &payload_json)?;
 
-        let encrypted_payload = EncryptedPayload {
+        let body = CreateRequestBody {
             iv: base64_encode(&nonce_bytes),
             payload: base64_encode(&encrypted),
+            // URL/QR mode lets the bridge mint the request_id (UUID v4).
+            request_id: None,
         };
 
         // Send to bridge
@@ -563,7 +587,7 @@ impl BridgeConnection {
 
         let response = client
             .post(bridge_url.join("/request")?)
-            .json(&encrypted_payload)
+            .json(&body)
             .send()
             .await?;
 
@@ -603,7 +627,49 @@ impl BridgeConnection {
             override_connect_base_url: params.override_connect_base_url,
             return_to: params.return_to,
             environment: params.environment.unwrap_or_default(),
+            invite_code: None,
+            code_expires_at: None,
         })
+    }
+
+    /// Creates a new bridge connection in invite-code mode (WDP-73).
+    ///
+    /// Generates a fresh 6-char Crockford Base32 code, derives `index` and
+    /// `K` from it via HKDF-SHA256, encrypts the request payload with `K`,
+    /// and posts the new shape to `POST /request`. The encryption key never
+    /// reaches the bridge — only the index and ciphertext do.
+    ///
+    /// Retries once on a 409 conflict (vanishingly rare collision on the
+    /// `code:idx:<index>` lookup; ~10⁻¹⁰ across two attempts at realistic
+    /// active-code rates). Beyond that, surfaces the error — sustained
+    /// collisions indicate a bridge or entropy-budget misconfiguration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request cannot be created or the bridge call
+    /// fails after retries.
+    #[allow(dead_code)]
+    pub(crate) async fn create_for_invite_code(params: BridgeConnectionParams) -> Result<Self> {
+        const MAX_ATTEMPTS: u8 = 2;
+
+        // Silent retry: a single collision is statistically expected zero
+        // times across the lifetime of a healthy deployment. If we ever burn
+        // both attempts, the BridgeError surfaces with enough detail for the
+        // caller's log infrastructure to flag it.
+        for attempt in 1..=MAX_ATTEMPTS {
+            match try_create_invite_code_request(&params).await {
+                Ok(connection) => return Ok(connection),
+                Err(CreateCodeError::Conflict) if attempt < MAX_ATTEMPTS => {}
+                Err(CreateCodeError::Conflict) => {
+                    return Err(Error::BridgeError(
+                        "invite-code index collision after retries — bridge or entropy budget misconfigured"
+                            .to_string(),
+                    ));
+                }
+                Err(CreateCodeError::Other(e)) => return Err(e),
+            }
+        }
+        unreachable!("loop returns or errors on the final attempt")
     }
 
     /// Returns the connect URL for World App
@@ -639,6 +705,12 @@ impl BridgeConnection {
     }
 
     /// Polls the bridge for the current status (non-blocking)
+    ///
+    /// `GET /response/:id` is unauthenticated for both URL/QR and invite-code
+    /// modes. The endpoint returns AES-GCM ciphertext keyed under a secret
+    /// (the URL fragment key in QR mode, or HKDF(code, "key") in code mode)
+    /// that never reaches the bridge — encryption is the security boundary,
+    /// not endpoint auth.
     ///
     /// # Errors
     ///
@@ -780,11 +852,166 @@ impl BridgeConnection {
         ))
     }
 
-    /// Returns the request ID for this request
+    /// Returns the request ID for this request.
+    ///
+    /// In URL/QR mode this is a UUID v4 generated by the bridge; in
+    /// invite-code mode it is the lowercase-hex `HKDF(C, "dx")` the RP sent
+    /// on `POST /request`.
     #[must_use]
-    pub const fn request_id(&self) -> Uuid {
-        self.request_id
+    pub fn request_id(&self) -> &str {
+        &self.request_id
     }
+
+    /// Returns the canonical 6-char Crockford Base32 invite code, if this
+    /// connection was created in invite-code mode.
+    #[must_use]
+    pub fn invite_code(&self) -> Option<&str> {
+        self.invite_code.as_deref()
+    }
+
+    /// Unix-seconds expiry of the unredeemed code, if this connection was
+    /// created in invite-code mode.
+    #[must_use]
+    pub const fn code_expires_at(&self) -> Option<u64> {
+        self.code_expires_at
+    }
+}
+
+/// Internal error type for the invite-code create path. Lets the retry loop
+/// distinguish 409-on-collision (retryable) from anything else (not).
+enum CreateCodeError {
+    Conflict,
+    Other(Error),
+}
+
+impl From<Error> for CreateCodeError {
+    fn from(e: Error) -> Self {
+        Self::Other(e)
+    }
+}
+
+/// Current Unix-seconds, branching on target. `std::time::SystemTime::now()`
+/// panics on `wasm32-unknown-unknown` (no system clock); the WASM build uses
+/// `js_sys::Date::now()` against the host's clock instead.
+fn current_unix_seconds() -> Result<u64> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let ms = js_sys::Date::now();
+        if !ms.is_finite() || ms < 0.0 {
+            return Err(Error::BridgeError(
+                "host clock returned a non-finite or negative timestamp".into(),
+            ));
+        }
+        Ok((ms / 1000.0) as u64)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .map_err(|_| Error::BridgeError("system time before UNIX epoch".into()))
+    }
+}
+
+#[allow(dead_code)]
+async fn try_create_invite_code_request(
+    params: &BridgeConnectionParams,
+) -> std::result::Result<BridgeConnection, CreateCodeError> {
+    use crate::crypto::{
+        generate_invite_code, generate_nonce, hkdf_invite_index_hex, hkdf_invite_key,
+    };
+
+    let code = generate_invite_code();
+    let key_bytes = hkdf_invite_key(&code);
+    // HKDF(C, "dx") becomes the request_id we hand to the bridge directly —
+    // no separate `index` field. The bridge has been simplified to a generic
+    // content-addressable single-use store keyed by any opaque string.
+    let request_id = hkdf_invite_index_hex(&code);
+
+    // The AES-GCM nonce is fresh-random per request. Deriving it from the
+    // code would reuse the same (K, IV) pair across any retry for that code,
+    // breaking AES-GCM's contract — and the code is single-use anyway, so
+    // there's nothing to gain from determinism.
+    let nonce_bytes = generate_nonce()?;
+
+    let payload_value = build_request_payload(params, false)?;
+    let payload_json = serde_json::to_vec(&payload_value).map_err(Error::from)?;
+    let encrypted = encrypt(&key_bytes, &nonce_bytes, &payload_json)?;
+
+    let body = CreateRequestBody {
+        iv: base64_encode(&nonce_bytes),
+        payload: base64_encode(&encrypted),
+        request_id: Some(request_id.clone()),
+    };
+
+    let cached_signal_hashes = CachedSignalHashes::compute(params);
+    let bridge_url = params.bridge_url.clone().unwrap_or_default();
+    let client = reqwest::Client::builder()
+        .user_agent(format!("idkit-core/{}", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(Error::from)?;
+
+    let response = client
+        .post(bridge_url.join("/request")?)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| Error::BridgeError(format!("Bridge request failed: {e}")))?;
+
+    if response.status() == reqwest::StatusCode::CONFLICT {
+        return Err(CreateCodeError::Conflict);
+    }
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        return Err(Error::BridgeError(format!(
+            "Bridge /request (code) failed with status {status}: {}",
+            if body.is_empty() {
+                "no error details"
+            } else {
+                &body
+            }
+        ))
+        .into());
+    }
+
+    // Discard the echoed request_id — we already have ours.
+    let _: BridgeCreateResponse = response
+        .json()
+        .await
+        .map_err(|e| Error::BridgeError(format!("Failed to parse bridge response: {e}")))?;
+
+    // Bridge no longer reports the unredeemed-code expiry; it ships
+    // `EXPIRE_AFTER_SECONDS` (900s) on every row, including code-mode rows,
+    // so we synthesize the deadline here so adopters can still drive
+    // countdowns off `code_expires_at()`.
+    let code_expires_at = current_unix_seconds()? + INVITE_CODE_TTL_SECONDS;
+
+    let action = match &params.kind {
+        RequestKind::Uniqueness { action } => Some(action.clone()),
+        _ => None,
+    };
+
+    #[cfg(feature = "native-crypto")]
+    let key = CryptoKey::new(key_bytes, nonce_bytes);
+
+    Ok(BridgeConnection {
+        bridge_url,
+        #[cfg(feature = "native-crypto")]
+        key,
+        key_bytes: key_bytes.to_vec(),
+        request_id,
+        client,
+        cached_signal_hashes,
+        action,
+        action_description: params.action_description.clone(),
+        nonce: params.rp_context.nonce.clone(),
+        override_connect_base_url: params.override_connect_base_url.clone(),
+        return_to: params.return_to.clone(),
+        environment: params.environment.unwrap_or_default(),
+        invite_code: Some(code),
+        code_expires_at: Some(code_expires_at),
+    })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1161,6 +1388,59 @@ impl IDKitBuilder {
             connect_url_mode: self.config.connect_url_mode(),
         }))
     }
+
+    /// Creates an invite-code mode `BridgeConnection` with the given constraints (WDP-73).
+    ///
+    /// Same proof-request shape as `constraints()`; the only difference is the
+    /// transport layer — the user types a 6-char code into World App instead
+    /// of scanning a QR. Returns the displayable code via `IDKitInviteCodeRequest::code()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request cannot be created.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn constraints_with_invite_code(
+        &self,
+        constraints: Arc<ConstraintNode>,
+    ) -> std::result::Result<Arc<IDKitInviteCodeRequest>, crate::error::IdkitError> {
+        let runtime =
+            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
+                details: format!("Failed to create runtime: {e}"),
+            })?;
+
+        let params = self.config.to_params((*constraints).clone())?;
+
+        let inner = runtime
+            .block_on(BridgeConnection::create_for_invite_code(params))
+            .map_err(crate::error::IdkitError::from)?;
+
+        Ok(Arc::new(IDKitInviteCodeRequest { runtime, inner }))
+    }
+
+    /// Creates an invite-code mode `BridgeConnection` from a preset (WDP-73).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request cannot be created or the request type
+    /// doesn't support presets (sessions only support `constraints()`).
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn preset_with_invite_code(
+        &self,
+        preset: Preset,
+    ) -> std::result::Result<Arc<IDKitInviteCodeRequest>, crate::error::IdkitError> {
+        let runtime =
+            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
+                details: format!("Failed to create runtime: {e}"),
+            })?;
+
+        let params = self.config.to_params_from_preset(preset)?;
+
+        let inner = runtime
+            .block_on(BridgeConnection::create_for_invite_code(params))
+            .map_err(crate::error::IdkitError::from)?;
+
+        Ok(Arc::new(IDKitInviteCodeRequest { runtime, inner }))
+    }
 }
 
 /// Entry point for creating `IDKit` requests
@@ -1283,6 +1563,91 @@ impl IDKitRequestWrapper {
     ///
     /// This method preserves the existing FFI signature for compatibility.
     /// `poll_interval_ms` and `timeout_ms` are ignored.
+    pub fn poll_status(
+        &self,
+        poll_interval_ms: Option<u64>,
+        timeout_ms: Option<u64>,
+    ) -> StatusWrapper {
+        let _ = (poll_interval_ms, timeout_ms);
+        self.poll_status_once()
+    }
+
+    /// Polls the request exactly once for updates.
+    pub fn poll_status_once(&self) -> StatusWrapper {
+        match self.runtime.block_on(self.inner.poll_for_status()) {
+            Ok(status) => status.into(),
+            Err(err) => {
+                let app_error = to_app_error(&err);
+                if is_networking_error(&err) {
+                    StatusWrapper::NetworkingError { error: app_error }
+                } else {
+                    StatusWrapper::Failed { error: app_error }
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Invite-code mode UniFFI wrapper (WDP-73)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// FFI handle for an invite-code mode bridge session.
+///
+/// Sibling to `IDKitRequestWrapper` for the URL/QR path. Method names mirror
+/// the URL wrapper exactly so adopters writing a code-mode integration write
+/// the same poll loop they wrote in URL mode — only the constructor and the
+/// displayable `code()` differ.
+#[cfg(feature = "ffi")]
+#[derive(uniffi::Object)]
+pub struct IDKitInviteCodeRequest {
+    runtime: tokio::runtime::Runtime,
+    inner: BridgeConnection,
+}
+
+#[cfg(feature = "ffi")]
+#[uniffi::export]
+#[allow(clippy::needless_pass_by_value)]
+impl IDKitInviteCodeRequest {
+    /// Returns the canonical 6-char Crockford Base32 invite code (no separator).
+    /// UI may format as "ABC-DEF" for display.
+    ///
+    /// # Panics
+    ///
+    /// Never panics in correct use — `IDKitInviteCodeRequest` is only
+    /// constructed via `BridgeConnection::create_for_invite_code`, which
+    /// always populates the inner `invite_code`. The expect documents that
+    /// invariant rather than guarding against an error path callers can hit.
+    #[must_use]
+    pub fn code(&self) -> String {
+        self.inner
+            .invite_code()
+            .expect("invite-code wrapper always has invite_code populated")
+            .to_string()
+    }
+
+    /// Unix-seconds expiry of the unredeemed code.
+    ///
+    /// # Panics
+    ///
+    /// Never panics in correct use — see `code()`.
+    #[must_use]
+    pub fn expires_at(&self) -> u64 {
+        self.inner
+            .code_expires_at()
+            .expect("invite-code wrapper always has code_expires_at populated")
+    }
+
+    /// Returns the request ID for this request.
+    #[must_use]
+    pub fn request_id(&self) -> String {
+        self.inner.request_id().to_string()
+    }
+
+    /// Polls the request once for the current status.
+    ///
+    /// `poll_interval_ms` and `timeout_ms` are accepted for signature parity
+    /// with `IDKitRequestWrapper::poll_status` and ignored.
     pub fn poll_status(
         &self,
         poll_interval_ms: Option<u64>,
@@ -2041,7 +2406,7 @@ mod tests {
             #[cfg(feature = "native-crypto")]
             key: crate::crypto::CryptoKey::new([0; 32], [0; 12]),
             key_bytes: vec![1, 2, 3, 4],
-            request_id: Uuid::parse_str("64e0ec6b-b4ca-47cc-8f70-504a95189e26").unwrap(),
+            request_id: "64e0ec6b-b4ca-47cc-8f70-504a95189e26".to_string(),
             client: reqwest::Client::new(),
             cached_signal_hashes: CachedSignalHashes {
                 signal_hashes: std::collections::HashMap::new(),
@@ -2053,6 +2418,8 @@ mod tests {
             override_connect_base_url: None,
             return_to,
             environment: Environment::Production,
+            invite_code: None,
+            code_expires_at: None,
         }
     }
 
