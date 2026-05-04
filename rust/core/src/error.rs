@@ -154,6 +154,10 @@ pub enum AppError {
     #[error("RP signature expired")]
     RpSignatureExpired,
 
+    /// User presence check failed or was not completed
+    #[error("User presence check failed")]
+    UserPresenceFailed,
+
     /// Generic error
     #[error("An error occurred")]
     #[serde(other)]
@@ -187,6 +191,7 @@ impl AppError {
             "timestamp_too_far_in_future" => Self::TimestampTooFarInFuture,
             "invalid_timestamp" => Self::InvalidTimestamp,
             "rp_signature_expired" => Self::RpSignatureExpired,
+            "user_presence_failed" => Self::UserPresenceFailed,
             _ => Self::GenericError,
         }
     }

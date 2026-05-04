@@ -141,6 +141,7 @@ describe("request/session hooks", () => {
       bridge_url: undefined,
       return_to: undefined,
       allow_legacy_proofs: false,
+      require_user_presence: false,
       override_connect_base_url: undefined,
       environment: undefined,
     });
@@ -163,7 +164,7 @@ describe("request/session hooks", () => {
       useIDKitSession({
         app_id: "app_test",
         rp_context: baseRpContext,
-        constraints: { type: "All", children: [] },
+        constraints: { all: [] },
       }),
     );
 
@@ -181,6 +182,7 @@ describe("request/session hooks", () => {
       rp_context: baseRpContext,
       action_description: undefined,
       bridge_url: undefined,
+      require_user_presence: false,
       override_connect_base_url: undefined,
       return_to: undefined,
       environment: undefined,
@@ -205,7 +207,7 @@ describe("request/session hooks", () => {
         app_id: "app_test",
         rp_context: baseRpContext,
         existing_session_id: SESSION_ID_2,
-        preset: { type: "OrbLegacy" },
+        constraints: { all: [] },
       }),
     );
 
@@ -222,6 +224,7 @@ describe("request/session hooks", () => {
       rp_context: baseRpContext,
       action_description: undefined,
       bridge_url: undefined,
+      require_user_presence: false,
       override_connect_base_url: undefined,
       return_to: undefined,
       environment: undefined,
@@ -266,9 +269,44 @@ describe("request/session hooks", () => {
       bridge_url: undefined,
       return_to: "idkit://callback?step=proof",
       allow_legacy_proofs: false,
+      require_user_presence: false,
       override_connect_base_url: undefined,
       environment: undefined,
     });
+  });
+
+  it("request hook forwards require_user_presence to core", async () => {
+    requestMock.mockReturnValue({
+      preset: vi.fn(async () =>
+        makeRequest(async () => ({
+          type: "confirmed",
+          result: { proof: "ok" },
+        })),
+      ),
+    });
+
+    const { result } = renderHook(() =>
+      useIDKitRequest({
+        app_id: "app_test",
+        action: "test-action",
+        rp_context: baseRpContext,
+        allow_legacy_proofs: false,
+        require_user_presence: true,
+        preset: { type: "OrbLegacy" },
+      }),
+    );
+
+    act(() => {
+      result.current.open();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(requestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ require_user_presence: true }),
+    );
   });
 
   it("session hook forwards return_to to createSession", async () => {
@@ -287,7 +325,8 @@ describe("request/session hooks", () => {
         app_id: "app_test",
         rp_context: baseRpContext,
         return_to: "idkit://callback?step=create",
-        constraints: { type: "All", children: [] },
+        require_user_presence: true,
+        constraints: { all: [] },
       }),
     );
 
@@ -304,6 +343,7 @@ describe("request/session hooks", () => {
       rp_context: baseRpContext,
       action_description: undefined,
       bridge_url: undefined,
+      require_user_presence: true,
       override_connect_base_url: undefined,
       return_to: "idkit://callback?step=create",
       environment: undefined,
@@ -328,7 +368,7 @@ describe("request/session hooks", () => {
         rp_context: baseRpContext,
         existing_session_id: validSessionId,
         return_to: "idkit://callback?step=prove",
-        constraints: { type: "All", children: [] },
+        constraints: { all: [] },
       }),
     );
 
@@ -345,6 +385,7 @@ describe("request/session hooks", () => {
       rp_context: baseRpContext,
       action_description: undefined,
       bridge_url: undefined,
+      require_user_presence: false,
       override_connect_base_url: undefined,
       return_to: "idkit://callback?step=prove",
       environment: undefined,
@@ -357,7 +398,7 @@ describe("request/session hooks", () => {
         app_id: "app_test",
         rp_context: baseRpContext,
         existing_session_id: "   " as unknown as `session_${string}`,
-        constraints: { type: "All", children: [] },
+        constraints: { all: [] },
       }),
     );
 
@@ -378,7 +419,7 @@ describe("request/session hooks", () => {
         app_id: "app_test",
         rp_context: baseRpContext,
         existing_session_id: "session_2" as `session_${string}`,
-        constraints: { type: "All", children: [] },
+        constraints: { all: [] },
       }),
     );
 

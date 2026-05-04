@@ -711,6 +711,9 @@ pub struct IDKitResult {
     /// Array of credential responses (always successful - errors at `BridgeResponse` level)
     pub responses: Vec<ResponseItem>,
 
+    /// Whether World App completed the requested user-presence check.
+    pub user_presence_completed: bool,
+
     /// The environment used for this request ("production" or "staging")
     pub environment: String,
 
@@ -729,6 +732,7 @@ impl IDKitResult {
         action: Option<String>,
         action_description: Option<String>,
         responses: Vec<ResponseItem>,
+        user_presence_completed: bool,
         environment: impl Into<String>,
     ) -> Self {
         Self {
@@ -738,6 +742,7 @@ impl IDKitResult {
             action_description,
             session_id: None,
             responses,
+            user_presence_completed,
             environment: environment.into(),
             identity_attested: None,
         }
@@ -751,6 +756,7 @@ impl IDKitResult {
         session_id: String,
         action_description: Option<String>,
         responses: Vec<ResponseItem>,
+        user_presence_completed: bool,
         environment: impl Into<String>,
     ) -> Self {
         Self {
@@ -760,6 +766,7 @@ impl IDKitResult {
             action_description,
             session_id: Some(session_id),
             responses,
+            user_presence_completed,
             environment: environment.into(),
             identity_attested: None,
         }
@@ -1353,6 +1360,7 @@ mod tests {
             None,
             None,
             responses,
+            false,
             "production",
         );
         assert_eq!(result.protocol_version, "3.0");

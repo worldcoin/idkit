@@ -227,21 +227,26 @@ export function enumerate(...nodes: ConstraintNode[]): {
 // Re-export preset types from WASM (source of truth in rust/core/src/wasm_bindings.rs)
 export type {
   Preset,
+  IdentityAttribute,
+  DocumentType,
   OrbLegacyPreset,
   SecureDocumentLegacyPreset,
   DocumentLegacyPreset,
   SelfieCheckLegacyPreset,
   DeviceLegacyPreset,
+  IdentityCheckPreset,
 } from "./lib/wasm";
 
 // Import WASM preset type for function return types
 import type {
   Preset,
+  IdentityAttribute,
   OrbLegacyPreset,
   SecureDocumentLegacyPreset,
   DocumentLegacyPreset,
   SelfieCheckLegacyPreset,
   DeviceLegacyPreset,
+  IdentityCheckPreset,
 } from "./lib/wasm";
 
 /**
@@ -345,6 +350,25 @@ export function selfieCheckLegacy(
   return { type: "SelfieCheckLegacy", signal: opts.signal };
 }
 
+/**
+ * Creates an IdentityCheck preset for document-based identity attestation.
+ *
+ * This preset requires World ID 4.0-compatible clients.
+ *
+ * @param params - Identity attribute filters and proof-of-humanity requirement
+ * @returns An IdentityCheck preset
+ */
+export function identityCheck(params: {
+  attributes: IdentityAttribute[];
+  require_proof_of_humanity: boolean;
+}): IdentityCheckPreset {
+  return {
+    type: "IdentityCheck",
+    attributes: params.attributes,
+    require_proof_of_humanity: params.require_proof_of_humanity,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // WASM builder factory (used for both native and bridge paths)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -372,6 +396,7 @@ function createWasmBuilderFromConfig(
       config.action_description ?? null,
       config.bridge_url ?? null,
       config.allow_legacy_proofs ?? false,
+      config.require_user_presence ?? false,
       config.override_connect_base_url ?? null,
       config.return_to ?? null,
       config.environment ?? null,
@@ -385,6 +410,7 @@ function createWasmBuilderFromConfig(
       rpContext,
       config.action_description ?? null,
       config.bridge_url ?? null,
+      config.require_user_presence ?? false,
       config.override_connect_base_url ?? null,
       config.return_to ?? null,
       config.environment ?? null,
@@ -397,6 +423,7 @@ function createWasmBuilderFromConfig(
     rpContext,
     config.action_description ?? null,
     config.bridge_url ?? null,
+    config.require_user_presence ?? false,
     config.override_connect_base_url ?? null,
     config.return_to ?? null,
     config.environment ?? null,
@@ -618,6 +645,7 @@ function createRequest(config: IDKitRequestConfig): IDKitBuilder {
     bridge_url: config.bridge_url,
     return_to: config.return_to,
     allow_legacy_proofs: config.allow_legacy_proofs,
+    require_user_presence: config.require_user_presence ?? false,
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
   });
@@ -667,6 +695,7 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
     action_description: config.action_description,
     bridge_url: config.bridge_url,
     return_to: config.return_to,
+    require_user_presence: config.require_user_presence ?? false,
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
   });
@@ -728,6 +757,7 @@ function proveSession(
     action_description: config.action_description,
     bridge_url: config.bridge_url,
     return_to: config.return_to,
+    require_user_presence: config.require_user_presence ?? false,
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
   });
@@ -779,4 +809,6 @@ export const IDKit = {
   deviceLegacy,
   /** Create a SelfieCheckLegacy preset for face verification */
   selfieCheckLegacy,
+  /** Create an IdentityCheck preset for World ID 4.0 identity attestation */
+  identityCheck,
 };

@@ -478,6 +478,7 @@ enum IDKitConfigWasm {
         action_description: Option<String>,
         bridge_url: Option<String>,
         allow_legacy_proofs: bool,
+        require_user_presence: bool,
         override_connect_base_url: Option<String>,
         return_to: Option<String>,
         environment: Option<String>,
@@ -487,6 +488,7 @@ enum IDKitConfigWasm {
         rp_context: RpContext,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        require_user_presence: bool,
         override_connect_base_url: Option<String>,
         return_to: Option<String>,
         environment: Option<String>,
@@ -497,6 +499,7 @@ enum IDKitConfigWasm {
         rp_context: RpContext,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        require_user_presence: bool,
         override_connect_base_url: Option<String>,
         return_to: Option<String>,
         environment: Option<String>,
@@ -517,6 +520,7 @@ impl IDKitConfigWasm {
                 action_description,
                 bridge_url,
                 allow_legacy_proofs,
+                require_user_presence,
                 override_connect_base_url,
                 return_to,
                 environment,
@@ -542,6 +546,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: *allow_legacy_proofs,
+                    require_user_presence: *require_user_presence,
 
                     override_connect_base_url: override_connect_base_url.clone(),
                     return_to: return_to.clone(),
@@ -557,6 +562,7 @@ impl IDKitConfigWasm {
                 rp_context,
                 action_description,
                 bridge_url,
+                require_user_presence,
                 override_connect_base_url,
                 return_to,
                 environment,
@@ -580,6 +586,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    require_user_presence: *require_user_presence,
 
                     override_connect_base_url: override_connect_base_url.clone(),
                     return_to: return_to.clone(),
@@ -596,6 +603,7 @@ impl IDKitConfigWasm {
                 rp_context,
                 action_description,
                 bridge_url,
+                require_user_presence,
                 override_connect_base_url,
                 return_to,
                 environment,
@@ -621,6 +629,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    require_user_presence: *require_user_presence,
 
                     override_connect_base_url: override_connect_base_url.clone(),
                     return_to: return_to.clone(),
@@ -657,6 +666,16 @@ impl IDKitConfigWasm {
     }
 }
 
+fn validate_v1_preset_support(preset: &Preset) -> Result<(), &'static str> {
+    if matches!(preset, Preset::IdentityCheck { .. }) {
+        return Err(
+            "IdentityCheck presets are not supported for nativePayloadV1FromPreset. Use nativePayloadFromPreset with a World ID 4.0-compatible client instead.",
+        );
+    }
+
+    Ok(())
+}
+
 /// Unified builder for creating `IDKit` requests and sessions (WASM)
 #[wasm_bindgen(js_name = IDKitBuilder)]
 pub struct IDKitBuilderWasm {
@@ -676,6 +695,7 @@ impl IDKitBuilderWasm {
         action_description: Option<String>,
         bridge_url: Option<String>,
         allow_legacy_proofs: bool,
+        require_user_presence: bool,
         override_connect_base_url: Option<String>,
         return_to: Option<String>,
         environment: Option<String>,
@@ -688,6 +708,7 @@ impl IDKitBuilderWasm {
                 action_description,
                 bridge_url,
                 allow_legacy_proofs,
+                require_user_presence,
                 override_connect_base_url,
                 return_to,
                 environment,
@@ -703,6 +724,7 @@ impl IDKitBuilderWasm {
         rp_context: RpContextWasm,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        require_user_presence: bool,
         override_connect_base_url: Option<String>,
         return_to: Option<String>,
         environment: Option<String>,
@@ -713,6 +735,7 @@ impl IDKitBuilderWasm {
                 rp_context: rp_context.into_inner(),
                 action_description,
                 bridge_url,
+                require_user_presence,
                 override_connect_base_url,
                 return_to,
                 environment,
@@ -729,6 +752,7 @@ impl IDKitBuilderWasm {
         rp_context: RpContextWasm,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        require_user_presence: bool,
         override_connect_base_url: Option<String>,
         return_to: Option<String>,
         environment: Option<String>,
@@ -740,6 +764,7 @@ impl IDKitBuilderWasm {
                 rp_context: rp_context.into_inner(),
                 action_description,
                 bridge_url,
+                require_user_presence,
                 override_connect_base_url,
                 return_to,
                 environment,
@@ -865,6 +890,8 @@ impl IDKitBuilderWasm {
         let preset: Preset = serde_wasm_bindgen::from_value(preset_json)
             .map_err(|e| JsValue::from_str(&format!("Invalid preset: {e}")))?;
 
+        validate_v1_preset_support(&preset).map_err(JsValue::from_str)?;
+
         let params = self.config.to_params_from_preset(preset)?;
 
         let payload = crate::bridge::build_native_v1_payload(&params)
@@ -952,6 +979,7 @@ pub fn request(
     action_description: Option<String>,
     bridge_url: Option<String>,
     allow_legacy_proofs: bool,
+    require_user_presence: bool,
     override_connect_base_url: Option<String>,
     return_to: Option<String>,
     environment: Option<String>,
@@ -963,6 +991,7 @@ pub fn request(
         action_description,
         bridge_url,
         allow_legacy_proofs,
+        require_user_presence,
         override_connect_base_url,
         return_to,
         environment,
@@ -975,11 +1004,13 @@ pub fn request(
 /// `session_<hex>`.
 #[must_use]
 #[wasm_bindgen(js_name = createSession)]
+#[allow(clippy::too_many_arguments)]
 pub fn create_session(
     app_id: String,
     rp_context: RpContextWasm,
     action_description: Option<String>,
     bridge_url: Option<String>,
+    require_user_presence: bool,
     override_connect_base_url: Option<String>,
     return_to: Option<String>,
     environment: Option<String>,
@@ -989,6 +1020,7 @@ pub fn create_session(
         rp_context,
         action_description,
         bridge_url,
+        require_user_presence,
         override_connect_base_url,
         return_to,
         environment,
@@ -1008,6 +1040,7 @@ pub fn prove_session(
     rp_context: RpContextWasm,
     action_description: Option<String>,
     bridge_url: Option<String>,
+    require_user_presence: bool,
     override_connect_base_url: Option<String>,
     return_to: Option<String>,
     environment: Option<String>,
@@ -1018,6 +1051,7 @@ pub fn prove_session(
         rp_context,
         action_description,
         bridge_url,
+        require_user_presence,
         override_connect_base_url,
         return_to,
         environment,
@@ -1211,6 +1245,8 @@ export interface IDKitResultV3 {
     action_description?: string;
     /** Array of V3 credential responses */
     responses: ResponseItemV3[];
+    /** Whether World App completed the requested user-presence check. */
+    user_presence_completed: boolean;
     /** The environment used for this request ("production" or "staging") */
     environment: string;
 }
@@ -1227,8 +1263,12 @@ export interface IDKitResultV4 {
     action_description?: string;
     /** Array of V4 credential responses */
     responses: ResponseItemV4[];
+    /** Whether World App completed the requested user-presence check. */
+    user_presence_completed: boolean;
     /** The environment used for this request ("production" or "staging") */
     environment: string;
+    /** Whether identity attributes were attested. Only present on IdentityCheck responses. */
+    identity_attested?: boolean;
 }
 
 /** V4 result for session proofs */
@@ -1243,6 +1283,8 @@ export interface IDKitResultSession {
     session_id: `session_${string}`;
     /** Array of session credential responses */
     responses: ResponseItemSession[];
+    /** Whether World App completed the requested user-presence check. */
+    user_presence_completed: boolean;
     /** The environment used for this request ("production" or "staging") */
     environment: string;
 }
@@ -1267,6 +1309,8 @@ export interface IDKitSessionConfig {
     bridge_url?: string;
     /** Optional deep-link callback URL appended as `return_to` on the connector URL */
     return_to?: string;
+    /** Require World App to perform a user-presence check before verification. Defaults to false. */
+    require_user_presence?: boolean;
 }
 
 /** RpContext for proof requests */
@@ -1307,6 +1351,7 @@ export type IDKitErrorCode =
     | "timestamp_too_far_in_future"
     | "invalid_timestamp"
     | "rp_signature_expired"
+    | "user_presence_failed"
     | "generic_error";
 
 /** Status returned from pollForStatus() */
@@ -1320,6 +1365,16 @@ export type Status =
 // Export preset types
 #[wasm_bindgen(typescript_custom_section)]
 const TS_PRESET: &str = r#"
+export type DocumentType = "passport" | "eid" | "mnc";
+
+export type IdentityAttribute =
+    | { type: "document_type"; value: DocumentType }
+    | { type: "document_number"; value: string }
+    | { type: "issuing_country"; value: string }
+    | { type: "full_name"; value: string }
+    | { type: "minimum_age"; value: number }
+    | { type: "nationality"; value: string };
+
 export interface OrbLegacyPreset {
     /** This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions. */
     type: "OrbLegacy";
@@ -1351,7 +1406,20 @@ export interface DeviceLegacyPreset {
     signal?: string;
 }
 
-export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLegacyPreset | SelfieCheckLegacyPreset | DeviceLegacyPreset;
+export interface IdentityCheckPreset {
+    /** This preset requires World ID 4.0-compatible clients. */
+    type: "IdentityCheck";
+    attributes: IdentityAttribute[];
+    require_proof_of_humanity: boolean;
+}
+
+export type Preset =
+    | OrbLegacyPreset
+    | SecureDocumentLegacyPreset
+    | DocumentLegacyPreset
+    | SelfieCheckLegacyPreset
+    | DeviceLegacyPreset
+    | IdentityCheckPreset;
 
 export function orbLegacy(signal?: string): Preset;
 export function secureDocumentLegacy(signal?: string): Preset;
@@ -1359,6 +1427,10 @@ export function documentLegacy(signal?: string): Preset;
 /** Preview: Selfie Check is currently in preview. Contact us if you need it enabled. */
 export function selfieCheckLegacy(signal?: string): Preset;
 export function deviceLegacy(signal?: string): Preset;
+export function identityCheck(params: {
+    attributes: IdentityAttribute[];
+    require_proof_of_humanity: boolean;
+}): Preset;
 "#;
 
 // Export RP signature types
@@ -1409,6 +1481,7 @@ export function createSession(
     rp_context: RpContextWasm,
     action_description?: string,
     bridge_url?: string,
+    require_user_presence?: boolean,
     override_connect_base_url?: string,
     return_to?: string,
     environment?: string
@@ -1427,6 +1500,7 @@ export function proveSession(
     rp_context: RpContextWasm,
     action_description?: string,
     bridge_url?: string,
+    require_user_presence?: boolean,
     override_connect_base_url?: string,
     return_to?: string,
     environment?: string
@@ -1435,11 +1509,26 @@ export function proveSession(
 
 #[cfg(test)]
 mod tests {
-    use super::IDKitConfigWasm;
-    use crate::{ConstraintNode, RpContext};
+    use super::{validate_v1_preset_support, IDKitConfigWasm};
+    use crate::{types::IdentityAttribute, ConstraintNode, Preset, RpContext};
 
     fn sample_rp_context() -> RpContext {
         RpContext::new("rp_123456789abcdef0", "0x01", 1, 2, "0x1234").expect("valid rp_context")
+    }
+
+    fn sample_request_config() -> IDKitConfigWasm {
+        IDKitConfigWasm::Request {
+            app_id: "app_staging_test".to_string(),
+            action: "test-action".to_string(),
+            rp_context: sample_rp_context(),
+            action_description: None,
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            require_user_presence: false,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: None,
+        }
     }
 
     #[test]
@@ -1451,6 +1540,7 @@ mod tests {
             action_description: None,
             bridge_url: None,
             allow_legacy_proofs: false,
+            require_user_presence: false,
             override_connect_base_url: None,
             return_to: Some("idkit://callback?step=request".to_string()),
             environment: None,
@@ -1467,12 +1557,35 @@ mod tests {
     }
 
     #[test]
+    fn request_params_preserve_user_presence_requirement() {
+        let config = IDKitConfigWasm::Request {
+            app_id: "app_staging_test".to_string(),
+            action: "test-action".to_string(),
+            rp_context: sample_rp_context(),
+            action_description: None,
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            require_user_presence: true,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: None,
+        };
+
+        let params = config
+            .to_params(Some(ConstraintNode::Any { any: Vec::new() }))
+            .expect("request params");
+
+        assert!(params.require_user_presence);
+    }
+
+    #[test]
     fn create_session_params_preserve_return_to() {
         let config = IDKitConfigWasm::CreateSession {
             app_id: "app_staging_test".to_string(),
             rp_context: sample_rp_context(),
             action_description: None,
             bridge_url: None,
+            require_user_presence: false,
             override_connect_base_url: None,
             return_to: Some("idkit://callback?step=create".to_string()),
             environment: None,
@@ -1496,6 +1609,7 @@ mod tests {
             rp_context: sample_rp_context(),
             action_description: None,
             bridge_url: None,
+            require_user_presence: false,
             override_connect_base_url: None,
             return_to: Some("idkit://callback?step=prove".to_string()),
             environment: None,
@@ -1509,5 +1623,37 @@ mod tests {
             params.return_to.as_deref(),
             Some("idkit://callback?step=prove")
         );
+    }
+
+    #[test]
+    fn native_payload_v1_from_preset_rejects_identity_check() {
+        let preset = Preset::identity_check(vec![IdentityAttribute::MinimumAge(21)], false);
+
+        assert!(validate_v1_preset_support(&preset)
+            .expect_err("identity check should be rejected for v1")
+            .contains("IdentityCheck presets are not supported"));
+    }
+
+    #[test]
+    fn native_payload_v1_from_preset_rejects_identity_check_with_orb() {
+        let preset = Preset::identity_check(
+            vec![IdentityAttribute::Nationality("JPN".to_string())],
+            true,
+        );
+
+        assert!(validate_v1_preset_support(&preset)
+            .expect_err("identity check with orb should be rejected for v1")
+            .contains("IdentityCheck presets are not supported"));
+    }
+
+    #[test]
+    fn native_payload_v1_from_preset_allows_legacy_presets() {
+        let config = sample_request_config();
+        let preset = Preset::device_legacy(Some("device-signal".to_string()));
+
+        validate_v1_preset_support(&preset).expect("legacy preset should be allowed for v1");
+        config
+            .to_params_from_preset(preset)
+            .expect("legacy preset should produce a v1 payload");
     }
 }

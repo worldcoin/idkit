@@ -56,6 +56,11 @@ type ArenaCaseId =
   | "v4_constraint_unsatisfied"
   | "v4_future_genesis_no_fallback"
   | "v4_future_genesis_fallback_success"
+  | "user_presence_v3_orb_failed"
+  | "user_presence_v3_secure_document_failed"
+  | "user_presence_v4_poh_failed"
+  | "user_presence_v4_passport_failed"
+  | "user_presence_v4_mnc_failed"
   | "error_invalid_rp_signature"
   | "error_duplicate_nonce"
   | "error_nullifier_replayed"
@@ -105,6 +110,7 @@ type ArenaCaseDefinition = {
   description: string;
   prerequisite: string;
   request: RequestDefinition;
+  requireUserPresence?: boolean;
   contextCaseId?: RpContextCaseId;
 };
 
@@ -147,6 +153,7 @@ type ActiveRun = {
   rpContext: RpContext;
   signal: string;
   request: RequestDefinition;
+  requireUserPresence: boolean;
 };
 
 type FlowConfig =
@@ -462,6 +469,81 @@ const ARENA_SECTIONS: ArenaSection[] = [
     ],
   },
   {
+    id: "user-presence-face-auth",
+    title: "User presence (Face Auth)",
+    description:
+      "Requests that require Face Auth and should fail when the user reaches Face Auth but does not complete it.",
+    cases: [
+      {
+        id: "user_presence_v3_orb_failed",
+        title: "WID 3.0 Orb with Face Auth",
+        expected: IDKitErrorCodes.UserPresenceFailed,
+        prerequisite:
+          "Account can satisfy the 3.0 Orb preset. Reach the Face Auth step and fail or cancel that step.",
+        description:
+          "Runs the Orb legacy preset with require_user_presence=true and expects user_presence_failed.",
+        request: { type: "preset", presetKind: "orb" },
+        requireUserPresence: true,
+      },
+      {
+        id: "user_presence_v3_secure_document_failed",
+        title: "WID 3.0 Secure Document with Face Auth",
+        expected: IDKitErrorCodes.UserPresenceFailed,
+        prerequisite:
+          "Account can satisfy the secure document legacy preset. Reach the Face Auth step and fail or cancel that step.",
+        description:
+          "Runs the secure document legacy preset with require_user_presence=true and expects user_presence_failed.",
+        request: { type: "preset", presetKind: "secure_document" },
+        requireUserPresence: true,
+      },
+      {
+        id: "user_presence_v4_poh_failed",
+        title: "WID 4.0 Proof of Human with Face Auth",
+        expected: IDKitErrorCodes.UserPresenceFailed,
+        prerequisite:
+          "Account has a 4.0 Proof of Human credential. Reach the Face Auth step and fail or cancel that step.",
+        description:
+          "Requests proof_of_human with require_user_presence=true and expects user_presence_failed.",
+        request: {
+          type: "constraints",
+          constraintKind: "proof_of_human",
+          allowLegacyProofs: false,
+        },
+        requireUserPresence: true,
+      },
+      {
+        id: "user_presence_v4_passport_failed",
+        title: "WID 4.0 Passport with Face Auth",
+        expected: IDKitErrorCodes.UserPresenceFailed,
+        prerequisite:
+          "Account has a 4.0 Passport credential. Reach the Face Auth step and fail or cancel that step.",
+        description:
+          "Requests passport with require_user_presence=true and expects user_presence_failed.",
+        request: {
+          type: "constraints",
+          constraintKind: "passport",
+          allowLegacyProofs: false,
+        },
+        requireUserPresence: true,
+      },
+      {
+        id: "user_presence_v4_mnc_failed",
+        title: "WID 4.0 MNC with Face Auth",
+        expected: IDKitErrorCodes.UserPresenceFailed,
+        prerequisite:
+          "Account has a 4.0 MNC credential. Reach the Face Auth step and fail or cancel that step.",
+        description:
+          "Requests mnc with require_user_presence=true and expects user_presence_failed.",
+        request: {
+          type: "constraints",
+          constraintKind: "mnc",
+          allowLegacyProofs: false,
+        },
+        requireUserPresence: true,
+      },
+    ],
+  },
+  {
     id: "world-id-4-errors",
     title: "World ID 4.0 Error Cases",
     description:
@@ -747,18 +829,33 @@ function buildFlowConfig(activeRun: ActiveRun): FlowConfig {
   };
 }
 
-function requestLabel(request: RequestDefinition): string {
+function requestLabel(
+  request: RequestDefinition,
+  requireUserPresence = false,
+): string {
+  const userPresence = requireUserPresence ? "require_user_presence=true" : "";
+
   if (request.type === "preset") {
-    return `preset: ${PRESET_KIND_TO_NAME[request.presetKind]}`;
+    return userPresence
+      ? `preset: ${PRESET_KIND_TO_NAME[request.presetKind]} (${userPresence})`
+      : `preset: ${PRESET_KIND_TO_NAME[request.presetKind]}`;
   }
 
-  const fallback = request.allowLegacyProofs
-    ? "allow_legacy_proofs=true"
-    : "allow_legacy_proofs=false";
-  const genesis =
-    request.genesisIssuedAtMin === "future" ? ", future genesis min" : "";
+  const flags = [
+    request.allowLegacyProofs
+      ? "allow_legacy_proofs=true"
+      : "allow_legacy_proofs=false",
+  ];
 
-  return `${CONSTRAINT_KIND_TO_NAME[request.constraintKind]} (${fallback}${genesis})`;
+  if (request.genesisIssuedAtMin === "future") {
+    flags.push("future genesis min");
+  }
+
+  if (userPresence) {
+    flags.push(userPresence);
+  }
+
+  return `${CONSTRAINT_KIND_TO_NAME[request.constraintKind]} (${flags.join(", ")})`;
 }
 
 function resultProtocol(result: IDKitResult): ExpectedProtocol {
@@ -963,6 +1060,7 @@ export function ArenaClient(): ReactElement {
         rpContext: response.rpContext,
         signal: makeSignal(testCase.id, action),
         request: testCase.request,
+        requireUserPresence: testCase.requireUserPresence ?? false,
       });
       setWidgetOpen(true);
 
@@ -1228,7 +1326,12 @@ export function ArenaClient(): ReactElement {
                       <dl className="test-case-meta">
                         <div>
                           <dt>Request</dt>
-                          <dd>{requestLabel(testCase.request)}</dd>
+                          <dd>
+                            {requestLabel(
+                              testCase.request,
+                              testCase.requireUserPresence ?? false,
+                            )}
+                          </dd>
                         </div>
                         <div>
                           <dt>Prerequisite</dt>
@@ -1288,6 +1391,7 @@ export function ArenaClient(): ReactElement {
               ? activeRun.request.allowLegacyProofs
               : true
           }
+          require_user_presence={activeRun.requireUserPresence}
           {...activeFlowConfig}
           handleVerify={async (result) => {
             if (activeRun.expected !== "success") {

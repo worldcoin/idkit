@@ -51,6 +51,7 @@ export enum IDKitErrorCodes {
   TimestampTooFarInFuture = "timestamp_too_far_in_future",
   InvalidTimestamp = "invalid_timestamp",
   RpSignatureExpired = "rp_signature_expired",
+  UserPresenceFailed = "user_presence_failed",
   GenericError = "generic_error",
   // Client-side errors
   InvalidRpIdFormat = "invalid_rp_id_format",

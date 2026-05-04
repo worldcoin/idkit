@@ -17,7 +17,7 @@ private actor StatusPoller {
     }
 }
 
-private func sampleResult(sessionId: String? = nil) -> IDKitResult {
+private func sampleResult(sessionId: String? = nil, userPresenceCompleted: Bool = false) -> IDKitResult {
     IDKitResult(
         protocolVersion: "4.0",
         nonce: "0x1234",
@@ -25,6 +25,7 @@ private func sampleResult(sessionId: String? = nil) -> IDKitResult {
         actionDescription: "Sample action",
         sessionId: sessionId,
         responses: [],
+        userPresenceCompleted: userPresenceCompleted,
         environment: "production",
         identityAttested: nil
     )
@@ -50,6 +51,7 @@ func idkitEntrypoints() throws {
         actionDescription: nil,
         bridgeUrl: nil,
         allowLegacyProofs: false,
+        requireUserPresence: false,
         overrideConnectBaseUrl: nil,
         returnTo: nil,
         environment: nil,
@@ -62,6 +64,7 @@ func idkitEntrypoints() throws {
     //     rpContext: try sampleRpContext(),
     //     actionDescription: nil,
     //     bridgeUrl: nil,
+    //     requireUserPresence: false,
     //     overrideConnectBaseUrl: nil,
     //     returnTo: nil,
     //     environment: nil
@@ -92,6 +95,7 @@ func statusMapping() {
     #expect(IDKitRequest.mapStatus(.failed(error: .timestampTooFarInFuture)) == .failed(.timestampTooFarInFuture))
     #expect(IDKitRequest.mapStatus(.failed(error: .invalidTimestamp)) == .failed(.invalidTimestamp))
     #expect(IDKitRequest.mapStatus(.failed(error: .rpSignatureExpired)) == .failed(.rpSignatureExpired))
+    #expect(IDKitRequest.mapStatus(.failed(error: .userPresenceFailed)) == .failed(.userPresenceFailed))
     #expect(IDKitRequest.mapStatus(.networkingError(error: .connectionFailed)) == .networkingError(.connectionFailed))
 }
 
