@@ -212,10 +212,27 @@ pre {
   word-break: break-all;
 }
 
-.error-cases {
+.arena-sections,
+.arena-cases {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.arena-section-header {
+  margin-bottom: 14px;
+}
+
+.arena-section-header h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+
+.arena-section-header p {
+  margin: 0;
+  color: var(--status-color);
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 .test-case-row {
@@ -227,7 +244,7 @@ pre {
   border-radius: 10px;
 }
 
-.test-case-copy h2 {
+.test-case-copy h3 {
   margin: 0 0 6px;
   font-size: 16px;
 }
@@ -236,6 +253,31 @@ pre {
   margin: 0 0 8px;
   color: var(--status-color);
   font-size: 14px;
+  line-height: 1.4;
+}
+
+.test-case-meta {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.test-case-meta > div {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.test-case-meta dt {
+  color: var(--muted-color);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.test-case-meta dd {
+  margin: 0;
+  color: var(--status-color);
+  font-size: 13px;
   line-height: 1.4;
 }
 
@@ -293,5 +335,10 @@ pre {
 
   .test-case-actions {
     justify-content: space-between;
+  }
+
+  .test-case-meta > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
   }
 }
