@@ -44,6 +44,8 @@ enum class IDKitErrorCode(val rawValue: String) {
     USER_REJECTED("user_rejected"),
     VERIFICATION_REJECTED("verification_rejected"),
     CREDENTIAL_UNAVAILABLE("credential_unavailable"),
+    WORLD_ID_4_NOT_AVAILABLE("world_id_4_not_available"),
+    WORLD_ID_3_NOT_AVAILABLE("world_id_3_not_available"),
     MALFORMED_REQUEST("malformed_request"),
     INVALID_NETWORK("invalid_network"),
     INCLUSION_PROOF_PENDING("inclusion_proof_pending"),
@@ -70,6 +72,8 @@ enum class IDKitErrorCode(val rawValue: String) {
             AppError.USER_REJECTED -> USER_REJECTED
             AppError.VERIFICATION_REJECTED -> VERIFICATION_REJECTED
             AppError.CREDENTIAL_UNAVAILABLE -> CREDENTIAL_UNAVAILABLE
+            AppError.WORLD_ID4_NOT_AVAILABLE -> WORLD_ID_4_NOT_AVAILABLE
+            AppError.WORLD_ID3_NOT_AVAILABLE -> WORLD_ID_3_NOT_AVAILABLE
             AppError.MALFORMED_REQUEST -> MALFORMED_REQUEST
             AppError.INVALID_NETWORK -> INVALID_NETWORK
             AppError.INCLUSION_PROOF_PENDING -> INCLUSION_PROOF_PENDING

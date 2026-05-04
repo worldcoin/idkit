@@ -1288,6 +1288,8 @@ export type IDKitErrorCode =
     | "user_rejected"
     | "verification_rejected"
     | "credential_unavailable"
+    | "world_id_4_not_available"
+    | "world_id_3_not_available"
     | "malformed_request"
     | "invalid_network"
     | "inclusion_proof_pending"

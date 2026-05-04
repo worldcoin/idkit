@@ -196,6 +196,12 @@ describe("Enums", () => {
     expect(IDKitErrorCodes.CredentialUnavailable).toBe(
       "credential_unavailable",
     );
+    expect(IDKitErrorCodes.WorldId4NotAvailable).toBe(
+      "world_id_4_not_available",
+    );
+    expect(IDKitErrorCodes.WorldId3NotAvailable).toBe(
+      "world_id_3_not_available",
+    );
     expect(IDKitErrorCodes.InvalidRpSignature).toBe("invalid_rp_signature");
     expect(IDKitErrorCodes.NullifierReplayed).toBe("nullifier_replayed");
     expect(IDKitErrorCodes.DuplicateNonce).toBe("duplicate_nonce");

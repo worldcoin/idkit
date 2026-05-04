@@ -1765,6 +1765,8 @@ mod tests {
         ));
 
         let cases = [
+            ("world_id_4_not_available", AppError::WorldId4NotAvailable),
+            ("world_id_3_not_available", AppError::WorldId3NotAvailable),
             ("duplicate_nonce", AppError::DuplicateNonce),
             ("unknown_rp", AppError::UnknownRp),
             ("inactive_rp", AppError::InactiveRp),
