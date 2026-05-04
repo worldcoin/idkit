@@ -174,6 +174,62 @@ describe("widgets", () => {
     expect(onSuccess).not.toHaveBeenCalled();
   });
 
+  it("request widget shows already verified state for replayed nullifiers", async () => {
+    const flow = createFlow({
+      isError: true,
+      errorCode: IDKitErrorCodes.NullifierReplayed,
+    });
+    useIDKitRequestMock.mockReturnValue(flow);
+
+    const onError = vi.fn();
+    const onOpenChange = vi.fn();
+
+    render(
+      <IDKitRequestWidget {...createRequestProps({ onError, onOpenChange })} />,
+    );
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(IDKitErrorCodes.NullifierReplayed);
+    });
+    expect(screen.getByText("Already verified")).toBeDefined();
+    expect(
+      screen.getByText("You've already verified for this action."),
+    ).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(flow.reset).not.toHaveBeenCalled();
+  });
+
+  it("request widget shows configuration error state for invalid RP signatures", async () => {
+    const flow = createFlow({
+      isError: true,
+      errorCode: IDKitErrorCodes.InvalidRpSignature,
+    });
+    useIDKitRequestMock.mockReturnValue(flow);
+
+    const onError = vi.fn();
+    const onOpenChange = vi.fn();
+
+    render(
+      <IDKitRequestWidget {...createRequestProps({ onError, onOpenChange })} />,
+    );
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(IDKitErrorCodes.InvalidRpSignature);
+    });
+    expect(screen.getByText("Verification unavailable")).toBeDefined();
+    expect(
+      screen.getByText(
+        "This verification request couldn't be completed. Please contact the website owner.",
+      ),
+    ).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(flow.reset).not.toHaveBeenCalled();
+  });
+
   it("request widget waits for handleVerify to resolve before calling onSuccess", async () => {
     const flow = createFlow({
       isSuccess: true,

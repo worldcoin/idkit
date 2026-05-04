@@ -9,6 +9,11 @@ export default function HomePage(): ReactElement {
         This example shows the widget request flow with the same legacy presets
         as the browser example.
       </p>
+      <p>
+        <a className="nav-link" href="/error-cases">
+          Open E2E error cases
+        </a>
+      </p>
       <DemoClient />
     </main>
   );

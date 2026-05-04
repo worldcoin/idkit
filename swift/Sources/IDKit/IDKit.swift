@@ -98,6 +98,15 @@ public enum IDKitErrorCode: String, Equatable {
     case maxVerificationsReached = "max_verifications_reached"
     case failedByHostApp = "failed_by_host_app"
     case userPresenceFailed = "user_presence_failed"
+    case invalidRpSignature = "invalid_rp_signature"
+    case nullifierReplayed = "nullifier_replayed"
+    case duplicateNonce = "duplicate_nonce"
+    case unknownRp = "unknown_rp"
+    case inactiveRp = "inactive_rp"
+    case timestampTooOld = "timestamp_too_old"
+    case timestampTooFarInFuture = "timestamp_too_far_in_future"
+    case invalidTimestamp = "invalid_timestamp"
+    case rpSignatureExpired = "rp_signature_expired"
     case genericError = "generic_error"
     case timeout = "timeout"
     case cancelled = "cancelled"
@@ -128,6 +137,24 @@ public enum IDKitErrorCode: String, Equatable {
             .failedByHostApp
         case .userPresenceFailed:
             .userPresenceFailed
+        case .invalidRpSignature:
+            .invalidRpSignature
+        case .nullifierReplayed:
+            .nullifierReplayed
+        case .duplicateNonce:
+            .duplicateNonce
+        case .unknownRp:
+            .unknownRp
+        case .inactiveRp:
+            .inactiveRp
+        case .timestampTooOld:
+            .timestampTooOld
+        case .timestampTooFarInFuture:
+            .timestampTooFarInFuture
+        case .invalidTimestamp:
+            .invalidTimestamp
+        case .rpSignatureExpired:
+            .rpSignatureExpired
         case .genericError:
             .genericError
         }

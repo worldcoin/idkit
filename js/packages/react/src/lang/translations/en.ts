@@ -3,10 +3,16 @@ import type { TranslationStrings } from "../types";
 export const en: TranslationStrings = {
   "All set!": "All set!",
   "Your World ID is now connected": "Your World ID is now connected",
+  "Already verified": "Already verified",
+  "You've already verified for this action.":
+    "You've already verified for this action.",
   "Something went wrong": "Something went wrong",
   "Request cancelled": "Request cancelled",
   "You've cancelled the request in World App.":
     "You've cancelled the request in World App.",
+  "Verification unavailable": "Verification unavailable",
+  "This verification request couldn't be completed. Please contact the website owner.":
+    "This verification request couldn't be completed. Please contact the website owner.",
   "Connection lost": "Connection lost",
   "Please check your connection and try again.":
     "Please check your connection and try again.",
@@ -16,6 +22,7 @@ export const en: TranslationStrings = {
   "We couldn't complete your request. Please try again.":
     "We couldn't complete your request. Please try again.",
   "Try Again": "Try Again",
+  Close: "Close",
   "Open World App": "Open World App",
   "QR Code copied": "QR Code copied",
   "Connect your World ID": "Connect your World ID",
