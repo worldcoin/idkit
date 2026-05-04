@@ -76,6 +76,16 @@ pub enum AppError {
     #[error("Requested credential is not available")]
     CredentialUnavailable,
 
+    /// World ID 4.0 credential is not available
+    #[error("World ID 4.0 is not available")]
+    #[serde(rename = "world_id_4_not_available")]
+    WorldId4NotAvailable,
+
+    /// World ID 3.0 credential is not available
+    #[error("World ID 3.0 is not available")]
+    #[serde(rename = "world_id_3_not_available")]
+    WorldId3NotAvailable,
+
     /// Malformed request
     #[error("Request is malformed")]
     MalformedRequest,
@@ -158,6 +168,8 @@ impl AppError {
             "user_rejected" => Self::UserRejected,
             "verification_rejected" => Self::VerificationRejected,
             "credential_unavailable" => Self::CredentialUnavailable,
+            "world_id_4_not_available" => Self::WorldId4NotAvailable,
+            "world_id_3_not_available" => Self::WorldId3NotAvailable,
             "malformed_request" => Self::MalformedRequest,
             "invalid_network" => Self::InvalidNetwork,
             "inclusion_proof_pending" => Self::InclusionProofPending,
