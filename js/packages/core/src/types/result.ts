@@ -32,6 +32,8 @@ export enum IDKitErrorCodes {
   UserRejected = "user_rejected",
   VerificationRejected = "verification_rejected",
   CredentialUnavailable = "credential_unavailable",
+  WorldId4NotAvailable = "world_id_4_not_available",
+  WorldId3NotAvailable = "world_id_3_not_available",
   MalformedRequest = "malformed_request",
   InvalidNetwork = "invalid_network",
   InclusionProofPending = "inclusion_proof_pending",

@@ -6,7 +6,8 @@ use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
     types::{
-        AppId, BridgeResponseV1, BridgeUrl, IDKitResult, ResponseItem, RpContext, VerificationLevel,
+        AppId, BridgeResponseV1, BridgeUrl, IDKitResult, IdentityAttribute, ResponseItem,
+        RpContext, VerificationLevel,
     },
     ConstraintNode, Signal,
 };
@@ -113,6 +114,11 @@ struct BridgeRequestPayload {
     /// Not included for legacy preset requests (World ID 3.0 only).
     #[serde(skip_serializing_if = "Option::is_none")]
     proof_request: Option<ProofRequest>,
+
+    /// Optional identity attribute filters for identity-attestation presets.
+    /// Only present for World ID 4.0 identity check requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    identity_attributes: Option<Vec<IdentityAttribute>>,
 
     /// Whether to accept legacy (v3) proofs as fallback.
     /// - `true`: Accept both v3 and v4 proofs. Use during migration.
@@ -227,6 +233,14 @@ enum BridgeResponse {
     /// World ID 4.0 protocol response
     ResponseV2(BridgeResponseV2),
 
+    /// World ID 4.0 protocol response with extensions
+    ResponseV2_1 {
+        proof_response: world_id_primitives::ProofResponse,
+        identity_attested: Option<bool>,
+        #[serde(default)]
+        user_presence_completed: bool,
+    },
+
     /// Multi-credential legacy: bridge sends v3 proofs via `legacy_responses`
     MultiLegacyResponse {
         legacy_responses: Vec<BridgeResponseV1>,
@@ -325,6 +339,8 @@ pub struct BridgeConnectionParams {
     pub return_to: Option<String>,
     /// Optional environment override (defaults to Production when not specified)
     pub environment: Option<Environment>,
+    /// Present only on World ID 4.0 requests created from `IdentityCheck` presets
+    pub identity_attributes: Option<Vec<IdentityAttribute>>,
 }
 
 /// A helper struct to cache the signal hashes of a request
@@ -502,6 +518,7 @@ pub fn build_request_payload(
         action: action_str,
         action_description: params.action_description.clone(),
         proof_request,
+        identity_attributes: params.identity_attributes.clone(),
         verification_level: params.legacy_verification_level,
         signal: legacy_signal_hash,
         timestamp,
@@ -732,60 +749,21 @@ impl BridgeConnection {
                     BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
                     BridgeResponse::ResponseV2(response) => {
                         let user_presence_completed = response.user_presence_completed;
-                        if let Some(status) = user_presence_failure_status(
-                            self.require_user_presence,
+                        self.handle_bridge_v2_response(
+                            response.into_proof_response(),
+                            None,
                             user_presence_completed,
-                        ) {
-                            return Ok(status);
-                        }
-
-                        let proof_response = response.into_proof_response();
-
-                        // Check for protocol-level error
-                        if let Some(error_code) = proof_response.error.as_deref() {
-                            return Ok(Status::Failed(AppError::from_code(error_code)));
-                        }
-
-                        let responses: Vec<ResponseItem> = proof_response
-                            .responses
-                            .into_iter()
-                            .map(|item| {
-                                let signal_hash = self.cached_signal_hashes.get(&item.identifier);
-                                ResponseItem::from_protocol_item(item, signal_hash)
-                            })
-                            .collect::<Result<Vec<_>>>()?;
-
-                        Ok(Status::Confirmed(
-                            if let Some(session_id) = proof_response.session_id {
-                                IDKitResult::new_session(
-                                    self.nonce.clone(),
-                                    serde_json::to_value(session_id)?
-                                        .as_str()
-                                        .ok_or_else(|| {
-                                            Error::InvalidConfiguration(
-                                                "SessionId did not serialize as a string"
-                                                    .to_string(),
-                                            )
-                                        })?
-                                        .to_owned(),
-                                    self.action_description.clone(),
-                                    responses,
-                                    user_presence_completed,
-                                    self.environment.as_ref(),
-                                )
-                            } else {
-                                IDKitResult::new(
-                                    "4.0",
-                                    self.nonce.clone(),
-                                    self.action.clone(),
-                                    self.action_description.clone(),
-                                    responses,
-                                    user_presence_completed,
-                                    self.environment.as_ref(),
-                                )
-                            },
-                        ))
+                        )
                     }
+                    BridgeResponse::ResponseV2_1 {
+                        proof_response,
+                        identity_attested,
+                        user_presence_completed,
+                    } => self.handle_bridge_v2_response(
+                        proof_response,
+                        identity_attested,
+                        user_presence_completed,
+                    ),
                     BridgeResponse::MultiLegacyResponse {
                         legacy_responses,
                         user_presence_completed,
@@ -796,7 +774,6 @@ impl BridgeConnection {
                         ) {
                             return Ok(status);
                         }
-
                         let responses: Vec<ResponseItem> = legacy_responses
                             .into_iter()
                             .map(|item| {
@@ -846,6 +823,65 @@ impl BridgeConnection {
             }
             _ => Err(Error::UnexpectedResponse),
         }
+    }
+
+    fn handle_bridge_v2_response(
+        &self,
+        proof_response: world_id_primitives::ProofResponse,
+        identity_attested: Option<bool>,
+        user_presence_completed: bool,
+    ) -> Result<Status> {
+        if let Some(status) =
+            user_presence_failure_status(self.require_user_presence, user_presence_completed)
+        {
+            return Ok(status);
+        }
+
+        // Check for protocol-level error
+        if let Some(error_code) = proof_response.error.as_deref() {
+            return Ok(Status::Failed(AppError::from_code(error_code)));
+        }
+
+        let responses: Vec<ResponseItem> = proof_response
+            .responses
+            .into_iter()
+            .map(|item| {
+                let signal_hash = self.cached_signal_hashes.get(&item.identifier);
+                ResponseItem::from_protocol_item(item, signal_hash)
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Status::Confirmed(
+            if let Some(session_id) = proof_response.session_id {
+                IDKitResult::new_session(
+                    self.nonce.clone(),
+                    serde_json::to_value(session_id)?
+                        .as_str()
+                        .ok_or_else(|| {
+                            Error::InvalidConfiguration(
+                                "SessionId did not serialize as a string".to_string(),
+                            )
+                        })?
+                        .to_owned(),
+                    self.action_description.clone(),
+                    responses,
+                    user_presence_completed,
+                    self.environment.as_ref(),
+                )
+            } else {
+                let mut result = IDKitResult::new(
+                    "4.0",
+                    self.nonce.clone(),
+                    self.action.clone(),
+                    self.action_description.clone(),
+                    responses,
+                    user_presence_completed,
+                    self.environment.as_ref(),
+                );
+                result.identity_attested = identity_attested;
+                result
+            },
+        ))
     }
 
     /// Returns the request ID for this request
@@ -966,6 +1002,7 @@ impl IDKitConfig {
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes: None,
                 })
             }
             Self::CreateSession(config) => {
@@ -991,6 +1028,7 @@ impl IDKitConfig {
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes: None,
                 })
             }
             Self::ProveSession { session_id, config } => {
@@ -1018,6 +1056,7 @@ impl IDKitConfig {
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes: None,
                 })
             }
         }
@@ -1036,7 +1075,14 @@ impl IDKitConfig {
             });
         }
 
-        let (_constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+        let bridge_params = preset.into_bridge_params();
+
+        // Default to Device so existing World App versions can still parse
+        // the bridge payload. V4 requests use `proof_request` for real
+        // credential selection; this field is only for v3 backwards compat.
+        let legacy_verification_level = bridge_params
+            .legacy_verification_level
+            .unwrap_or(VerificationLevel::Device);
 
         match self {
             Self::Request(config) => {
@@ -1047,22 +1093,31 @@ impl IDKitConfig {
                     .map(|url| BridgeUrl::new(url, &app_id))
                     .transpose()?;
 
+                let allow_legacy_proofs =
+                    bridge_params
+                        .allow_legacy_proofs_override
+                        .unwrap_or(match self {
+                            Self::Request(config) => config.allow_legacy_proofs,
+                            Self::CreateSession(_) | Self::ProveSession { .. } => false,
+                        });
+
                 Ok(BridgeConnectionParams {
                     app_id,
                     kind: RequestKind::Uniqueness {
                         action: config.action.clone(),
                     },
-                    constraints: None,
+                    constraints: bridge_params.constraints,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
                     legacy_verification_level,
-                    legacy_signal: legacy_signal.unwrap_or_default(),
+                    legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
                     bridge_url,
-                    allow_legacy_proofs: config.allow_legacy_proofs,
+                    allow_legacy_proofs,
                     require_user_presence: false,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes: bridge_params.identity_attributes,
                 })
             }
             Self::CreateSession(config) => {
@@ -1076,17 +1131,18 @@ impl IDKitConfig {
                 Ok(BridgeConnectionParams {
                     app_id,
                     kind: RequestKind::CreateSession,
-                    constraints: None,
+                    constraints: bridge_params.constraints,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
                     legacy_verification_level,
-                    legacy_signal: legacy_signal.unwrap_or_default(),
+                    legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
                     require_user_presence: false,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes: bridge_params.identity_attributes,
                 })
             }
             Self::ProveSession { session_id, config } => {
@@ -1102,17 +1158,18 @@ impl IDKitConfig {
                     kind: RequestKind::ProveSession {
                         session_id: session_id.clone(),
                     },
-                    constraints: None,
+                    constraints: bridge_params.constraints,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
                     legacy_verification_level,
-                    legacy_signal: legacy_signal.unwrap_or_default(),
+                    legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
                     require_user_presence: false,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes: bridge_params.identity_attributes,
                 })
             }
         }
@@ -1420,6 +1477,7 @@ mod tests {
             verification_level: VerificationLevel::Device,
             timestamp: None,
             proof_request: Some(proof_request),
+            identity_attributes: None,
             allow_legacy_proofs: false,
             require_user_presence: false,
             environment: Environment::Production,
@@ -1433,6 +1491,56 @@ mod tests {
         assert!(json.contains("rp_1234567890abcdef"));
         assert!(json.contains("allow_legacy_proofs"));
         assert!(json.contains("require_user_presence"));
+    }
+
+    #[test]
+    fn test_build_request_payload_serializes_identity_attributes() {
+        let app_id = AppId::new("app_test").unwrap();
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &("0x".to_string() + &"00".repeat(64) + "1b"),
+        )
+        .unwrap();
+        let constraints = ConstraintNode::any(vec![
+            ConstraintNode::item(CredentialRequest::new(CredentialType::Passport, None)),
+            ConstraintNode::item(CredentialRequest::new(CredentialType::Mnc, None)),
+        ]);
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::Uniqueness {
+                action: "test-action".to_string(),
+            },
+            constraints: Some(constraints),
+            rp_context,
+            action_description: Some("Identity check".to_string()),
+            legacy_verification_level: VerificationLevel::Device,
+            legacy_signal: String::new(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            require_user_presence: false,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: Some(Environment::Production),
+            identity_attributes: Some(vec![
+                IdentityAttribute::MinimumAge(21),
+                IdentityAttribute::Nationality("JPN".to_string()),
+            ]),
+        };
+
+        let payload = build_request_payload(&params, false).unwrap();
+
+        assert_eq!(
+            payload["identity_attributes"],
+            serde_json::json!([
+                {"type": "minimum_age", "value": 21},
+                {"type": "nationality", "value": "JPN"}
+            ])
+        );
+        assert!(payload.get("proof_request").is_some());
     }
 
     #[test]
@@ -1628,6 +1736,180 @@ mod tests {
         assert!(matches!(response, BridgeResponse::Error { .. }));
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // BridgeResponse::ResponseV2 Parsing Tests
+    // ─────────────────────────────────────────────────────────────────────────
+
+    const ZERO_PROOF: &str = "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+    const ZERO_NULLIFIER: &str =
+        "nil_0000000000000000000000000000000000000000000000000000000000000000";
+
+    #[test]
+    fn test_bridge_response_v2_single_uniqueness_proof() {
+        let json = format!(
+            r#"{{
+                "id": "req_abc123",
+                "version": 1,
+                "responses": [{{
+                    "identifier": "orb",
+                    "issuer_schema_id": 1,
+                    "proof": "{ZERO_PROOF}",
+                    "nullifier": "{ZERO_NULLIFIER}",
+                    "expires_at_min": 1735689600
+                }}]
+            }}"#
+        );
+
+        let response: BridgeResponse = serde_json::from_str(&json).unwrap();
+        match response {
+            BridgeResponse::ResponseV2(proof_response) => {
+                assert_eq!(proof_response.id, "req_abc123");
+                assert!(proof_response.error.is_none());
+                assert_eq!(proof_response.responses.len(), 1);
+                assert_eq!(proof_response.responses[0].identifier, "orb");
+                assert_eq!(proof_response.responses[0].issuer_schema_id, 1);
+                assert!(proof_response.responses[0].nullifier.is_some());
+                assert!(proof_response.responses[0].session_nullifier.is_none());
+            }
+            other => panic!("Expected ResponseV2, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_bridge_response_v2_multiple_credentials() {
+        let json = format!(
+            r#"{{
+                "id": "req_multi",
+                "version": 1,
+                "responses": [
+                    {{
+                        "identifier": "orb",
+                        "issuer_schema_id": 1,
+                        "proof": "{ZERO_PROOF}",
+                        "nullifier": "{ZERO_NULLIFIER}",
+                        "expires_at_min": 1735689600
+                    }},
+                    {{
+                        "identifier": "passport",
+                        "issuer_schema_id": 9303,
+                        "proof": "{ZERO_PROOF}",
+                        "nullifier": "{ZERO_NULLIFIER}",
+                        "expires_at_min": 1735689600
+                    }}
+                ]
+            }}"#
+        );
+
+        let response: BridgeResponse = serde_json::from_str(&json).unwrap();
+        match response {
+            BridgeResponse::ResponseV2(proof_response) => {
+                assert_eq!(proof_response.responses.len(), 2);
+                assert_eq!(proof_response.responses[0].identifier, "orb");
+                assert_eq!(proof_response.responses[1].identifier, "passport");
+                assert_eq!(proof_response.responses[1].issuer_schema_id, 9303);
+            }
+            other => panic!("Expected ResponseV2, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_bridge_response_v2_protocol_level_error() {
+        let json = r#"{
+            "id": "req_failed",
+            "version": 1,
+            "error": "credential_not_found",
+            "responses": []
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        match response {
+            BridgeResponse::ResponseV2(proof_response) => {
+                assert!(proof_response.error.is_some());
+                assert_eq!(
+                    proof_response.error.as_deref(),
+                    Some("credential_not_found")
+                );
+                assert!(proof_response.responses.is_empty());
+            }
+            other => panic!("Expected ResponseV2, got: {other:?}"),
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // BridgeResponse::MultiLegacyResponse Parsing Tests
+    // ─────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_bridge_response_multi_legacy_single() {
+        let json = r#"{
+            "legacy_responses": [
+                {
+                    "proof": "0xproof",
+                    "merkle_root": "0xroot",
+                    "nullifier_hash": "0xnull",
+                    "verification_level": "orb"
+                }
+            ]
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        match response {
+            BridgeResponse::MultiLegacyResponse {
+                legacy_responses,
+                user_presence_completed,
+            } => {
+                assert_eq!(legacy_responses.len(), 1);
+                assert!(!user_presence_completed);
+                assert_eq!(
+                    legacy_responses[0].verification_level,
+                    VerificationLevel::Orb
+                );
+                assert_eq!(legacy_responses[0].proof, "0xproof");
+            }
+            other => panic!("Expected MultiLegacyResponse, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_bridge_response_multi_legacy_multiple() {
+        let json = r#"{
+            "legacy_responses": [
+                {
+                    "proof": "0xproof1",
+                    "merkle_root": "0xroot1",
+                    "nullifier_hash": "0xnull1",
+                    "verification_level": "orb"
+                },
+                {
+                    "proof": "0xproof2",
+                    "merkle_root": "0xroot2",
+                    "nullifier_hash": "0xnull2",
+                    "credential_type": "device"
+                }
+            ]
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        match response {
+            BridgeResponse::MultiLegacyResponse {
+                legacy_responses,
+                user_presence_completed,
+            } => {
+                assert_eq!(legacy_responses.len(), 2);
+                assert!(!user_presence_completed);
+                assert_eq!(
+                    legacy_responses[0].verification_level,
+                    VerificationLevel::Orb
+                );
+                assert_eq!(
+                    legacy_responses[1].verification_level,
+                    VerificationLevel::Device
+                );
+            }
+            other => panic!("Expected MultiLegacyResponse, got: {other:?}"),
+        }
+    }
+
     #[test]
     fn test_bridge_response_new_error_codes_deserialization() {
         let invalid_signature: BridgeResponse =
@@ -1649,6 +1931,8 @@ mod tests {
         ));
 
         let cases = [
+            ("world_id_4_not_available", AppError::WorldId4NotAvailable),
+            ("world_id_3_not_available", AppError::WorldId3NotAvailable),
             ("duplicate_nonce", AppError::DuplicateNonce),
             ("unknown_rp", AppError::UnknownRp),
             ("inactive_rp", AppError::InactiveRp),
@@ -1674,7 +1958,7 @@ mod tests {
     #[test]
     fn test_selfie_check_legacy_preset_serializes_face_verification_level() {
         let preset = crate::preset::Preset::selfie_check_legacy(Some("face-signal".to_string()));
-        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+        let bridge_params = preset.into_bridge_params();
 
         let app_id = AppId::new("app_test").unwrap();
         let signature = "0x".to_string() + &"00".repeat(64) + "1b";
@@ -1692,11 +1976,13 @@ mod tests {
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
-            constraints: Some(constraints),
+            constraints: bridge_params.constraints,
             rp_context,
             action_description: Some("Selfie check".to_string()),
-            legacy_verification_level,
-            legacy_signal: legacy_signal.unwrap_or_default(),
+            legacy_verification_level: bridge_params
+                .legacy_verification_level
+                .expect("this preset should return legacy_verification_level"),
+            legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
             bridge_url: None,
             allow_legacy_proofs: false,
             require_user_presence: false,
@@ -1704,6 +1990,7 @@ mod tests {
             override_connect_base_url: None,
             return_to: None,
             environment: Some(Environment::Production),
+            identity_attributes: None,
         };
 
         let payload = build_request_payload(&params, false).unwrap();
@@ -1713,7 +2000,7 @@ mod tests {
     #[test]
     fn test_device_legacy_preset_serializes_device_verification_level() {
         let preset = crate::preset::Preset::device_legacy(Some("device-signal".to_string()));
-        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+        let bridge_params = preset.into_bridge_params();
 
         let app_id = AppId::new("app_test").unwrap();
         let signature = "0x".to_string() + &"00".repeat(64) + "1b";
@@ -1731,11 +2018,13 @@ mod tests {
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
-            constraints: Some(constraints),
+            constraints: bridge_params.constraints,
             rp_context,
             action_description: Some("Device check".to_string()),
-            legacy_verification_level,
-            legacy_signal: legacy_signal.unwrap_or_default(),
+            legacy_verification_level: bridge_params
+                .legacy_verification_level
+                .expect("this preset should return legacy_verification_level"),
+            legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
             bridge_url: None,
             allow_legacy_proofs: false,
             require_user_presence: false,
@@ -1743,6 +2032,7 @@ mod tests {
             override_connect_base_url: None,
             return_to: None,
             environment: Some(Environment::Production),
+            identity_attributes: None,
         };
 
         let payload = build_request_payload(&params, false).unwrap();
@@ -1806,6 +2096,7 @@ mod tests {
             override_connect_base_url: None,
             return_to: None,
             environment: None,
+            identity_attributes: None,
         };
 
         let payload = build_native_v1_payload(&params).unwrap();
@@ -1851,6 +2142,7 @@ mod tests {
             override_connect_base_url: None,
             return_to: None,
             environment: None,
+            identity_attributes: None,
         };
 
         // native=true includes timestamp
@@ -1902,6 +2194,7 @@ mod tests {
             override_connect_base_url: None,
             return_to: None,
             environment: None,
+            identity_attributes: None,
         };
 
         let bridge_payload = build_request_payload(&params, false).unwrap();
@@ -1953,6 +2246,7 @@ mod tests {
             override_connect_base_url: None,
             return_to: None,
             environment: None,
+            identity_attributes: None,
         };
 
         let cached = CachedSignalHashes::compute(&params);
