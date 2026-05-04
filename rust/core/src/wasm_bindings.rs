@@ -478,6 +478,7 @@ enum IDKitConfigWasm {
         action_description: Option<String>,
         bridge_url: Option<String>,
         allow_legacy_proofs: bool,
+        require_user_presence: bool,
         override_connect_base_url: Option<String>,
         return_to: Option<String>,
         environment: Option<String>,
@@ -487,6 +488,7 @@ enum IDKitConfigWasm {
         rp_context: RpContext,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        require_user_presence: bool,
         override_connect_base_url: Option<String>,
         return_to: Option<String>,
         environment: Option<String>,
@@ -497,6 +499,7 @@ enum IDKitConfigWasm {
         rp_context: RpContext,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        require_user_presence: bool,
         override_connect_base_url: Option<String>,
         return_to: Option<String>,
         environment: Option<String>,
@@ -517,6 +520,7 @@ impl IDKitConfigWasm {
                 action_description,
                 bridge_url,
                 allow_legacy_proofs,
+                require_user_presence,
                 override_connect_base_url,
                 return_to,
                 environment,
@@ -542,6 +546,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: *allow_legacy_proofs,
+                    require_user_presence: *require_user_presence,
 
                     override_connect_base_url: override_connect_base_url.clone(),
                     return_to: return_to.clone(),
@@ -557,6 +562,7 @@ impl IDKitConfigWasm {
                 rp_context,
                 action_description,
                 bridge_url,
+                require_user_presence,
                 override_connect_base_url,
                 return_to,
                 environment,
@@ -580,6 +586,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    require_user_presence: *require_user_presence,
 
                     override_connect_base_url: override_connect_base_url.clone(),
                     return_to: return_to.clone(),
@@ -596,6 +603,7 @@ impl IDKitConfigWasm {
                 rp_context,
                 action_description,
                 bridge_url,
+                require_user_presence,
                 override_connect_base_url,
                 return_to,
                 environment,
@@ -621,6 +629,7 @@ impl IDKitConfigWasm {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    require_user_presence: *require_user_presence,
 
                     override_connect_base_url: override_connect_base_url.clone(),
                     return_to: return_to.clone(),
@@ -686,6 +695,7 @@ impl IDKitBuilderWasm {
         action_description: Option<String>,
         bridge_url: Option<String>,
         allow_legacy_proofs: bool,
+        require_user_presence: bool,
         override_connect_base_url: Option<String>,
         return_to: Option<String>,
         environment: Option<String>,
@@ -698,6 +708,7 @@ impl IDKitBuilderWasm {
                 action_description,
                 bridge_url,
                 allow_legacy_proofs,
+                require_user_presence,
                 override_connect_base_url,
                 return_to,
                 environment,
@@ -713,6 +724,7 @@ impl IDKitBuilderWasm {
         rp_context: RpContextWasm,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        require_user_presence: bool,
         override_connect_base_url: Option<String>,
         return_to: Option<String>,
         environment: Option<String>,
@@ -723,6 +735,7 @@ impl IDKitBuilderWasm {
                 rp_context: rp_context.into_inner(),
                 action_description,
                 bridge_url,
+                require_user_presence,
                 override_connect_base_url,
                 return_to,
                 environment,
@@ -739,6 +752,7 @@ impl IDKitBuilderWasm {
         rp_context: RpContextWasm,
         action_description: Option<String>,
         bridge_url: Option<String>,
+        require_user_presence: bool,
         override_connect_base_url: Option<String>,
         return_to: Option<String>,
         environment: Option<String>,
@@ -750,6 +764,7 @@ impl IDKitBuilderWasm {
                 rp_context: rp_context.into_inner(),
                 action_description,
                 bridge_url,
+                require_user_presence,
                 override_connect_base_url,
                 return_to,
                 environment,
@@ -964,6 +979,7 @@ pub fn request(
     action_description: Option<String>,
     bridge_url: Option<String>,
     allow_legacy_proofs: bool,
+    require_user_presence: bool,
     override_connect_base_url: Option<String>,
     return_to: Option<String>,
     environment: Option<String>,
@@ -975,6 +991,7 @@ pub fn request(
         action_description,
         bridge_url,
         allow_legacy_proofs,
+        require_user_presence,
         override_connect_base_url,
         return_to,
         environment,
@@ -987,11 +1004,13 @@ pub fn request(
 /// `session_<hex>`.
 #[must_use]
 #[wasm_bindgen(js_name = createSession)]
+#[allow(clippy::too_many_arguments)]
 pub fn create_session(
     app_id: String,
     rp_context: RpContextWasm,
     action_description: Option<String>,
     bridge_url: Option<String>,
+    require_user_presence: bool,
     override_connect_base_url: Option<String>,
     return_to: Option<String>,
     environment: Option<String>,
@@ -1001,6 +1020,7 @@ pub fn create_session(
         rp_context,
         action_description,
         bridge_url,
+        require_user_presence,
         override_connect_base_url,
         return_to,
         environment,
@@ -1020,6 +1040,7 @@ pub fn prove_session(
     rp_context: RpContextWasm,
     action_description: Option<String>,
     bridge_url: Option<String>,
+    require_user_presence: bool,
     override_connect_base_url: Option<String>,
     return_to: Option<String>,
     environment: Option<String>,
@@ -1030,6 +1051,7 @@ pub fn prove_session(
         rp_context,
         action_description,
         bridge_url,
+        require_user_presence,
         override_connect_base_url,
         return_to,
         environment,
@@ -1223,6 +1245,8 @@ export interface IDKitResultV3 {
     action_description?: string;
     /** Array of V3 credential responses */
     responses: ResponseItemV3[];
+    /** Whether World App completed the requested user-presence check. */
+    user_presence_completed: boolean;
     /** The environment used for this request ("production" or "staging") */
     environment: string;
 }
@@ -1239,6 +1263,8 @@ export interface IDKitResultV4 {
     action_description?: string;
     /** Array of V4 credential responses */
     responses: ResponseItemV4[];
+    /** Whether World App completed the requested user-presence check. */
+    user_presence_completed: boolean;
     /** The environment used for this request ("production" or "staging") */
     environment: string;
     /** Whether identity attributes were attested. Only present on IdentityCheck responses. */
@@ -1257,6 +1283,8 @@ export interface IDKitResultSession {
     session_id: `session_${string}`;
     /** Array of session credential responses */
     responses: ResponseItemSession[];
+    /** Whether World App completed the requested user-presence check. */
+    user_presence_completed: boolean;
     /** The environment used for this request ("production" or "staging") */
     environment: string;
 }
@@ -1281,6 +1309,8 @@ export interface IDKitSessionConfig {
     bridge_url?: string;
     /** Optional deep-link callback URL appended as `return_to` on the connector URL */
     return_to?: string;
+    /** Require World App to perform a user-presence check before verification. Defaults to false. */
+    require_user_presence?: boolean;
 }
 
 /** RpContext for proof requests */
@@ -1321,6 +1351,7 @@ export type IDKitErrorCode =
     | "timestamp_too_far_in_future"
     | "invalid_timestamp"
     | "rp_signature_expired"
+    | "user_presence_failed"
     | "generic_error";
 
 /** Status returned from pollForStatus() */
@@ -1450,6 +1481,7 @@ export function createSession(
     rp_context: RpContextWasm,
     action_description?: string,
     bridge_url?: string,
+    require_user_presence?: boolean,
     override_connect_base_url?: string,
     return_to?: string,
     environment?: string
@@ -1468,6 +1500,7 @@ export function proveSession(
     rp_context: RpContextWasm,
     action_description?: string,
     bridge_url?: string,
+    require_user_presence?: boolean,
     override_connect_base_url?: string,
     return_to?: string,
     environment?: string
@@ -1491,6 +1524,7 @@ mod tests {
             action_description: None,
             bridge_url: None,
             allow_legacy_proofs: false,
+            require_user_presence: false,
             override_connect_base_url: None,
             return_to: None,
             environment: None,
@@ -1506,6 +1540,7 @@ mod tests {
             action_description: None,
             bridge_url: None,
             allow_legacy_proofs: false,
+            require_user_presence: false,
             override_connect_base_url: None,
             return_to: Some("idkit://callback?step=request".to_string()),
             environment: None,
@@ -1522,12 +1557,35 @@ mod tests {
     }
 
     #[test]
+    fn request_params_preserve_user_presence_requirement() {
+        let config = IDKitConfigWasm::Request {
+            app_id: "app_staging_test".to_string(),
+            action: "test-action".to_string(),
+            rp_context: sample_rp_context(),
+            action_description: None,
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            require_user_presence: true,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: None,
+        };
+
+        let params = config
+            .to_params(Some(ConstraintNode::Any { any: Vec::new() }))
+            .expect("request params");
+
+        assert!(params.require_user_presence);
+    }
+
+    #[test]
     fn create_session_params_preserve_return_to() {
         let config = IDKitConfigWasm::CreateSession {
             app_id: "app_staging_test".to_string(),
             rp_context: sample_rp_context(),
             action_description: None,
             bridge_url: None,
+            require_user_presence: false,
             override_connect_base_url: None,
             return_to: Some("idkit://callback?step=create".to_string()),
             environment: None,
@@ -1551,6 +1609,7 @@ mod tests {
             rp_context: sample_rp_context(),
             action_description: None,
             bridge_url: None,
+            require_user_presence: false,
             override_connect_base_url: None,
             return_to: Some("idkit://callback?step=prove".to_string()),
             environment: None,

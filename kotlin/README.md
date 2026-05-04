@@ -84,6 +84,7 @@ val config = IDKitRequestConfig(
     actionDescription = "Log in",
     bridgeUrl = null,
     allowLegacyProofs = false,
+    requireUserPresence = false,
     overrideConnectBaseUrl = null,
     returnTo = null,
     environment = Environment.STAGING,
