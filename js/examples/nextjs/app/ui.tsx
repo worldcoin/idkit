@@ -517,10 +517,9 @@ export function DemoClient(): ReactElement {
           rp_context={widgetRpContext}
           allow_legacy_proofs={true}
           {...widgetConstraintsOrPreset}
-          onSuccess={(result) => {
-            setWidgetIdkitResult(result);
-          }}
+          onSuccess={(result) => {}}
           handleVerify={async (result) => {
+            setWidgetIdkitResult(result);
             const verified = await verifyProof(result);
             setWidgetVerifyResult(verified);
           }}
