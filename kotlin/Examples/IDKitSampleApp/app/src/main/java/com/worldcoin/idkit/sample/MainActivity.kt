@@ -346,6 +346,7 @@ private class SampleModel {
                     actionDescription = "Local Android sample",
                     bridgeUrl = null,
                     allowLegacyProofs = false,
+                    requireUserPresence = false,
                     overrideConnectBaseUrl = null,
                     returnTo = returnToURL,
                     environment = when (environment) {

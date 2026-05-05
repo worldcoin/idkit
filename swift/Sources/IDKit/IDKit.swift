@@ -1,8 +1,108 @@
 import Foundation
 
-public typealias IDKitRequestConfig = IdKitRequestConfig
-public typealias IDKitSessionConfig = IdKitSessionConfig
 public typealias IDKitResult = IdKitResult
+
+/// Configuration for uniqueness proof requests.
+public struct IDKitRequestConfig {
+    public let appId: String
+    public let action: String
+    public let rpContext: RpContext
+    public let actionDescription: String?
+    public let bridgeUrl: String?
+    public let allowLegacyProofs: Bool
+    public let requireUserPresence: Bool
+    public let overrideConnectBaseUrl: String?
+    public let returnTo: String?
+    public let environment: Environment?
+    public let connectUrlMode: ConnectUrlMode?
+
+    public init(
+        appId: String,
+        action: String,
+        rpContext: RpContext,
+        actionDescription: String? = nil,
+        bridgeUrl: String? = nil,
+        allowLegacyProofs: Bool = false,
+        requireUserPresence: Bool = false,
+        overrideConnectBaseUrl: String? = nil,
+        returnTo: String? = nil,
+        environment: Environment? = nil,
+        connectUrlMode: ConnectUrlMode? = nil
+    ) {
+        self.appId = appId
+        self.action = action
+        self.rpContext = rpContext
+        self.actionDescription = actionDescription
+        self.bridgeUrl = bridgeUrl
+        self.allowLegacyProofs = allowLegacyProofs
+        self.requireUserPresence = requireUserPresence
+        self.overrideConnectBaseUrl = overrideConnectBaseUrl
+        self.returnTo = returnTo
+        self.environment = environment
+        self.connectUrlMode = connectUrlMode
+    }
+
+    fileprivate var native: IdKitRequestConfig {
+        IdKitRequestConfig(
+            appId: appId,
+            action: action,
+            rpContext: rpContext,
+            actionDescription: actionDescription,
+            bridgeUrl: bridgeUrl,
+            allowLegacyProofs: allowLegacyProofs,
+            requireUserPresence: requireUserPresence,
+            overrideConnectBaseUrl: overrideConnectBaseUrl,
+            returnTo: returnTo,
+            environment: environment,
+            connectUrlMode: connectUrlMode
+        )
+    }
+}
+
+/// Configuration for session requests.
+public struct IDKitSessionConfig {
+    public let appId: String
+    public let rpContext: RpContext
+    public let actionDescription: String?
+    public let bridgeUrl: String?
+    public let requireUserPresence: Bool
+    public let overrideConnectBaseUrl: String?
+    public let returnTo: String?
+    public let environment: Environment?
+
+    public init(
+        appId: String,
+        rpContext: RpContext,
+        actionDescription: String? = nil,
+        bridgeUrl: String? = nil,
+        requireUserPresence: Bool = false,
+        overrideConnectBaseUrl: String? = nil,
+        returnTo: String? = nil,
+        environment: Environment? = nil
+    ) {
+        self.appId = appId
+        self.rpContext = rpContext
+        self.actionDescription = actionDescription
+        self.bridgeUrl = bridgeUrl
+        self.requireUserPresence = requireUserPresence
+        self.overrideConnectBaseUrl = overrideConnectBaseUrl
+        self.returnTo = returnTo
+        self.environment = environment
+    }
+
+    fileprivate var native: IdKitSessionConfig {
+        IdKitSessionConfig(
+            appId: appId,
+            rpContext: rpContext,
+            actionDescription: actionDescription,
+            bridgeUrl: bridgeUrl,
+            requireUserPresence: requireUserPresence,
+            overrideConnectBaseUrl: overrideConnectBaseUrl,
+            returnTo: returnTo,
+            environment: environment
+        )
+    }
+}
 
 /// Main entry point for IDKit Swift SDK.
 public enum IDKit {
@@ -10,18 +110,18 @@ public enum IDKit {
 
     /// Creates a builder for uniqueness proof requests.
     public static func request(config: IDKitRequestConfig) -> IDKitBuilder {
-        IDKitBuilder(inner: IdKitBuilder.fromRequest(config: config))
+        IDKitBuilder(inner: IdKitBuilder.fromRequest(config: config.native))
     }
 
     // TODO: Re-enable when World ID 4.0 is live
     // /// Creates a builder for creating a new session.
     // public static func createSession(config: IDKitSessionConfig) -> IDKitBuilder {
-    //     IDKitBuilder(inner: IdKitBuilder.fromCreateSession(config: config))
+    //     IDKitBuilder(inner: IdKitBuilder.fromCreateSession(config: config.native))
     // }
 
     // /// Creates a builder for proving an existing session.
     // public static func proveSession(sessionId: String, config: IDKitSessionConfig) -> IDKitBuilder {
-    //     IDKitBuilder(inner: IdKitBuilder.fromProveSession(sessionId: sessionId, config: config))
+    //     IDKitBuilder(inner: IdKitBuilder.fromProveSession(sessionId: sessionId, config: config.native))
     // }
 
     /// Hashes a string signal to the canonical 0x-prefixed field element string.

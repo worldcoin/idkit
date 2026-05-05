@@ -913,6 +913,8 @@ pub struct IDKitRequestConfig {
     /// - `true`: Accept both v3 and v4 proofs. Use during migration.
     /// - `false`: Only accept v4 proofs. Use after migration cutoff or for new apps.
     pub allow_legacy_proofs: bool,
+    /// Optional user-presence requirement. Defaults to false when omitted.
+    pub require_user_presence: Option<bool>,
     /// Optional override for the connect base URL (e.g., for staging environments)
     pub override_connect_base_url: Option<String>,
     /// Optional deep-link callback URL appended as `return_to` on the connector URL
@@ -937,6 +939,8 @@ pub struct IDKitSessionConfig {
     pub action_description: Option<String>,
     /// Optional bridge URL (defaults to production)
     pub bridge_url: Option<String>,
+    /// Optional user-presence requirement. Defaults to false when omitted.
+    pub require_user_presence: Option<bool>,
     /// Optional override for the connect base URL (e.g., for staging environments)
     pub override_connect_base_url: Option<String>,
     /// Optional deep-link callback URL appended as `return_to` on the connector URL
@@ -998,7 +1002,7 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: config.allow_legacy_proofs,
-                    require_user_presence: false,
+                    require_user_presence: config.require_user_presence.unwrap_or(false),
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -1024,7 +1028,7 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    require_user_presence: false,
+                    require_user_presence: config.require_user_presence.unwrap_or(false),
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -1052,7 +1056,7 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    require_user_presence: false,
+                    require_user_presence: config.require_user_presence.unwrap_or(false),
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -1113,7 +1117,7 @@ impl IDKitConfig {
                     legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs,
-                    require_user_presence: false,
+                    require_user_presence: config.require_user_presence.unwrap_or(false),
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -1138,7 +1142,7 @@ impl IDKitConfig {
                     legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    require_user_presence: false,
+                    require_user_presence: config.require_user_presence.unwrap_or(false),
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -1165,7 +1169,7 @@ impl IDKitConfig {
                     legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
-                    require_user_presence: false,
+                    require_user_presence: config.require_user_presence.unwrap_or(false),
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -1973,6 +1977,39 @@ mod tests {
                 other => panic!("Expected error response for {code}, got: {other:?}"),
             }
         }
+    }
+
+    #[cfg(feature = "ffi")]
+    #[test]
+    fn test_request_config_defaults_user_presence_requirement_to_false() {
+        let signature = "0x".to_string() + &"00".repeat(64) + "1b";
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &signature,
+        )
+        .unwrap();
+        let config = IDKitConfig::Request(IDKitRequestConfig {
+            app_id: "app_test".to_string(),
+            action: "test-action".to_string(),
+            rp_context: std::sync::Arc::new(rp_context),
+            action_description: None,
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            require_user_presence: None,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: None,
+            connect_url_mode: None,
+        });
+
+        let params = config
+            .to_params(ConstraintNode::Any { any: Vec::new() })
+            .unwrap();
+
+        assert!(!params.require_user_presence);
     }
 
     #[test]

@@ -17,6 +17,7 @@ export function useIDKitRequest(
       bridge_url: config.bridge_url,
       return_to: config.return_to,
       allow_legacy_proofs: config.allow_legacy_proofs,
+      require_user_presence: config.require_user_presence ?? false,
       override_connect_base_url: config.override_connect_base_url,
       environment: config.environment,
     });

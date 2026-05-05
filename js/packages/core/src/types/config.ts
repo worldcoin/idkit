@@ -58,6 +58,9 @@ export type IDKitRequestConfig = {
    */
   allow_legacy_proofs: boolean;
 
+  /** Require World App to perform a user-presence check before verification. Defaults to false. */
+  require_user_presence?: boolean;
+
   /** Optional override for the connect base URL (e.g., for staging environments) */
   override_connect_base_url?: string;
 
@@ -84,6 +87,8 @@ export type IDKitSessionConfig = {
   bridge_url?: string;
   /** Optional deep-link callback URL appended as `return_to` on the connector URL. */
   return_to?: string;
+  /** Require World App to perform a user-presence check before verification. Defaults to false. */
+  require_user_presence?: boolean;
   /** Optional override for the connect base URL (e.g., for staging environments) */
   override_connect_base_url?: string;
 

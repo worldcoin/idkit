@@ -105,6 +105,35 @@ describe("IDKitRequest API", () => {
     ).toThrow("rp_context is required");
   });
 
+  it("should default require_user_presence to false in request config", () => {
+    const builder = IDKit.request({
+      app_id: "app_staging_test",
+      action: "test-action",
+      rp_context: TEST_SESSION_CONFIG.rp_context,
+      allow_legacy_proofs: false,
+    });
+
+    expect((builder as any).config.require_user_presence).toBe(false);
+  });
+
+  it("should preserve require_user_presence in request and session configs", () => {
+    const requestBuilder = IDKit.request({
+      app_id: "app_staging_test",
+      action: "test-action",
+      rp_context: TEST_SESSION_CONFIG.rp_context,
+      allow_legacy_proofs: false,
+      require_user_presence: true,
+    });
+
+    const sessionBuilder = IDKit.createSession({
+      ...TEST_SESSION_CONFIG,
+      require_user_presence: true,
+    });
+
+    expect((requestBuilder as any).config.require_user_presence).toBe(true);
+    expect((sessionBuilder as any).config.require_user_presence).toBe(true);
+  });
+
   it("should reject malformed session_id values in proveSession", () => {
     expect(() =>
       IDKit.proveSession(
@@ -173,6 +202,7 @@ describe("IDKitRequest API", () => {
       null,
       null,
       true,
+      false,
       null,
       null,
       "production",

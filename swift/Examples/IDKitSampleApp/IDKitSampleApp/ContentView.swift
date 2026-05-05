@@ -175,6 +175,7 @@ final class SampleModel: ObservableObject {
                 actionDescription: "Local iOS sample",
                 bridgeUrl: nil,
                 allowLegacyProofs: false,
+                requireUserPresence: false,
                 overrideConnectBaseUrl: nil,
                 returnTo: returnToURL,
                 environment: {

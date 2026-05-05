@@ -152,6 +152,7 @@ export function DemoClient(): ReactElement {
   const [useReturnTo, setUseReturnTo] = useState(false);
   const [returnTo, setReturnTo] = useState("");
   const [isReturnToTooltipOpen, setIsReturnToTooltipOpen] = useState(false);
+  const [requireUserPresence, setRequireUserPresence] = useState(false);
 
   const genesisIssuedAtMin =
     genesisEnabled && genesisDate
@@ -485,6 +486,17 @@ export function DemoClient(): ReactElement {
             placeholder="googlechromes://"
           />
         </div>
+        <div className="config-row">
+          <label htmlFor="cfgRequireUserPresence">
+            {"User presence (Face Auth)"}
+          </label>
+          <input
+            type="checkbox"
+            id="cfgRequireUserPresence"
+            checked={requireUserPresence}
+            onChange={(e) => setRequireUserPresence(e.target.checked)}
+          />
+        </div>
       </section>
 
       <div className="stack">
@@ -514,6 +526,7 @@ export function DemoClient(): ReactElement {
           action={action || "test-action"}
           rp_context={widgetRpContext}
           allow_legacy_proofs={true}
+          require_user_presence={requireUserPresence}
           {...widgetConstraintsOrPreset}
           onSuccess={(result) => {
             setWidgetIdkitResult(result);
