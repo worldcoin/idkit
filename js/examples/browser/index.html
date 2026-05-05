@@ -149,6 +149,30 @@
       .config-row input[type="text"][readonly] {
         opacity: 0.5;
       }
+
+      #codeDisplay {
+        font-family: monospace;
+        font-size: 13px;
+        padding: 12px 14px;
+        background: var(--button-bg);
+        border-radius: 6px;
+        word-break: break-all;
+        line-height: 1.5;
+        user-select: all;
+      }
+
+      .copy-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .copy-row button {
+        margin: 0;
+        padding: 6px 12px;
+        font-size: 13px;
+      }
     </style>
   </head>
   <body>
@@ -166,7 +190,7 @@
     <section class="config-panel">
       <div class="config-row">
         <label for="cfgAppId">App ID</label>
-        <input type="text" id="cfgAppId" readonly />
+        <input type="text" id="cfgAppId" />
       </div>
       <div class="config-row">
         <label for="cfgRpId">RP ID</label>
@@ -183,6 +207,42 @@
           <option value="staging">Staging</option>
         </select>
       </div>
+      <div class="config-row">
+        <label for="cfgBridgeUrl">Bridge URL</label>
+        <input
+          type="text"
+          id="cfgBridgeUrl"
+          placeholder="https://bridge.worldcoin.org (default)"
+        />
+      </div>
+      <div class="config-row">
+        <label></label>
+        <small style="opacity: 0.6">
+          For a local bridge over <code>http://localhost:*</code>, App ID must
+          start with <code>app_staging_</code> (idkit's BridgeUrl validator only
+          relaxes for staging app IDs).
+        </small>
+      </div>
+      <div class="config-row">
+        <label for="cfgConnectBaseUrl">Connect base URL</label>
+        <input
+          type="text"
+          id="cfgConnectBaseUrl"
+          placeholder="https://world.org/verify (default)"
+        />
+      </div>
+      <div class="config-row">
+        <label></label>
+        <small style="opacity: 0.6">
+          Overrides the base of the rendered connector URL — useful when testing
+          against a local <code>world.org/verify</code> page. Wired through to
+          idkit's <code>override_connect_base_url</code>.
+        </small>
+      </div>
+      <div class="config-row">
+        <label for="cfgUseInviteCode">Use invite code</label>
+        <input type="checkbox" id="cfgUseInviteCode" />
+      </div>
     </section>
 
     <div>
@@ -197,6 +257,24 @@
       <h3>Scan with World App</h3>
       <p id="qrUrl"></p>
       <div id="qrCode"></div>
+    </section>
+
+    <section id="code" hidden>
+      <h3>Open this URL on your phone</h3>
+      <div id="codeDisplay"></div>
+      <div class="copy-row">
+        <button id="copyCodeUrl">Copy URL</button>
+        <span id="copyStatus" style="opacity: 0.6; font-size: 13px"></span>
+      </div>
+      <p id="codeExpiry"></p>
+      <p id="codeRequestId"></p>
+      <p>
+        Cross-device flow — open the URL on your phone (the
+        <code>world.org/verify</code> landing page reads the <code>c</code> and
+        <code>a</code> query params and renders the invite-code view). Full
+        round-trip requires wallet-bridge APP-9425 deployed at the configured
+        bridge URL.
+      </p>
     </section>
 
     <section id="status" hidden>
@@ -307,19 +385,55 @@
         return document.getElementById("cfgEnv").value;
       }
 
+      function getBridgeUrl() {
+        const value = document.getElementById("cfgBridgeUrl").value.trim();
+        return value.length > 0 ? value : undefined;
+      }
+
+      function getConnectBaseUrl() {
+        const value = document.getElementById("cfgConnectBaseUrl").value.trim();
+        return value.length > 0 ? value : undefined;
+      }
+
+      function getAppId() {
+        return document.getElementById("cfgAppId").value.trim() || APP_ID;
+      }
+
       // UI elements
       const qrDiv = document.getElementById("qr");
       const qrUrl = document.getElementById("qrUrl");
       const qrCode = document.getElementById("qrCode");
+      const codeDiv = document.getElementById("code");
+      const codeDisplay = document.getElementById("codeDisplay");
+      const codeExpiry = document.getElementById("codeExpiry");
+      const codeRequestId = document.getElementById("codeRequestId");
+      const copyCodeUrlButton = document.getElementById("copyCodeUrl");
+      const copyStatus = document.getElementById("copyStatus");
+
+      copyCodeUrlButton.addEventListener("click", async () => {
+        const url = codeDisplay.textContent;
+        if (!url) return;
+        try {
+          await navigator.clipboard.writeText(url);
+          copyStatus.textContent = "Copied!";
+        } catch {
+          copyStatus.textContent = "Copy failed — select the URL manually.";
+        }
+        setTimeout(() => {
+          copyStatus.textContent = "";
+        }, 2000);
+      });
       const statusDiv = document.getElementById("status");
       const statusText = document.getElementById("statusText");
       const resultDiv = document.getElementById("result");
       const resultData = document.getElementById("resultData");
       const errorDiv = document.getElementById("error");
       const errorText = document.getElementById("errorText");
+      const useInviteCodeToggle = document.getElementById("cfgUseInviteCode");
 
       const hideAll = () => {
         qrDiv.hidden = true;
+        codeDiv.hidden = true;
         statusDiv.hidden = true;
         resultDiv.hidden = true;
         errorDiv.hidden = true;
@@ -343,6 +457,7 @@
 
       // Function to verify with World ID using the new IDKit.request().constraints() API
       async function startVerification(preset) {
+        let countdownInterval = null;
         try {
           hideAll();
 
@@ -363,31 +478,72 @@
 
           statusText.textContent = "Creating verification request...";
 
-          // Create a new request using the builder pattern
-          const request = await IDKit.request({
-            app_id: APP_ID,
+          const useInviteCode = useInviteCodeToggle.checked;
+          const requestConfig = {
+            app_id: getAppId(),
             action: getAction(),
             rp_context: rpContext,
             allow_legacy_proofs: true,
             environment: getEnvironment(),
-          }).preset(preset);
+            bridge_url: getBridgeUrl(),
+            override_connect_base_url: getConnectBaseUrl(),
+          };
 
-          // Get the connector URL from the request
-          const url = request.connectorURI;
-          console.log("Connect URL:", url);
+          let request;
+          if (useInviteCode) {
+            // Create an invite-code request using the builder pattern
+            request =
+              await IDKit.requestWithInviteCode(requestConfig).preset(preset);
 
-          qrDiv.hidden = false;
-          qrUrl.textContent = url;
+            // The URL is the same connector URL the URL/QR mode produces, with
+            // `&c=<code>&a=<app_id>` appended. The world.org/verify landing
+            // page reads those params and renders the appropriate view.
+            const url = request.connectorURI;
+            console.log("Verify URL:", url, "request_id:", request.requestId);
 
-          qrCode.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}" alt="QR Code">`;
+            codeDisplay.textContent = url;
+            codeRequestId.textContent = `Request ID: ${request.requestId}`;
 
-          statusText.textContent = "Waiting for scan...";
+            const updateCountdown = () => {
+              const remaining = Math.max(
+                0,
+                Math.floor(request.expiresAt - Date.now() / 1000),
+              );
+              codeExpiry.textContent = `Expires in ${remaining}s`;
+            };
+            updateCountdown();
+            countdownInterval = setInterval(updateCountdown, 1000);
+
+            qrDiv.hidden = true;
+            codeDiv.hidden = false;
+
+            statusText.textContent = "Waiting for user to open verify URL...";
+          } else {
+            // Create a new request using the builder pattern
+            request = await IDKit.request(requestConfig).preset(preset);
+
+            // Get the connector URL from the request
+            const url = request.connectorURI;
+            console.log("Connect URL:", url);
+
+            qrDiv.hidden = false;
+            qrUrl.textContent = url;
+
+            qrCode.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}" alt="QR Code">`;
+
+            statusText.textContent = "Waiting for scan...";
+          }
 
           // Poll until completion
           const completion = await request.pollUntilCompletion({
             pollInterval: 2000, // Poll every 2 seconds
             timeout: 120000, // 2 minute timeout
           });
+
+          if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+          }
 
           if (!completion.success) {
             throw new Error(`Verification failed: ${completion.error}`);
@@ -412,9 +568,14 @@
 
           statusDiv.hidden = true;
           qrDiv.hidden = true;
+          codeDiv.hidden = true;
           resultDiv.hidden = false;
           resultData.innerHTML = formatVerifyResult(verifyResult);
         } catch (error) {
+          if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+          }
           console.error("Verification error:", error);
           hideAll();
           errorDiv.hidden = false;
