@@ -10,8 +10,8 @@ export default function HomePage(): ReactElement {
         as the browser example.
       </p>
       <p>
-        <a className="nav-link" href="/error-cases">
-          Open E2E error cases
+        <a className="nav-link" href="/arena">
+          Open Arena
         </a>
       </p>
       <DemoClient />
