@@ -28,6 +28,8 @@ strum = { version = "0.27", features = ["derive"] }
 # Cryptography
 aes-gcm = "0.10"
 getrandom = { version = "0.2", features = ["js"] }
+hkdf = "0.12"
+sha2 = "0.10"
 tiny-keccak = { version = "2.0", features = ["keccak"] }
 
 # Encoding

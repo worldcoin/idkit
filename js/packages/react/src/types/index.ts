@@ -1,7 +1,14 @@
-export type { PollingConfig, FlowConfig, IDKitHookResult } from "./common";
+export type {
+  PollingConfig,
+  FlowConfig,
+  IDKitHookResult,
+  IDKitInviteCodeHookResult,
+} from "./common";
 export type {
   IDKitRequestHookConfig,
   UseIDKitRequestHookResult,
+  IDKitInviteCodeRequestHookConfig,
+  UseIDKitInviteCodeRequestHookResult,
 } from "./request";
 export type {
   IDKitSessionHookConfig,
@@ -9,5 +16,6 @@ export type {
 } from "./session";
 export type {
   IDKitRequestWidgetProps,
+  IDKitInviteCodeRequestWidgetProps,
   IDKitSessionWidgetProps,
 } from "./widget";

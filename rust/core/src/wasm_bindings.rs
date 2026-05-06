@@ -939,6 +939,44 @@ impl IDKitBuilderWasm {
             }))
         })
     }
+
+    /// Creates an invite-code mode `BridgeConnection` with the given constraints (WDP-73).
+    #[wasm_bindgen(js_name = constraintsWithInviteCode)]
+    pub fn constraints_with_invite_code(self, constraints_json: JsValue) -> js_sys::Promise {
+        let config = self.config;
+        future_to_promise(async move {
+            let constraints: ConstraintNode = serde_wasm_bindgen::from_value(constraints_json)
+                .map_err(|e| JsValue::from_str(&format!("Invalid constraints: {e}")))?;
+
+            let params = config.to_params(Some(constraints))?;
+            let connection = crate::bridge::BridgeConnection::create_for_invite_code(params)
+                .await
+                .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
+
+            Ok(JsValue::from(IDKitInviteCodeRequest {
+                inner: Rc::new(RefCell::new(Some(connection))),
+            }))
+        })
+    }
+
+    /// Creates an invite-code mode `BridgeConnection` from a preset (WDP-73).
+    #[wasm_bindgen(js_name = presetWithInviteCode)]
+    pub fn preset_with_invite_code(self, preset_json: JsValue) -> js_sys::Promise {
+        let config = self.config;
+        future_to_promise(async move {
+            let preset: Preset = serde_wasm_bindgen::from_value(preset_json)
+                .map_err(|e| JsValue::from_str(&format!("Invalid preset: {e}")))?;
+
+            let params = config.to_params_from_preset(preset)?;
+            let connection = crate::bridge::BridgeConnection::create_for_invite_code(params)
+                .await
+                .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
+
+            Ok(JsValue::from(IDKitInviteCodeRequest {
+                inner: Rc::new(RefCell::new(Some(connection))),
+            }))
+        })
+    }
 }
 
 /// Entry point for creating `IDKit` requests (WASM)
@@ -1081,45 +1119,147 @@ impl IDKitRequest {
         let inner = self.inner.clone();
 
         future_to_promise(async move {
-            // Take request temporarily for async operation
-            let request = inner
-                .borrow_mut()
-                .take()
-                .ok_or_else(|| JsValue::from_str("Request closed"))?;
-
-            let status = request
-                .poll_for_status()
-                .await
-                .map_err(|e| JsValue::from_str(&format!("Poll failed: {e}")))?;
-
-            // Put request back
-            *inner.borrow_mut() = Some(request);
-
-            // Convert Rust Status enum to plain JS object
-            // Use serialize_maps_as_objects(true) to return plain objects instead of Maps
-            let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
-
-            let js_status = match status {
-                crate::Status::WaitingForConnection => {
-                    serde_json::json!({"type": "waiting_for_connection"}).serialize(&serializer)
-                }
-                crate::Status::AwaitingConfirmation => {
-                    serde_json::json!({"type": "awaiting_confirmation"}).serialize(&serializer)
-                }
-                crate::Status::Confirmed(result) => {
-                    serde_json::json!({"type": "confirmed", "result": result})
-                        .serialize(&serializer)
-                }
-                crate::Status::Failed(error) => {
-                    serde_json::json!({"type": "failed", "error": serde_json::to_value(error).unwrap_or_else(|_| serde_json::Value::String(format!("{error:?}")))})
-                        .serialize(&serializer)
-                }
-            }
-            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
-
-            Ok(js_status)
+            let status = poll_taking_inner(&inner).await?;
+            status_to_js_value(&status)
         })
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Invite-code mode WASM wrapper (WDP-73)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Invite-code mode bridge session.
+///
+/// Sibling to `IDKitRequest` for the URL/QR path. Method names mirror the URL
+/// wrapper exactly so adopters writing a code-mode integration write the same
+/// poll loop they wrote in URL mode — only the constructor and the
+/// displayable `code()` differ.
+#[wasm_bindgen]
+pub struct IDKitInviteCodeRequest {
+    #[wasm_bindgen(skip)]
+    inner: Rc<RefCell<Option<crate::BridgeConnection>>>,
+}
+
+#[wasm_bindgen]
+impl IDKitInviteCodeRequest {
+    /// Returns the connector URL the RP should display to the user.
+    ///
+    /// This is the same URL shape the URL/QR mode produces, with two extra
+    /// query params (`c=<canonical_code>`, `a=<app_id>`) the `world.org/verify`
+    /// landing page uses to render an invite-code-aware view.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request has been closed.
+    #[wasm_bindgen(js_name = connectUrl)]
+    pub fn connect_url(&self) -> Result<String, JsValue> {
+        self.inner
+            .borrow()
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("Request closed"))
+            .map(crate::BridgeConnection::connect_url)
+    }
+
+    /// Unix-seconds expiry of the unredeemed code.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request has been closed.
+    #[wasm_bindgen(js_name = expiresAt)]
+    pub fn expires_at(&self) -> Result<f64, JsValue> {
+        self.inner
+            .borrow()
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("Request closed"))
+            .map(|s| {
+                #[allow(clippy::cast_precision_loss)]
+                {
+                    s.code_expires_at()
+                        .expect("invite-code wrapper always has code_expires_at populated")
+                        as f64
+                }
+            })
+    }
+
+    /// Returns the request ID for this request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request has been closed.
+    #[wasm_bindgen(js_name = requestId)]
+    pub fn request_id(&self) -> Result<String, JsValue> {
+        self.inner
+            .borrow()
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("Request closed"))
+            .map(|s| s.request_id().to_string())
+    }
+
+    /// Polls the bridge for the current status (non-blocking).
+    ///
+    /// Mirrors `IDKitRequest::pollForStatus` exactly — same status shape,
+    /// same close semantics. Adopters use the same poll loop they wrote for
+    /// URL mode.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request has been closed or the poll fails.
+    #[wasm_bindgen(js_name = pollForStatus)]
+    pub fn poll_for_status(&self) -> js_sys::Promise {
+        let inner = self.inner.clone();
+
+        future_to_promise(async move {
+            let status = poll_taking_inner(&inner).await?;
+            status_to_js_value(&status)
+        })
+    }
+}
+
+/// Polls a `BridgeConnection` while taking it out of the `Rc<RefCell<Option<…>>>`
+/// for the await, then **always** puts it back — including on poll error.
+///
+/// Without this, a transient network blip would cause the `?` on the poll
+/// result to drop out of scope before the request is reinserted, leaving
+/// `inner` as `None` and turning every subsequent poll into a hard "Request
+/// closed" failure (which has the same shape as a deliberately-closed
+/// request, making it indistinguishable from a real teardown).
+async fn poll_taking_inner(
+    inner: &Rc<RefCell<Option<crate::BridgeConnection>>>,
+) -> Result<crate::Status, JsValue> {
+    let request = inner
+        .borrow_mut()
+        .take()
+        .ok_or_else(|| JsValue::from_str("Request closed"))?;
+
+    let result = request.poll_for_status().await;
+    *inner.borrow_mut() = Some(request);
+
+    result.map_err(|e| JsValue::from_str(&format!("Poll failed: {e}")))
+}
+
+/// Converts a Rust `Status` to a plain JS object via
+/// `serialize_maps_as_objects(true)` so JS sees `{ type: "..." }` instead of a
+/// `Map`. Pulled out so both URL/QR and invite-code wrappers can reuse it.
+fn status_to_js_value(status: &crate::Status) -> Result<JsValue, JsValue> {
+    let ser = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+
+    let result = match status {
+        crate::Status::WaitingForConnection => {
+            serde_json::json!({"type": "waiting_for_connection"}).serialize(&ser)
+        }
+        crate::Status::AwaitingConfirmation => {
+            serde_json::json!({"type": "awaiting_confirmation"}).serialize(&ser)
+        }
+        crate::Status::Confirmed(result) => {
+            serde_json::json!({"type": "confirmed", "result": result}).serialize(&ser)
+        }
+        crate::Status::Failed(error) => {
+            serde_json::json!({"type": "failed", "error": serde_json::to_value(error).unwrap_or_else(|_| serde_json::Value::String(format!("{error:?}")))}).serialize(&ser)
+        }
+    };
+
+    result.map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
 }
 
 // TypeScript type definitions
