@@ -43,6 +43,8 @@ export type {
 export type {
   // Uniqueness proof response types
   IDKitResult,
+  IntegrityBundle,
+  IntegritySignatureFormat,
   ResponseItemV4,
   ResponseItemV3,
   // Session proof response types

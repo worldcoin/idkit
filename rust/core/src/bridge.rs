@@ -6,8 +6,8 @@ use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
     types::{
-        AppId, BridgeResponseV1, BridgeUrl, IDKitResult, IdentityAttribute, ResponseItem,
-        RpContext, VerificationLevel,
+        AppId, BridgeResponseV1, BridgeUrl, IDKitResult, IdentityAttribute, IntegrityBundle,
+        ResponseItem, RpContext, VerificationLevel,
     },
     ConstraintNode, Signal,
 };
@@ -315,18 +315,25 @@ enum BridgeResponse {
     ResponseV2_1 {
         proof_response: world_id_primitives::ProofResponse,
         identity_attested: Option<bool>,
+        integrity_bundle: Option<IntegrityBundle>,
     },
 
     /// Multi-credential legacy: bridge sends v3 proofs via `legacy_responses`
     MultiLegacyResponse {
         legacy_responses: Vec<BridgeResponseV1>,
+        integrity_bundle: Option<IntegrityBundle>,
     },
 
     /// V1 legacy (old World App 3.0, single credential)
-    ResponseV1(BridgeResponseV1),
+    ResponseV1 {
+        #[serde(flatten)]
+        response: BridgeResponseV1,
+        integrity_bundle: Option<IntegrityBundle>,
+    },
 }
 
 /// Status of a verification request
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Status {
     /// Waiting for World App to retrieve the request
@@ -846,13 +853,21 @@ impl BridgeConnection {
                 match bridge_response {
                     BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
                     BridgeResponse::ResponseV2(proof_response) => {
-                        self.handle_bridge_v2_response(proof_response, None)
+                        self.handle_bridge_v2_response(proof_response, None, None)
                     }
                     BridgeResponse::ResponseV2_1 {
                         proof_response,
                         identity_attested,
-                    } => self.handle_bridge_v2_response(proof_response, identity_attested),
-                    BridgeResponse::MultiLegacyResponse { legacy_responses } => {
+                        integrity_bundle,
+                    } => self.handle_bridge_v2_response(
+                        proof_response,
+                        identity_attested,
+                        integrity_bundle,
+                    ),
+                    BridgeResponse::MultiLegacyResponse {
+                        legacy_responses,
+                        integrity_bundle,
+                    } => {
                         let responses: Vec<ResponseItem> = legacy_responses
                             .into_iter()
                             .map(|item| {
@@ -865,28 +880,37 @@ impl BridgeConnection {
                             })
                             .collect();
 
-                        Ok(Status::Confirmed(IDKitResult::new(
+                        let mut result = IDKitResult::new(
                             "3.0",
                             self.nonce.clone(),
                             self.action.clone(),
                             self.action_description.clone(),
                             responses,
                             self.environment.as_ref(),
-                        )))
+                        );
+                        result.integrity_bundle = integrity_bundle;
+
+                        Ok(Status::Confirmed(result))
                     }
-                    BridgeResponse::ResponseV1(response) => {
+                    BridgeResponse::ResponseV1 {
+                        response,
+                        integrity_bundle,
+                    } => {
                         // V1 responses are always protocol 3.0
                         // For V1 we don't have identifier, use verification_level as key
                         let signal_hash = self.cached_signal_hashes.legacy();
                         let item = response.into_response_item(signal_hash);
-                        Ok(Status::Confirmed(IDKitResult::new(
+                        let mut result = IDKitResult::new(
                             "3.0",
                             self.nonce.clone(),
                             self.action.clone(),
                             self.action_description.clone(),
                             vec![item],
                             self.environment.as_ref(),
-                        )))
+                        );
+                        result.integrity_bundle = integrity_bundle;
+
+                        Ok(Status::Confirmed(result))
                     }
                 }
             }
@@ -898,13 +922,14 @@ impl BridgeConnection {
         &self,
         proof_response: world_id_primitives::ProofResponse,
         identity_attested: Option<bool>,
+        integrity_bundle: Option<IntegrityBundle>,
     ) -> Result<Status> {
         // Check for protocol-level error
         if let Some(error_code) = proof_response.error.as_deref() {
             return Ok(Status::Failed(AppError::from_code(error_code)));
         }
 
-        Ok(Status::Confirmed(proof_response_to_idkit_result(
+        let mut result = proof_response_to_idkit_result(
             proof_response,
             self.nonce.clone(),
             self.action.clone(),
@@ -912,7 +937,10 @@ impl BridgeConnection {
             Some(self.environment),
             &self.cached_signal_hashes.signal_hashes,
             identity_attested,
-        )?))
+        )?;
+        result.integrity_bundle = integrity_bundle;
+
+        Ok(Status::Confirmed(result))
     }
 
     /// Returns the request ID for this request.
@@ -1547,6 +1575,7 @@ pub struct IDKitRequestWrapper {
 }
 
 #[cfg(feature = "ffi")]
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, uniffi::Enum)]
 pub enum StatusWrapper {
     /// Waiting for World App to retrieve the request
@@ -1741,7 +1770,7 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use crate::types::{CredentialRequest, CredentialType, Signal};
+    use crate::types::{CredentialRequest, CredentialType, IntegritySignatureFormat, Signal};
 
     #[test]
     fn test_bridge_request_payload_serialization() {
@@ -1953,7 +1982,7 @@ mod tests {
         }"#;
 
         let response: BridgeResponse = serde_json::from_str(json).unwrap();
-        assert!(matches!(response, BridgeResponse::ResponseV1(_)));
+        assert!(matches!(response, BridgeResponse::ResponseV1 { .. }));
     }
 
     /// Android World App sends `credential_type` instead of `verification_level`
@@ -1969,7 +1998,7 @@ mod tests {
 
         let response: BridgeResponse = serde_json::from_str(json).unwrap();
         match response {
-            BridgeResponse::ResponseV1(v1) => {
+            BridgeResponse::ResponseV1 { response: v1, .. } => {
                 assert_eq!(v1.verification_level, VerificationLevel::Device);
                 assert_eq!(v1.proof, "0xproof");
                 assert_eq!(v1.merkle_root, "0xroot");
@@ -1992,8 +2021,45 @@ mod tests {
 
         let response: BridgeResponse = serde_json::from_str(json).unwrap();
         match response {
-            BridgeResponse::ResponseV1(v1) => {
+            BridgeResponse::ResponseV1 { response: v1, .. } => {
                 assert_eq!(v1.verification_level, VerificationLevel::Orb);
+            }
+            other => panic!("Expected ResponseV1, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_bridge_response_v1_integrity_bundle() {
+        let json = r#"{
+            "proof": "0xproof",
+            "merkle_root": "0xroot",
+            "nullifier_hash": "0xnull",
+            "verification_level": "orb",
+            "integrity_bundle": {
+                "version": 1,
+                "signature_format": "apple_app_attest",
+                "timestamp": 1709901234,
+                "signature": "304502210",
+                "jwt": "eyJhbGciOiJFUzI1NiIs"
+            }
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        match response {
+            BridgeResponse::ResponseV1 {
+                response: v1,
+                integrity_bundle,
+            } => {
+                assert_eq!(v1.verification_level, VerificationLevel::Orb);
+                let bundle = integrity_bundle.expect("integrity bundle");
+                assert_eq!(bundle.version, 1);
+                assert_eq!(
+                    bundle.signature_format,
+                    IntegritySignatureFormat::AppleAppAttest
+                );
+                assert_eq!(bundle.timestamp, 1_709_901_234);
+                assert_eq!(bundle.signature, "304502210");
+                assert_eq!(bundle.jwt, "eyJhbGciOiJFUzI1NiIs");
             }
             other => panic!("Expected ResponseV1, got: {other:?}"),
         }
@@ -2106,6 +2172,54 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_bridge_response_v2_1_integrity_bundle() {
+        let json = format!(
+            r#"{{
+                "proof_response": {{
+                    "id": "req_integrity",
+                    "version": 1,
+                    "responses": [{{
+                        "identifier": "face",
+                        "issuer_schema_id": 11,
+                        "proof": "{ZERO_PROOF}",
+                        "nullifier": "{ZERO_NULLIFIER}",
+                        "expires_at_min": 1735689600
+                    }}]
+                }},
+                "identity_attested": true,
+                "integrity_bundle": {{
+                    "version": 1,
+                    "signature_format": "android_keystore",
+                    "timestamp": 1709901234,
+                    "signature": "304502210",
+                    "jwt": "eyJhbGciOiJFUzI1NiIs"
+                }}
+            }}"#
+        );
+
+        let response: BridgeResponse = serde_json::from_str(&json).unwrap();
+        match response {
+            BridgeResponse::ResponseV2_1 {
+                proof_response,
+                identity_attested,
+                integrity_bundle,
+            } => {
+                assert_eq!(proof_response.id, "req_integrity");
+                assert_eq!(proof_response.responses.len(), 1);
+                assert_eq!(proof_response.responses[0].identifier, "face");
+                assert_eq!(identity_attested, Some(true));
+                let bundle = integrity_bundle.expect("integrity bundle");
+                assert_eq!(
+                    bundle.signature_format,
+                    IntegritySignatureFormat::AndroidKeystore
+                );
+                assert_eq!(bundle.timestamp, 1_709_901_234);
+            }
+            other => panic!("Expected ResponseV2_1, got: {other:?}"),
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // BridgeResponse::MultiLegacyResponse Parsing Tests
     // ─────────────────────────────────────────────────────────────────────────
@@ -2125,7 +2239,9 @@ mod tests {
 
         let response: BridgeResponse = serde_json::from_str(json).unwrap();
         match response {
-            BridgeResponse::MultiLegacyResponse { legacy_responses } => {
+            BridgeResponse::MultiLegacyResponse {
+                legacy_responses, ..
+            } => {
                 assert_eq!(legacy_responses.len(), 1);
                 assert_eq!(
                     legacy_responses[0].verification_level,
@@ -2158,7 +2274,9 @@ mod tests {
 
         let response: BridgeResponse = serde_json::from_str(json).unwrap();
         match response {
-            BridgeResponse::MultiLegacyResponse { legacy_responses } => {
+            BridgeResponse::MultiLegacyResponse {
+                legacy_responses, ..
+            } => {
                 assert_eq!(legacy_responses.len(), 2);
                 assert_eq!(
                     legacy_responses[0].verification_level,

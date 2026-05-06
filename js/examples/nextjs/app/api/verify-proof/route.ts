@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { IDKitResult } from "@worldcoin/idkit";
 
 // export const runtime = "nodejs";
 
@@ -6,7 +7,7 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const body = (await request.json()) as {
       rp_id?: string;
-      devPortalPayload?: unknown;
+      devPortalPayload?: IDKitResult;
     };
 
     const baseUrl =

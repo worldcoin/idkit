@@ -614,6 +614,37 @@ impl<'de> Deserialize<'de> for BridgeResponseV1 {
 // Unified Response Types (World ID 4.0)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Integrity signature format used by the device.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
+#[serde(rename_all = "snake_case")]
+pub enum IntegritySignatureFormat {
+    /// iOS App Attest signature format.
+    AppleAppAttest,
+    /// Android Keystore signature format.
+    AndroidKeystore,
+}
+
+/// World App integrity bundle for proving request-time app integrity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct IntegrityBundle {
+    /// Version of the integrity bundle.
+    pub version: u8,
+
+    /// Signature format used by the device.
+    pub signature_format: IntegritySignatureFormat,
+
+    /// Unix timestamp of this request, in seconds.
+    pub timestamp: u64,
+
+    /// Hex-encoded device signature.
+    pub signature: String,
+
+    /// Attestation Gateway JWT proving integrity of the public key used to verify the signature.
+    pub jwt: String,
+}
+
 /// A single credential response item for uniqueness proofs
 ///
 /// V4 is detected by presence of `issuer_schema_id`.
@@ -718,6 +749,10 @@ pub struct IDKitResult {
     /// Only present on responses from an `IdentityCheck` request.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub identity_attested: Option<bool>,
+
+    /// Optional World App integrity bundle for this proof request.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub integrity_bundle: Option<IntegrityBundle>,
 }
 
 impl IDKitResult {
@@ -740,6 +775,7 @@ impl IDKitResult {
             responses,
             environment: environment.into(),
             identity_attested: None,
+            integrity_bundle: None,
         }
     }
 
@@ -762,6 +798,7 @@ impl IDKitResult {
             responses,
             environment: environment.into(),
             identity_attested: None,
+            integrity_bundle: None,
         }
     }
 
@@ -1383,6 +1420,38 @@ mod tests {
             "0x0000000000000000000000000000000000000000000000000000000000000001"
         );
         assert_eq!(result.responses.len(), 1);
+    }
+
+    #[test]
+    fn test_idkit_result_integrity_bundle_serialization() {
+        let mut result = IDKitResult::new(
+            "3.0",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            None,
+            None,
+            Vec::new(),
+            "production",
+        );
+        result.integrity_bundle = Some(IntegrityBundle {
+            version: 1,
+            signature_format: IntegritySignatureFormat::AppleAppAttest,
+            timestamp: 1_709_901_234,
+            signature: "304502210".to_string(),
+            jwt: "eyJhbGciOiJFUzI1NiIs".to_string(),
+        });
+
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains(r#""integrity_bundle""#));
+        assert!(json.contains(r#""signature_format":"apple_app_attest""#));
+
+        let deserialized: IDKitResult = serde_json::from_str(&json).unwrap();
+        let bundle = deserialized.integrity_bundle.expect("integrity bundle");
+        assert_eq!(bundle.version, 1);
+        assert_eq!(
+            bundle.signature_format,
+            IntegritySignatureFormat::AppleAppAttest
+        );
+        assert_eq!(bundle.timestamp, 1_709_901_234);
     }
 
     #[test]

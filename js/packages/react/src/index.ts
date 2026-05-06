@@ -50,6 +50,8 @@ export type {
   Preset,
   ConstraintNode,
   IDKitResult,
+  IntegrityBundle,
+  IntegritySignatureFormat,
   IDKitResultSession,
   IDKitRequestConfig,
   IDKitSessionConfig,
