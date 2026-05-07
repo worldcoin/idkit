@@ -23,11 +23,8 @@ import type {
 } from "../request";
 import type { IDKitResult } from "../types/result";
 import { IDKitErrorCodes } from "../types/result";
-import type {
-  IDKitResultV3,
-  IDKitResultV4,
-  IDKitResultSession,
-} from "../lib/wasm";
+import type { IDKitResultV3 } from "../lib/wasm";
+import { WasmModule } from "../lib/wasm";
 import { isDebug } from "../lib/debug";
 
 const MINIAPP_VERIFY_ACTION = "miniapp-verify-action";
@@ -36,6 +33,13 @@ type MiniKitBridge = {
   subscribe?: (event: string, handler: (payload: any) => void) => void;
   unsubscribe?: (event: string) => void;
 };
+
+function toNativeErrorCode(error: unknown): IDKitErrorCodes {
+  const code = error instanceof Error ? error.message : String(error);
+  return (Object.values(IDKitErrorCodes) as string[]).includes(code)
+    ? (code as IDKitErrorCodes)
+    : IDKitErrorCodes.GenericError;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Environment detection
@@ -170,18 +174,27 @@ class NativeIDKitRequest implements IDKitRequest {
           return;
         }
 
-        const result = nativeResultToIDKitResult(
-          responsePayload,
-          config,
-          signalHashes,
-          legacySignalHash,
-        );
-        if (isDebug())
-          console.debug(
-            "[IDKit] Native: mapped response",
-            result.protocol_version,
+        try {
+          const result = nativeResultToIDKitResult(
+            responsePayload,
+            config,
+            signalHashes,
+            legacySignalHash,
           );
-        this.complete({ success: true, result });
+          if (isDebug())
+            console.debug(
+              "[IDKit] Native: mapped response",
+              result.protocol_version,
+            );
+          this.complete({ success: true, result });
+        } catch (error) {
+          if (isDebug())
+            console.warn("[IDKit] Native: failed to map response", error);
+          this.complete({
+            success: false,
+            error: toNativeErrorCode(error),
+          });
+        }
       };
 
       const handler = (event: MessageEvent) => {
@@ -365,55 +378,30 @@ function nativeResultToIDKitResult(
   // V4 response wrapped in `proof_response` envelope.
   if ("proof_response" in p && p.proof_response != null) {
     const proof_response = p.proof_response as Record<string, any>;
-    const items = (proof_response.responses ?? []) as Record<string, any>[];
-
     if (isDebug())
       console.debug("[IDKit] Native: mapping wrapped v4 proof_response", {
-        responseCount: items.length,
-        responseIdentifiers: items.map((item) => item.identifier),
+        responseCount: proof_response.responses?.length,
+        responseIdentifiers: proof_response.responses?.map(
+          (item: Record<string, any>) => item.identifier,
+        ),
       });
 
-    if (proof_response.session_id) {
-      return {
-        protocol_version: "4.0" as const,
-        nonce: proof_response.nonce ?? rpNonce,
-        action_description: proof_response.action_description,
-        session_id: proof_response.session_id,
-        responses: items.map((item) => ({
-          identifier: item.identifier,
-          signal_hash: signalHashes[item.identifier],
-          proof: item.proof,
-          session_nullifier: item.session_nullifier,
-          issuer_schema_id: item.issuer_schema_id,
-          expires_at_min: item.expires_at_min,
-        })),
-        environment: config.environment ?? "production",
-      } satisfies IDKitResultSession;
-    }
-
-    return {
-      protocol_version: "4.0" as const,
-      nonce: proof_response.nonce ?? rpNonce,
-      action: proof_response.action ?? config.action ?? "",
-      action_description: proof_response.action_description,
-      responses: items.map((item) => ({
-        identifier: item.identifier,
-        signal_hash: signalHashes[item.identifier],
-        proof: item.proof,
-        nullifier: item.nullifier,
-        issuer_schema_id: item.issuer_schema_id,
-        expires_at_min: item.expires_at_min,
-      })),
+    return WasmModule.proofResponseToIDKitResult(proof_response, {
+      nonce: rpNonce,
+      action: config.action,
+      action_description: config.action_description,
       environment: config.environment ?? "production",
-    } satisfies IDKitResultV4;
+      signal_hashes: signalHashes,
+      identity_attested: p.identity_attested,
+    }) as IDKitResult;
   }
 
-  if (!("proof_response" in p) && Array.isArray(p.responses)) {
-    if (isDebug())
-      console.warn(
-        "[IDKit] Native: received raw ProofResponse without wrapper",
-        p,
-      );
+  // Protocol ProofResponse must be nested under `proof_response`.
+  if (
+    Array.isArray(p.responses) &&
+    ("id" in p || "version" in p || "error" in p)
+  ) {
+    throw new Error(IDKitErrorCodes.UnexpectedResponse);
   }
 
   // Legacy multi-verification response (MiniKit v3 format).

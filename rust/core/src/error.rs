@@ -183,7 +183,7 @@ impl AppError {
             "max_verifications_reached" => Self::MaxVerificationsReached,
             "failed_by_host_app" => Self::FailedByHostApp,
             "invalid_rp_signature" => Self::InvalidRpSignature,
-            "nullifier_replayed" => Self::NullifierReplayed,
+            "nullifier_replayed" | "nullifier_replay" => Self::NullifierReplayed,
             "duplicate_nonce" => Self::DuplicateNonce,
             "unknown_rp" => Self::UnknownRp,
             "inactive_rp" => Self::InactiveRp,
