@@ -230,6 +230,69 @@ impl ResponseItem {
     }
 }
 
+/// Converts a protocol `ProofResponse` to the public `IDKitResult` shape.
+///
+/// This keeps bridge and native `MiniKit` transports on the same parsing path for
+/// proof encoding, nullifier encoding, session nullifiers, and signal hashes.
+///
+/// # Errors
+///
+/// Returns an error when the proof response carries a protocol-level error,
+/// contains an unexpected response item shape, or contains a session ID that
+/// cannot be serialized to the public string format.
+pub fn proof_response_to_idkit_result<S: std::hash::BuildHasher>(
+    proof_response: world_id_primitives::ProofResponse,
+    nonce: String,
+    action: Option<String>,
+    action_description: Option<String>,
+    environment: Option<Environment>,
+    signal_hashes: &std::collections::HashMap<String, String, S>,
+    identity_attested: Option<bool>,
+) -> Result<IDKitResult> {
+    if let Some(error_code) = proof_response.error.as_deref() {
+        return Err(Error::AppError(AppError::from_code(error_code)));
+    }
+
+    let responses: Vec<ResponseItem> = proof_response
+        .responses
+        .into_iter()
+        .map(|item| {
+            let signal_hash = signal_hashes.get(&item.identifier).cloned();
+            ResponseItem::from_protocol_item(item, signal_hash)
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    let environment = environment.unwrap_or_default().to_string();
+
+    if let Some(session_id) = proof_response.session_id {
+        Ok(IDKitResult::new_session(
+            nonce,
+            serde_json::to_value(session_id)?
+                .as_str()
+                .ok_or_else(|| {
+                    Error::InvalidConfiguration(
+                        "SessionId did not serialize as a string".to_string(),
+                    )
+                })?
+                .to_owned(),
+            action_description,
+            responses,
+            environment,
+        ))
+    } else {
+        let mut result = IDKitResult::new(
+            "4.0",
+            nonce,
+            action,
+            action_description,
+            responses,
+            environment,
+        );
+        result.identity_attested = identity_attested;
+        Ok(result)
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Bridge Response Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -836,44 +899,15 @@ impl BridgeConnection {
             return Ok(Status::Failed(AppError::from_code(error_code)));
         }
 
-        let responses: Vec<ResponseItem> = proof_response
-            .responses
-            .into_iter()
-            .map(|item| {
-                let signal_hash = self.cached_signal_hashes.get(&item.identifier);
-                ResponseItem::from_protocol_item(item, signal_hash)
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        Ok(Status::Confirmed(
-            if let Some(session_id) = proof_response.session_id {
-                IDKitResult::new_session(
-                    self.nonce.clone(),
-                    serde_json::to_value(session_id)?
-                        .as_str()
-                        .ok_or_else(|| {
-                            Error::InvalidConfiguration(
-                                "SessionId did not serialize as a string".to_string(),
-                            )
-                        })?
-                        .to_owned(),
-                    self.action_description.clone(),
-                    responses,
-                    self.environment.as_ref(),
-                )
-            } else {
-                let mut result = IDKitResult::new(
-                    "4.0",
-                    self.nonce.clone(),
-                    self.action.clone(),
-                    self.action_description.clone(),
-                    responses,
-                    self.environment.as_ref(),
-                );
-                result.identity_attested = identity_attested;
-                result
-            },
-        ))
+        Ok(Status::Confirmed(proof_response_to_idkit_result(
+            proof_response,
+            self.nonce.clone(),
+            self.action.clone(),
+            self.action_description.clone(),
+            Some(self.environment),
+            &self.cached_signal_hashes.signal_hashes,
+            identity_attested,
+        )?))
     }
 
     /// Returns the request ID for this request.
@@ -2152,6 +2186,10 @@ mod tests {
                 error_code: AppError::NullifierReplayed
             }
         ));
+        assert_eq!(
+            AppError::from_code("nullifier_replay"),
+            AppError::NullifierReplayed
+        );
 
         let cases = [
             ("world_id_4_not_available", AppError::WorldId4NotAvailable),

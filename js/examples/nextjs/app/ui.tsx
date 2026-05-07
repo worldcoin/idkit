@@ -119,10 +119,16 @@ async function verifyProof(payload: IDKitResult): Promise<unknown> {
   });
 
   const json = await response.json();
+  console.log("Verify proof response:", {
+    ok: response.ok,
+    status: response.status,
+    statusText: response.statusText,
+    payload: json,
+  });
+
   if (!response.ok) {
     throw new Error(json.error ?? "Verification failed");
   }
-
   return json;
 }
 
@@ -529,10 +535,9 @@ export function DemoClient(): ReactElement {
             rp_context={widgetRpContext}
             allow_legacy_proofs={true}
             {...widgetConstraintsOrPreset}
-            onSuccess={(result) => {
-              setWidgetIdkitResult(result);
-            }}
+            onSuccess={(result) => {}}
             handleVerify={async (result) => {
+              setWidgetIdkitResult(result);
               const verified = await verifyProof(result);
               setWidgetVerifyResult(verified);
             }}
@@ -552,10 +557,9 @@ export function DemoClient(): ReactElement {
             rp_context={widgetRpContext}
             allow_legacy_proofs={true}
             {...widgetConstraintsOrPreset}
-            onSuccess={(result) => {
-              setWidgetIdkitResult(result);
-            }}
+            onSuccess={(result) => {}}
             handleVerify={async (result) => {
+              setWidgetIdkitResult(result);
               const verified = await verifyProof(result);
               setWidgetVerifyResult(verified);
             }}

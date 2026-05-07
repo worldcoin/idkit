@@ -8,14 +8,21 @@ import {
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IDKitErrorCodes } from "@worldcoin/idkit-core";
+import { IDKitInviteCodeRequestWidget } from "../widget/IDKitInviteCodeRequestWidget";
 import { IDKitRequestWidget } from "../widget/IDKitRequestWidget";
 import { IDKitSessionWidget } from "../widget/IDKitSessionWidget";
 import type {
+  IDKitInviteCodeRequestWidgetProps,
   IDKitRequestWidgetProps,
   IDKitSessionWidgetProps,
 } from "../types";
 
-const { useIDKitRequestMock, useIDKitSessionMock } = vi.hoisted(() => ({
+const {
+  useIDKitInviteCodeRequestMock,
+  useIDKitRequestMock,
+  useIDKitSessionMock,
+} = vi.hoisted(() => ({
+  useIDKitInviteCodeRequestMock: vi.fn(),
   useIDKitRequestMock: vi.fn(),
   useIDKitSessionMock: vi.fn(),
 }));
@@ -23,6 +30,10 @@ const SESSION_ID = `session_${"11".repeat(64)}` as const;
 
 vi.mock("../hooks/useIDKitRequest", () => ({
   useIDKitRequest: useIDKitRequestMock,
+}));
+
+vi.mock("../hooks/useIDKitInviteCodeRequest", () => ({
+  useIDKitInviteCodeRequest: useIDKitInviteCodeRequestMock,
 }));
 
 vi.mock("../hooks/useIDKitSession", () => ({
@@ -76,7 +87,23 @@ function createRequestProps(
     allow_legacy_proofs: false,
     preset: { type: "OrbLegacy" },
     ...overrides,
-  };
+  } as IDKitRequestWidgetProps;
+}
+
+function createInviteCodeRequestProps(
+  overrides: Partial<IDKitInviteCodeRequestWidgetProps> = {},
+): IDKitInviteCodeRequestWidgetProps {
+  return {
+    open: true,
+    onOpenChange: vi.fn(),
+    onSuccess: vi.fn(),
+    app_id: "app_test",
+    action: "test-action",
+    rp_context: baseRpContext,
+    allow_legacy_proofs: false,
+    preset: { type: "OrbLegacy" },
+    ...overrides,
+  } as IDKitInviteCodeRequestWidgetProps;
 }
 
 function createSessionProps(
@@ -88,9 +115,9 @@ function createSessionProps(
     onSuccess: vi.fn(),
     app_id: "app_test",
     rp_context: baseRpContext,
-    preset: { type: "OrbLegacy" },
+    constraints: { type: "orb" },
     ...overrides,
-  };
+  } as IDKitSessionWidgetProps;
 }
 
 describe("widgets", () => {
@@ -400,6 +427,48 @@ describe("widgets", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
+  it("request widget ignores stale World App handleVerify completion after close/reset", async () => {
+    const flow = createFlow({
+      isInWorldApp: true,
+      isSuccess: true,
+      result: { proof: "pending" },
+    });
+    // Simulate real resetFlow() behavior: clears success state.
+    flow.reset.mockImplementation(() => {
+      flow.isSuccess = false;
+      flow.result = null;
+    });
+    useIDKitRequestMock.mockReturnValue(flow);
+
+    let resolveVerify = () => {};
+    const handleVerify = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveVerify = resolve;
+        }),
+    );
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+
+    const props = createRequestProps({ onSuccess, onError, handleVerify });
+    const { rerender } = render(<IDKitRequestWidget {...props} />);
+
+    await waitFor(() => {
+      expect(handleVerify).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(<IDKitRequestWidget {...props} open={false} />);
+    expect(flow.reset).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveVerify();
+      await Promise.resolve();
+    });
+
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
   it("request widget does not re-run handleVerify when callback identity changes", async () => {
     const flow = createFlow({
       isSuccess: true,
@@ -435,6 +504,112 @@ describe("widgets", () => {
     expect(handleVerifyA).toHaveBeenCalledTimes(1);
     expect(handleVerifyB).not.toHaveBeenCalled();
     expect(onSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it("request widget does not re-run pending World App handleVerify when callback identity changes", async () => {
+    const flow = createFlow({
+      isInWorldApp: true,
+      isSuccess: true,
+      result: { proof: "stable" },
+    });
+    useIDKitRequestMock.mockReturnValue(flow);
+
+    let resolveVerify = () => {};
+    const handleVerifyA = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveVerify = resolve;
+        }),
+    );
+    const handleVerifyB = vi.fn().mockResolvedValue(undefined);
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+
+    const baseProps = createRequestProps({ onSuccess, onError });
+    const { rerender } = render(
+      <IDKitRequestWidget {...baseProps} handleVerify={handleVerifyA} />,
+    );
+
+    await waitFor(() => {
+      expect(handleVerifyA).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(
+      <IDKitRequestWidget {...baseProps} handleVerify={handleVerifyB} />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(handleVerifyA).toHaveBeenCalledTimes(1);
+    expect(handleVerifyB).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveVerify();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(onSuccess).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("invite-code widget does not re-run pending World App handleVerify when callback identity changes", async () => {
+    const flow = createFlow({
+      isInWorldApp: true,
+      isSuccess: true,
+      result: { proof: "stable" },
+    });
+    useIDKitInviteCodeRequestMock.mockReturnValue(flow);
+
+    let resolveVerify = () => {};
+    const handleVerifyA = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveVerify = resolve;
+        }),
+    );
+    const handleVerifyB = vi.fn().mockResolvedValue(undefined);
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+
+    const baseProps = createInviteCodeRequestProps({ onSuccess, onError });
+    const { rerender } = render(
+      <IDKitInviteCodeRequestWidget
+        {...baseProps}
+        handleVerify={handleVerifyA}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(handleVerifyA).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(
+      <IDKitInviteCodeRequestWidget
+        {...baseProps}
+        handleVerify={handleVerifyB}
+      />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(handleVerifyA).toHaveBeenCalledTimes(1);
+    expect(handleVerifyB).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveVerify();
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(onSuccess).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("session widget waits for handleVerify before calling onSuccess", async () => {

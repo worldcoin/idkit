@@ -9,8 +9,9 @@
 
 use crate::preset::Preset;
 use crate::{ConstraintNode, CredentialRequest, CredentialType, RpContext, Signal};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Once;
 use wasm_bindgen::prelude::*;
@@ -296,6 +297,73 @@ pub fn hash_signal_wasm(signal: JsValue) -> Result<String, JsValue> {
     }
 
     Err(JsValue::from_str("Signal must be a string or Uint8Array"))
+}
+
+#[derive(Deserialize)]
+struct ProofResponseToIDKitResultOptions {
+    nonce: String,
+    #[serde(default)]
+    action: Option<String>,
+    #[serde(default)]
+    action_description: Option<String>,
+    #[serde(default)]
+    environment: Option<crate::bridge::Environment>,
+    #[serde(default)]
+    signal_hashes: HashMap<String, String>,
+    #[serde(default)]
+    identity_attested: Option<bool>,
+}
+
+fn app_error_code(error: crate::error::AppError) -> Result<String, JsValue> {
+    serde_json::to_value(error)
+        .map_err(|e| JsValue::from_str(&format!("Error serialization failed: {e}")))?
+        .as_str()
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| JsValue::from_str("Error serialization failed"))
+}
+
+/// Converts a protocol `ProofResponse` payload to the public `IDKitResult` shape.
+///
+/// This reuses the same Rust conversion as the bridge polling path, including
+/// proof encoding, nullifier encoding, and session-nullifier handling.
+///
+/// # Errors
+///
+/// Returns an error if the payload is not a valid `ProofResponse`, if the
+/// response contains a protocol error, or if conversion fails.
+#[wasm_bindgen(js_name = proofResponseToIDKitResult)]
+pub fn proof_response_to_idkit_result_wasm(
+    proof_response: JsValue,
+    options: JsValue,
+) -> Result<JsValue, JsValue> {
+    let proof_response: world_id_primitives::ProofResponse =
+        serde_wasm_bindgen::from_value(proof_response)
+            .map_err(|e| JsValue::from_str(&format!("Invalid ProofResponse: {e}")))?;
+
+    if let Some(error_code) = proof_response.error.as_deref() {
+        return Err(JsValue::from_str(&app_error_code(
+            crate::error::AppError::from_code(error_code),
+        )?));
+    }
+
+    let options: ProofResponseToIDKitResultOptions = serde_wasm_bindgen::from_value(options)
+        .map_err(|e| JsValue::from_str(&format!("Invalid ProofResponse options: {e}")))?;
+
+    let result = crate::bridge::proof_response_to_idkit_result(
+        proof_response,
+        options.nonce,
+        options.action,
+        options.action_description,
+        options.environment,
+        &options.signal_hashes,
+        options.identity_attested,
+    )
+    .map_err(|e| JsValue::from_str(&format!("ProofResponse conversion failed: {e}")))?;
+
+    let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+    result
+        .serialize(&serializer)
+        .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
 }
 
 /// Computes the raw RP signature message bytes for a given nonce and timestamps.
@@ -1394,6 +1462,19 @@ export interface IDKitResultSession {
  * - session_id === undefined → uniqueness proof
  */
 export type IDKitResult = IDKitResultV3 | IDKitResultV4 | IDKitResultSession;
+
+/** Options used to convert a protocol ProofResponse into IDKitResult */
+export interface ProofResponseToIDKitResultOptions {
+    nonce: string;
+    action?: string;
+    action_description?: string;
+    environment?: "production" | "staging";
+    signal_hashes?: Record<string, string>;
+    identity_attested?: boolean;
+}
+
+/** Converts a protocol ProofResponse payload into the public IDKitResult shape. */
+export function proofResponseToIDKitResult(proofResponse: unknown, options: ProofResponseToIDKitResultOptions): IDKitResult;
 
 /** Configuration for session requests (no action field, v4 only) */
 export interface IDKitSessionConfig {
