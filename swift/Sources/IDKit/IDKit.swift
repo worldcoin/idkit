@@ -124,6 +124,7 @@ public enum IDKitErrorCode: String, Equatable {
     case timestampTooFarInFuture = "timestamp_too_far_in_future"
     case invalidTimestamp = "invalid_timestamp"
     case rpSignatureExpired = "rp_signature_expired"
+    case identityAttributesNotMatched = "identity_attributes_not_matched"
     case genericError = "generic_error"
     case timeout = "timeout"
     case cancelled = "cancelled"
@@ -174,6 +175,8 @@ public enum IDKitErrorCode: String, Equatable {
             .invalidTimestamp
         case .rpSignatureExpired:
             .rpSignatureExpired
+        case .identityAttributesNotMatched:
+            .identityAttributesNotMatched
         case .genericError:
             .genericError
         }

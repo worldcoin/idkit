@@ -1447,6 +1447,7 @@ export type IDKitErrorCode =
     | "timestamp_too_far_in_future"
     | "invalid_timestamp"
     | "rp_signature_expired"
+    | "identity_attributes_not_matched"
     | "generic_error";
 
 /** Status returned from pollForStatus() */
