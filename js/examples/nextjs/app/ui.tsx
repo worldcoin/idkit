@@ -6,6 +6,7 @@ import {
   documentLegacy,
   deviceLegacy,
   selfieCheckLegacy,
+  IDKitInviteCodeRequestWidget,
   IDKitRequestWidget,
   orbLegacy,
   secureDocumentLegacy,
@@ -153,6 +154,7 @@ export function DemoClient(): ReactElement {
   const [useReturnTo, setUseReturnTo] = useState(false);
   const [returnTo, setReturnTo] = useState("");
   const [isReturnToTooltipOpen, setIsReturnToTooltipOpen] = useState(false);
+  const [useInviteCode, setUseInviteCode] = useState(false);
 
   const genesisIssuedAtMin =
     genesisEnabled && genesisDate
@@ -297,6 +299,15 @@ export function DemoClient(): ReactElement {
             <option value="production">Production</option>
             <option value="staging">Staging</option>
           </select>
+        </div>
+        <div className="config-row">
+          <label htmlFor="cfgUseInviteCode">Use invite code</label>
+          <input
+            type="checkbox"
+            id="cfgUseInviteCode"
+            checked={useInviteCode}
+            onChange={(e) => setUseInviteCode(e.target.checked)}
+          />
         </div>
         {environment === "staging" && (
           <div className="config-row">
@@ -508,30 +519,54 @@ export function DemoClient(): ReactElement {
       </div>
       {widgetError && <p className="status">Error: {widgetError}</p>}
 
-      {widgetRpContext && (
-        <IDKitRequestWidget
-          open={widgetOpen}
-          onOpenChange={setWidgetOpen}
-          app_id={APP_ID}
-          action={action || "test-action"}
-          rp_context={widgetRpContext}
-          allow_legacy_proofs={true}
-          {...widgetConstraintsOrPreset}
-          onSuccess={(result) => {
-            setWidgetIdkitResult(result);
-          }}
-          handleVerify={async (result) => {
-            const verified = await verifyProof(result);
-            setWidgetVerifyResult(verified);
-          }}
-          onError={(errorCode) => {
-            setWidgetError(`Verification failed: ${errorCode}`);
-          }}
-          environment={environment}
-          override_connect_base_url={overrideConnectBaseUrl}
-          return_to={effectiveReturnTo}
-        />
-      )}
+      {widgetRpContext &&
+        (useInviteCode ? (
+          <IDKitInviteCodeRequestWidget
+            open={widgetOpen}
+            onOpenChange={setWidgetOpen}
+            app_id={APP_ID}
+            action={action || "test-action"}
+            rp_context={widgetRpContext}
+            allow_legacy_proofs={true}
+            {...widgetConstraintsOrPreset}
+            onSuccess={(result) => {
+              setWidgetIdkitResult(result);
+            }}
+            handleVerify={async (result) => {
+              const verified = await verifyProof(result);
+              setWidgetVerifyResult(verified);
+            }}
+            onError={(errorCode) => {
+              setWidgetError(`Verification failed: ${errorCode}`);
+            }}
+            environment={environment}
+            override_connect_base_url={overrideConnectBaseUrl}
+            return_to={effectiveReturnTo}
+          />
+        ) : (
+          <IDKitRequestWidget
+            open={widgetOpen}
+            onOpenChange={setWidgetOpen}
+            app_id={APP_ID}
+            action={action || "test-action"}
+            rp_context={widgetRpContext}
+            allow_legacy_proofs={true}
+            {...widgetConstraintsOrPreset}
+            onSuccess={(result) => {
+              setWidgetIdkitResult(result);
+            }}
+            handleVerify={async (result) => {
+              const verified = await verifyProof(result);
+              setWidgetVerifyResult(verified);
+            }}
+            onError={(errorCode) => {
+              setWidgetError(`Verification failed: ${errorCode}`);
+            }}
+            environment={environment}
+            override_connect_base_url={overrideConnectBaseUrl}
+            return_to={effectiveReturnTo}
+          />
+        ))}
 
       {widgetIdkitResult && (
         <>
