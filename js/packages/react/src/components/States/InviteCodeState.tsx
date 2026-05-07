@@ -65,7 +65,11 @@ export function InviteCodeState({
         <div
           className={`idkit-qr-blur ${isAwaitingUserConfirmation ? "blurred" : ""}`}
         >
-          {connectorURI ? <QRCode data={connectorURI} /> : null}
+          <div className="idkit-qr-wrapper">
+            <div className="idkit-qr-inner">
+              {connectorURI ? <QRCode data={connectorURI} /> : null}
+            </div>
+          </div>
         </div>
       </div>
 
