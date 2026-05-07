@@ -63,6 +63,7 @@ enum class IDKitErrorCode(val rawValue: String) {
     TIMESTAMP_TOO_FAR_IN_FUTURE("timestamp_too_far_in_future"),
     INVALID_TIMESTAMP("invalid_timestamp"),
     RP_SIGNATURE_EXPIRED("rp_signature_expired"),
+    IDENTITY_ATTRIBUTES_NOT_MATCHED("identity_attributes_not_matched"),
     GENERIC_ERROR("generic_error"),
     TIMEOUT("timeout"),
     CANCELLED("cancelled");
@@ -91,6 +92,7 @@ enum class IDKitErrorCode(val rawValue: String) {
             AppError.TIMESTAMP_TOO_FAR_IN_FUTURE -> TIMESTAMP_TOO_FAR_IN_FUTURE
             AppError.INVALID_TIMESTAMP -> INVALID_TIMESTAMP
             AppError.RP_SIGNATURE_EXPIRED -> RP_SIGNATURE_EXPIRED
+            AppError.IDENTITY_ATTRIBUTES_NOT_MATCHED -> IDENTITY_ATTRIBUTES_NOT_MATCHED
             AppError.GENERIC_ERROR -> GENERIC_ERROR
         }
     }

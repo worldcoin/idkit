@@ -154,6 +154,10 @@ pub enum AppError {
     #[error("RP signature expired")]
     RpSignatureExpired,
 
+    /// Identity attributes did not match the required values
+    #[error("Identity attributes not matched")]
+    IdentityAttributesNotMatched,
+
     /// Generic error
     #[error("An error occurred")]
     #[serde(other)]
@@ -187,6 +191,7 @@ impl AppError {
             "timestamp_too_far_in_future" => Self::TimestampTooFarInFuture,
             "invalid_timestamp" => Self::InvalidTimestamp,
             "rp_signature_expired" => Self::RpSignatureExpired,
+            "identity_attributes_not_matched" => Self::IdentityAttributesNotMatched,
             _ => Self::GenericError,
         }
     }
