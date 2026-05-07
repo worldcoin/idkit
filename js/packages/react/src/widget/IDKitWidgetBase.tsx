@@ -91,19 +91,13 @@ export function IDKitWidgetBase<TResult>({
 
     return Promise.resolve(currentHandleVerify(result))
       .then(() => {
-        if (
-          hostVerifyRunRef.current === run &&
-          verifyGenRef.current === gen
-        ) {
+        if (hostVerifyRunRef.current === run && verifyGenRef.current === gen) {
           hostVerifyRunRef.current = null;
           setHostVerifyResult("passed");
         }
       })
       .catch(() => {
-        if (
-          hostVerifyRunRef.current === run &&
-          verifyGenRef.current === gen
-        ) {
+        if (hostVerifyRunRef.current === run && verifyGenRef.current === gen) {
           hostVerifyRunRef.current = null;
           setHostVerifyResult("failed");
         }
@@ -168,12 +162,7 @@ export function IDKitWidgetBase<TResult>({
   // In World App context there's no UI to render HostAppVerificationState,
   // so invoke handleVerify programmatically when the proof arrives.
   useEffect(() => {
-    if (
-      !open ||
-      !flow.isInWorldApp ||
-      !isHostVerifying ||
-      !flow.result
-    ) {
+    if (!open || !flow.isInWorldApp || !isHostVerifying || !flow.result) {
       return;
     }
 
