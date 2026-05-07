@@ -20,6 +20,7 @@ export {
   selfieCheckLegacy,
   // Types
   type IDKitRequest,
+  type IDKitInviteCodeRequest,
   type IDKitCompletionResult,
   type WaitOptions,
   type RpContext,
