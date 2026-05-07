@@ -118,10 +118,16 @@ async function verifyProof(payload: IDKitResult): Promise<unknown> {
   });
 
   const json = await response.json();
+  console.log("Verify proof response:", {
+    ok: response.ok,
+    status: response.status,
+    statusText: response.statusText,
+    payload: json,
+  });
+
   if (!response.ok) {
     throw new Error(json.error ?? "Verification failed");
   }
-
   return json;
 }
 

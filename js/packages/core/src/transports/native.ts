@@ -154,6 +154,9 @@ class NativeIDKitRequest implements IDKitRequest {
       const handleIncomingPayload = (responsePayload: any) => {
         if (this.completionResult) return;
 
+        if (isDebug())
+          console.debug("[IDKit] Native: received response", responsePayload);
+
         if (responsePayload?.status === "error") {
           if (isDebug())
             console.warn(
@@ -167,15 +170,18 @@ class NativeIDKitRequest implements IDKitRequest {
           return;
         }
 
-        this.complete({
-          success: true,
-          result: nativeResultToIDKitResult(
-            responsePayload,
-            config,
-            signalHashes,
-            legacySignalHash,
-          ),
-        });
+        const result = nativeResultToIDKitResult(
+          responsePayload,
+          config,
+          signalHashes,
+          legacySignalHash,
+        );
+        if (isDebug())
+          console.debug(
+            "[IDKit] Native: mapped response",
+            result.protocol_version,
+          );
+        this.complete({ success: true, result });
       };
 
       const handler = (event: MessageEvent) => {
@@ -219,12 +225,14 @@ class NativeIDKitRequest implements IDKitRequest {
           if (isDebug())
             console.debug(
               `[IDKit] Native: sending verify command (version=${version}, platform=ios)`,
+              sendPayload,
             );
           w.webkit.messageHandlers.minikit.postMessage(sendPayload);
         } else if (w.Android) {
           if (isDebug())
             console.debug(
               `[IDKit] Native: sending verify command (version=${version}, platform=android)`,
+              sendPayload,
             );
           w.Android.postMessage(JSON.stringify(sendPayload));
         } else {
@@ -253,7 +261,7 @@ class NativeIDKitRequest implements IDKitRequest {
     if (isDebug())
       console.debug(
         "[IDKit] Native: request completed",
-        result.success ? "success" : `error=${result.error}`,
+        result.success === true ? "success" : `error=${result.error}`,
       );
     this.completionResult = result;
     this.cleanup();
@@ -290,13 +298,14 @@ class NativeIDKitRequest implements IDKitRequest {
   }
 
   async pollOnce(): Promise<Status> {
-    if (!this.completionResult) {
+    const completionResult = this.completionResult;
+    if (!completionResult) {
       return { type: "awaiting_confirmation" };
     }
-    if (this.completionResult.success) {
-      return { type: "confirmed", result: this.completionResult.result };
+    if (completionResult.success === true) {
+      return { type: "confirmed", result: completionResult.result };
     }
-    return { type: "failed", error: this.completionResult.error };
+    return { type: "failed", error: completionResult.error };
   }
 
   async pollUntilCompletion(
@@ -358,6 +367,12 @@ function nativeResultToIDKitResult(
     const proof_response = p.proof_response as Record<string, any>;
     const items = (proof_response.responses ?? []) as Record<string, any>[];
 
+    if (isDebug())
+      console.debug("[IDKit] Native: mapping wrapped v4 proof_response", {
+        responseCount: items.length,
+        responseIdentifiers: items.map((item) => item.identifier),
+      });
+
     if (proof_response.session_id) {
       return {
         protocol_version: "4.0" as const,
@@ -391,6 +406,14 @@ function nativeResultToIDKitResult(
       })),
       environment: config.environment ?? "production",
     } satisfies IDKitResultV4;
+  }
+
+  if (!("proof_response" in p) && Array.isArray(p.responses)) {
+    if (isDebug())
+      console.warn(
+        "[IDKit] Native: received raw ProofResponse without wrapper",
+        p,
+      );
   }
 
   // Legacy multi-verification response (MiniKit v3 format).
