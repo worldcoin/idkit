@@ -7,15 +7,20 @@ export interface LocalizationConfig {
 export interface TranslationStrings {
   "All set!": string;
   "Your World ID is now connected": string;
+  "Already verified": string;
+  "You've already verified for this action.": string;
   "Something went wrong": string;
   "Request cancelled": string;
   "You've cancelled the request in World App.": string;
+  "Verification unavailable": string;
+  "This verification request couldn't be completed. Please contact the website owner.": string;
   "Connection lost": string;
   "Please check your connection and try again.": string;
   "Verification declined": string;
   "Failed to verify your credential proof. Please contact the website owner.": string;
   "We couldn't complete your request. Please try again.": string;
   "Try Again": string;
+  Close: string;
   "Open World App": string;
   "QR Code copied": string;
   "Connect your World ID": string;

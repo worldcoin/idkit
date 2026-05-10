@@ -22,10 +22,17 @@ export async function POST(request: Request): Promise<Response> {
 
     const payload = await response.json();
 
+    console.log("Received response from Dev Portal:", {
+      payload,
+      status: response.status,
+      statusText: response.statusText,
+    });
+
     return NextResponse.json(payload, {
       status: response.status,
     });
   } catch (error) {
+    console.error("Failed to verify proof:", error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Unknown server error",

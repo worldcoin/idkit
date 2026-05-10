@@ -9,8 +9,9 @@
 
 use crate::preset::Preset;
 use crate::{ConstraintNode, CredentialRequest, CredentialType, RpContext, Signal};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Once;
 use wasm_bindgen::prelude::*;
@@ -298,6 +299,73 @@ pub fn hash_signal_wasm(signal: JsValue) -> Result<String, JsValue> {
     Err(JsValue::from_str("Signal must be a string or Uint8Array"))
 }
 
+#[derive(Deserialize)]
+struct ProofResponseToIDKitResultOptions {
+    nonce: String,
+    #[serde(default)]
+    action: Option<String>,
+    #[serde(default)]
+    action_description: Option<String>,
+    #[serde(default)]
+    environment: Option<crate::bridge::Environment>,
+    #[serde(default)]
+    signal_hashes: HashMap<String, String>,
+    #[serde(default)]
+    identity_attested: Option<bool>,
+}
+
+fn app_error_code(error: crate::error::AppError) -> Result<String, JsValue> {
+    serde_json::to_value(error)
+        .map_err(|e| JsValue::from_str(&format!("Error serialization failed: {e}")))?
+        .as_str()
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| JsValue::from_str("Error serialization failed"))
+}
+
+/// Converts a protocol `ProofResponse` payload to the public `IDKitResult` shape.
+///
+/// This reuses the same Rust conversion as the bridge polling path, including
+/// proof encoding, nullifier encoding, and session-nullifier handling.
+///
+/// # Errors
+///
+/// Returns an error if the payload is not a valid `ProofResponse`, if the
+/// response contains a protocol error, or if conversion fails.
+#[wasm_bindgen(js_name = proofResponseToIDKitResult)]
+pub fn proof_response_to_idkit_result_wasm(
+    proof_response: JsValue,
+    options: JsValue,
+) -> Result<JsValue, JsValue> {
+    let proof_response: world_id_primitives::ProofResponse =
+        serde_wasm_bindgen::from_value(proof_response)
+            .map_err(|e| JsValue::from_str(&format!("Invalid ProofResponse: {e}")))?;
+
+    if let Some(error_code) = proof_response.error.as_deref() {
+        return Err(JsValue::from_str(&app_error_code(
+            crate::error::AppError::from_code(error_code),
+        )?));
+    }
+
+    let options: ProofResponseToIDKitResultOptions = serde_wasm_bindgen::from_value(options)
+        .map_err(|e| JsValue::from_str(&format!("Invalid ProofResponse options: {e}")))?;
+
+    let result = crate::bridge::proof_response_to_idkit_result(
+        proof_response,
+        options.nonce,
+        options.action,
+        options.action_description,
+        options.environment,
+        &options.signal_hashes,
+        options.identity_attested,
+    )
+    .map_err(|e| JsValue::from_str(&format!("ProofResponse conversion failed: {e}")))?;
+
+    let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+    result
+        .serialize(&serializer)
+        .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
+}
+
 /// Computes the raw RP signature message bytes for a given nonce and timestamps.
 ///
 /// This mirrors the message that Rust signs internally for `signRequest`.
@@ -507,7 +575,7 @@ impl IDKitConfigWasm {
     #[allow(clippy::too_many_lines)]
     fn to_params(
         &self,
-        constraints: ConstraintNode,
+        constraints: Option<ConstraintNode>,
     ) -> Result<crate::bridge::BridgeConnectionParams, JsValue> {
         match self {
             Self::Request {
@@ -534,7 +602,7 @@ impl IDKitConfigWasm {
                     kind: crate::bridge::RequestKind::Uniqueness {
                         action: action.clone(),
                     },
-                    constraints: Some(constraints),
+                    constraints,
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
                     // Default to Device for v3 backwards compat — v4 uses proof_request instead.
@@ -549,6 +617,7 @@ impl IDKitConfigWasm {
                         "staging" => crate::bridge::Environment::Staging,
                         _ => crate::bridge::Environment::Production,
                     }),
+                    identity_attributes: None,
                 })
             }
             Self::CreateSession {
@@ -571,7 +640,7 @@ impl IDKitConfigWasm {
                 Ok(crate::bridge::BridgeConnectionParams {
                     app_id,
                     kind: crate::bridge::RequestKind::CreateSession,
-                    constraints: Some(constraints),
+                    constraints,
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
                     // Default to Device for v3 backwards compat — v4 uses proof_request instead.
@@ -586,6 +655,7 @@ impl IDKitConfigWasm {
                         "staging" => crate::bridge::Environment::Staging,
                         _ => crate::bridge::Environment::Production,
                     }),
+                    identity_attributes: None,
                 })
             }
             Self::ProveSession {
@@ -611,7 +681,7 @@ impl IDKitConfigWasm {
                     kind: crate::bridge::RequestKind::ProveSession {
                         session_id: session_id.clone(),
                     },
-                    constraints: Some(constraints),
+                    constraints,
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
                     // Default to Device for v3 backwards compat — v4 uses proof_request instead.
@@ -626,6 +696,7 @@ impl IDKitConfigWasm {
                         "staging" => crate::bridge::Environment::Staging,
                         _ => crate::bridge::Environment::Production,
                     }),
+                    identity_attributes: None,
                 })
             }
         }
@@ -640,11 +711,16 @@ impl IDKitConfigWasm {
                 "Presets are not supported for session flows. Use .constraints() instead.",
             ));
         }
-        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
-        let mut params = self.to_params(constraints)?;
-        params.constraints = None;
-        params.legacy_verification_level = legacy_verification_level;
-        params.legacy_signal = legacy_signal.unwrap_or_default();
+        let bridge_params = preset.into_bridge_params();
+        let mut params = self.to_params(bridge_params.constraints)?;
+        params.legacy_verification_level = bridge_params
+            .legacy_verification_level
+            .unwrap_or(crate::VerificationLevel::Device);
+        params.legacy_signal = bridge_params.legacy_signal.unwrap_or_default();
+        params.identity_attributes = bridge_params.identity_attributes;
+        if let Some(v) = bridge_params.allow_legacy_proofs_override {
+            params.allow_legacy_proofs = v;
+        }
         Ok(params)
     }
 }
@@ -752,7 +828,7 @@ impl IDKitBuilderWasm {
         let constraints: ConstraintNode = serde_wasm_bindgen::from_value(constraints_json)
             .map_err(|e| JsValue::from_str(&format!("Invalid constraints: {e}")))?;
 
-        let params = self.config.to_params(constraints)?;
+        let params = self.config.to_params(Some(constraints))?;
 
         let payload = crate::bridge::build_request_payload(&params, true)
             .map_err(|e| JsValue::from_str(&format!("Failed to build payload: {e}")))?;
@@ -903,7 +979,7 @@ impl IDKitBuilderWasm {
             let constraints: ConstraintNode = serde_wasm_bindgen::from_value(constraints_json)
                 .map_err(|e| JsValue::from_str(&format!("Invalid constraints: {e}")))?;
 
-            let params = config.to_params(constraints)?;
+            let params = config.to_params(Some(constraints))?;
             let connection = crate::bridge::BridgeConnection::create(params)
                 .await
                 .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
@@ -927,6 +1003,44 @@ impl IDKitBuilderWasm {
                 .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
 
             Ok(JsValue::from(IDKitRequest {
+                inner: Rc::new(RefCell::new(Some(connection))),
+            }))
+        })
+    }
+
+    /// Creates an invite-code mode `BridgeConnection` with the given constraints (WDP-73).
+    #[wasm_bindgen(js_name = constraintsWithInviteCode)]
+    pub fn constraints_with_invite_code(self, constraints_json: JsValue) -> js_sys::Promise {
+        let config = self.config;
+        future_to_promise(async move {
+            let constraints: ConstraintNode = serde_wasm_bindgen::from_value(constraints_json)
+                .map_err(|e| JsValue::from_str(&format!("Invalid constraints: {e}")))?;
+
+            let params = config.to_params(Some(constraints))?;
+            let connection = crate::bridge::BridgeConnection::create_for_invite_code(params)
+                .await
+                .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
+
+            Ok(JsValue::from(IDKitInviteCodeRequest {
+                inner: Rc::new(RefCell::new(Some(connection))),
+            }))
+        })
+    }
+
+    /// Creates an invite-code mode `BridgeConnection` from a preset (WDP-73).
+    #[wasm_bindgen(js_name = presetWithInviteCode)]
+    pub fn preset_with_invite_code(self, preset_json: JsValue) -> js_sys::Promise {
+        let config = self.config;
+        future_to_promise(async move {
+            let preset: Preset = serde_wasm_bindgen::from_value(preset_json)
+                .map_err(|e| JsValue::from_str(&format!("Invalid preset: {e}")))?;
+
+            let params = config.to_params_from_preset(preset)?;
+            let connection = crate::bridge::BridgeConnection::create_for_invite_code(params)
+                .await
+                .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
+
+            Ok(JsValue::from(IDKitInviteCodeRequest {
                 inner: Rc::new(RefCell::new(Some(connection))),
             }))
         })
@@ -1073,45 +1187,147 @@ impl IDKitRequest {
         let inner = self.inner.clone();
 
         future_to_promise(async move {
-            // Take request temporarily for async operation
-            let request = inner
-                .borrow_mut()
-                .take()
-                .ok_or_else(|| JsValue::from_str("Request closed"))?;
-
-            let status = request
-                .poll_for_status()
-                .await
-                .map_err(|e| JsValue::from_str(&format!("Poll failed: {e}")))?;
-
-            // Put request back
-            *inner.borrow_mut() = Some(request);
-
-            // Convert Rust Status enum to plain JS object
-            // Use serialize_maps_as_objects(true) to return plain objects instead of Maps
-            let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
-
-            let js_status = match status {
-                crate::Status::WaitingForConnection => {
-                    serde_json::json!({"type": "waiting_for_connection"}).serialize(&serializer)
-                }
-                crate::Status::AwaitingConfirmation => {
-                    serde_json::json!({"type": "awaiting_confirmation"}).serialize(&serializer)
-                }
-                crate::Status::Confirmed(result) => {
-                    serde_json::json!({"type": "confirmed", "result": result})
-                        .serialize(&serializer)
-                }
-                crate::Status::Failed(error) => {
-                    serde_json::json!({"type": "failed", "error": serde_json::to_value(error).unwrap_or_else(|_| serde_json::Value::String(format!("{error:?}")))})
-                        .serialize(&serializer)
-                }
-            }
-            .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))?;
-
-            Ok(js_status)
+            let status = poll_taking_inner(&inner).await?;
+            status_to_js_value(&status)
         })
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Invite-code mode WASM wrapper (WDP-73)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Invite-code mode bridge session.
+///
+/// Sibling to `IDKitRequest` for the URL/QR path. Method names mirror the URL
+/// wrapper exactly so adopters writing a code-mode integration write the same
+/// poll loop they wrote in URL mode — only the constructor and the
+/// displayable `code()` differ.
+#[wasm_bindgen]
+pub struct IDKitInviteCodeRequest {
+    #[wasm_bindgen(skip)]
+    inner: Rc<RefCell<Option<crate::BridgeConnection>>>,
+}
+
+#[wasm_bindgen]
+impl IDKitInviteCodeRequest {
+    /// Returns the connector URL the RP should display to the user.
+    ///
+    /// This is the same URL shape the URL/QR mode produces, with two extra
+    /// query params (`c=<canonical_code>`, `a=<app_id>`) the `world.org/verify`
+    /// landing page uses to render an invite-code-aware view.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request has been closed.
+    #[wasm_bindgen(js_name = connectUrl)]
+    pub fn connect_url(&self) -> Result<String, JsValue> {
+        self.inner
+            .borrow()
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("Request closed"))
+            .map(crate::BridgeConnection::connect_url)
+    }
+
+    /// Unix-seconds expiry of the unredeemed code.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request has been closed.
+    #[wasm_bindgen(js_name = expiresAt)]
+    pub fn expires_at(&self) -> Result<f64, JsValue> {
+        self.inner
+            .borrow()
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("Request closed"))
+            .map(|s| {
+                #[allow(clippy::cast_precision_loss)]
+                {
+                    s.code_expires_at()
+                        .expect("invite-code wrapper always has code_expires_at populated")
+                        as f64
+                }
+            })
+    }
+
+    /// Returns the request ID for this request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request has been closed.
+    #[wasm_bindgen(js_name = requestId)]
+    pub fn request_id(&self) -> Result<String, JsValue> {
+        self.inner
+            .borrow()
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("Request closed"))
+            .map(|s| s.request_id().to_string())
+    }
+
+    /// Polls the bridge for the current status (non-blocking).
+    ///
+    /// Mirrors `IDKitRequest::pollForStatus` exactly — same status shape,
+    /// same close semantics. Adopters use the same poll loop they wrote for
+    /// URL mode.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request has been closed or the poll fails.
+    #[wasm_bindgen(js_name = pollForStatus)]
+    pub fn poll_for_status(&self) -> js_sys::Promise {
+        let inner = self.inner.clone();
+
+        future_to_promise(async move {
+            let status = poll_taking_inner(&inner).await?;
+            status_to_js_value(&status)
+        })
+    }
+}
+
+/// Polls a `BridgeConnection` while taking it out of the `Rc<RefCell<Option<…>>>`
+/// for the await, then **always** puts it back — including on poll error.
+///
+/// Without this, a transient network blip would cause the `?` on the poll
+/// result to drop out of scope before the request is reinserted, leaving
+/// `inner` as `None` and turning every subsequent poll into a hard "Request
+/// closed" failure (which has the same shape as a deliberately-closed
+/// request, making it indistinguishable from a real teardown).
+async fn poll_taking_inner(
+    inner: &Rc<RefCell<Option<crate::BridgeConnection>>>,
+) -> Result<crate::Status, JsValue> {
+    let request = inner
+        .borrow_mut()
+        .take()
+        .ok_or_else(|| JsValue::from_str("Request closed"))?;
+
+    let result = request.poll_for_status().await;
+    *inner.borrow_mut() = Some(request);
+
+    result.map_err(|e| JsValue::from_str(&format!("Poll failed: {e}")))
+}
+
+/// Converts a Rust `Status` to a plain JS object via
+/// `serialize_maps_as_objects(true)` so JS sees `{ type: "..." }` instead of a
+/// `Map`. Pulled out so both URL/QR and invite-code wrappers can reuse it.
+fn status_to_js_value(status: &crate::Status) -> Result<JsValue, JsValue> {
+    let ser = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+
+    let result = match status {
+        crate::Status::WaitingForConnection => {
+            serde_json::json!({"type": "waiting_for_connection"}).serialize(&ser)
+        }
+        crate::Status::AwaitingConfirmation => {
+            serde_json::json!({"type": "awaiting_confirmation"}).serialize(&ser)
+        }
+        crate::Status::Confirmed(result) => {
+            serde_json::json!({"type": "confirmed", "result": result}).serialize(&ser)
+        }
+        crate::Status::Failed(error) => {
+            serde_json::json!({"type": "failed", "error": serde_json::to_value(error).unwrap_or_else(|_| serde_json::Value::String(format!("{error:?}")))}).serialize(&ser)
+        }
+    };
+
+    result.map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
 }
 
 // TypeScript type definitions
@@ -1247,6 +1463,19 @@ export interface IDKitResultSession {
  */
 export type IDKitResult = IDKitResultV3 | IDKitResultV4 | IDKitResultSession;
 
+/** Options used to convert a protocol ProofResponse into IDKitResult */
+export interface ProofResponseToIDKitResultOptions {
+    nonce: string;
+    action?: string;
+    action_description?: string;
+    environment?: "production" | "staging";
+    signal_hashes?: Record<string, string>;
+    identity_attested?: boolean;
+}
+
+/** Converts a protocol ProofResponse payload into the public IDKitResult shape. */
+export function proofResponseToIDKitResult(proofResponse: unknown, options: ProofResponseToIDKitResultOptions): IDKitResult;
+
 /** Configuration for session requests (no action field, v4 only) */
 export interface IDKitSessionConfig {
     /** Application ID from the Developer Portal */
@@ -1280,6 +1509,8 @@ export type IDKitErrorCode =
     | "user_rejected"
     | "verification_rejected"
     | "credential_unavailable"
+    | "world_id_4_not_available"
+    | "world_id_3_not_available"
     | "malformed_request"
     | "invalid_network"
     | "inclusion_proof_pending"
@@ -1288,6 +1519,16 @@ export type IDKitErrorCode =
     | "connection_failed"
     | "max_verifications_reached"
     | "failed_by_host_app"
+    | "invalid_rp_signature"
+    | "nullifier_replayed"
+    | "duplicate_nonce"
+    | "unknown_rp"
+    | "inactive_rp"
+    | "timestamp_too_old"
+    | "timestamp_too_far_in_future"
+    | "invalid_timestamp"
+    | "rp_signature_expired"
+    | "identity_attributes_not_matched"
     | "generic_error";
 
 /** Status returned from pollForStatus() */
@@ -1438,7 +1679,7 @@ mod tests {
         };
 
         let params = config
-            .to_params(ConstraintNode::Any { any: Vec::new() })
+            .to_params(Some(ConstraintNode::Any { any: Vec::new() }))
             .expect("request params");
 
         assert_eq!(
@@ -1460,7 +1701,7 @@ mod tests {
         };
 
         let params = config
-            .to_params(ConstraintNode::Any { any: Vec::new() })
+            .to_params(Some(ConstraintNode::Any { any: Vec::new() }))
             .expect("create session params");
 
         assert_eq!(
@@ -1483,7 +1724,7 @@ mod tests {
         };
 
         let params = config
-            .to_params(ConstraintNode::Any { any: Vec::new() })
+            .to_params(Some(ConstraintNode::Any { any: Vec::new() }))
             .expect("prove session params");
 
         assert_eq!(

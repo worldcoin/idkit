@@ -6,12 +6,12 @@ use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
     types::{
-        AppId, BridgeResponseV1, BridgeUrl, IDKitResult, ResponseItem, RpContext, VerificationLevel,
+        AppId, BridgeResponseV1, BridgeUrl, IDKitResult, IdentityAttribute, ResponseItem,
+        RpContext, VerificationLevel,
     },
     ConstraintNode, Signal,
 };
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use world_id_primitives::{FieldElement, ProofRequest, SessionId};
 
 #[cfg(feature = "native-crypto")]
@@ -111,6 +111,11 @@ struct BridgeRequestPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     proof_request: Option<ProofRequest>,
 
+    /// Optional identity attribute filters for identity-attestation presets.
+    /// Only present for World ID 4.0 identity check requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    identity_attributes: Option<Vec<IdentityAttribute>>,
+
     /// Whether to accept legacy (v3) proofs as fallback.
     /// - `true`: Accept both v3 and v4 proofs. Use during migration.
     /// - `false`: Only accept v4 proofs. Use after migration cutoff or for new apps.
@@ -118,6 +123,10 @@ struct BridgeRequestPayload {
 
     /// Environment for the bridge request
     environment: Environment,
+
+    /// Optional deep-link callback URL for the World App to redirect to after verification.
+    #[serde(skip_serializing_if = "Option::is_none", rename = "return_to_url")]
+    return_to: Option<String>,
 }
 
 /// Encrypted payload sent to/from the bridge
@@ -130,13 +139,31 @@ pub struct EncryptedPayload {
     pub payload: String,
 }
 
-/// Response from bridge when creating a request
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)]
-struct BridgeCreateResponse {
-    /// Unique request ID
-    request_id: Uuid,
+/// Body sent on `POST /request`. `request_id` is optional: when present, the
+/// bridge stores under that key with NX semantics (409 on collision); when
+/// absent, the bridge generates a UUID v4. Invite-code mode supplies
+/// `Some(HKDF(C, "dx"))`; the URL/QR path leaves it `None` and accepts the
+/// bridge's UUID.
+#[derive(Debug, Serialize)]
+struct CreateRequestBody {
+    iv: String,
+    payload: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    request_id: Option<String>,
 }
+
+/// Response from bridge when creating a request. `request_id` is now an
+/// opaque string — UUID v4 in URL/QR mode, hex-encoded HKDF output in code
+/// mode.
+#[derive(Debug, Deserialize)]
+struct BridgeCreateResponse {
+    request_id: String,
+}
+
+/// TTL applied to an invite-code request by the bridge (`EXPIRE_AFTER_SECONDS`
+/// in wallet-bridge). Used to compute `code_expires_at` locally since the
+/// bridge no longer returns it on `POST /request`.
+const INVITE_CODE_TTL_SECONDS: u64 = 900;
 
 /// Response from bridge when polling for status
 #[derive(Debug, Deserialize)]
@@ -207,6 +234,69 @@ impl ResponseItem {
     }
 }
 
+/// Converts a protocol `ProofResponse` to the public `IDKitResult` shape.
+///
+/// This keeps bridge and native `MiniKit` transports on the same parsing path for
+/// proof encoding, nullifier encoding, session nullifiers, and signal hashes.
+///
+/// # Errors
+///
+/// Returns an error when the proof response carries a protocol-level error,
+/// contains an unexpected response item shape, or contains a session ID that
+/// cannot be serialized to the public string format.
+pub fn proof_response_to_idkit_result<S: std::hash::BuildHasher>(
+    proof_response: world_id_primitives::ProofResponse,
+    nonce: String,
+    action: Option<String>,
+    action_description: Option<String>,
+    environment: Option<Environment>,
+    signal_hashes: &std::collections::HashMap<String, String, S>,
+    identity_attested: Option<bool>,
+) -> Result<IDKitResult> {
+    if let Some(error_code) = proof_response.error.as_deref() {
+        return Err(Error::AppError(AppError::from_code(error_code)));
+    }
+
+    let responses: Vec<ResponseItem> = proof_response
+        .responses
+        .into_iter()
+        .map(|item| {
+            let signal_hash = signal_hashes.get(&item.identifier).cloned();
+            ResponseItem::from_protocol_item(item, signal_hash)
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    let environment = environment.unwrap_or_default().to_string();
+
+    if let Some(session_id) = proof_response.session_id {
+        Ok(IDKitResult::new_session(
+            nonce,
+            serde_json::to_value(session_id)?
+                .as_str()
+                .ok_or_else(|| {
+                    Error::InvalidConfiguration(
+                        "SessionId did not serialize as a string".to_string(),
+                    )
+                })?
+                .to_owned(),
+            action_description,
+            responses,
+            environment,
+        ))
+    } else {
+        let mut result = IDKitResult::new(
+            "4.0",
+            nonce,
+            action,
+            action_description,
+            responses,
+            environment,
+        );
+        result.identity_attested = identity_attested;
+        Ok(result)
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Bridge Response Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -220,6 +310,12 @@ enum BridgeResponse {
 
     /// World ID 4.0 protocol response
     ResponseV2(world_id_primitives::ProofResponse),
+
+    /// World ID 4.0 protocol response with extensions
+    ResponseV2_1 {
+        proof_response: world_id_primitives::ProofResponse,
+        identity_attested: Option<bool>,
+    },
 
     /// Multi-credential legacy: bridge sends v3 proofs via `legacy_responses`
     MultiLegacyResponse {
@@ -265,6 +361,8 @@ pub struct BridgeConnectionParams {
     pub return_to: Option<String>,
     /// Optional environment override (defaults to Production when not specified)
     pub environment: Option<Environment>,
+    /// Present only on World ID 4.0 requests created from `IdentityCheck` presets
+    pub identity_attributes: Option<Vec<IdentityAttribute>>,
 }
 
 /// A helper struct to cache the signal hashes of a request
@@ -329,7 +427,11 @@ pub struct BridgeConnection {
     #[cfg(feature = "native-crypto")]
     key: CryptoKey,
     key_bytes: Vec<u8>,
-    request_id: Uuid,
+    request_id: String,
+    /// Application ID, kept on the struct so `connect_url()` can stamp it
+    /// onto the connector URL as the `a` query param (consumed by the
+    /// `world.org/verify` landing page in invite-code mode).
+    app_id: String,
     client: reqwest::Client,
     /// Cached signal hashes of the request
     /// Used to add the `signal_hash` back to the idkit response for convenience
@@ -346,6 +448,11 @@ pub struct BridgeConnection {
     return_to: Option<String>,
     /// Resolved environment for this connection
     environment: Environment,
+    // ─── Invite-code mode (WDP-73) — None for the legacy URL/QR path ────────
+    /// Canonical 6-char Crockford Base32 invite code shown to the user.
+    pub(crate) invite_code: Option<String>,
+    /// Unix-seconds expiry of the unredeemed code.
+    pub(crate) code_expires_at: Option<u64>,
 }
 
 /// Builds a `BridgeRequestPayload` from params without connecting to the bridge.
@@ -440,11 +547,13 @@ pub fn build_request_payload(
         action: action_str,
         action_description: params.action_description.clone(),
         proof_request,
+        identity_attributes: params.identity_attributes.clone(),
         verification_level: params.legacy_verification_level,
         signal: legacy_signal_hash,
         timestamp,
         allow_legacy_proofs: params.allow_legacy_proofs,
         environment: params.environment.unwrap_or_default(),
+        return_to: params.return_to.clone(),
     };
 
     serde_json::to_value(&payload).map_err(Into::into)
@@ -536,9 +645,11 @@ impl BridgeConnection {
         #[cfg(not(feature = "native-crypto"))]
         let encrypted = encrypt(&key_bytes, &nonce_bytes, &payload_json)?;
 
-        let encrypted_payload = EncryptedPayload {
+        let body = CreateRequestBody {
             iv: base64_encode(&nonce_bytes),
             payload: base64_encode(&encrypted),
+            // URL/QR mode lets the bridge mint the request_id (UUID v4).
+            request_id: None,
         };
 
         // Send to bridge
@@ -548,7 +659,7 @@ impl BridgeConnection {
 
         let response = client
             .post(bridge_url.join("/request")?)
-            .json(&encrypted_payload)
+            .json(&body)
             .send()
             .await?;
 
@@ -574,12 +685,15 @@ impl BridgeConnection {
             _ => None,
         };
 
+        let app_id = params.app_id.as_str().to_string();
+
         Ok(Self {
             bridge_url,
             #[cfg(feature = "native-crypto")]
             key,
             key_bytes: key_bytes.to_vec(),
             request_id: create_response.request_id,
+            app_id,
             client,
             cached_signal_hashes,
             action,
@@ -588,10 +702,59 @@ impl BridgeConnection {
             override_connect_base_url: params.override_connect_base_url,
             return_to: params.return_to,
             environment: params.environment.unwrap_or_default(),
+            invite_code: None,
+            code_expires_at: None,
         })
     }
 
-    /// Returns the connect URL for World App
+    /// Creates a new bridge connection in invite-code mode (WDP-73).
+    ///
+    /// Generates a fresh 6-char Crockford Base32 code, derives `index` and
+    /// `K` from it via HKDF-SHA256, encrypts the request payload with `K`,
+    /// and posts the new shape to `POST /request`. The encryption key never
+    /// reaches the bridge — only the index and ciphertext do.
+    ///
+    /// Retries once on a 409 conflict (vanishingly rare collision on the
+    /// `code:idx:<index>` lookup; ~10⁻¹⁰ across two attempts at realistic
+    /// active-code rates). Beyond that, surfaces the error — sustained
+    /// collisions indicate a bridge or entropy-budget misconfiguration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request cannot be created or the bridge call
+    /// fails after retries.
+    #[allow(dead_code)]
+    pub(crate) async fn create_for_invite_code(params: BridgeConnectionParams) -> Result<Self> {
+        const MAX_ATTEMPTS: u8 = 2;
+
+        // Silent retry: a single collision is statistically expected zero
+        // times across the lifetime of a healthy deployment. If we ever burn
+        // both attempts, the BridgeError surfaces with enough detail for the
+        // caller's log infrastructure to flag it.
+        for attempt in 1..=MAX_ATTEMPTS {
+            match try_create_invite_code_request(&params).await {
+                Ok(connection) => return Ok(connection),
+                Err(CreateCodeError::Conflict) if attempt < MAX_ATTEMPTS => {}
+                Err(CreateCodeError::Conflict) => {
+                    return Err(Error::BridgeError(
+                        "invite-code index collision after retries — bridge or entropy budget misconfigured"
+                            .to_string(),
+                    ));
+                }
+                Err(CreateCodeError::Other(e)) => return Err(e),
+            }
+        }
+        unreachable!("loop returns or errors on the final attempt")
+    }
+
+    /// Returns the connect URL for World App.
+    ///
+    /// In URL/QR mode this is the deeplink that opens World App. In
+    /// invite-code mode it is the same URL with `&c=<canonical_code>&a=<app_id>`
+    /// appended; the `world.org/verify` server inspects those params and
+    /// renders a landing page that displays the code (rather than redirecting
+    /// straight into World App). Backwards-compatible: clients that ignore
+    /// `c` / `a` see the original URL/QR-mode shape.
     #[must_use]
     pub fn connect_url(&self) -> String {
         let key_b64 = base64_encode(&self.key_bytes);
@@ -607,6 +770,15 @@ impl BridgeConnection {
             .filter(|value| !value.is_empty())
             .map(|value| format!("&return_to={}", urlencoding::encode(value)))
             .unwrap_or_default();
+        // Invite-code mode adds `c` (canonical code) and `a` (app id). The
+        // canonical code is Crockford Base32, so it's URL-safe by construction
+        // and doesn't need percent-encoding; the app id is too, but we encode
+        // it defensively in case the format ever loosens.
+        let invite_code_params = self
+            .invite_code
+            .as_deref()
+            .map(|code| format!("&c={}&a={}", code, urlencoding::encode(&self.app_id)))
+            .unwrap_or_default();
 
         let base_url = self
             .override_connect_base_url
@@ -614,16 +786,23 @@ impl BridgeConnection {
             .unwrap_or("https://world.org/verify");
 
         format!(
-            "{}?t=wld&i={}&k={}{}{}",
+            "{}?t=wld&i={}&k={}{}{}{}",
             base_url,
             self.request_id,
             urlencoding::encode(&key_b64),
             return_to_param,
-            bridge_param
+            bridge_param,
+            invite_code_params
         )
     }
 
     /// Polls the bridge for the current status (non-blocking)
+    ///
+    /// `GET /response/:id` is unauthenticated for both URL/QR and invite-code
+    /// modes. The endpoint returns AES-GCM ciphertext keyed under a secret
+    /// (the URL fragment key in QR mode, or HKDF(code, "key") in code mode)
+    /// that never reaches the bridge — encryption is the security boundary,
+    /// not endpoint auth.
     ///
     /// # Errors
     ///
@@ -667,49 +846,12 @@ impl BridgeConnection {
                 match bridge_response {
                     BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
                     BridgeResponse::ResponseV2(proof_response) => {
-                        // Check for protocol-level error
-                        if proof_response.error.is_some() {
-                            return Ok(Status::Failed(AppError::GenericError));
-                        }
-
-                        let responses: Vec<ResponseItem> = proof_response
-                            .responses
-                            .into_iter()
-                            .map(|item| {
-                                let signal_hash = self.cached_signal_hashes.get(&item.identifier);
-                                ResponseItem::from_protocol_item(item, signal_hash)
-                            })
-                            .collect::<Result<Vec<_>>>()?;
-
-                        Ok(Status::Confirmed(
-                            if let Some(session_id) = proof_response.session_id {
-                                IDKitResult::new_session(
-                                    self.nonce.clone(),
-                                    serde_json::to_value(session_id)?
-                                        .as_str()
-                                        .ok_or_else(|| {
-                                            Error::InvalidConfiguration(
-                                                "SessionId did not serialize as a string"
-                                                    .to_string(),
-                                            )
-                                        })?
-                                        .to_owned(),
-                                    self.action_description.clone(),
-                                    responses,
-                                    self.environment.as_ref(),
-                                )
-                            } else {
-                                IDKitResult::new(
-                                    "4.0",
-                                    self.nonce.clone(),
-                                    self.action.clone(),
-                                    self.action_description.clone(),
-                                    responses,
-                                    self.environment.as_ref(),
-                                )
-                            },
-                        ))
+                        self.handle_bridge_v2_response(proof_response, None)
                     }
+                    BridgeResponse::ResponseV2_1 {
+                        proof_response,
+                        identity_attested,
+                    } => self.handle_bridge_v2_response(proof_response, identity_attested),
                     BridgeResponse::MultiLegacyResponse { legacy_responses } => {
                         let responses: Vec<ResponseItem> = legacy_responses
                             .into_iter()
@@ -752,11 +894,194 @@ impl BridgeConnection {
         }
     }
 
-    /// Returns the request ID for this request
-    #[must_use]
-    pub const fn request_id(&self) -> Uuid {
-        self.request_id
+    fn handle_bridge_v2_response(
+        &self,
+        proof_response: world_id_primitives::ProofResponse,
+        identity_attested: Option<bool>,
+    ) -> Result<Status> {
+        // Check for protocol-level error
+        if let Some(error_code) = proof_response.error.as_deref() {
+            return Ok(Status::Failed(AppError::from_code(error_code)));
+        }
+
+        Ok(Status::Confirmed(proof_response_to_idkit_result(
+            proof_response,
+            self.nonce.clone(),
+            self.action.clone(),
+            self.action_description.clone(),
+            Some(self.environment),
+            &self.cached_signal_hashes.signal_hashes,
+            identity_attested,
+        )?))
     }
+
+    /// Returns the request ID for this request.
+    ///
+    /// In URL/QR mode this is a UUID v4 generated by the bridge; in
+    /// invite-code mode it is the lowercase-hex `HKDF(C, "dx")` the RP sent
+    /// on `POST /request`.
+    #[must_use]
+    pub fn request_id(&self) -> &str {
+        &self.request_id
+    }
+
+    /// Unix-seconds expiry of the unredeemed code, if this connection was
+    /// created in invite-code mode.
+    #[must_use]
+    pub const fn code_expires_at(&self) -> Option<u64> {
+        self.code_expires_at
+    }
+}
+
+/// Internal error type for the invite-code create path. Lets the retry loop
+/// distinguish 409-on-collision (retryable) from anything else (not).
+enum CreateCodeError {
+    Conflict,
+    Other(Error),
+}
+
+impl From<Error> for CreateCodeError {
+    fn from(e: Error) -> Self {
+        Self::Other(e)
+    }
+}
+
+/// Current Unix-seconds, branching on target. `std::time::SystemTime::now()`
+/// panics on `wasm32-unknown-unknown` (no system clock); the WASM build uses
+/// `js_sys::Date::now()` against the host's clock instead.
+fn current_unix_seconds() -> Result<u64> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let ms = js_sys::Date::now();
+        if !ms.is_finite() || ms < 0.0 {
+            return Err(Error::BridgeError(
+                "host clock returned a non-finite or negative timestamp".into(),
+            ));
+        }
+        Ok((ms / 1000.0) as u64)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .map_err(|_| Error::BridgeError("system time before UNIX epoch".into()))
+    }
+}
+
+#[allow(dead_code)]
+async fn try_create_invite_code_request(
+    params: &BridgeConnectionParams,
+) -> std::result::Result<BridgeConnection, CreateCodeError> {
+    use crate::crypto::{
+        generate_invite_code, generate_nonce, hkdf_invite_index_hex, hkdf_invite_key,
+    };
+
+    let code = generate_invite_code()?;
+    let key_bytes = hkdf_invite_key(&code);
+    // HKDF(C, "dx") becomes the request_id we hand to the bridge directly —
+    // no separate `index` field. The bridge has been simplified to a generic
+    // content-addressable single-use store keyed by any opaque string.
+    let request_id = hkdf_invite_index_hex(&code);
+
+    // The AES-GCM nonce is fresh-random per request. Deriving it from the
+    // code would reuse the same (K, IV) pair across any retry for that code,
+    // breaking AES-GCM's contract — and the code is single-use anyway, so
+    // there's nothing to gain from determinism.
+    let nonce_bytes = generate_nonce()?;
+
+    let payload_value = build_request_payload(params, false)?;
+    let payload_json = serde_json::to_vec(&payload_value).map_err(Error::from)?;
+    let encrypted = encrypt(&key_bytes, &nonce_bytes, &payload_json)?;
+
+    let body = CreateRequestBody {
+        iv: base64_encode(&nonce_bytes),
+        payload: base64_encode(&encrypted),
+        request_id: Some(request_id.clone()),
+    };
+
+    let cached_signal_hashes = CachedSignalHashes::compute(params);
+    let bridge_url = params.bridge_url.clone().unwrap_or_default();
+    let client = reqwest::Client::builder()
+        .user_agent(format!("idkit-core/{}", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(Error::from)?;
+
+    let response = client
+        .post(bridge_url.join("/request")?)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| Error::BridgeError(format!("Bridge request failed: {e}")))?;
+
+    if response.status() == reqwest::StatusCode::CONFLICT {
+        return Err(CreateCodeError::Conflict);
+    }
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        return Err(Error::BridgeError(format!(
+            "Bridge /request (code) failed with status {status}: {}",
+            if body.is_empty() {
+                "no error details"
+            } else {
+                &body
+            }
+        ))
+        .into());
+    }
+
+    // Validate that the bridge stored the request under the id we sent.
+    // World App will derive the same id from the user-typed code and read via
+    // `GET /request/:request_id`; if a misbehaving bridge or proxy silently
+    // assigned a different id, the request would never be retrievable from
+    // the World App side and we'd fail in a confusing way much later in the
+    // poll loop. Catching the mismatch here surfaces the contract violation
+    // at creation time.
+    let echoed: BridgeCreateResponse = response
+        .json()
+        .await
+        .map_err(|e| Error::BridgeError(format!("Failed to parse bridge response: {e}")))?;
+    if echoed.request_id != request_id {
+        return Err(Error::BridgeError(format!(
+            "Bridge echoed mismatched request_id (sent {request_id}, got {})",
+            echoed.request_id
+        ))
+        .into());
+    }
+
+    // Bridge no longer reports the unredeemed-code expiry; it ships
+    // `EXPIRE_AFTER_SECONDS` (900s) on every row, including code-mode rows,
+    // so we synthesize the deadline here so adopters can still drive
+    // countdowns off `code_expires_at()`.
+    let code_expires_at = current_unix_seconds()? + INVITE_CODE_TTL_SECONDS;
+
+    let action = match &params.kind {
+        RequestKind::Uniqueness { action } => Some(action.clone()),
+        _ => None,
+    };
+
+    #[cfg(feature = "native-crypto")]
+    let key = CryptoKey::new(key_bytes, nonce_bytes);
+
+    Ok(BridgeConnection {
+        bridge_url,
+        #[cfg(feature = "native-crypto")]
+        key,
+        key_bytes: key_bytes.to_vec(),
+        request_id,
+        app_id: params.app_id.as_str().to_string(),
+        client,
+        cached_signal_hashes,
+        action,
+        action_description: params.action_description.clone(),
+        nonce: params.rp_context.nonce.clone(),
+        override_connect_base_url: params.override_connect_base_url.clone(),
+        return_to: params.return_to.clone(),
+        environment: params.environment.unwrap_or_default(),
+        invite_code: Some(code),
+        code_expires_at: Some(code_expires_at),
+    })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -869,6 +1194,7 @@ impl IDKitConfig {
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes: None,
                 })
             }
             Self::CreateSession(config) => {
@@ -893,6 +1219,7 @@ impl IDKitConfig {
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes: None,
                 })
             }
             Self::ProveSession { session_id, config } => {
@@ -919,6 +1246,7 @@ impl IDKitConfig {
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes: None,
                 })
             }
         }
@@ -937,7 +1265,14 @@ impl IDKitConfig {
             });
         }
 
-        let (_constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+        let bridge_params = preset.into_bridge_params();
+
+        // Default to Device so existing World App versions can still parse
+        // the bridge payload. V4 requests use `proof_request` for real
+        // credential selection; this field is only for v3 backwards compat.
+        let legacy_verification_level = bridge_params
+            .legacy_verification_level
+            .unwrap_or(VerificationLevel::Device);
 
         match self {
             Self::Request(config) => {
@@ -948,21 +1283,30 @@ impl IDKitConfig {
                     .map(|url| BridgeUrl::new(url, &app_id))
                     .transpose()?;
 
+                let allow_legacy_proofs =
+                    bridge_params
+                        .allow_legacy_proofs_override
+                        .unwrap_or(match self {
+                            Self::Request(config) => config.allow_legacy_proofs,
+                            Self::CreateSession(_) | Self::ProveSession { .. } => false,
+                        });
+
                 Ok(BridgeConnectionParams {
                     app_id,
                     kind: RequestKind::Uniqueness {
                         action: config.action.clone(),
                     },
-                    constraints: None,
+                    constraints: bridge_params.constraints,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
                     legacy_verification_level,
-                    legacy_signal: legacy_signal.unwrap_or_default(),
+                    legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
                     bridge_url,
-                    allow_legacy_proofs: config.allow_legacy_proofs,
+                    allow_legacy_proofs,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes: bridge_params.identity_attributes,
                 })
             }
             Self::CreateSession(config) => {
@@ -976,16 +1320,17 @@ impl IDKitConfig {
                 Ok(BridgeConnectionParams {
                     app_id,
                     kind: RequestKind::CreateSession,
-                    constraints: None,
+                    constraints: bridge_params.constraints,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
                     legacy_verification_level,
-                    legacy_signal: legacy_signal.unwrap_or_default(),
+                    legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes: bridge_params.identity_attributes,
                 })
             }
             Self::ProveSession { session_id, config } => {
@@ -1001,16 +1346,17 @@ impl IDKitConfig {
                     kind: RequestKind::ProveSession {
                         session_id: session_id.clone(),
                     },
-                    constraints: None,
+                    constraints: bridge_params.constraints,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
                     legacy_verification_level,
-                    legacy_signal: legacy_signal.unwrap_or_default(),
+                    legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
+                    identity_attributes: bridge_params.identity_attributes,
                 })
             }
         }
@@ -1111,6 +1457,59 @@ impl IDKitBuilder {
             inner,
             connect_url_mode: self.config.connect_url_mode(),
         }))
+    }
+
+    /// Creates an invite-code mode `BridgeConnection` with the given constraints (WDP-73).
+    ///
+    /// Same proof-request shape as `constraints()`; the only difference is the
+    /// transport layer — the user types a 6-char code into World App instead
+    /// of scanning a QR. Returns the displayable code via `IDKitInviteCodeRequest::code()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request cannot be created.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn constraints_with_invite_code(
+        &self,
+        constraints: Arc<ConstraintNode>,
+    ) -> std::result::Result<Arc<IDKitInviteCodeRequest>, crate::error::IdkitError> {
+        let runtime =
+            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
+                details: format!("Failed to create runtime: {e}"),
+            })?;
+
+        let params = self.config.to_params((*constraints).clone())?;
+
+        let inner = runtime
+            .block_on(BridgeConnection::create_for_invite_code(params))
+            .map_err(crate::error::IdkitError::from)?;
+
+        Ok(Arc::new(IDKitInviteCodeRequest { runtime, inner }))
+    }
+
+    /// Creates an invite-code mode `BridgeConnection` from a preset (WDP-73).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request cannot be created or the request type
+    /// doesn't support presets (sessions only support `constraints()`).
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn preset_with_invite_code(
+        &self,
+        preset: Preset,
+    ) -> std::result::Result<Arc<IDKitInviteCodeRequest>, crate::error::IdkitError> {
+        let runtime =
+            tokio::runtime::Runtime::new().map_err(|e| crate::error::IdkitError::BridgeError {
+                details: format!("Failed to create runtime: {e}"),
+            })?;
+
+        let params = self.config.to_params_from_preset(preset)?;
+
+        let inner = runtime
+            .block_on(BridgeConnection::create_for_invite_code(params))
+            .map_err(crate::error::IdkitError::from)?;
+
+        Ok(Arc::new(IDKitInviteCodeRequest { runtime, inner }))
     }
 }
 
@@ -1259,6 +1658,84 @@ impl IDKitRequestWrapper {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Invite-code mode UniFFI wrapper (WDP-73)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// FFI handle for an invite-code mode bridge session.
+///
+/// Sibling to `IDKitRequestWrapper` for the URL/QR path. Method names mirror
+/// the URL wrapper exactly so adopters writing a code-mode integration write
+/// the same poll loop they wrote in URL mode — only the constructor and the
+/// displayable `code()` differ.
+#[cfg(feature = "ffi")]
+#[derive(uniffi::Object)]
+pub struct IDKitInviteCodeRequest {
+    runtime: tokio::runtime::Runtime,
+    inner: BridgeConnection,
+}
+
+#[cfg(feature = "ffi")]
+#[uniffi::export]
+#[allow(clippy::needless_pass_by_value)]
+impl IDKitInviteCodeRequest {
+    /// Returns the connector URL the RP should display to the user.
+    ///
+    /// Same URL shape as URL/QR mode (`https://world.org/verify?t=wld&i=…&k=…`),
+    /// with two extra query params (`c=<canonical_code>`, `a=<app_id>`) the
+    /// `world.org/verify` landing page uses to render an invite-code-aware view.
+    #[must_use]
+    pub fn connect_url(&self) -> String {
+        self.inner.connect_url()
+    }
+
+    /// Unix-seconds expiry of the unredeemed code.
+    ///
+    /// # Panics
+    ///
+    /// Never panics in correct use — see `connect_url()`.
+    #[must_use]
+    pub fn expires_at(&self) -> u64 {
+        self.inner
+            .code_expires_at()
+            .expect("invite-code wrapper always has code_expires_at populated")
+    }
+
+    /// Returns the request ID for this request.
+    #[must_use]
+    pub fn request_id(&self) -> String {
+        self.inner.request_id().to_string()
+    }
+
+    /// Polls the request once for the current status.
+    ///
+    /// `poll_interval_ms` and `timeout_ms` are accepted for signature parity
+    /// with `IDKitRequestWrapper::poll_status` and ignored.
+    pub fn poll_status(
+        &self,
+        poll_interval_ms: Option<u64>,
+        timeout_ms: Option<u64>,
+    ) -> StatusWrapper {
+        let _ = (poll_interval_ms, timeout_ms);
+        self.poll_status_once()
+    }
+
+    /// Polls the request exactly once for updates.
+    pub fn poll_status_once(&self) -> StatusWrapper {
+        match self.runtime.block_on(self.inner.poll_for_status()) {
+            Ok(status) => status.into(),
+            Err(err) => {
+                let app_error = to_app_error(&err);
+                if is_networking_error(&err) {
+                    StatusWrapper::NetworkingError { error: app_error }
+                } else {
+                    StatusWrapper::Failed { error: app_error }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
@@ -1318,8 +1795,10 @@ mod tests {
             verification_level: VerificationLevel::Device,
             timestamp: None,
             proof_request: Some(proof_request),
+            identity_attributes: None,
             allow_legacy_proofs: false,
             environment: Environment::Production,
+            return_to: None,
         };
 
         let json = serde_json::to_string(&payload).unwrap();
@@ -1329,6 +1808,55 @@ mod tests {
         assert!(json.contains("proof_request"));
         assert!(json.contains("rp_1234567890abcdef"));
         assert!(json.contains("allow_legacy_proofs"));
+    }
+
+    #[test]
+    fn test_build_request_payload_serializes_identity_attributes() {
+        let app_id = AppId::new("app_test").unwrap();
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &("0x".to_string() + &"00".repeat(64) + "1b"),
+        )
+        .unwrap();
+        let constraints = ConstraintNode::any(vec![
+            ConstraintNode::item(CredentialRequest::new(CredentialType::Passport, None)),
+            ConstraintNode::item(CredentialRequest::new(CredentialType::Mnc, None)),
+        ]);
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::Uniqueness {
+                action: "test-action".to_string(),
+            },
+            constraints: Some(constraints),
+            rp_context,
+            action_description: Some("Identity check".to_string()),
+            legacy_verification_level: VerificationLevel::Device,
+            legacy_signal: String::new(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: Some(Environment::Production),
+            identity_attributes: Some(vec![
+                IdentityAttribute::MinimumAge(21),
+                IdentityAttribute::Nationality("JPN".to_string()),
+            ]),
+        };
+
+        let payload = build_request_payload(&params, false).unwrap();
+
+        assert_eq!(
+            payload["identity_attributes"],
+            serde_json::json!([
+                {"type": "minimum_age", "value": 21},
+                {"type": "nationality", "value": "JPN"}
+            ])
+        );
+        assert!(payload.get("proof_request").is_some());
     }
 
     #[test]
@@ -1479,10 +2007,225 @@ mod tests {
         assert!(matches!(response, BridgeResponse::Error { .. }));
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // BridgeResponse::ResponseV2 Parsing Tests
+    // ─────────────────────────────────────────────────────────────────────────
+
+    const ZERO_PROOF: &str = "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+    const ZERO_NULLIFIER: &str =
+        "nil_0000000000000000000000000000000000000000000000000000000000000000";
+
+    #[test]
+    fn test_bridge_response_v2_single_uniqueness_proof() {
+        let json = format!(
+            r#"{{
+                "id": "req_abc123",
+                "version": 1,
+                "responses": [{{
+                    "identifier": "orb",
+                    "issuer_schema_id": 1,
+                    "proof": "{ZERO_PROOF}",
+                    "nullifier": "{ZERO_NULLIFIER}",
+                    "expires_at_min": 1735689600
+                }}]
+            }}"#
+        );
+
+        let response: BridgeResponse = serde_json::from_str(&json).unwrap();
+        match response {
+            BridgeResponse::ResponseV2(proof_response) => {
+                assert_eq!(proof_response.id, "req_abc123");
+                assert!(proof_response.error.is_none());
+                assert_eq!(proof_response.responses.len(), 1);
+                assert_eq!(proof_response.responses[0].identifier, "orb");
+                assert_eq!(proof_response.responses[0].issuer_schema_id, 1);
+                assert!(proof_response.responses[0].nullifier.is_some());
+                assert!(proof_response.responses[0].session_nullifier.is_none());
+            }
+            other => panic!("Expected ResponseV2, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_bridge_response_v2_multiple_credentials() {
+        let json = format!(
+            r#"{{
+                "id": "req_multi",
+                "version": 1,
+                "responses": [
+                    {{
+                        "identifier": "orb",
+                        "issuer_schema_id": 1,
+                        "proof": "{ZERO_PROOF}",
+                        "nullifier": "{ZERO_NULLIFIER}",
+                        "expires_at_min": 1735689600
+                    }},
+                    {{
+                        "identifier": "passport",
+                        "issuer_schema_id": 9303,
+                        "proof": "{ZERO_PROOF}",
+                        "nullifier": "{ZERO_NULLIFIER}",
+                        "expires_at_min": 1735689600
+                    }}
+                ]
+            }}"#
+        );
+
+        let response: BridgeResponse = serde_json::from_str(&json).unwrap();
+        match response {
+            BridgeResponse::ResponseV2(proof_response) => {
+                assert_eq!(proof_response.responses.len(), 2);
+                assert_eq!(proof_response.responses[0].identifier, "orb");
+                assert_eq!(proof_response.responses[1].identifier, "passport");
+                assert_eq!(proof_response.responses[1].issuer_schema_id, 9303);
+            }
+            other => panic!("Expected ResponseV2, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_bridge_response_v2_protocol_level_error() {
+        let json = r#"{
+            "id": "req_failed",
+            "version": 1,
+            "error": "credential_not_found",
+            "responses": []
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        match response {
+            BridgeResponse::ResponseV2(proof_response) => {
+                assert!(proof_response.error.is_some());
+                assert_eq!(
+                    proof_response.error.as_deref(),
+                    Some("credential_not_found")
+                );
+                assert!(proof_response.responses.is_empty());
+            }
+            other => panic!("Expected ResponseV2, got: {other:?}"),
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // BridgeResponse::MultiLegacyResponse Parsing Tests
+    // ─────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_bridge_response_multi_legacy_single() {
+        let json = r#"{
+            "legacy_responses": [
+                {
+                    "proof": "0xproof",
+                    "merkle_root": "0xroot",
+                    "nullifier_hash": "0xnull",
+                    "verification_level": "orb"
+                }
+            ]
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        match response {
+            BridgeResponse::MultiLegacyResponse { legacy_responses } => {
+                assert_eq!(legacy_responses.len(), 1);
+                assert_eq!(
+                    legacy_responses[0].verification_level,
+                    VerificationLevel::Orb
+                );
+                assert_eq!(legacy_responses[0].proof, "0xproof");
+            }
+            other => panic!("Expected MultiLegacyResponse, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_bridge_response_multi_legacy_multiple() {
+        let json = r#"{
+            "legacy_responses": [
+                {
+                    "proof": "0xproof1",
+                    "merkle_root": "0xroot1",
+                    "nullifier_hash": "0xnull1",
+                    "verification_level": "orb"
+                },
+                {
+                    "proof": "0xproof2",
+                    "merkle_root": "0xroot2",
+                    "nullifier_hash": "0xnull2",
+                    "credential_type": "device"
+                }
+            ]
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        match response {
+            BridgeResponse::MultiLegacyResponse { legacy_responses } => {
+                assert_eq!(legacy_responses.len(), 2);
+                assert_eq!(
+                    legacy_responses[0].verification_level,
+                    VerificationLevel::Orb
+                );
+                assert_eq!(
+                    legacy_responses[1].verification_level,
+                    VerificationLevel::Device
+                );
+            }
+            other => panic!("Expected MultiLegacyResponse, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_bridge_response_new_error_codes_deserialization() {
+        let invalid_signature: BridgeResponse =
+            serde_json::from_str(r#"{"error_code": "invalid_rp_signature"}"#).unwrap();
+        assert!(matches!(
+            invalid_signature,
+            BridgeResponse::Error {
+                error_code: AppError::InvalidRpSignature
+            }
+        ));
+
+        let nullifier_replayed: BridgeResponse =
+            serde_json::from_str(r#"{"error_code": "nullifier_replayed"}"#).unwrap();
+        assert!(matches!(
+            nullifier_replayed,
+            BridgeResponse::Error {
+                error_code: AppError::NullifierReplayed
+            }
+        ));
+        assert_eq!(
+            AppError::from_code("nullifier_replay"),
+            AppError::NullifierReplayed
+        );
+
+        let cases = [
+            ("world_id_4_not_available", AppError::WorldId4NotAvailable),
+            ("world_id_3_not_available", AppError::WorldId3NotAvailable),
+            ("duplicate_nonce", AppError::DuplicateNonce),
+            ("unknown_rp", AppError::UnknownRp),
+            ("inactive_rp", AppError::InactiveRp),
+            ("timestamp_too_old", AppError::TimestampTooOld),
+            (
+                "timestamp_too_far_in_future",
+                AppError::TimestampTooFarInFuture,
+            ),
+            ("invalid_timestamp", AppError::InvalidTimestamp),
+            ("rp_signature_expired", AppError::RpSignatureExpired),
+        ];
+
+        for (code, expected) in cases {
+            let response: BridgeResponse =
+                serde_json::from_str(&format!(r#"{{"error_code": "{code}"}}"#)).unwrap();
+            match response {
+                BridgeResponse::Error { error_code } => assert_eq!(error_code, expected),
+                other => panic!("Expected error response for {code}, got: {other:?}"),
+            }
+        }
+    }
+
     #[test]
     fn test_selfie_check_legacy_preset_serializes_face_verification_level() {
         let preset = crate::preset::Preset::selfie_check_legacy(Some("face-signal".to_string()));
-        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+        let bridge_params = preset.into_bridge_params();
 
         let app_id = AppId::new("app_test").unwrap();
         let signature = "0x".to_string() + &"00".repeat(64) + "1b";
@@ -1500,17 +2243,20 @@ mod tests {
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
-            constraints: Some(constraints),
+            constraints: bridge_params.constraints,
             rp_context,
             action_description: Some("Selfie check".to_string()),
-            legacy_verification_level,
-            legacy_signal: legacy_signal.unwrap_or_default(),
+            legacy_verification_level: bridge_params
+                .legacy_verification_level
+                .expect("this preset should return legacy_verification_level"),
+            legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
             bridge_url: None,
             allow_legacy_proofs: false,
 
             override_connect_base_url: None,
             return_to: None,
             environment: Some(Environment::Production),
+            identity_attributes: None,
         };
 
         let payload = build_request_payload(&params, false).unwrap();
@@ -1520,7 +2266,7 @@ mod tests {
     #[test]
     fn test_device_legacy_preset_serializes_device_verification_level() {
         let preset = crate::preset::Preset::device_legacy(Some("device-signal".to_string()));
-        let (constraints, legacy_verification_level, legacy_signal) = preset.to_bridge_params();
+        let bridge_params = preset.into_bridge_params();
 
         let app_id = AppId::new("app_test").unwrap();
         let signature = "0x".to_string() + &"00".repeat(64) + "1b";
@@ -1538,17 +2284,20 @@ mod tests {
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
-            constraints: Some(constraints),
+            constraints: bridge_params.constraints,
             rp_context,
             action_description: Some("Device check".to_string()),
-            legacy_verification_level,
-            legacy_signal: legacy_signal.unwrap_or_default(),
+            legacy_verification_level: bridge_params
+                .legacy_verification_level
+                .expect("this preset should return legacy_verification_level"),
+            legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
             bridge_url: None,
             allow_legacy_proofs: false,
 
             override_connect_base_url: None,
             return_to: None,
             environment: Some(Environment::Production),
+            identity_attributes: None,
         };
 
         let payload = build_request_payload(&params, false).unwrap();
@@ -1611,6 +2360,7 @@ mod tests {
             override_connect_base_url: None,
             return_to: None,
             environment: None,
+            identity_attributes: None,
         };
 
         let payload = build_native_v1_payload(&params).unwrap();
@@ -1655,6 +2405,7 @@ mod tests {
             override_connect_base_url: None,
             return_to: None,
             environment: None,
+            identity_attributes: None,
         };
 
         // native=true includes timestamp
@@ -1664,6 +2415,77 @@ mod tests {
         // native=false omits timestamp
         let payload_bridge = build_request_payload(&params, false).unwrap();
         assert!(payload_bridge.get("timestamp").is_none());
+    }
+
+    #[test]
+    fn test_build_request_payload_includes_return_to_when_provided() {
+        let app_id = AppId::new("app_test").unwrap();
+        let sig = "0x".to_string() + &"00".repeat(64) + "1b";
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &sig,
+        )
+        .unwrap();
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::Uniqueness {
+                action: "my-action".to_string(),
+            },
+            constraints: None,
+            rp_context,
+            action_description: None,
+            legacy_verification_level: VerificationLevel::Orb,
+            legacy_signal: "test-signal".to_string(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            override_connect_base_url: None,
+            return_to: Some("idkitsample://callback".to_string()),
+            environment: None,
+            identity_attributes: None,
+        };
+
+        let payload = build_request_payload(&params, false).unwrap();
+        assert_eq!(payload["return_to_url"], "idkitsample://callback");
+        assert!(payload.get("return_to").is_none());
+    }
+
+    #[test]
+    fn test_build_request_payload_omits_return_to_when_none() {
+        let app_id = AppId::new("app_test").unwrap();
+        let sig = "0x".to_string() + &"00".repeat(64) + "1b";
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &sig,
+        )
+        .unwrap();
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::Uniqueness {
+                action: "my-action".to_string(),
+            },
+            constraints: None,
+            rp_context,
+            action_description: None,
+            legacy_verification_level: VerificationLevel::Orb,
+            legacy_signal: "test-signal".to_string(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: None,
+            identity_attributes: None,
+        };
+
+        let payload = build_request_payload(&params, false).unwrap();
+        assert!(payload.get("return_to_url").is_none());
     }
 
     #[test]
@@ -1701,6 +2523,7 @@ mod tests {
             override_connect_base_url: None,
             return_to: None,
             environment: None,
+            identity_attributes: None,
         };
 
         let cached = CachedSignalHashes::compute(&params);
@@ -1722,7 +2545,8 @@ mod tests {
             #[cfg(feature = "native-crypto")]
             key: crate::crypto::CryptoKey::new([0; 32], [0; 12]),
             key_bytes: vec![1, 2, 3, 4],
-            request_id: Uuid::parse_str("64e0ec6b-b4ca-47cc-8f70-504a95189e26").unwrap(),
+            request_id: "64e0ec6b-b4ca-47cc-8f70-504a95189e26".to_string(),
+            app_id: "app_test".to_string(),
             client: reqwest::Client::new(),
             cached_signal_hashes: CachedSignalHashes {
                 signal_hashes: std::collections::HashMap::new(),
@@ -1734,6 +2558,8 @@ mod tests {
             override_connect_base_url: None,
             return_to,
             environment: Environment::Production,
+            invite_code: None,
+            code_expires_at: None,
         }
     }
 

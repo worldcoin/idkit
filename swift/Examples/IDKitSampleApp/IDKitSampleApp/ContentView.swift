@@ -15,6 +15,13 @@ enum SampleConnectUrlMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum SampleMode: String, CaseIterable, Identifiable {
+    case connectUrl = "connect URL"
+    case inviteCode = "invite code"
+
+    var id: String { rawValue }
+}
+
 enum SampleLegacyPreset: String, CaseIterable, Identifiable {
     case orb
     case secureDocument = "secure document"
@@ -43,10 +50,27 @@ enum SampleLegacyPreset: String, CaseIterable, Identifiable {
 struct ContentView: View {
     @StateObject private var model = SampleModel()
 
+    private var generateButtonLabel: String {
+        if model.isLoading {
+            return "Generating..."
+        }
+        switch model.mode {
+        case .connectUrl: return "Generate Connector URL"
+        case .inviteCode: return "Generate Invite Code"
+        }
+    }
+
     var body: some View {
         NavigationView {
             Form {
                 Section("Request") {
+                    Picker("Mode", selection: $model.mode) {
+                        ForEach(SampleMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
                     TextField("App ID", text: $model.appId)
                         .textInputAutocapitalization(.never)
                         .disableAutocorrection(true)
@@ -69,12 +93,14 @@ struct ContentView: View {
                     }
                     .pickerStyle(.segmented)
 
-                    Picker("Connect URL mode", selection: $model.connectUrlMode) {
-                        ForEach(SampleConnectUrlMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
+                    if model.mode == .connectUrl {
+                        Picker("Connect URL mode", selection: $model.connectUrlMode) {
+                            ForEach(SampleConnectUrlMode.allCases) { mode in
+                                Text(mode.rawValue).tag(mode)
+                            }
                         }
+                        .pickerStyle(.segmented)
                     }
-                    .pickerStyle(.segmented)
 
                     Picker("Legacy preset", selection: $model.legacyPreset) {
                         ForEach(SampleLegacyPreset.allCases) { preset in
@@ -86,16 +112,16 @@ struct ContentView: View {
                 Section {
                     Button {
                         Task {
-                            await model.generateRequestURL()
+                            await model.generate()
                         }
                     } label: {
-                        Text(model.isLoading ? "Generating..." : "Generate Connector URL")
+                        Text(generateButtonLabel)
                             .frame(maxWidth: .infinity)
                     }
                     .disabled(model.isLoading)
                 }
 
-                if let connectorURL = model.connectorURL {
+                if model.mode == .connectUrl, let connectorURL = model.connectorURL {
                     Section("Connector URL") {
                         HStack {
                             Button("Open Connector URL", systemImage: "link") {
@@ -110,6 +136,18 @@ struct ContentView: View {
                             .font(.footnote.monospaced())
                             .textSelection(.enabled)
                     }.buttonStyle(.borderless) // This is necessary to prevent the entire section from forwarding tap gestures to the first button in the Section.
+                }
+
+                if model.mode == .inviteCode, let expiresAt = model.codeExpiresAt {
+                    Section("Code Expiry") {
+                        HStack {
+                            Text("Expires")
+                            Spacer()
+                            Text(expiresAt, style: .relative)
+                                .foregroundStyle(.secondary)
+                        }
+                        .font(.footnote)
+                    }
                 }
 
                 Section("Logs") {
@@ -138,7 +176,9 @@ final class SampleModel: ObservableObject {
     @Published var environment: SampleEnvironment = .production
     @Published var connectUrlMode: SampleConnectUrlMode = .standard
     @Published var legacyPreset: SampleLegacyPreset = .orb
+    @Published var mode: SampleMode = .connectUrl
     @Published var connectorURL: URL?
+    @Published var codeExpiresAt: Date?
     @Published var logs = ""
     @Published var isLoading = false
 
@@ -148,11 +188,12 @@ final class SampleModel: ObservableObject {
 
     private let session = URLSession.shared
     private var pendingRequest: IDKitRequest?
+    private var pendingInviteCodeRequest: IDKitInviteCodeRequest?
     private var completionTask: Task<Void, Never>?
-    private var pollingRequestID: UUID?
+    private var pollingRequestID: String?
     private var deepLinkReceivedForPendingRequest = false
 
-    func generateRequestURL() async {
+    func generate() async {
         isLoading = true
         defer { isLoading = false }
 
@@ -191,20 +232,54 @@ final class SampleModel: ObservableObject {
                 }()
             )
 
-            let request = try IDKit
-                .request(config: config)
-                .preset(legacyPreset.toPreset(signal: signal))
+            let builder = IDKit.request(config: config)
+            let preset = legacyPreset.toPreset(signal: signal)
 
-            completionTask?.cancel()
-            connectorURL = request.connectorURL
-            pendingRequest = request
-            deepLinkReceivedForPendingRequest = false
+            switch mode {
+            case .connectUrl:
+                let request = try builder.preset(preset)
 
-            print("IDKit connector URL: \(request.connectorURL.absoluteString)")
-            log("Using legacy preset: \(legacyPreset.rawValue)")
-            log("Generated request ID: \(request.requestID.uuidString)")
-            log("Configured return_to callback: \(returnToURL)")
-            startPollingForRequest(request: request, reason: "request generation")
+                completionTask?.cancel()
+                connectorURL = request.connectorURL
+                codeExpiresAt = nil
+                pendingRequest = request
+                pendingInviteCodeRequest = nil
+                deepLinkReceivedForPendingRequest = false
+
+                print("IDKit connector URL: \(request.connectorURL.absoluteString)")
+                log("Using legacy preset: \(legacyPreset.rawValue)")
+                log("Generated request ID: \(request.requestID.uuidString)")
+                log("Configured return_to callback: \(returnToURL)")
+                startPolling(
+                    requestID: request.requestID.uuidString,
+                    reason: "request generation",
+                    pollOnce: { await request.pollStatusOnce() }
+                )
+
+            case .inviteCode:
+                let request = try builder.presetWithInviteCode(preset)
+
+                completionTask?.cancel()
+                // Both modes now expose a `connectorURL` — invite-code mode's
+                // URL has `&c=<code>&a=<app_id>` appended so world.org/verify
+                // renders the landing page rather than redirecting into World
+                // App. The shared "Connector URL" Section displays it.
+                connectorURL = request.connectorURL
+                codeExpiresAt = request.expiresAt
+                pendingRequest = nil
+                pendingInviteCodeRequest = request
+                deepLinkReceivedForPendingRequest = false
+
+                print("IDKit invite-code URL: \(request.connectorURL.absoluteString)")
+                log("Using legacy preset: \(legacyPreset.rawValue)")
+                log("Generated request ID: \(request.requestID)")
+                log("Verify URL expires \(ISO8601DateFormatter().string(from: request.expiresAt))")
+                startPolling(
+                    requestID: request.requestID,
+                    reason: "invite code generation",
+                    pollOnce: { await request.pollStatusOnce() }
+                )
+            }
         } catch {
             log("Error: \(error.localizedDescription)")
         }
@@ -221,27 +296,35 @@ final class SampleModel: ObservableObject {
 
         deepLinkReceivedForPendingRequest = true
 
-        if pollingRequestID == request.requestID {
+        if pollingRequestID == request.requestID.uuidString {
             log("Polling already running for request \(request.requestID.uuidString).")
             return
         }
 
-        startPollingForRequest(request: request, reason: "deep link callback")
+        startPolling(
+            requestID: request.requestID.uuidString,
+            reason: "deep link callback",
+            pollOnce: { await request.pollStatusOnce() }
+        )
     }
 
-    private func startPollingForRequest(request: IDKitRequest, reason: String) {
-        if pollingRequestID == request.requestID {
+    private func startPolling(
+        requestID: String,
+        reason: String,
+        pollOnce: @Sendable @escaping () async -> IDKitStatus
+    ) {
+        if pollingRequestID == requestID {
             return
         }
 
         completionTask?.cancel()
-        pollingRequestID = request.requestID
-        log("Started polling for request \(request.requestID.uuidString) (trigger: \(reason)).")
+        pollingRequestID = requestID
+        log("Started polling for request \(requestID) (trigger: \(reason)).")
 
         completionTask = Task { @MainActor [weak self] in
             guard let self else { return }
             defer {
-                if pollingRequestID == request.requestID {
+                if pollingRequestID == requestID {
                     pollingRequestID = nil
                 }
             }
@@ -256,7 +339,7 @@ final class SampleModel: ObservableObject {
                         return
                     }
 
-                    if pollingRequestID != request.requestID {
+                    if pollingRequestID != requestID {
                         return
                     }
 
@@ -266,15 +349,16 @@ final class SampleModel: ObservableObject {
                         return
                     }
 
-                    let status = await request.pollStatusOnce()
+                    let status = await pollOnce()
 
                     switch status {
                     case .confirmed(let result):
-                        if pollingRequestID != request.requestID {
+                        if pollingRequestID != requestID {
                             return
                         }
 
                         pendingRequest = nil
+                        pendingInviteCodeRequest = nil
                         deepLinkReceivedForPendingRequest = false
 
                         do {
@@ -300,7 +384,7 @@ final class SampleModel: ObservableObject {
                     }
                 }
             } catch {
-                if pollingRequestID == request.requestID, !Task.isCancelled {
+                if pollingRequestID == requestID, !Task.isCancelled {
                     log("Polling error: \(error.localizedDescription)")
                 }
             }

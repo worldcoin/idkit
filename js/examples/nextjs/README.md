@@ -14,6 +14,10 @@ The UI includes request buttons matching the browser example presets:
 - Device Legacy
 - Selfie Check Legacy
 
+The `/arena` route includes grouped mobile implementation test cases for
+World ID 3.0 presets, World ID 4.0 constraints, migration fallback behavior,
+and 4.0 error handling.
+
 ## Run
 
 From repo root:

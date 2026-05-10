@@ -44,6 +44,8 @@ enum class IDKitErrorCode(val rawValue: String) {
     USER_REJECTED("user_rejected"),
     VERIFICATION_REJECTED("verification_rejected"),
     CREDENTIAL_UNAVAILABLE("credential_unavailable"),
+    WORLD_ID_4_NOT_AVAILABLE("world_id_4_not_available"),
+    WORLD_ID_3_NOT_AVAILABLE("world_id_3_not_available"),
     MALFORMED_REQUEST("malformed_request"),
     INVALID_NETWORK("invalid_network"),
     INCLUSION_PROOF_PENDING("inclusion_proof_pending"),
@@ -52,6 +54,16 @@ enum class IDKitErrorCode(val rawValue: String) {
     CONNECTION_FAILED("connection_failed"),
     MAX_VERIFICATIONS_REACHED("max_verifications_reached"),
     FAILED_BY_HOST_APP("failed_by_host_app"),
+    INVALID_RP_SIGNATURE("invalid_rp_signature"),
+    NULLIFIER_REPLAYED("nullifier_replayed"),
+    DUPLICATE_NONCE("duplicate_nonce"),
+    UNKNOWN_RP("unknown_rp"),
+    INACTIVE_RP("inactive_rp"),
+    TIMESTAMP_TOO_OLD("timestamp_too_old"),
+    TIMESTAMP_TOO_FAR_IN_FUTURE("timestamp_too_far_in_future"),
+    INVALID_TIMESTAMP("invalid_timestamp"),
+    RP_SIGNATURE_EXPIRED("rp_signature_expired"),
+    IDENTITY_ATTRIBUTES_NOT_MATCHED("identity_attributes_not_matched"),
     GENERIC_ERROR("generic_error"),
     TIMEOUT("timeout"),
     CANCELLED("cancelled");
@@ -61,6 +73,8 @@ enum class IDKitErrorCode(val rawValue: String) {
             AppError.USER_REJECTED -> USER_REJECTED
             AppError.VERIFICATION_REJECTED -> VERIFICATION_REJECTED
             AppError.CREDENTIAL_UNAVAILABLE -> CREDENTIAL_UNAVAILABLE
+            AppError.WORLD_ID4_NOT_AVAILABLE -> WORLD_ID_4_NOT_AVAILABLE
+            AppError.WORLD_ID3_NOT_AVAILABLE -> WORLD_ID_3_NOT_AVAILABLE
             AppError.MALFORMED_REQUEST -> MALFORMED_REQUEST
             AppError.INVALID_NETWORK -> INVALID_NETWORK
             AppError.INCLUSION_PROOF_PENDING -> INCLUSION_PROOF_PENDING
@@ -69,6 +83,16 @@ enum class IDKitErrorCode(val rawValue: String) {
             AppError.CONNECTION_FAILED -> CONNECTION_FAILED
             AppError.MAX_VERIFICATIONS_REACHED -> MAX_VERIFICATIONS_REACHED
             AppError.FAILED_BY_HOST_APP -> FAILED_BY_HOST_APP
+            AppError.INVALID_RP_SIGNATURE -> INVALID_RP_SIGNATURE
+            AppError.NULLIFIER_REPLAYED -> NULLIFIER_REPLAYED
+            AppError.DUPLICATE_NONCE -> DUPLICATE_NONCE
+            AppError.UNKNOWN_RP -> UNKNOWN_RP
+            AppError.INACTIVE_RP -> INACTIVE_RP
+            AppError.TIMESTAMP_TOO_OLD -> TIMESTAMP_TOO_OLD
+            AppError.TIMESTAMP_TOO_FAR_IN_FUTURE -> TIMESTAMP_TOO_FAR_IN_FUTURE
+            AppError.INVALID_TIMESTAMP -> INVALID_TIMESTAMP
+            AppError.RP_SIGNATURE_EXPIRED -> RP_SIGNATURE_EXPIRED
+            AppError.IDENTITY_ATTRIBUTES_NOT_MATCHED -> IDENTITY_ATTRIBUTES_NOT_MATCHED
             AppError.GENERIC_ERROR -> GENERIC_ERROR
         }
     }
