@@ -13,6 +13,7 @@ import {
   setDebug,
   type ConstraintNode,
   type IDKitResult,
+  type IntegrityBundle,
   type RpContext,
   Preset,
 } from "@worldcoin/idkit";
@@ -22,8 +23,11 @@ setDebug(true);
 const APP_ID = process.env.NEXT_PUBLIC_APP_ID as `app_${string}` | undefined;
 const RP_ID = process.env.NEXT_PUBLIC_RP_ID;
 const STAGING_CONNECT_BASE_URL = "https://staging.world.org/verify";
+const STAGING_DEVPORTAL_BASE_URL = "https://staging-developer.worldcoin.org";
 const CONNECT_URL_OVERRIDE_TOOLTIP =
   "Enable this to change the deeplink base URL to the staging verify endpoint. Useful when testing with a Staging iOS World App build that supports this override.";
+const DEVPORTAL_URL_OVERRIDE_TOOLTIP =
+  "Enable this to send proof verification requests to the staging Developer Portal instead of production.";
 const GENESIS_ISSUED_AT_MIN_TOOLTIP =
   "Minimum genesis_issued_at timestamp that the used Credential must meet. " +
   "If present, the proof will include a constraint that the credential's genesis issued at timestamp " +
@@ -107,7 +111,10 @@ async function fetchRpContext(action: string): Promise<RpContext> {
   };
 }
 
-async function verifyProof(payload: IDKitResult): Promise<unknown> {
+async function verifyProof(
+  payload: IDKitResult,
+  devPortalBaseUrl?: string,
+): Promise<unknown> {
   if (!RP_ID) {
     throw new Error("Missing NEXT_PUBLIC_RP_ID");
   }
@@ -115,7 +122,11 @@ async function verifyProof(payload: IDKitResult): Promise<unknown> {
   const response = await fetch("/api/verify-proof", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ rp_id: RP_ID, devPortalPayload: payload }),
+    body: JSON.stringify({
+      rp_id: RP_ID,
+      devPortalPayload: payload,
+      devPortalBaseUrl,
+    }),
   });
 
   const json = await response.json();
@@ -132,6 +143,61 @@ async function verifyProof(payload: IDKitResult): Promise<unknown> {
   return json;
 }
 
+// Extract flat proof strings from an IDKit result for the integrity bundle digest.
+// V3 responses have proof: string; V4 responses have proof: string[].
+function extractProofs(result: IDKitResult): string[] {
+  return (result.responses as Array<{ proof: string | string[] }>).flatMap(
+    (r) => (Array.isArray(r.proof) ? r.proof : [r.proof]),
+  );
+}
+
+interface IntegrityBundleVerifyResult {
+  valid: boolean;
+  jwtValid: boolean;
+  jwtError?: string;
+  jwtClaims?: { issuer: string; audience: string[]; expiresAt: number };
+  expectedIss?: string;
+  rawJwtClaims?: Record<string, unknown> | null;
+  assertionValid?: boolean;
+  assertionError?: string;
+  signatureFormat?: string;
+  timestamp?: number;
+  version?: number;
+  step2?: {
+    signatureBytes: number;
+    signatureHex: string;
+    authenticatorDataBytes?: number;
+    authenticatorDataHex?: string;
+  };
+  step3?: { computedKid: string; jwtKid: string };
+  step4?: { clientDataHash: string; integrityDigest: string };
+  step5?: { messageToVerify: string; sigNonce?: string };
+}
+
+async function verifyIntegrityBundle(
+  result: IDKitResult,
+  environment: string,
+): Promise<IntegrityBundleVerifyResult> {
+  const response = await fetch("/api/verify-integrity-bundle", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      bundle: result.integrity_bundle,
+      proofs: extractProofs(result),
+      nonce: result.nonce,
+      protocol_version: result.protocol_version,
+      environment,
+    }),
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.error ?? "Integrity bundle verification failed");
+  }
+
+  return json as IntegrityBundleVerifyResult;
+}
+
 export function DemoClient(): ReactElement {
   const [isLightTheme, setIsLightTheme] = useState(false);
   const [widgetOpen, setWidgetOpen] = useState(false);
@@ -142,6 +208,11 @@ export function DemoClient(): ReactElement {
   const [widgetVerifyResult, setWidgetVerifyResult] = useState<unknown>(null);
   const [widgetIdkitResult, setWidgetIdkitResult] =
     useState<IDKitResult | null>(null);
+  const [integrityBundleResult, setIntegrityBundleResult] =
+    useState<IntegrityBundleVerifyResult | null>(null);
+  const [integrityBundleError, setIntegrityBundleError] = useState<
+    string | null
+  >(null);
   const [widgetSignal, setWidgetSignal] = useState("demo-signal-initial");
   const [action, setAction] = useState("test-action");
   const [environment, setEnvironment] = useState<"production" | "staging">(
@@ -150,6 +221,9 @@ export function DemoClient(): ReactElement {
   const [useStagingConnectBaseUrl, setUseStagingConnectBaseUrl] =
     useState(false);
   const [isConnectUrlTooltipOpen, setIsConnectUrlTooltipOpen] = useState(false);
+  const [useStagingDevPortalUrl, setUseStagingDevPortalUrl] = useState(false);
+  const [isDevPortalUrlTooltipOpen, setIsDevPortalUrlTooltipOpen] =
+    useState(false);
   const [worldIdVersion, setWorldIdVersion] = useState<"3.0" | "4.0">("3.0");
   const [v4CredentialType, setV4CredentialType] =
     useState<V4CredentialType>("proof_of_human");
@@ -195,6 +269,10 @@ export function DemoClient(): ReactElement {
     environment === "staging" && useStagingConnectBaseUrl
       ? STAGING_CONNECT_BASE_URL
       : undefined;
+  const overrideDevPortalBaseUrl =
+    environment === "staging" && useStagingDevPortalUrl
+      ? STAGING_DEVPORTAL_BASE_URL
+      : undefined;
   const effectiveReturnTo = useReturnTo
     ? returnTo.trim() || undefined
     : undefined;
@@ -210,6 +288,8 @@ export function DemoClient(): ReactElement {
     if (environment !== "staging") {
       setUseStagingConnectBaseUrl(false);
       setIsConnectUrlTooltipOpen(false);
+      setUseStagingDevPortalUrl(false);
+      setIsDevPortalUrlTooltipOpen(false);
     }
   }, [environment]);
 
@@ -232,10 +312,28 @@ export function DemoClient(): ReactElement {
     );
   }, []);
 
+  // Auto-verify integrity bundle when idkit result arrives and bundle is present
+  useEffect(() => {
+    if (!widgetIdkitResult?.integrity_bundle) return;
+
+    setIntegrityBundleResult(null);
+    setIntegrityBundleError(null);
+
+    verifyIntegrityBundle(widgetIdkitResult, environment)
+      .then(setIntegrityBundleResult)
+      .catch((err) =>
+        setIntegrityBundleError(
+          err instanceof Error ? err.message : "Unknown error",
+        ),
+      );
+  }, [widgetIdkitResult, environment]);
+
   const startWidgetFlow = async () => {
     setWidgetError(null);
     setWidgetVerifyResult(null);
     setWidgetIdkitResult(null);
+    setIntegrityBundleResult(null);
+    setIntegrityBundleError(null);
 
     try {
       const rpContext = await fetchRpContext(action || "test-action");
@@ -358,6 +456,52 @@ export function DemoClient(): ReactElement {
               onChange={(e) => setUseStagingConnectBaseUrl(e.target.checked)}
             />
             <span className="config-note">{STAGING_CONNECT_BASE_URL}</span>
+          </div>
+        )}
+
+        {environment === "staging" && (
+          <div className="config-row">
+            <label htmlFor="cfgOverrideDevPortalBaseUrl">
+              DevPortal URL override
+            </label>
+            <div
+              className="tooltip"
+              onMouseEnter={() => setIsDevPortalUrlTooltipOpen(true)}
+              onMouseLeave={() => setIsDevPortalUrlTooltipOpen(false)}
+            >
+              <button
+                type="button"
+                className="tooltip-trigger"
+                aria-label="Explain DevPortal URL override"
+                aria-describedby={
+                  isDevPortalUrlTooltipOpen
+                    ? "devportal-url-override-tooltip"
+                    : undefined
+                }
+                aria-expanded={isDevPortalUrlTooltipOpen}
+                onFocus={() => setIsDevPortalUrlTooltipOpen(true)}
+                onBlur={() => setIsDevPortalUrlTooltipOpen(false)}
+                onClick={() => setIsDevPortalUrlTooltipOpen(true)}
+              >
+                ?
+              </button>
+              {isDevPortalUrlTooltipOpen && (
+                <span
+                  id="devportal-url-override-tooltip"
+                  role="tooltip"
+                  className="tooltip-content"
+                >
+                  {DEVPORTAL_URL_OVERRIDE_TOOLTIP}
+                </span>
+              )}
+            </div>
+            <input
+              type="checkbox"
+              id="cfgOverrideDevPortalBaseUrl"
+              checked={useStagingDevPortalUrl}
+              onChange={(e) => setUseStagingDevPortalUrl(e.target.checked)}
+            />
+            <span className="config-note">{STAGING_DEVPORTAL_BASE_URL}</span>
           </div>
         )}
 
@@ -538,7 +682,10 @@ export function DemoClient(): ReactElement {
             onSuccess={(result) => {}}
             handleVerify={async (result) => {
               setWidgetIdkitResult(result);
-              const verified = await verifyProof(result);
+              const verified = await verifyProof(
+                result,
+                overrideDevPortalBaseUrl,
+              );
               setWidgetVerifyResult(verified);
             }}
             onError={(errorCode) => {
@@ -560,7 +707,10 @@ export function DemoClient(): ReactElement {
             onSuccess={(result) => {}}
             handleVerify={async (result) => {
               setWidgetIdkitResult(result);
-              const verified = await verifyProof(result);
+              const verified = await verifyProof(
+                result,
+                overrideDevPortalBaseUrl,
+              );
               setWidgetVerifyResult(verified);
             }}
             onError={(errorCode) => {
@@ -574,7 +724,7 @@ export function DemoClient(): ReactElement {
 
       {widgetIdkitResult && (
         <>
-          <h3>IDKit response</h3>
+          <h3>IDKit result</h3>
           <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
             {JSON.stringify(widgetIdkitResult, null, 2)}
           </pre>
@@ -587,6 +737,321 @@ export function DemoClient(): ReactElement {
           <pre>{JSON.stringify(widgetVerifyResult, null, 2)}</pre>
         </>
       )}
+
+      {widgetIdkitResult?.integrity_bundle && (
+        <>
+          <h3>Integrity Bundle</h3>
+          <IntegrityBundlePanel
+            bundle={widgetIdkitResult.integrity_bundle}
+            result={integrityBundleResult}
+            error={integrityBundleError}
+            environment={environment}
+            protocolVersion={widgetIdkitResult.protocol_version}
+            signatureFormat={
+              widgetIdkitResult.integrity_bundle.signature_format
+            }
+          />
+        </>
+      )}
     </>
+  );
+}
+
+function IntegrityBundlePanel({
+  bundle,
+  result,
+  error,
+  environment,
+  protocolVersion,
+  signatureFormat,
+}: {
+  bundle: IntegrityBundle;
+  result: IntegrityBundleVerifyResult | null;
+  error: string | null;
+  environment: string;
+  protocolVersion?: string;
+  signatureFormat?: string;
+}): ReactElement {
+  if (error) {
+    return (
+      <section>
+        <p style={{ color: "var(--color-error, #ef4444)" }}>
+          Failed to verify: {error}
+        </p>
+      </section>
+    );
+  }
+
+  if (!result) {
+    return (
+      <section>
+        <p>Verifying…</p>
+      </section>
+    );
+  }
+
+  const attestationHost =
+    environment === "production"
+      ? "attestation.worldcoin.org"
+      : "attestation.worldcoin.dev";
+
+  return (
+    <section>
+      {/* Overall verdict */}
+      <div
+        style={{
+          fontWeight: "bold",
+          padding: "8px",
+          borderRadius: "4px",
+          marginBottom: "12px",
+          backgroundColor: result.valid ? "#22c55e" : "#ef4444",
+          color: "white",
+        }}
+      >
+        {result.valid ? "Integrity Bundle Valid" : "Integrity Bundle Invalid"}
+      </div>
+
+      {/* Bundle metadata */}
+      <table
+        style={{ borderCollapse: "collapse", width: "100%", margin: "8px 0" }}
+      >
+        <tbody>
+          <MetaRow label="Version" value={String(bundle.version)} />
+          <MetaRow label="Signature format" value={bundle.signature_format} />
+          <MetaRow
+            label="Timestamp"
+            value={`${bundle.timestamp} (${new Date(bundle.timestamp * 1000).toISOString()})`}
+          />
+        </tbody>
+      </table>
+
+      {/* Step 1: JWT */}
+      <ResultCard valid={result.jwtValid}>
+        <strong>
+          Step 1 — JWT Verification: {result.jwtValid ? "✓ Valid" : "✗ Invalid"}
+        </strong>
+        {result.jwtError && (
+          <div>
+            <em>Error:</em> {result.jwtError}
+          </div>
+        )}
+        {(() => {
+          const claims =
+            result.jwtClaims ??
+            (result.rawJwtClaims
+              ? {
+                  issuer: result.rawJwtClaims.iss as string | undefined,
+                  audience: Array.isArray(result.rawJwtClaims.aud)
+                    ? (result.rawJwtClaims.aud as string[])
+                    : result.rawJwtClaims.aud
+                      ? [result.rawJwtClaims.aud as string]
+                      : [],
+                  expiresAt: result.rawJwtClaims.exp as number | undefined,
+                }
+              : null);
+          if (!claims) return null;
+          return (
+            <>
+              <div>
+                <em>Issuer:</em> {claims.issuer ?? "—"}
+                {!result.jwtValid && result.expectedIss && (
+                  <span style={{ opacity: 0.8 }}>
+                    {" "}
+                    (expected: {result.expectedIss})
+                  </span>
+                )}
+              </div>
+              <div>
+                <em>Audience:</em> {claims.audience?.join(", ") || "—"}
+              </div>
+              {claims.expiresAt != null && (
+                <div>
+                  <em>Expires:</em> {claims.expiresAt} (
+                  {new Date(claims.expiresAt * 1000).toISOString()})
+                </div>
+              )}
+              {result.rawJwtClaims?.platform && (
+                <div>
+                  <em>Platform:</em> {String(result.rawJwtClaims.platform)}
+                </div>
+              )}
+              {result.rawJwtClaims?.app_version && (
+                <div>
+                  <em>App version:</em>{" "}
+                  {String(result.rawJwtClaims.app_version)}
+                </div>
+              )}
+            </>
+          );
+        })()}
+        <div>
+          <em>JWKS source:</em> {attestationHost}/.well-known/jwks.json
+        </div>
+      </ResultCard>
+
+      {/* Steps 2–5: decode + kid + signature */}
+      {result.jwtValid && (
+        <ResultCard valid={result.assertionValid ?? false}>
+          <strong>
+            Steps 2–5 — Signature decode + kid + verify:{" "}
+            {result.assertionValid ? "✓ Valid" : "✗ Invalid"}
+          </strong>
+          <ul style={{ margin: "6px 0 0 16px", padding: 0, listStyle: "none" }}>
+            <StepItem ok={result.assertionValid}>
+              {signatureFormat === "android_keystore"
+                ? "Step 2: hex-decode bundle.signature → raw DER ECDSA bytes"
+                : "Step 2: hex-decode bundle.signature → CBOR-decode → DER ECDSA sig + authenticatorData"}
+              {result.step2 && (
+                <StepOutput>
+                  <Out
+                    label="sig"
+                    value={`${result.step2.signatureBytes}B: ${result.step2.signatureHex}`}
+                  />
+                  {result.step2.authenticatorDataHex && (
+                    <Out
+                      label="authData"
+                      value={`${result.step2.authenticatorDataBytes}B: ${result.step2.authenticatorDataHex}`}
+                    />
+                  )}
+                </StepOutput>
+              )}
+            </StepItem>
+            <StepItem ok={result.assertionValid}>
+              {protocolVersion === "4.0"
+                ? 'Step 4a: clientDataHash = SHA256("worldcoin/proof-integrity/v4" ‖ nonce[32 BE])'
+                : 'Step 4a: clientDataHash = SHA256("worldcoin/proof-integrity/v3" ‖ count ‖ len-prefixed proofs)'}
+              {result.step4 && (
+                <StepOutput>
+                  <Out
+                    label="clientDataHash"
+                    value={result.step4.clientDataHash}
+                  />
+                </StepOutput>
+              )}
+            </StepItem>
+            <StepItem ok={result.assertionValid}>
+              Step 4b: integrityDigest = SHA256(timestamp[8 BE] ‖
+              clientDataHash)
+              {result.step4 && (
+                <StepOutput>
+                  <Out
+                    label="integrityDigest"
+                    value={result.step4.integrityDigest}
+                  />
+                </StepOutput>
+              )}
+            </StepItem>
+            {signatureFormat === "android_keystore" ? (
+              <StepItem ok={result.assertionValid}>
+                Step 5: verify ECDSA-P256 sig over SHA256(integrityDigest)
+              </StepItem>
+            ) : (
+              <>
+                <StepItem ok={result.assertionValid}>
+                  Step 5a: sigNonce = SHA256(authenticatorData ‖
+                  integrityDigest)
+                  {result.step5?.sigNonce && (
+                    <StepOutput>
+                      <Out label="sigNonce" value={result.step5.sigNonce} />
+                    </StepOutput>
+                  )}
+                </StepItem>
+                <StepItem ok={result.assertionValid}>
+                  Step 5b: verify ECDSA-P256 sig over SHA256(sigNonce)
+                </StepItem>
+              </>
+            )}
+          </ul>
+          {result.assertionError && (
+            <div>
+              <em>Error:</em> {result.assertionError}
+            </div>
+          )}
+        </ResultCard>
+      )}
+
+      {/* Raw JSON */}
+      <details style={{ marginTop: "8px" }}>
+        <summary>Raw JSON</summary>
+        <pre>{JSON.stringify(result, null, 2)}</pre>
+      </details>
+    </section>
+  );
+}
+
+function ResultCard({
+  valid,
+  children,
+}: {
+  valid: boolean;
+  children: React.ReactNode;
+}): ReactElement {
+  return (
+    <div
+      style={{
+        padding: "12px",
+        borderRadius: "6px",
+        margin: "8px 0",
+        backgroundColor: valid ? "#22c55e" : "#ef4444",
+        color: "white",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function MetaRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}): ReactElement {
+  return (
+    <tr>
+      <td style={{ padding: "4px 8px", opacity: 0.7, whiteSpace: "nowrap" }}>
+        {label}
+      </td>
+      <td style={{ padding: "4px 8px", fontFamily: "monospace" }}>{value}</td>
+    </tr>
+  );
+}
+
+function StepItem({
+  ok,
+  children,
+}: {
+  ok?: boolean;
+  children: React.ReactNode;
+}): ReactElement {
+  return (
+    <li style={{ margin: "4px 0" }}>
+      <span style={{ marginRight: 6 }}>
+        {ok ? "✓" : ok === false ? "✗" : "?"}
+      </span>
+      {children}
+    </li>
+  );
+}
+
+function StepOutput({ children }: { children: React.ReactNode }): ReactElement {
+  return (
+    <div
+      style={{ marginLeft: 18, marginTop: 2, fontSize: "0.85em", opacity: 0.9 }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Out({ label, value }: { label: string; value: string }): ReactElement {
+  return (
+    <div>
+      <span style={{ opacity: 0.75 }}>{label}: </span>
+      <span style={{ fontFamily: "monospace", wordBreak: "break-all" }}>
+        {value}
+      </span>
+    </div>
   );
 }

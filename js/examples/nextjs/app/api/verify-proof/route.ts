@@ -8,10 +8,13 @@ export async function POST(request: Request): Promise<Response> {
     const body = (await request.json()) as {
       rp_id?: string;
       devPortalPayload?: IDKitResult;
+      devPortalBaseUrl?: string;
     };
 
     const baseUrl =
-      process.env.DEV_PORTAL_BASE_URL?.trim() || "https://developer.world.org";
+      body.devPortalBaseUrl?.trim() ||
+      process.env.DEV_PORTAL_BASE_URL?.trim() ||
+      "https://developer.world.org";
 
     const response = await fetch(`${baseUrl}/api/v4/verify/${body.rp_id}`, {
       method: "POST",
