@@ -103,6 +103,27 @@ export function InviteCodeState({
         </div>
       </div>
 
+      {connectorURI && (
+        <a
+          href={connectorURI}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            marginTop: 12,
+            padding: "8px 16px",
+            borderRadius: 8,
+            border: "1px solid var(--idkit-border, rgba(0,0,0,0.1))",
+            background: "var(--idkit-surface, transparent)",
+            color: "var(--idkit-text-primary)",
+            fontSize: 14,
+            textDecoration: "none",
+            cursor: "pointer",
+          }}
+        >
+          {__("Open Connector URL")}
+        </a>
+      )}
+
       {inviteCode && (
         <div
           style={{
