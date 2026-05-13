@@ -121,7 +121,7 @@ struct ContentView: View {
                     .disabled(model.isLoading)
                 }
 
-                if model.mode == .connectUrl, let connectorURL = model.connectorURL {
+                if let connectorURL = model.connectorURL {
                     Section("Connector URL") {
                         HStack {
                             Button("Open Connector URL", systemImage: "link") {
