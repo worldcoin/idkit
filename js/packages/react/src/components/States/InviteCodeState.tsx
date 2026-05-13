@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 import { __ } from "../../lang";
+import { useMedia } from "../../hooks/useMedia";
 import { WorldcoinIcon } from "../Icons/WorldIcon";
 import { LoadingIcon } from "../Icons/LoadingIcon";
 import { QRCode } from "../../widget/QRCode";
@@ -35,6 +36,7 @@ export function InviteCodeState({
   codeExpiresAt,
   isAwaitingUserConfirmation,
 }: InviteCodeStateProps): ReactElement {
+  const media = useMedia();
   const now = useNowInSeconds();
   const secondsRemaining =
     codeExpiresAt !== null ? Math.max(0, codeExpiresAt - now) : null;
@@ -59,28 +61,43 @@ export function InviteCodeState({
       <h2 className="idkit-heading">{__("Connect your World ID")}</h2>
 
       <p className="idkit-subtext">
-        {__("Scan with your phone to continue verifying")}
+        {media === "mobile"
+          ? __(
+              "You will be redirected to the app, please return to this page once you're done",
+            )
+          : __("Scan with your phone to continue verifying")}
       </p>
 
-      <div className="idkit-qr-container">
-        {isAwaitingUserConfirmation && (
-          <div className="idkit-qr-overlay">
-            <div className="idkit-spinner">
-              <LoadingIcon />
-            </div>
-            <div className="idkit-connecting-text">
-              <p>{__("Connecting...")}</p>
-              <p>{__("Please continue in app")}</p>
-            </div>
-          </div>
-        )}
+      {/* Mobile: deep-link button */}
+      <div className="idkit-mobile-only">
+        <a href={connectorURI ?? undefined} className="idkit-deeplink-btn">
+          <WorldcoinIcon />
+          <span>{__("Open World App")}</span>
+        </a>
+      </div>
 
-        <div
-          className={`idkit-qr-blur ${isAwaitingUserConfirmation ? "blurred" : ""}`}
-        >
-          <div className="idkit-qr-wrapper">
-            <div className="idkit-qr-inner">
-              {connectorURI ? <QRCode data={connectorURI} /> : null}
+      {/* Desktop: QR code */}
+      <div className="idkit-desktop-only">
+        <div className="idkit-qr-container">
+          {isAwaitingUserConfirmation && (
+            <div className="idkit-qr-overlay">
+              <div className="idkit-spinner">
+                <LoadingIcon />
+              </div>
+              <div className="idkit-connecting-text">
+                <p>{__("Connecting...")}</p>
+                <p>{__("Please continue in app")}</p>
+              </div>
+            </div>
+          )}
+
+          <div
+            className={`idkit-qr-blur ${isAwaitingUserConfirmation ? "blurred" : ""}`}
+          >
+            <div className="idkit-qr-wrapper">
+              <div className="idkit-qr-inner">
+                {connectorURI ? <QRCode data={connectorURI} /> : null}
+              </div>
             </div>
           </div>
         </div>
