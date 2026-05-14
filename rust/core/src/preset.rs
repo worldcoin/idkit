@@ -7,7 +7,7 @@ use crate::types::IdentityAttribute;
 #[cfg(any(test, feature = "ffi", feature = "wasm-bindings"))]
 use crate::types::{CredentialRequest, CredentialType, VerificationLevel};
 #[cfg(any(test, feature = "ffi", feature = "wasm-bindings"))]
-use crate::ConstraintNode;
+use crate::{ConstraintNode, Signal};
 use serde::{Deserialize, Serialize};
 
 /// Credential presets for World ID verification
@@ -77,6 +77,26 @@ pub enum Preset {
         signal: Option<String>,
     },
 
+    /// Proof of human verification (World ID 4.0 with legacy fallback)
+    ///
+    /// Requests a World ID 4.0 proof-of-human credential, with optional signal.
+    /// Falls back to legacy Orb proofs when World ID 4.0 is unavailable.
+    ProofOfHuman {
+        /// Optional signal to include in the proof.
+        /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
+        signal: Option<String>,
+    },
+
+    /// Passport verification (World ID 4.0 with legacy fallback)
+    ///
+    /// Requests a World ID 4.0 passport credential, with optional signal.
+    /// Falls back to legacy document proofs when World ID 4.0 is unavailable.
+    Passport {
+        /// Optional signal to include in the proof.
+        /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
+        signal: Option<String>,
+    },
+
     /// Document-based identity attestation (World ID 4.0)
     ///
     /// Requests passport or national identity card credentials, with optional
@@ -132,6 +152,18 @@ impl Preset {
     #[must_use]
     pub fn device_legacy(signal: Option<String>) -> Self {
         Self::DeviceLegacy { signal }
+    }
+
+    /// Creates a new `ProofOfHuman` preset with optional signal
+    #[must_use]
+    pub fn proof_of_human(signal: Option<String>) -> Self {
+        Self::ProofOfHuman { signal }
+    }
+
+    /// Creates a new `Passport` preset with optional signal
+    #[must_use]
+    pub fn passport(signal: Option<String>) -> Self {
+        Self::Passport { signal }
     }
 
     #[must_use]
@@ -193,6 +225,26 @@ impl Preset {
                 legacy_signal: signal,
                 identity_attributes: None,
                 allow_legacy_proofs_override: None,
+            },
+            Self::ProofOfHuman { signal } => BridgeParams {
+                constraints: Some(ConstraintNode::item(CredentialRequest::new(
+                    CredentialType::ProofOfHuman,
+                    signal.clone().map(Signal::from_string),
+                ))),
+                legacy_verification_level: Some(VerificationLevel::Orb),
+                legacy_signal: signal,
+                identity_attributes: None,
+                allow_legacy_proofs_override: Some(true),
+            },
+            Self::Passport { signal } => BridgeParams {
+                constraints: Some(ConstraintNode::item(CredentialRequest::new(
+                    CredentialType::Passport,
+                    signal.clone().map(Signal::from_string),
+                ))),
+                legacy_verification_level: Some(VerificationLevel::Document),
+                legacy_signal: signal,
+                identity_attributes: None,
+                allow_legacy_proofs_override: Some(true),
             },
             Self::IdentityCheck {
                 attributes,
@@ -287,6 +339,59 @@ mod tests {
         assert_eq!(bridge_params.legacy_signal, None);
         assert_eq!(bridge_params.identity_attributes, None);
         assert!(bridge_params.constraints.is_none());
+    }
+
+    #[test]
+    fn proof_of_human_preset_builds_v4_constraint_with_legacy_orb_fallback() {
+        let preset = Preset::proof_of_human(Some("poh-signal".to_string()));
+        let bridge_params = preset.into_bridge_params();
+
+        assert_eq!(
+            bridge_params.legacy_verification_level,
+            Some(VerificationLevel::Orb)
+        );
+        assert_eq!(bridge_params.legacy_signal, Some("poh-signal".to_string()));
+        assert_eq!(bridge_params.identity_attributes, None);
+        assert_eq!(bridge_params.allow_legacy_proofs_override, Some(true));
+
+        match bridge_params.constraints {
+            Some(ConstraintNode::Item(item)) => {
+                assert_eq!(item.credential_type, CredentialType::ProofOfHuman);
+                assert_eq!(
+                    item.signal.as_ref().and_then(Signal::as_str),
+                    Some("poh-signal")
+                );
+            }
+            _ => panic!("expected proofOfHuman constraint to be one proof_of_human item"),
+        }
+    }
+
+    #[test]
+    fn passport_preset_builds_v4_constraint_with_legacy_document_fallback() {
+        let preset = Preset::passport(Some("passport-signal".to_string()));
+        let bridge_params = preset.into_bridge_params();
+
+        assert_eq!(
+            bridge_params.legacy_verification_level,
+            Some(VerificationLevel::Document)
+        );
+        assert_eq!(
+            bridge_params.legacy_signal,
+            Some("passport-signal".to_string())
+        );
+        assert_eq!(bridge_params.identity_attributes, None);
+        assert_eq!(bridge_params.allow_legacy_proofs_override, Some(true));
+
+        match bridge_params.constraints {
+            Some(ConstraintNode::Item(item)) => {
+                assert_eq!(item.credential_type, CredentialType::Passport);
+                assert_eq!(
+                    item.signal.as_ref().and_then(Signal::as_str),
+                    Some("passport-signal")
+                );
+            }
+            _ => panic!("expected passport constraint to be one passport item"),
+        }
     }
 
     #[test]
