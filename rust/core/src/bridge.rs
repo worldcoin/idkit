@@ -1811,6 +1811,54 @@ mod tests {
     }
 
     #[test]
+    fn test_build_request_payload_serializes_selfie_v4_request() {
+        let app_id = AppId::new("app_test").unwrap();
+        let signature = "0x".to_string() + &"00".repeat(64) + "1b";
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &signature,
+        )
+        .unwrap();
+        let constraints = ConstraintNode::item(CredentialRequest::new(
+            CredentialType::Selfie,
+            Some(Signal::from_string("selfie-signal")),
+        ));
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::Uniqueness {
+                action: "test-action".to_string(),
+            },
+            constraints: Some(constraints),
+            rp_context,
+            action_description: Some("Selfie check".to_string()),
+            legacy_verification_level: VerificationLevel::Device,
+            legacy_signal: String::new(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: Some(Environment::Production),
+            identity_attributes: None,
+        };
+
+        let payload = build_request_payload(&params, false).unwrap();
+        let proof_request = payload.get("proof_request").unwrap();
+        assert_eq!(
+            proof_request["proof_requests"][0]["identifier"],
+            serde_json::json!("selfie")
+        );
+        assert_eq!(
+            proof_request["proof_requests"][0]["issuer_schema_id"],
+            serde_json::json!(11)
+        );
+        assert_eq!(payload["verification_level"], serde_json::json!("device"));
+    }
+
+    #[test]
     fn test_build_request_payload_serializes_identity_attributes() {
         let app_id = AppId::new("app_test").unwrap();
         let rp_context = RpContext::new(
@@ -2312,7 +2360,7 @@ mod tests {
         );
         assert_eq!(
             CredentialType::from_issuer_schema_id(11),
-            Some(CredentialType::Face)
+            Some(CredentialType::Selfie)
         );
         assert_eq!(
             CredentialType::from_issuer_schema_id(9303),

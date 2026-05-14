@@ -33,10 +33,11 @@ const RETURN_TO_TOOLTIP =
 
 type PresetKind = "orb" | "secure_document" | "document" | "device" | "selfie";
 
-type V4CredentialType = "proof_of_human" | "passport" | "mnc";
+type V4CredentialType = "proof_of_human" | "selfie" | "passport" | "mnc";
 
 const V4_CREDENTIAL_TO_NAME: Record<V4CredentialType, string> = {
   proof_of_human: "Proof of Human",
+  selfie: "Selfie",
   passport: "Passport",
   mnc: "MNC",
 };
@@ -402,6 +403,7 @@ export function DemoClient(): ReactElement {
                 }
               >
                 <option value="proof_of_human">Proof Of Human (Orb)</option>
+                <option value="selfie">Selfie</option>
                 <option value="passport">Passport</option>
                 <option value="mnc">MNC</option>
               </select>

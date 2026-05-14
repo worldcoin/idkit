@@ -38,7 +38,7 @@ impl CredentialRequestWasm {
     /// Creates a new request item
     ///
     /// # Arguments
-    /// * `credential_type` - The type of credential to request (e.g., `proof_of_human`, `face`)
+    /// * `credential_type` - The type of credential to request (e.g., `proof_of_human`, `selfie`)
     /// * `signal` - Optional signal string
     ///
     /// # Errors
@@ -1333,7 +1333,7 @@ fn status_to_js_value(status: &crate::Status) -> Result<JsValue, JsValue> {
 // TypeScript type definitions
 #[wasm_bindgen(typescript_custom_section)]
 const TS_TYPES: &str = r#"
-export type CredentialType = "proof_of_human" | "face" | "passport" | "mnc";
+export type CredentialType = "proof_of_human" | "selfie" | "passport" | "mnc";
 
 export interface CredentialRequestType {
     type: CredentialType;
@@ -1363,7 +1363,7 @@ export function computeRpSignatureMessage(nonce: string, createdAt: bigint, expi
 const TS_IDKIT_RESULT: &str = r#"
 /** V4 response item for World ID v4 uniqueness proofs */
 export interface ResponseItemV4 {
-    /** Credential identifier (e.g., "proof_of_human", "face", "passport", "mnc") */
+    /** Credential identifier (e.g., "proof_of_human", "selfie", "passport", "mnc") */
     identifier: string;
     /** Signal hash (optional, included if signal was provided in request) */
     signal_hash?: string;
@@ -1371,7 +1371,7 @@ export interface ResponseItemV4 {
     proof: string[];
     /** RP-scoped nullifier (hex) */
     nullifier: string;
-    /** Credential issuer schema ID (1=proof_of_human, 11=face, 9303=passport, 9310=mnc) */
+    /** Credential issuer schema ID (1=proof_of_human, 11=selfie, 9303=passport, 9310=mnc) */
     issuer_schema_id: number;
     /** Minimum expiration timestamp (unix seconds) */
     expires_at_min: number;
@@ -1379,7 +1379,7 @@ export interface ResponseItemV4 {
 
 /** V3 response item for World ID v3 (legacy format) */
 export interface ResponseItemV3 {
-    /** Credential identifier (e.g., "proof_of_human", "face") */
+    /** Credential identifier (e.g., "proof_of_human", "selfie") */
     identifier: string;
     /** Signal hash (optional, included if signal was provided in request) */
     signal_hash?: string;
@@ -1393,7 +1393,7 @@ export interface ResponseItemV3 {
 
 /** Session response item for World ID v4 session proofs */
 export interface ResponseItemSession {
-    /** Credential identifier (e.g., "proof_of_human", "face", "passport", "mnc") */
+    /** Credential identifier (e.g., "proof_of_human", "selfie", "passport", "mnc") */
     identifier: string;
     /** Signal hash (optional, included if signal was provided in request) */
     signal_hash?: string;
@@ -1401,7 +1401,7 @@ export interface ResponseItemSession {
     proof: string[];
     /** Session nullifier: 1st element is the session nullifier, 2nd is the generated action (hex strings) */
     session_nullifier: string[];
-    /** Credential issuer schema ID (1=proof_of_human, 11=face, 9303=passport, 9310=mnc) */
+    /** Credential issuer schema ID (1=proof_of_human, 11=selfie, 9303=passport, 9310=mnc) */
     issuer_schema_id: number;
     /** Minimum expiration timestamp (unix seconds) */
     expires_at_min: number;
