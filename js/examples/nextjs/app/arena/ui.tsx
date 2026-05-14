@@ -170,6 +170,7 @@ const APP_ID = process.env.NEXT_PUBLIC_APP_ID as `app_${string}` | undefined;
 const RP_ID = process.env.NEXT_PUBLIC_RP_ID;
 const STAGING_CONNECT_BASE_URL = "https://staging.world.org/verify";
 const FUTURE_GENESIS_OFFSET_SEC = 365 * 24 * 60 * 60;
+const CONFIGURABLE_ALLOW_LEGACY_SECTION_ID = "world-id-4-success";
 
 const PRESET_KIND_TO_NAME: Record<PresetKind, string> = {
   orb: "Orb / Proof of Human",
@@ -258,7 +259,7 @@ const ARENA_SECTIONS: ArenaSection[] = [
         expected: "success",
         expectedProtocol: "4.0",
         prerequisite: "Account has a 4.0 Proof of Human credential.",
-        description: "Requests proof_of_human with legacy fallback disabled.",
+        description: "Requests proof_of_human as a 4.0 success path.",
         request: {
           type: "constraints",
           constraintKind: "proof_of_human",
@@ -271,7 +272,7 @@ const ARENA_SECTIONS: ArenaSection[] = [
         expected: "success",
         expectedProtocol: "4.0",
         prerequisite: "Account has a 4.0 Passport credential.",
-        description: "Requests passport with legacy fallback disabled.",
+        description: "Requests passport as a 4.0 success path.",
         request: {
           type: "constraints",
           constraintKind: "passport",
@@ -284,7 +285,7 @@ const ARENA_SECTIONS: ArenaSection[] = [
         expected: "success",
         expectedProtocol: "4.0",
         prerequisite: "Account has a 4.0 MNC credential.",
-        description: "Requests mnc with legacy fallback disabled.",
+        description: "Requests mnc as a 4.0 success path.",
         request: {
           type: "constraints",
           constraintKind: "mnc",
@@ -723,6 +724,24 @@ function caseExpectedLabel(testCase: ArenaCaseDefinition): string {
   return expectedLabel(testCase.expected, testCase.expectedProtocol);
 }
 
+function withSectionAllowLegacyProofs(
+  request: RequestDefinition,
+  sectionId: string,
+  allowLegacyProofs: boolean,
+): RequestDefinition {
+  if (
+    sectionId !== CONFIGURABLE_ALLOW_LEGACY_SECTION_ID ||
+    request.type !== "constraints"
+  ) {
+    return request;
+  }
+
+  return {
+    ...request,
+    allowLegacyProofs,
+  };
+}
+
 function makeAction(caseId: ArenaCaseId, actionPrefix: string): string {
   const base = actionPrefix.trim() || "idkit-arena";
   if (caseId === "error_nullifier_replayed") {
@@ -919,6 +938,8 @@ export function ArenaClient(): ReactElement {
   const [useReturnTo, setUseReturnTo] = useState(false);
   const [returnTo, setReturnTo] = useState("");
   const [actionPrefix, setActionPrefix] = useState("idkit-arena");
+  const [allowLegacyProofsForV4Success, setAllowLegacyProofsForV4Success] =
+    useState(false);
   const [results, setResults] = useState<
     Partial<Record<ArenaCaseId, TestCaseResult>>
   >({});
@@ -1298,12 +1319,35 @@ export function ArenaClient(): ReactElement {
         {ARENA_SECTIONS.map((section) => (
           <section className="arena-section" key={section.id}>
             <div className="arena-section-header">
-              <h2>{section.title}</h2>
-              <p>{section.description}</p>
+              <div>
+                <h2>{section.title}</h2>
+                <p>{section.description}</p>
+              </div>
+              {section.id === CONFIGURABLE_ALLOW_LEGACY_SECTION_ID && (
+                <label
+                  className="arena-section-toggle"
+                  htmlFor="arenaV4SuccessAllowLegacyProofs"
+                >
+                  <input
+                    type="checkbox"
+                    id="arenaV4SuccessAllowLegacyProofs"
+                    checked={allowLegacyProofsForV4Success}
+                    onChange={(event) =>
+                      setAllowLegacyProofsForV4Success(event.target.checked)
+                    }
+                  />
+                  <span>allow_legacy_proofs</span>
+                </label>
+              )}
             </div>
 
             <div className="arena-cases">
               {section.cases.map((testCase) => {
+                const request = withSectionAllowLegacyProofs(
+                  testCase.request,
+                  section.id,
+                  allowLegacyProofsForV4Success,
+                );
                 const result = results[testCase.id] ?? {
                   status: "idle",
                   message: "Not run",
@@ -1328,7 +1372,7 @@ export function ArenaClient(): ReactElement {
                           <dt>Request</dt>
                           <dd>
                             {requestLabel(
-                              testCase.request,
+                              request,
                               testCase.requireUserPresence ?? false,
                             )}
                           </dd>
@@ -1348,7 +1392,12 @@ export function ArenaClient(): ReactElement {
                     <div className="test-case-actions">
                       <button
                         type="button"
-                        onClick={() => void startCase(testCase)}
+                        onClick={() =>
+                          void startCase({
+                            ...testCase,
+                            request,
+                          })
+                        }
                         disabled={isRunning}
                       >
                         {buttonLabel}

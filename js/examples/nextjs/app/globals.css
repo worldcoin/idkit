@@ -230,6 +230,10 @@ pre {
 }
 
 .arena-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 14px;
 }
 
@@ -243,6 +247,16 @@ pre {
   color: var(--status-color);
   font-size: 14px;
   line-height: 1.4;
+}
+
+.arena-section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  color: var(--status-color);
+  font-family: var(--font-mono);
+  font-size: 12px;
 }
 
 .test-case-row {
@@ -341,6 +355,10 @@ pre {
 @media (max-width: 700px) {
   .test-case-row {
     grid-template-columns: 1fr;
+  }
+
+  .arena-section-header {
+    flex-direction: column;
   }
 
   .test-case-actions {
