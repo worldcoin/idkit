@@ -123,6 +123,10 @@ struct BridgeRequestPayload {
 
     /// Environment for the bridge request
     environment: Environment,
+
+    /// Optional deep-link callback URL for the World App to redirect to after verification.
+    #[serde(skip_serializing_if = "Option::is_none", rename = "return_to_url")]
+    return_to: Option<String>,
 }
 
 /// Encrypted payload sent to/from the bridge
@@ -549,6 +553,7 @@ pub fn build_request_payload(
         timestamp,
         allow_legacy_proofs: params.allow_legacy_proofs,
         environment: params.environment.unwrap_or_default(),
+        return_to: params.return_to.clone(),
     };
 
     serde_json::to_value(&payload).map_err(Into::into)
@@ -1793,6 +1798,7 @@ mod tests {
             identity_attributes: None,
             allow_legacy_proofs: false,
             environment: Environment::Production,
+            return_to: None,
         };
 
         let json = serde_json::to_string(&payload).unwrap();
@@ -2409,6 +2415,77 @@ mod tests {
         // native=false omits timestamp
         let payload_bridge = build_request_payload(&params, false).unwrap();
         assert!(payload_bridge.get("timestamp").is_none());
+    }
+
+    #[test]
+    fn test_build_request_payload_includes_return_to_when_provided() {
+        let app_id = AppId::new("app_test").unwrap();
+        let sig = "0x".to_string() + &"00".repeat(64) + "1b";
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &sig,
+        )
+        .unwrap();
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::Uniqueness {
+                action: "my-action".to_string(),
+            },
+            constraints: None,
+            rp_context,
+            action_description: None,
+            legacy_verification_level: VerificationLevel::Orb,
+            legacy_signal: "test-signal".to_string(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            override_connect_base_url: None,
+            return_to: Some("idkitsample://callback".to_string()),
+            environment: None,
+            identity_attributes: None,
+        };
+
+        let payload = build_request_payload(&params, false).unwrap();
+        assert_eq!(payload["return_to_url"], "idkitsample://callback");
+        assert!(payload.get("return_to").is_none());
+    }
+
+    #[test]
+    fn test_build_request_payload_omits_return_to_when_none() {
+        let app_id = AppId::new("app_test").unwrap();
+        let sig = "0x".to_string() + &"00".repeat(64) + "1b";
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &sig,
+        )
+        .unwrap();
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::Uniqueness {
+                action: "my-action".to_string(),
+            },
+            constraints: None,
+            rp_context,
+            action_description: None,
+            legacy_verification_level: VerificationLevel::Orb,
+            legacy_signal: "test-signal".to_string(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: None,
+            identity_attributes: None,
+        };
+
+        let payload = build_request_payload(&params, false).unwrap();
+        assert!(payload.get("return_to_url").is_none());
     }
 
     #[test]

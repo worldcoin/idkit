@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { __ } from "../../lang";
 import { useMedia } from "../../hooks/useMedia";
 import { WorldcoinIcon } from "../Icons/WorldIcon";
@@ -10,15 +10,6 @@ type InviteCodeStateProps = {
   codeExpiresAt: number | null;
   isAwaitingUserConfirmation: boolean;
 };
-
-function extractInviteCode(uri: string): string | null {
-  try {
-    const url = new URL(uri);
-    return url.searchParams.get("c");
-  } catch {
-    return null;
-  }
-}
 
 function useNowInSeconds(): number {
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
@@ -38,12 +29,11 @@ export function InviteCodeState({
 }: InviteCodeStateProps): ReactElement {
   const media = useMedia();
   const now = useNowInSeconds();
+  const inviteCode = connectorURI
+    ? new URL(connectorURI).searchParams.get("c")
+    : null;
   const secondsRemaining =
     codeExpiresAt !== null ? Math.max(0, codeExpiresAt - now) : null;
-  const inviteCode = useMemo(
-    () => (connectorURI ? extractInviteCode(connectorURI) : null),
-    [connectorURI],
-  );
 
   return (
     <div
