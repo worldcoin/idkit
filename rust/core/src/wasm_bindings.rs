@@ -1573,7 +1573,19 @@ export interface DeviceLegacyPreset {
     signal?: string;
 }
 
-export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLegacyPreset | SelfieCheckLegacyPreset | DeviceLegacyPreset;
+export interface ProofOfHumanPreset {
+    /** Requests a World ID 4.0 proof-of-human credential with legacy Orb fallback. */
+    type: "ProofOfHuman";
+    signal?: string;
+}
+
+export interface PassportPreset {
+    /** Requests a World ID 4.0 passport credential with legacy document fallback. */
+    type: "Passport";
+    signal?: string;
+}
+
+export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLegacyPreset | SelfieCheckLegacyPreset | DeviceLegacyPreset | ProofOfHumanPreset | PassportPreset;
 
 export function orbLegacy(signal?: string): Preset;
 export function secureDocumentLegacy(signal?: string): Preset;
@@ -1581,6 +1593,8 @@ export function documentLegacy(signal?: string): Preset;
 /** Preview: Selfie Check is currently in preview. Contact us if you need it enabled. */
 export function selfieCheckLegacy(signal?: string): Preset;
 export function deviceLegacy(signal?: string): Preset;
+export function proofOfHuman(signal?: string): Preset;
+export function passport(signal?: string): Preset;
 "#;
 
 // Export RP signature types
