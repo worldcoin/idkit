@@ -303,6 +303,8 @@ export type {
   DocumentLegacyPreset,
   SelfieCheckLegacyPreset,
   DeviceLegacyPreset,
+  ProofOfHumanPreset,
+  PassportPreset,
 } from "./lib/wasm";
 
 // Import WASM preset type for function return types
@@ -313,6 +315,8 @@ import type {
   DocumentLegacyPreset,
   SelfieCheckLegacyPreset,
   DeviceLegacyPreset,
+  ProofOfHumanPreset,
+  PassportPreset,
 } from "./lib/wasm";
 
 /**
@@ -406,7 +410,7 @@ export function deviceLegacy(
  *
  * @example
  * ```typescript
- * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: false })
+ * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: true })
  *   .preset(selfieCheckLegacy({ signal: 'user-123' }))
  * ```
  */
@@ -414,6 +418,40 @@ export function selfieCheckLegacy(
   opts: { signal?: string } = {},
 ): SelfieCheckLegacyPreset {
   return { type: "SelfieCheckLegacy", signal: opts.signal };
+}
+
+/**
+ * Creates a ProofOfHuman preset for World ID 4.0 with legacy Orb fallback
+ *
+ * @param opts - Optional configuration with signal
+ * @returns A ProofOfHuman preset
+ *
+ * @example
+ * ```typescript
+ * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: true })
+ *   .preset(proofOfHuman({ signal: 'user-123' }))
+ * ```
+ */
+export function proofOfHuman(
+  opts: { signal?: string } = {},
+): ProofOfHumanPreset {
+  return { type: "ProofOfHuman", signal: opts.signal };
+}
+
+/**
+ * Creates a Passport preset for World ID 4.0 with legacy document fallback
+ *
+ * @param opts - Optional configuration with signal
+ * @returns A Passport preset
+ *
+ * @example
+ * ```typescript
+ * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: false })
+ *   .preset(passport({ signal: 'user-123' }))
+ * ```
+ */
+export function passport(opts: { signal?: string } = {}): PassportPreset {
+  return { type: "Passport", signal: opts.signal };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -544,7 +582,7 @@ class IDKitBuilder {
    * Presets provide a simplified way to create requests with predefined
    * credential configurations.
    *
-   * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), documentLegacy(), selfieCheckLegacy(), or deviceLegacy()
+   * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), documentLegacy(), selfieCheckLegacy(), deviceLegacy(), proofOfHuman(), or passport()
    * @returns A new IDKitRequest instance
    *
    * @example
@@ -661,7 +699,7 @@ class IDKitInviteCodeBuilder {
   /**
    * Creates an invite-code mode IDKit request from a preset.
    *
-   * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), documentLegacy(), selfieCheckLegacy(), or deviceLegacy()
+   * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), documentLegacy(), selfieCheckLegacy(), deviceLegacy(), proofOfHuman(), or passport()
    * @returns A new IDKitInviteCodeRequest instance
    */
   async preset(preset: Preset): Promise<IDKitInviteCodeRequest> {
@@ -975,4 +1013,8 @@ export const IDKit = {
   deviceLegacy,
   /** Create a SelfieCheckLegacy preset for face verification */
   selfieCheckLegacy,
+  /** Create a ProofOfHuman preset for World ID 4.0 with legacy Orb fallback */
+  proofOfHuman,
+  /** Create a Passport preset for World ID 4.0 with legacy document fallback */
+  passport,
 };

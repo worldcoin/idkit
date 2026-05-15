@@ -9,12 +9,14 @@ import {
   IDKitInviteCodeRequestWidget,
   IDKitRequestWidget,
   orbLegacy,
+  passport as passportPreset,
+  proofOfHuman,
   secureDocumentLegacy,
   setDebug,
   type ConstraintNode,
   type IDKitResult,
   type RpContext,
-  Preset,
+  type Preset,
 } from "@worldcoin/idkit";
 
 setDebug(true);
@@ -162,6 +164,7 @@ export function DemoClient(): ReactElement {
   const [returnTo, setReturnTo] = useState("");
   const [isReturnToTooltipOpen, setIsReturnToTooltipOpen] = useState(false);
   const [useInviteCode, setUseInviteCode] = useState(false);
+  const isV4PresetCredential = v4CredentialType !== "mnc";
 
   const genesisIssuedAtMin =
     genesisEnabled && genesisDate
@@ -177,11 +180,15 @@ export function DemoClient(): ReactElement {
       } = useMemo(
     () =>
       worldIdVersion === "4.0"
-        ? {
-            constraints: CredentialRequest(v4CredentialType, {
-              genesis_issued_at_min: genesisIssuedAtMin,
-            }),
-          }
+        ? v4CredentialType === "proof_of_human"
+          ? { preset: proofOfHuman({ signal: widgetSignal }) }
+          : v4CredentialType === "passport"
+            ? { preset: passportPreset({ signal: widgetSignal }) }
+            : {
+                constraints: CredentialRequest(v4CredentialType, {
+                  genesis_issued_at_min: genesisIssuedAtMin,
+                }),
+              }
         : { preset: createPreset(presetKind, widgetSignal) },
     [
       worldIdVersion,
@@ -215,11 +222,11 @@ export function DemoClient(): ReactElement {
   }, [environment]);
 
   useEffect(() => {
-    if (worldIdVersion !== "4.0") {
+    if (worldIdVersion !== "4.0" || isV4PresetCredential) {
       setGenesisEnabled(false);
       setGenesisDate("");
     }
-  }, [worldIdVersion]);
+  }, [isV4PresetCredential, worldIdVersion]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -402,7 +409,7 @@ export function DemoClient(): ReactElement {
                   setV4CredentialType(e.target.value as V4CredentialType)
                 }
               >
-                <option value="proof_of_human">Proof Of Human (Orb)</option>
+                <option value="proof_of_human">Proof Of Human</option>
                 <option value="selfie">Selfie</option>
                 <option value="passport">Passport</option>
                 <option value="mnc">MNC</option>
@@ -447,6 +454,7 @@ export function DemoClient(): ReactElement {
                 type="checkbox"
                 id="cfgGenesisEnabled"
                 checked={genesisEnabled}
+                disabled={isV4PresetCredential}
                 onChange={(e) => setGenesisEnabled(e.target.checked)}
               />
               {genesisEnabled && (
