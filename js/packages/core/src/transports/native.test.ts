@@ -117,7 +117,7 @@ describe("native transport request lifecycle", () => {
   it("uses per-identifier signal hashes when response omits signal_hash", async () => {
     const signalHashes = {
       proof_of_human: hashSignal("poh-signal"),
-      face: hashSignal("face-signal"),
+      selfie: hashSignal("selfie-signal"),
     };
 
     const req = createNativeRequest({}, baseConfig, signalHashes, "");
@@ -139,7 +139,7 @@ describe("native transport request lifecycle", () => {
             expires_at_min: 0,
           },
           {
-            identifier: "face",
+            identifier: "selfie",
             proof: proofResponseProof,
             nullifier: proofResponseNullifier("b"),
             issuer_schema_id: 11,
@@ -156,7 +156,7 @@ describe("native transport request lifecycle", () => {
         signalHashes.proof_of_human,
       );
       expect(completion.result.responses[1]?.signal_hash).toBe(
-        signalHashes.face,
+        signalHashes.selfie,
       );
     }
   });

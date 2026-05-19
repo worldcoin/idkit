@@ -65,16 +65,16 @@ describe("IDKitRequest API", () => {
 
   it("should create any() constraint correctly", () => {
     const poh = CredentialRequest("proof_of_human");
-    const face = CredentialRequest("face");
-    const constraint = any(poh, face);
+    const selfie = CredentialRequest("selfie");
+    const constraint = any(poh, selfie);
     expect(constraint).toHaveProperty("any");
     expect(constraint.any).toHaveLength(2);
   });
 
   it("should create enumerate() constraint correctly", () => {
     const poh = CredentialRequest("proof_of_human");
-    const face = CredentialRequest("face");
-    const constraint = enumerate(poh, face);
+    const selfie = CredentialRequest("selfie");
+    const constraint = enumerate(poh, selfie);
     expect(constraint).toHaveProperty("enumerate");
     expect(constraint.enumerate).toHaveLength(2);
   });

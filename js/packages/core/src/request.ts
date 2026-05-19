@@ -211,14 +211,14 @@ class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
 /**
  * Creates a CredentialRequest for a credential type
  *
- * @param credential_type - The type of credential to request (e.g., 'proof_of_human', 'face')
+ * @param credential_type - The type of credential to request (e.g., 'proof_of_human', 'selfie')
  * @param options - Optional signal, genesis_issued_at_min, and expires_at_min
  * @returns A CredentialRequest object
  *
  * @example
  * ```typescript
  * const orb = CredentialRequest('proof_of_human', { signal: 'user-123' })
- * const face = CredentialRequest('face')
+ * const selfie = CredentialRequest('selfie')
  * // Require credential to be valid for at least one year
  * const withExpiry = CredentialRequest('proof_of_human', { expires_at_min: Date.now() / 1000 + 60 * 60 * 60 * 24 * 365 })
  * ```
@@ -247,7 +247,7 @@ export function CredentialRequest(
  *
  * @example
  * ```typescript
- * const constraint = any(CredentialRequest('proof_of_human'), CredentialRequest('face'))
+ * const constraint = any(CredentialRequest('proof_of_human'), CredentialRequest('selfie'))
  * ```
  */
 export function any(...nodes: ConstraintNode[]): { any: ConstraintNode[] } {
@@ -539,7 +539,7 @@ class IDKitBuilder {
    * @example
    * ```typescript
    * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: false })
-   *   .constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('face')));
+   *   .constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('selfie')));
    * ```
    */
   async constraints(constraints: ConstraintNode): Promise<IDKitRequest> {
@@ -680,7 +680,7 @@ class IDKitInviteCodeBuilder {
    * @example
    * ```typescript
    * const request = await IDKit.requestWithInviteCode({ app_id, action, rp_context, allow_legacy_proofs: false })
-   *   .constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('face')));
+   *   .constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('selfie')));
    * displayLink(request.connectorURI);
    * ```
    */
@@ -754,7 +754,7 @@ class IDKitInviteCodeBuilder {
  *   action: 'my-action',
  *   rp_context: { ... },
  *   allow_legacy_proofs: false,
- * }).constraints(enumerate(CredentialRequest('proof_of_human'), CredentialRequest('face')));
+ * }).constraints(enumerate(CredentialRequest('proof_of_human'), CredentialRequest('selfie')));
  *
  * // In World App: connectorURI is empty, result comes via postMessage
  * // On web: connectorURI is the QR URL to display
@@ -812,7 +812,7 @@ function createRequest(config: IDKitRequestConfig): IDKitBuilder {
  *   action: 'my-action',
  *   rp_context: { ... },
  *   allow_legacy_proofs: false,
- * }).constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('face')));
+ * }).constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('selfie')));
  *
  * displayLink(request.connectorURI);          // user opens this URL on their phone
  * const proof = await request.pollUntilCompletion();
@@ -873,7 +873,7 @@ function createRequestWithInviteCode(
  * const request = await IDKit.createSession({
  *   app_id: 'app_staging_xxxxx',
  *   rp_context: { ... },
- * }).constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('face')));
+ * }).constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('selfie')));
  *
  * // Display QR, wait for proof
  * const result = await request.pollUntilCompletion();
@@ -923,7 +923,7 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
  * const request = await IDKit.proveSession(savedSessionId, {
  *   app_id: 'app_staging_xxxxx',
  *   rp_context: { ... },
- * }).constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('face')));
+ * }).constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('selfie')));
  *
  * const result = await request.pollUntilCompletion();
  * // result.session_id -> same session

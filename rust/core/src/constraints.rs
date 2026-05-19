@@ -384,8 +384,8 @@ mod tests {
         CredentialRequest::new(CredentialType::ProofOfHuman, None)
     }
 
-    fn face_item() -> CredentialRequest {
-        CredentialRequest::new(CredentialType::Face, None)
+    fn selfie_item() -> CredentialRequest {
+        CredentialRequest::new(CredentialType::Selfie, None)
     }
 
     fn passport_item() -> CredentialRequest {
@@ -413,32 +413,32 @@ mod tests {
     fn test_any_node() {
         let node = ConstraintNode::any(vec![
             ConstraintNode::item(poh_item()),
-            ConstraintNode::item(face_item()),
+            ConstraintNode::item(selfie_item()),
             ConstraintNode::item(passport_item()),
         ]);
 
         let mut available = HashSet::new();
-        available.insert(CredentialType::Face);
+        available.insert(CredentialType::Selfie);
         available.insert(CredentialType::Passport);
 
         assert!(node.evaluate(&available));
-        // Should return Face because it's first in priority order
+        // Should return Selfie because it's first in priority order
         assert_eq!(
             node.first_satisfying(&available),
-            Some(CredentialType::Face)
+            Some(CredentialType::Selfie)
         );
     }
 
     #[test]
     fn test_any_node_priority() {
-        // ProofOfHuman has highest priority, Face second
+        // ProofOfHuman has highest priority, Selfie second
         let node = ConstraintNode::any(vec![
             ConstraintNode::item(poh_item()),
-            ConstraintNode::item(face_item()),
+            ConstraintNode::item(selfie_item()),
         ]);
 
         let mut available = HashSet::new();
-        available.insert(CredentialType::Face);
+        available.insert(CredentialType::Selfie);
         available.insert(CredentialType::ProofOfHuman);
 
         // Even though both are available, ProofOfHuman should be selected (higher priority)
@@ -452,7 +452,7 @@ mod tests {
     fn test_all_node() {
         let node = ConstraintNode::all(vec![
             ConstraintNode::item(poh_item()),
-            ConstraintNode::item(face_item()),
+            ConstraintNode::item(selfie_item()),
         ]);
 
         let mut available = HashSet::new();
@@ -461,7 +461,7 @@ mod tests {
         // Only one is available, should fail
         assert!(!node.evaluate(&available));
 
-        available.insert(CredentialType::Face);
+        available.insert(CredentialType::Selfie);
 
         // Both available, should succeed
         assert!(node.evaluate(&available));
@@ -471,7 +471,7 @@ mod tests {
     #[test]
     fn test_enumerate_node() {
         let node = ConstraintNode::enumerate(vec![
-            ConstraintNode::item(face_item()),
+            ConstraintNode::item(selfie_item()),
             ConstraintNode::item(passport_item()),
         ]);
 
@@ -511,17 +511,17 @@ mod tests {
     fn test_face_orb_example() {
         let node = ConstraintNode::any(vec![
             ConstraintNode::item(poh_item()),
-            ConstraintNode::item(face_item()),
+            ConstraintNode::item(selfie_item()),
         ]);
 
         let mut available = HashSet::new();
-        available.insert(CredentialType::Face);
+        available.insert(CredentialType::Selfie);
 
-        // Only face available
+        // Only selfie available
         assert!(node.evaluate(&available));
         assert_eq!(
             node.first_satisfying(&available),
-            Some(CredentialType::Face)
+            Some(CredentialType::Selfie)
         );
 
         // Both available - proof_of_human has priority
@@ -555,7 +555,7 @@ mod tests {
         let node = ConstraintNode::any(vec![
             ConstraintNode::item(poh_item()),
             ConstraintNode::all(vec![
-                ConstraintNode::item(face_item()),
+                ConstraintNode::item(selfie_item()),
                 ConstraintNode::item(passport_item()),
             ]),
         ]);
@@ -563,7 +563,7 @@ mod tests {
         let credentials = node.collect_credential_types();
         assert_eq!(credentials.len(), 3);
         assert!(credentials.contains(&CredentialType::ProofOfHuman));
-        assert!(credentials.contains(&CredentialType::Face));
+        assert!(credentials.contains(&CredentialType::Selfie));
         assert!(credentials.contains(&CredentialType::Passport));
     }
 
@@ -572,7 +572,7 @@ mod tests {
         let node = ConstraintNode::any(vec![
             ConstraintNode::item(poh_item()),
             ConstraintNode::all(vec![
-                ConstraintNode::item(face_item()),
+                ConstraintNode::item(selfie_item()),
                 ConstraintNode::item(passport_item()),
             ]),
         ]);
@@ -597,7 +597,7 @@ mod tests {
     fn test_serialization() {
         let node = ConstraintNode::any(vec![
             ConstraintNode::item(poh_item()),
-            ConstraintNode::item(face_item()),
+            ConstraintNode::item(selfie_item()),
         ]);
 
         let json = serde_json::to_string(&node).unwrap();
@@ -615,7 +615,7 @@ mod tests {
         // Test any constraint
         let node = ConstraintNode::any(vec![
             ConstraintNode::item(poh_item()),
-            ConstraintNode::item(face_item()),
+            ConstraintNode::item(selfie_item()),
         ]);
         let (items, expr) = node.to_protocol().unwrap();
 
@@ -623,7 +623,7 @@ mod tests {
         let json = serde_json::to_string(&expr).unwrap();
         assert!(json.contains("any"));
         assert!(json.contains("proof_of_human"));
-        assert!(json.contains("face"));
+        assert!(json.contains("selfie"));
     }
 
     #[test]
@@ -656,7 +656,7 @@ mod tests {
         // Multiple items should have constraint expression
         let node = ConstraintNode::any(vec![
             ConstraintNode::item(poh_item()),
-            ConstraintNode::item(face_item()),
+            ConstraintNode::item(selfie_item()),
         ]);
         let (items, expr) = node.to_protocol_top_level().unwrap();
 

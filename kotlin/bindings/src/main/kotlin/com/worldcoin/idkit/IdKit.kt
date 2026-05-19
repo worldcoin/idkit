@@ -126,9 +126,8 @@ data class IDKitPollOptions(
 class IDKitBuilder internal constructor(
     private val inner: IdKitBuilder,
 ) {
-    // TODO: Re-enable when World ID 4.0 is live
-    // fun constraints(constraints: ConstraintNode): IDKitRequest =
-    //     IDKitRequest(inner.constraints(constraints))
+    fun constraints(constraints: uniffi.idkit_core.ConstraintNode): IDKitRequest =
+        IDKitRequest(inner.constraints(constraints))
 
     fun preset(preset: Preset): IDKitRequest =
         IDKitRequest(inner.preset(preset))

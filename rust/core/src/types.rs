@@ -29,8 +29,8 @@ use std::sync::Arc;
 pub enum CredentialType {
     /// Proof of human credential
     ProofOfHuman,
-    /// Face credential
-    Face,
+    /// Selfie credential
+    Selfie,
     /// Passport credential (ICAO 9303 compliant travel document)
     Passport,
     /// MNC (My Number Card) credential
@@ -43,7 +43,7 @@ impl CredentialType {
     pub const fn issuer_schema_id(&self) -> u64 {
         match self {
             Self::ProofOfHuman => 1,
-            Self::Face => 11,
+            Self::Selfie => 11,
             Self::Passport => 9303,
             Self::Mnc => 9310,
         }
@@ -56,7 +56,7 @@ impl CredentialType {
     pub const fn from_issuer_schema_id(id: u64) -> Option<Self> {
         match id {
             1 => Some(Self::ProofOfHuman),
-            11 => Some(Self::Face),
+            11 => Some(Self::Selfie),
             9303 => Some(Self::Passport),
             9310 => Some(Self::Mnc),
             _ => None,
@@ -625,7 +625,7 @@ impl<'de> Deserialize<'de> for BridgeResponseV1 {
 pub enum ResponseItem {
     /// Protocol version 4.0 (World ID v4)
     V4 {
-        /// Credential identifier (e.g., `proof_of_human`, `face`, `passport`, `mnc`)
+        /// Credential identifier (e.g., `proof_of_human`, `selfie`, `passport`, `mnc`)
         identifier: String,
         /// Signal hash (optional, included if signal was provided in request)
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -646,7 +646,7 @@ pub enum ResponseItem {
     },
     /// Session proof (World ID v4 sessions)
     Session {
-        /// Credential identifier (e.g., `proof_of_human`, `face`, `passport`, `mnc`)
+        /// Credential identifier (e.g., `proof_of_human`, `selfie`, `passport`, `mnc`)
         identifier: String,
         /// Signal hash (optional, included if signal was provided in request)
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -670,7 +670,7 @@ pub enum ResponseItem {
     },
     /// Protocol version 3.0 (World ID v3 - legacy format)
     V3 {
-        /// Credential identifier (e.g., `proof_of_human`, `face`)
+        /// Credential identifier (e.g., `proof_of_human`, `selfie`)
         identifier: String,
         /// Signal hash (hash of the signal provided in the request, or hash of empty signal)
         signal_hash: String,
@@ -1166,7 +1166,7 @@ mod tests {
         assert_eq!(item.genesis_issued_at_min, None);
 
         // Test without signal
-        let no_signal = CredentialRequest::new(CredentialType::Face, None);
+        let no_signal = CredentialRequest::new(CredentialType::Selfie, None);
         assert_eq!(no_signal.signal, None);
     }
 
@@ -1203,8 +1203,10 @@ mod tests {
     #[test]
     fn test_request_item_with_string_signal() {
         // Test creating request item with string signal
-        let item =
-            CredentialRequest::new(CredentialType::Face, Some(Signal::from_string("my_signal")));
+        let item = CredentialRequest::new(
+            CredentialType::Selfie,
+            Some(Signal::from_string("my_signal")),
+        );
         assert_eq!(item.signal, Some(Signal::from_string("my_signal")));
 
         // String signals should also be retrievable as bytes
@@ -1217,7 +1219,7 @@ mod tests {
         let signal = "0x3df41d9d0ba00d8fbe5a9896bb01efc4b3787b7c";
         let expected = hex::decode(signal.strip_prefix("0x").unwrap()).unwrap();
         let item = CredentialRequest::new(
-            CredentialType::Face,
+            CredentialType::Selfie,
             Some(Signal::String(signal.to_string())),
         );
 
@@ -1362,7 +1364,7 @@ mod tests {
     #[test]
     fn test_idkit_result_v3() {
         let responses = vec![ResponseItem::V3 {
-            identifier: "face".to_string(),
+            identifier: "selfie".to_string(),
             signal_hash: String::new(),
             proof: "0xproof".to_string(),
             merkle_root: "0xroot".to_string(),
@@ -1388,7 +1390,7 @@ mod tests {
     #[test]
     fn test_credential_type_issuer_schema_id() {
         assert_eq!(CredentialType::ProofOfHuman.issuer_schema_id(), 1);
-        assert_eq!(CredentialType::Face.issuer_schema_id(), 11);
+        assert_eq!(CredentialType::Selfie.issuer_schema_id(), 11);
         assert_eq!(CredentialType::Passport.issuer_schema_id(), 9303);
         assert_eq!(CredentialType::Mnc.issuer_schema_id(), 9310);
     }
@@ -1401,7 +1403,7 @@ mod tests {
         );
         assert_eq!(
             CredentialType::from_issuer_schema_id(11),
-            Some(CredentialType::Face)
+            Some(CredentialType::Selfie)
         );
         assert_eq!(
             CredentialType::from_issuer_schema_id(9303),

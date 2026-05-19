@@ -43,11 +43,10 @@ public final class IDKitBuilder {
         self.inner = inner
     }
 
-    // TODO: Re-enable when World ID 4.0 is live
-    // public func constraints(_ constraints: ConstraintNode) throws -> IDKitRequest {
-    //     let request = try inner.constraints(constraints: constraints)
-    //     return try IDKitRequest(inner: request)
-    // }
+    public func constraints(_ constraints: ConstraintNode) throws -> IDKitRequest {
+        let request = try inner.constraints(constraints: constraints)
+        return try IDKitRequest(inner: request)
+    }
 
     // TODO: Re-enable when World ID 4.0 is live
     // public func constraintsWithInviteCode(_ constraints: ConstraintNode) throws -> IDKitInviteCodeRequest {
