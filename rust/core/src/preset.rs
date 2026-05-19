@@ -99,16 +99,13 @@ pub enum Preset {
 
     /// Document-based identity attestation (World ID 4.0)
     ///
-    /// Requests passport or national identity card credentials, with optional
-    /// proof-of-humanity requirement.
+    /// Requests an NFC document or MNC (JP My Number Card) credential.
     ///
     /// This preset requires World ID 4.0-compatible clients. It is not supported
     /// for native v1 payloads or session flows.
     IdentityCheck {
         /// Identity attribute filters the verifier wants to assert.
         attributes: Vec<IdentityAttribute>,
-        /// When `true`, also requires an orb-verified proof-of-humanity credential.
-        require_proof_of_humanity: bool,
     },
 }
 
@@ -167,14 +164,8 @@ impl Preset {
     }
 
     #[must_use]
-    pub fn identity_check(
-        attributes: Vec<IdentityAttribute>,
-        require_proof_of_humanity: bool,
-    ) -> Self {
-        Self::IdentityCheck {
-            attributes,
-            require_proof_of_humanity,
-        }
+    pub fn identity_check(attributes: Vec<IdentityAttribute>) -> Self {
+        Self::IdentityCheck { attributes }
     }
 
     /// Converts the preset to bridge session parameters
@@ -246,24 +237,14 @@ impl Preset {
                 identity_attributes: None,
                 allow_legacy_proofs_override: Some(true),
             },
-            Self::IdentityCheck {
-                attributes,
-                require_proof_of_humanity,
-            } => {
+            Self::IdentityCheck { attributes } => {
                 let passport = CredentialRequest::new(CredentialType::Passport, None);
                 let mnc = CredentialRequest::new(CredentialType::Mnc, None);
-                let proof_of_human = CredentialRequest::new(CredentialType::ProofOfHuman, None);
 
-                let documents = ConstraintNode::any(vec![
+                let constraints = ConstraintNode::any(vec![
                     ConstraintNode::item(passport),
                     ConstraintNode::item(mnc),
                 ]);
-
-                let constraints = if require_proof_of_humanity {
-                    ConstraintNode::all(vec![documents, ConstraintNode::item(proof_of_human)])
-                } else {
-                    documents
-                };
 
                 BridgeParams {
                     constraints: Some(constraints),
@@ -400,7 +381,7 @@ mod tests {
             IdentityAttribute::Nationality("JPN".to_string()),
             IdentityAttribute::MinimumAge(21),
         ];
-        let preset = Preset::identity_check(attributes.clone(), false);
+        let preset = Preset::identity_check(attributes.clone());
         let bridge_params = preset.into_bridge_params();
 
         assert_eq!(bridge_params.legacy_verification_level, None);
@@ -428,60 +409,6 @@ mod tests {
                 }
             }
             _ => panic!("expected identityCheck constraints to be an any node"),
-        }
-    }
-
-    #[test]
-    fn identity_check_preset_with_orb_builds_enumerated_constraints_and_preserves_attributes() {
-        let attributes = vec![
-            IdentityAttribute::IssuingCountry("JPN".to_string()),
-            IdentityAttribute::DocumentNumber("AB123456".to_string()),
-        ];
-        let preset = Preset::identity_check(attributes.clone(), true);
-        let bridge_params = preset.into_bridge_params();
-
-        assert_eq!(bridge_params.legacy_verification_level, None);
-        assert_eq!(bridge_params.legacy_signal, None);
-        assert_eq!(bridge_params.identity_attributes, Some(attributes));
-
-        match bridge_params.constraints {
-            Some(ConstraintNode::All { all }) => {
-                assert_eq!(all.len(), 2);
-
-                match &all[0] {
-                    ConstraintNode::Any { any } => {
-                        assert_eq!(any.len(), 2);
-
-                        match &any[0] {
-                            ConstraintNode::Item(item) => {
-                                assert_eq!(item.credential_type, CredentialType::Passport);
-                                assert_eq!(item.signal, None);
-                            }
-                            _ => panic!(
-                                "expected first identityCheck with_orb branch to be passport"
-                            ),
-                        }
-
-                        match &any[1] {
-                            ConstraintNode::Item(item) => {
-                                assert_eq!(item.credential_type, CredentialType::Mnc);
-                                assert_eq!(item.signal, None);
-                            }
-                            _ => panic!("expected second identityCheck with_orb branch to be mnc"),
-                        }
-                    }
-                    _ => panic!("expected first identityCheck with_orb node to be any"),
-                }
-
-                match &all[1] {
-                    ConstraintNode::Item(item) => {
-                        assert_eq!(item.credential_type, CredentialType::ProofOfHuman);
-                        assert_eq!(item.signal, None);
-                    }
-                    _ => panic!("expected second identityCheck with_orb node to be orb"),
-                }
-            }
-            _ => panic!("expected identityCheck with_orb constraints to be an all node"),
         }
     }
 
