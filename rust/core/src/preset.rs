@@ -99,16 +99,16 @@ pub enum Preset {
 
     /// Document-based identity attestation (World ID 4.0)
     ///
-    /// Requests passport or national identity card credentials, with optional
-    /// proof-of-humanity requirement.
+    /// Requests an NFC document or MNC (JP My Number Card) credential.
     ///
     /// This preset requires World ID 4.0-compatible clients. It is not supported
     /// for native v1 payloads or session flows.
     IdentityCheck {
         /// Identity attribute filters the verifier wants to assert.
         attributes: Vec<IdentityAttribute>,
-        /// When `true`, also requires an orb-verified proof-of-humanity credential.
-        require_proof_of_humanity: bool,
+        /// Optional signal to include in legacy (World ID 3.0) proof.
+        /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
+        legacy_signal: Option<String>,
     },
 }
 
@@ -169,11 +169,11 @@ impl Preset {
     #[must_use]
     pub fn identity_check(
         attributes: Vec<IdentityAttribute>,
-        require_proof_of_humanity: bool,
+        legacy_signal: Option<String>,
     ) -> Self {
         Self::IdentityCheck {
             attributes,
-            require_proof_of_humanity,
+            legacy_signal,
         }
     }
 
@@ -248,29 +248,28 @@ impl Preset {
             },
             Self::IdentityCheck {
                 attributes,
-                require_proof_of_humanity,
+                legacy_signal,
             } => {
-                let passport = CredentialRequest::new(CredentialType::Passport, None);
-                let mnc = CredentialRequest::new(CredentialType::Mnc, None);
-                let proof_of_human = CredentialRequest::new(CredentialType::ProofOfHuman, None);
+                let passport = CredentialRequest::new(
+                    CredentialType::Passport,
+                    legacy_signal.clone().map(Signal::from_string),
+                );
+                let mnc = CredentialRequest::new(
+                    CredentialType::Mnc,
+                    legacy_signal.clone().map(Signal::from_string),
+                );
 
-                let documents = ConstraintNode::any(vec![
+                let constraints = ConstraintNode::any(vec![
                     ConstraintNode::item(passport),
                     ConstraintNode::item(mnc),
                 ]);
 
-                let constraints = if require_proof_of_humanity {
-                    ConstraintNode::all(vec![documents, ConstraintNode::item(proof_of_human)])
-                } else {
-                    documents
-                };
-
                 BridgeParams {
                     constraints: Some(constraints),
-                    legacy_verification_level: None,
-                    legacy_signal: None,
+                    legacy_verification_level: Some(VerificationLevel::Document),
+                    legacy_signal,
                     identity_attributes: Some(attributes),
-                    allow_legacy_proofs_override: Some(false),
+                    allow_legacy_proofs_override: Some(true),
                 }
             }
         }
@@ -400,12 +399,16 @@ mod tests {
             IdentityAttribute::Nationality("JPN".to_string()),
             IdentityAttribute::MinimumAge(21),
         ];
-        let preset = Preset::identity_check(attributes.clone(), false);
+        let preset = Preset::identity_check(attributes.clone(), None);
         let bridge_params = preset.into_bridge_params();
 
-        assert_eq!(bridge_params.legacy_verification_level, None);
+        assert_eq!(
+            bridge_params.legacy_verification_level,
+            Some(VerificationLevel::Document)
+        );
         assert_eq!(bridge_params.legacy_signal, None);
         assert_eq!(bridge_params.identity_attributes, Some(attributes));
+        assert_eq!(bridge_params.allow_legacy_proofs_override, Some(true));
 
         match bridge_params.constraints {
             Some(ConstraintNode::Any { any }) => {
@@ -432,56 +435,46 @@ mod tests {
     }
 
     #[test]
-    fn identity_check_preset_with_orb_builds_enumerated_constraints_and_preserves_attributes() {
-        let attributes = vec![
-            IdentityAttribute::IssuingCountry("JPN".to_string()),
-            IdentityAttribute::DocumentNumber("AB123456".to_string()),
-        ];
-        let preset = Preset::identity_check(attributes.clone(), true);
+    fn identity_check_with_legacy_signal_sets_signal_and_document_level() {
+        let attributes = vec![IdentityAttribute::MinimumAge(18)];
+        let preset = Preset::identity_check(attributes.clone(), Some("my-signal".to_string()));
         let bridge_params = preset.into_bridge_params();
 
-        assert_eq!(bridge_params.legacy_verification_level, None);
-        assert_eq!(bridge_params.legacy_signal, None);
+        assert_eq!(
+            bridge_params.legacy_verification_level,
+            Some(VerificationLevel::Document)
+        );
+        assert_eq!(bridge_params.legacy_signal, Some("my-signal".to_string()));
         assert_eq!(bridge_params.identity_attributes, Some(attributes));
+        assert_eq!(bridge_params.allow_legacy_proofs_override, Some(true));
 
         match bridge_params.constraints {
-            Some(ConstraintNode::All { all }) => {
-                assert_eq!(all.len(), 2);
+            Some(ConstraintNode::Any { any }) => {
+                assert_eq!(any.len(), 2);
 
-                match &all[0] {
-                    ConstraintNode::Any { any } => {
-                        assert_eq!(any.len(), 2);
-
-                        match &any[0] {
-                            ConstraintNode::Item(item) => {
-                                assert_eq!(item.credential_type, CredentialType::Passport);
-                                assert_eq!(item.signal, None);
-                            }
-                            _ => panic!(
-                                "expected first identityCheck with_orb branch to be passport"
-                            ),
-                        }
-
-                        match &any[1] {
-                            ConstraintNode::Item(item) => {
-                                assert_eq!(item.credential_type, CredentialType::Mnc);
-                                assert_eq!(item.signal, None);
-                            }
-                            _ => panic!("expected second identityCheck with_orb branch to be mnc"),
-                        }
+                match &any[0] {
+                    ConstraintNode::Item(item) => {
+                        assert_eq!(item.credential_type, CredentialType::Passport);
+                        assert_eq!(
+                            item.signal.as_ref().and_then(Signal::as_str),
+                            Some("my-signal")
+                        );
                     }
-                    _ => panic!("expected first identityCheck with_orb node to be any"),
+                    _ => panic!("expected first identityCheck constraint to be passport"),
                 }
 
-                match &all[1] {
+                match &any[1] {
                     ConstraintNode::Item(item) => {
-                        assert_eq!(item.credential_type, CredentialType::ProofOfHuman);
-                        assert_eq!(item.signal, None);
+                        assert_eq!(item.credential_type, CredentialType::Mnc);
+                        assert_eq!(
+                            item.signal.as_ref().and_then(Signal::as_str),
+                            Some("my-signal")
+                        );
                     }
-                    _ => panic!("expected second identityCheck with_orb node to be orb"),
+                    _ => panic!("expected second identityCheck constraint to be mnc"),
                 }
             }
-            _ => panic!("expected identityCheck with_orb constraints to be an all node"),
+            _ => panic!("expected identityCheck constraints to be an any node"),
         }
     }
 
