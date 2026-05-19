@@ -113,6 +113,7 @@ enum class IDKitErrorCode(val rawValue: String) {
     INVALID_TIMESTAMP("invalid_timestamp"),
     RP_SIGNATURE_EXPIRED("rp_signature_expired"),
     USER_PRESENCE_FAILED("user_presence_failed"),
+    IDENTITY_ATTRIBUTES_NOT_MATCHED("identity_attributes_not_matched"),
     GENERIC_ERROR("generic_error"),
     TIMEOUT("timeout"),
     CANCELLED("cancelled");
@@ -142,6 +143,7 @@ enum class IDKitErrorCode(val rawValue: String) {
             AppError.INVALID_TIMESTAMP -> INVALID_TIMESTAMP
             AppError.RP_SIGNATURE_EXPIRED -> RP_SIGNATURE_EXPIRED
             AppError.USER_PRESENCE_FAILED -> USER_PRESENCE_FAILED
+            AppError.IDENTITY_ATTRIBUTES_NOT_MATCHED -> IDENTITY_ATTRIBUTES_NOT_MATCHED
             AppError.GENERIC_ERROR -> GENERIC_ERROR
         }
     }

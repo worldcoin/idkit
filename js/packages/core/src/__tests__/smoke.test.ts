@@ -13,6 +13,8 @@ import {
   deviceLegacy,
   selfieCheckLegacy,
   identityCheck,
+  proofOfHuman,
+  passport,
   isNode,
   IDKitErrorCodes,
   signRequest,
@@ -52,6 +54,9 @@ describe("IDKitRequest API", () => {
     expect(typeof enumerate).toBe("function");
     expect(typeof orbLegacy).toBe("function");
     expect(typeof selfieCheckLegacy).toBe("function");
+    expect(typeof identityCheck).toBe("function");
+    expect(typeof proofOfHuman).toBe("function");
+    expect(typeof passport).toBe("function");
   });
 
   it("should create CredentialRequest correctly", () => {
@@ -122,6 +127,18 @@ describe("IDKitRequest API", () => {
       attributes: [{ type: "document_number", value: "AB123456" }],
       require_proof_of_humanity: true,
     });
+  });
+
+  it("should create proofOfHuman preset correctly", () => {
+    const preset = proofOfHuman({ signal: "poh-signal" });
+    expect(preset).toHaveProperty("type", "ProofOfHuman");
+    expect(preset).toHaveProperty("signal", "poh-signal");
+  });
+
+  it("should create passport preset correctly", () => {
+    const preset = passport({ signal: "passport-signal" });
+    expect(preset).toHaveProperty("type", "Passport");
+    expect(preset).toHaveProperty("signal", "passport-signal");
   });
 
   it("should throw error when rp_context is missing", () => {
@@ -264,7 +281,7 @@ describe("IDKitRequest API", () => {
       null,
       null,
       false,
-      null,
+      false,
       null,
       null,
     );

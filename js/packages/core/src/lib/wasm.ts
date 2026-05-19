@@ -70,6 +70,8 @@ export type {
   DeviceLegacyPreset,
   SelfieCheckLegacyPreset,
   IdentityCheckPreset,
+  ProofOfHumanPreset,
+  PassportPreset,
   // Native transport types
   NativePayloadResult,
 } from "../../wasm/idkit_wasm.js";

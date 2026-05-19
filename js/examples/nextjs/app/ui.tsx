@@ -9,8 +9,11 @@ import {
   deviceLegacy,
   identityCheck,
   selfieCheckLegacy,
+  IDKitInviteCodeRequestWidget,
   IDKitRequestWidget,
   orbLegacy,
+  passport as passportPreset,
+  proofOfHuman,
   secureDocumentLegacy,
   setDebug,
   type ConstraintNode,
@@ -238,6 +241,7 @@ export function DemoClient(): ReactElement {
   const [returnTo, setReturnTo] = useState("");
   const [isReturnToTooltipOpen, setIsReturnToTooltipOpen] = useState(false);
   const [requireUserPresence, setRequireUserPresence] = useState(false);
+  const [useInviteCode, setUseInviteCode] = useState(false);
 
   const genesisIssuedAtMin =
     genesisEnabled && genesisDate
@@ -270,11 +274,15 @@ export function DemoClient(): ReactElement {
                 require_proof_of_humanity: requireProofOfHumanity,
               }),
             }
-          : {
-              constraints: CredentialRequest(v4CredentialType, {
-                genesis_issued_at_min: genesisIssuedAtMin,
-              }),
-            }
+          : v4CredentialType === "proof_of_human" && !genesisIssuedAtMin
+            ? { preset: proofOfHuman({ signal: widgetSignal }) }
+            : v4CredentialType === "passport" && !genesisIssuedAtMin
+              ? { preset: passportPreset({ signal: widgetSignal }) }
+              : {
+                  constraints: CredentialRequest(v4CredentialType, {
+                    genesis_issued_at_min: genesisIssuedAtMin,
+                  }),
+                }
         : { preset: createPreset(presetKind, widgetSignal) },
     [
       worldIdVersion,
@@ -415,6 +423,15 @@ export function DemoClient(): ReactElement {
             <option value="production">Production</option>
             <option value="staging">Staging</option>
           </select>
+        </div>
+        <div className="config-row">
+          <label htmlFor="cfgUseInviteCode">Use invite code</label>
+          <input
+            type="checkbox"
+            id="cfgUseInviteCode"
+            checked={useInviteCode}
+            onChange={(e) => setUseInviteCode(e.target.checked)}
+          />
         </div>
         {environment === "staging" && (
           <div className="config-row">
@@ -918,31 +935,56 @@ export function DemoClient(): ReactElement {
       )}
       {widgetError && <p className="status">Error: {widgetError}</p>}
 
-      {widgetRpContext && (
-        <IDKitRequestWidget
-          open={widgetOpen}
-          onOpenChange={setWidgetOpen}
-          app_id={APP_ID}
-          action={action || "test-action"}
-          rp_context={widgetRpContext}
-          allow_legacy_proofs={true}
-          require_user_presence={requireUserPresence}
-          {...widgetConstraintsOrPreset}
-          onSuccess={(result) => {
-            setWidgetIdkitResult(result);
-          }}
-          handleVerify={async (result) => {
-            const verified = await verifyProof(result);
-            setWidgetVerifyResult(verified);
-          }}
-          onError={(errorCode) => {
-            setWidgetError(`Verification failed: ${errorCode}`);
-          }}
-          environment={environment}
-          override_connect_base_url={overrideConnectBaseUrl}
-          return_to={effectiveReturnTo}
-        />
-      )}
+      {widgetRpContext &&
+        (useInviteCode ? (
+          <IDKitInviteCodeRequestWidget
+            open={widgetOpen}
+            onOpenChange={setWidgetOpen}
+            app_id={APP_ID}
+            action={action || "test-action"}
+            rp_context={widgetRpContext}
+            allow_legacy_proofs={true}
+            require_user_presence={requireUserPresence}
+            {...widgetConstraintsOrPreset}
+            onSuccess={(result) => {
+              setWidgetIdkitResult(result);
+            }}
+            handleVerify={async (result) => {
+              const verified = await verifyProof(result);
+              setWidgetVerifyResult(verified);
+            }}
+            onError={(errorCode) => {
+              setWidgetError(`Verification failed: ${errorCode}`);
+            }}
+            environment={environment}
+            override_connect_base_url={overrideConnectBaseUrl}
+            return_to={effectiveReturnTo}
+          />
+        ) : (
+          <IDKitRequestWidget
+            open={widgetOpen}
+            onOpenChange={setWidgetOpen}
+            app_id={APP_ID}
+            action={action || "test-action"}
+            rp_context={widgetRpContext}
+            allow_legacy_proofs={true}
+            require_user_presence={requireUserPresence}
+            {...widgetConstraintsOrPreset}
+            onSuccess={(result) => {
+              setWidgetIdkitResult(result);
+            }}
+            handleVerify={async (result) => {
+              const verified = await verifyProof(result);
+              setWidgetVerifyResult(verified);
+            }}
+            onError={(errorCode) => {
+              setWidgetError(`Verification failed: ${errorCode}`);
+            }}
+            environment={environment}
+            override_connect_base_url={overrideConnectBaseUrl}
+            return_to={effectiveReturnTo}
+          />
+        ))}
 
       {widgetIdkitResult && (
         <>

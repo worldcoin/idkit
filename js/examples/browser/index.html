@@ -167,6 +167,30 @@
         opacity: 0.5;
       }
 
+      #codeDisplay {
+        font-family: monospace;
+        font-size: 13px;
+        padding: 12px 14px;
+        background: var(--button-bg);
+        border-radius: 6px;
+        word-break: break-all;
+        line-height: 1.5;
+        user-select: all;
+      }
+
+      .copy-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .copy-row button {
+        margin: 0;
+        padding: 6px 12px;
+        font-size: 13px;
+      }
+
       .config-note {
         font-family: monospace;
         font-size: 12px;
@@ -239,6 +263,26 @@
         <span class="config-note" style="flex: none"
           >https://staging.world.org/verify</span
         >
+      </div>
+      <div class="config-row">
+        <label for="cfgBridgeUrl">Bridge URL</label>
+        <input
+          type="text"
+          id="cfgBridgeUrl"
+          placeholder="https://bridge.worldcoin.org (default)"
+        />
+      </div>
+      <div class="config-row">
+        <label for="cfgConnectBaseUrl">Connect base URL</label>
+        <input
+          type="text"
+          id="cfgConnectBaseUrl"
+          placeholder="https://world.org/verify (default)"
+        />
+      </div>
+      <div class="config-row">
+        <label for="cfgUseInviteCode">Use invite code</label>
+        <input type="checkbox" id="cfgUseInviteCode" />
       </div>
       <div class="config-row">
         <label for="cfgWorldId">World ID</label>
@@ -372,6 +416,22 @@
       <h3>Scan with World App</h3>
       <p id="qrUrl"></p>
       <div id="qrCode"></div>
+    </section>
+
+    <section id="code" hidden>
+      <h3>Open this URL on your phone</h3>
+      <div id="codeDisplay"></div>
+      <div class="copy-row">
+        <button id="copyCodeUrl">Copy URL</button>
+        <span id="copyStatus" style="opacity: 0.6; font-size: 13px"></span>
+      </div>
+      <p id="codeExpiry"></p>
+      <p id="codeRequestId"></p>
+      <p>
+        Cross-device flow: open the URL on your phone. The verify landing page
+        reads the <code>c</code> and <code>a</code> query params and renders the
+        invite-code view.
+      </p>
     </section>
 
     <section id="status" hidden>
@@ -643,7 +703,14 @@
       const getAction = () =>
         document.getElementById("cfgAction").value.trim() || "test-action";
       const getEnvironment = () => document.getElementById("cfgEnv").value;
+      const getBridgeUrl = () => {
+        const value = document.getElementById("cfgBridgeUrl").value.trim();
+        return value.length > 0 ? value : undefined;
+      };
       const getOverrideConnectBaseUrl = () => {
+        const custom = document.getElementById("cfgConnectBaseUrl").value.trim();
+        if (custom.length > 0) return custom;
+
         const isStaging = getEnvironment() === "staging";
         const checked = document.getElementById(
           "cfgOverrideConnectUrl",
@@ -662,15 +729,37 @@
       const qrDiv = document.getElementById("qr");
       const qrUrl = document.getElementById("qrUrl");
       const qrCode = document.getElementById("qrCode");
+      const codeDiv = document.getElementById("code");
+      const codeDisplay = document.getElementById("codeDisplay");
+      const codeExpiry = document.getElementById("codeExpiry");
+      const codeRequestId = document.getElementById("codeRequestId");
+      const copyCodeUrlButton = document.getElementById("copyCodeUrl");
+      const copyStatus = document.getElementById("copyStatus");
       const statusDiv = document.getElementById("status");
       const statusText = document.getElementById("statusText");
       const resultDiv = document.getElementById("result");
       const resultData = document.getElementById("resultData");
       const errorDiv = document.getElementById("error");
       const errorText = document.getElementById("errorText");
+      const useInviteCodeToggle = document.getElementById("cfgUseInviteCode");
+
+      copyCodeUrlButton.addEventListener("click", async () => {
+        const url = codeDisplay.textContent;
+        if (!url) return;
+        try {
+          await navigator.clipboard.writeText(url);
+          copyStatus.textContent = "Copied!";
+        } catch {
+          copyStatus.textContent = "Copy failed - select the URL manually.";
+        }
+        setTimeout(() => {
+          copyStatus.textContent = "";
+        }, 2000);
+      });
 
       const hideAll = () => {
         qrDiv.hidden = true;
+        codeDiv.hidden = true;
         statusDiv.hidden = true;
         resultDiv.hidden = true;
         errorDiv.hidden = true;
@@ -690,6 +779,7 @@
       }
 
       async function startVerification(configure) {
+        let countdownInterval = null;
         try {
           hideAll();
           statusDiv.hidden = false;
@@ -706,27 +796,55 @@
 
           statusText.textContent = "Creating verification request...";
 
-          const builder = IDKit.request({
+          const requestConfig = {
             app_id: APP_ID,
             action: getAction(),
             rp_context: rpContext,
             allow_legacy_proofs: true,
             environment: getEnvironment(),
+            bridge_url: getBridgeUrl(),
             override_connect_base_url: getOverrideConnectBaseUrl(),
-          });
+          };
 
+          const useInviteCode = useInviteCodeToggle.checked;
+          const builder = useInviteCode
+            ? IDKit.requestWithInviteCode(requestConfig)
+            : IDKit.request(requestConfig);
           const request = await configure(builder);
           const url = request.connectorURI;
 
-          qrDiv.hidden = false;
-          qrUrl.textContent = url;
-          qrCode.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}" alt="QR Code">`;
-          statusText.textContent = "Waiting for scan...";
+          if (useInviteCode) {
+            codeDisplay.textContent = url;
+            codeRequestId.textContent = `Request ID: ${request.requestId}`;
+
+            const updateCountdown = () => {
+              const remaining = Math.max(
+                0,
+                Math.floor(request.expiresAt - Date.now() / 1000),
+              );
+              codeExpiry.textContent = `Expires in ${remaining}s`;
+            };
+            updateCountdown();
+            countdownInterval = setInterval(updateCountdown, 1000);
+
+            codeDiv.hidden = false;
+            statusText.textContent = "Waiting for user to open verify URL...";
+          } else {
+            qrDiv.hidden = false;
+            qrUrl.textContent = url;
+            qrCode.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}" alt="QR Code">`;
+            statusText.textContent = "Waiting for scan...";
+          }
 
           const completion = await request.pollUntilCompletion({
             pollInterval: 2000,
             timeout: 120000,
           });
+
+          if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+          }
 
           if (!completion.success) {
             throw new Error(`Verification failed: ${completion.error}`);
@@ -746,12 +864,17 @@
           const verifyResult = await verifyResponse.json();
           statusDiv.hidden = true;
           qrDiv.hidden = true;
+          codeDiv.hidden = true;
           resultDiv.hidden = false;
           resultData.innerHTML = formatVerifyResult(
             verifyResult,
             completion.result,
           );
         } catch (error) {
+          if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+          }
           console.error("Verification error:", error);
           hideAll();
           errorDiv.hidden = false;

@@ -19,8 +19,11 @@ export {
   deviceLegacy,
   selfieCheckLegacy,
   identityCheck,
+  proofOfHuman,
+  passport,
   // Types
   type IDKitRequest,
+  type IDKitInviteCodeRequest,
   type IDKitCompletionResult,
   type WaitOptions,
   type RpContext,
@@ -33,6 +36,8 @@ export {
   type DeviceLegacyPreset,
   type SelfieCheckLegacyPreset,
   type IdentityCheckPreset,
+  type ProofOfHumanPreset,
+  type PassportPreset,
 } from "./request";
 
 // Config types

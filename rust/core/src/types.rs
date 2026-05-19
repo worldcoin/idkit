@@ -886,10 +886,12 @@ impl BridgeUrl {
             crate::Error::InvalidConfiguration(format!("Failed to parse Bridge URL: {e}"))
         })?;
 
-        let is_localhost = matches!(parsed.host_str(), Some("localhost" | "127.0.0.1"));
-
-        // Staging localhost: skip all validation
-        if is_staging && is_localhost {
+        // Staging dev hosts (loopback, RFC1918 private IPv4, `*.local` mDNS):
+        // skip all validation. The relaxation exists so devs can run a local
+        // wallet-bridge during testing — including the phone-on-LAN ↔
+        // desktop-bridge case where the URL the phone needs to reach is the
+        // dev machine's LAN IP, not `localhost`.
+        if is_staging && is_dev_host(parsed.host().as_ref()) {
             return Ok(Self(url));
         }
 
@@ -935,6 +937,26 @@ impl BridgeUrl {
             .map_err(|e| crate::Error::InvalidConfiguration(format!("Invalid bridge URL: {e}")))?;
         base.join(path)
             .map_err(|e| crate::Error::InvalidConfiguration(format!("Failed to join path: {e}")))
+    }
+}
+
+/// Classifies a host as a developer-machine address so the staging
+/// `BridgeUrl` validator can relax HTTPS / port / path checks. Covers:
+///
+/// - `localhost`
+/// - IPv4 loopback (127.0.0.0/8) and IPv6 loopback (`::1`)
+/// - RFC1918 private IPv4: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+/// - `*.local` mDNS hostnames
+///
+/// Public IPs and non-`.local` hostnames still get the production validator.
+fn is_dev_host(host: Option<&url::Host<&str>>) -> bool {
+    match host {
+        Some(url::Host::Domain(name)) => {
+            name.eq_ignore_ascii_case("localhost") || name.to_ascii_lowercase().ends_with(".local")
+        }
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback() || ip.is_private(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        None => false,
     }
 }
 
