@@ -1791,6 +1791,7 @@ mod tests {
             action_description: None,
             bridge_url: None,
             allow_legacy_proofs: false,
+            require_user_presence: false,
             override_connect_base_url: None,
             return_to: None,
             environment: None,

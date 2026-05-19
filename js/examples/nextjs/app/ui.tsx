@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactElement } from "react";
+import countries from "i18n-iso-countries";
+import enLocale from "i18n-iso-countries/langs/en.json";
 import {
   CredentialRequest,
   documentLegacy,
@@ -23,12 +25,16 @@ import {
 } from "@worldcoin/idkit";
 
 setDebug(true);
+countries.registerLocale(enLocale);
 
 const APP_ID = process.env.NEXT_PUBLIC_APP_ID as `app_${string}` | undefined;
 const RP_ID = process.env.NEXT_PUBLIC_RP_ID;
 const STAGING_CONNECT_BASE_URL = "https://staging.world.org/verify";
+const STAGING_DEVPORTAL_BASE_URL = "https://staging-developer.worldcoin.org";
 const CONNECT_URL_OVERRIDE_TOOLTIP =
   "Enable this to change the deeplink base URL to the staging verify endpoint. Useful when testing with a Staging iOS World App build that supports this override.";
+const DEVPORTAL_URL_OVERRIDE_TOOLTIP =
+  "Enable this to send proof verification requests to the staging Developer Portal instead of production.";
 const GENESIS_ISSUED_AT_MIN_TOOLTIP =
   "Minimum genesis_issued_at timestamp that the used Credential must meet. " +
   "If present, the proof will include a constraint that the credential's genesis issued at timestamp " +
@@ -67,7 +73,7 @@ const V4_CREDENTIAL_TO_NAME: Record<V4CredentialType, string> = {
   proof_of_human: "Proof of Human",
   selfie: "Selfie",
   passport: "Passport",
-  mnc: "MNC",
+  mnc: "My Number Card",
   identity_check: "Identity Check",
 };
 
@@ -78,6 +84,10 @@ const PRESET_KIND_TO_NAME: Record<PresetKind, string> = {
   device: "Device",
   selfie: "Selfie Check",
 };
+
+function isValidAlpha3(code: string): boolean {
+  return code.length === 3 && countries.isValid(code.toUpperCase());
+}
 
 function normalizeAlpha3(value: string): string {
   return value.trim().toUpperCase();
@@ -185,7 +195,10 @@ async function fetchRpContext(action: string): Promise<RpContext> {
   };
 }
 
-async function verifyProof(payload: IDKitResult): Promise<unknown> {
+async function verifyProof(
+  payload: IDKitResult,
+  devPortalBaseUrl?: string,
+): Promise<unknown> {
   if (!RP_ID) {
     throw new Error("Missing NEXT_PUBLIC_RP_ID");
   }
@@ -193,7 +206,11 @@ async function verifyProof(payload: IDKitResult): Promise<unknown> {
   const response = await fetch("/api/verify-proof", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ rp_id: RP_ID, devPortalPayload: payload }),
+    body: JSON.stringify({
+      rp_id: RP_ID,
+      devPortalPayload: payload,
+      devPortalBaseUrl,
+    }),
   });
 
   const json = await response.json();
@@ -228,7 +245,10 @@ export function DemoClient(): ReactElement {
   const [useStagingConnectBaseUrl, setUseStagingConnectBaseUrl] =
     useState(false);
   const [isConnectUrlTooltipOpen, setIsConnectUrlTooltipOpen] = useState(false);
-  const [worldIdVersion, setWorldIdVersion] = useState<"3.0" | "4.0">("3.0");
+  const [useStagingDevPortalUrl, setUseStagingDevPortalUrl] = useState(false);
+  const [isDevPortalUrlTooltipOpen, setIsDevPortalUrlTooltipOpen] =
+    useState(false);
+  const [worldIdVersion, setWorldIdVersion] = useState<"3.0" | "4.0">("4.0");
   const [v4CredentialType, setV4CredentialType] =
     useState<V4CredentialType>("proof_of_human");
   const [identityAttributes, setIdentityAttributes] =
@@ -242,6 +262,7 @@ export function DemoClient(): ReactElement {
   const [isReturnToTooltipOpen, setIsReturnToTooltipOpen] = useState(false);
   const [requireUserPresence, setRequireUserPresence] = useState(false);
   const [useInviteCode, setUseInviteCode] = useState(false);
+  const [wasIdentityCheck, setWasIdentityCheck] = useState(false);
   const isV4PresetCredential =
     v4CredentialType !== "mnc" && v4CredentialType !== "identity_check";
 
@@ -297,6 +318,10 @@ export function DemoClient(): ReactElement {
     environment === "staging" && useStagingConnectBaseUrl
       ? STAGING_CONNECT_BASE_URL
       : undefined;
+  const overrideDevPortalBaseUrl =
+    environment === "staging" && useStagingDevPortalUrl
+      ? STAGING_DEVPORTAL_BASE_URL
+      : undefined;
   const effectiveReturnTo = useReturnTo
     ? returnTo.trim() || undefined
     : undefined;
@@ -312,6 +337,8 @@ export function DemoClient(): ReactElement {
     if (environment !== "staging") {
       setUseStagingConnectBaseUrl(false);
       setIsConnectUrlTooltipOpen(false);
+      setUseStagingDevPortalUrl(false);
+      setIsDevPortalUrlTooltipOpen(false);
     }
   }, [environment]);
 
@@ -346,6 +373,7 @@ export function DemoClient(): ReactElement {
     setWidgetError(null);
     setWidgetVerifyResult(null);
     setWidgetIdkitResult(null);
+    setWasIdentityCheck(isIdentityCheck);
 
     if (!canStartWidgetFlow) {
       setWidgetError("Select at least one identity attribute.");
@@ -476,6 +504,52 @@ export function DemoClient(): ReactElement {
           </div>
         )}
 
+        {environment === "staging" && (
+          <div className="config-row">
+            <label htmlFor="cfgOverrideDevPortalBaseUrl">
+              DevPortal URL override
+            </label>
+            <div
+              className="tooltip"
+              onMouseEnter={() => setIsDevPortalUrlTooltipOpen(true)}
+              onMouseLeave={() => setIsDevPortalUrlTooltipOpen(false)}
+            >
+              <button
+                type="button"
+                className="tooltip-trigger"
+                aria-label="Explain DevPortal URL override"
+                aria-describedby={
+                  isDevPortalUrlTooltipOpen
+                    ? "devportal-url-override-tooltip"
+                    : undefined
+                }
+                aria-expanded={isDevPortalUrlTooltipOpen}
+                onFocus={() => setIsDevPortalUrlTooltipOpen(true)}
+                onBlur={() => setIsDevPortalUrlTooltipOpen(false)}
+                onClick={() => setIsDevPortalUrlTooltipOpen(true)}
+              >
+                ?
+              </button>
+              {isDevPortalUrlTooltipOpen && (
+                <span
+                  id="devportal-url-override-tooltip"
+                  role="tooltip"
+                  className="tooltip-content"
+                >
+                  {DEVPORTAL_URL_OVERRIDE_TOOLTIP}
+                </span>
+              )}
+            </div>
+            <input
+              type="checkbox"
+              id="cfgOverrideDevPortalBaseUrl"
+              checked={useStagingDevPortalUrl}
+              onChange={(e) => setUseStagingDevPortalUrl(e.target.checked)}
+            />
+            <span className="config-note">{STAGING_DEVPORTAL_BASE_URL}</span>
+          </div>
+        )}
+
         <div className="config-row">
           <label htmlFor="cfgWorldID">World ID</label>
           <select
@@ -519,7 +593,7 @@ export function DemoClient(): ReactElement {
                 <option value="proof_of_human">Proof Of Human</option>
                 <option value="selfie">Selfie</option>
                 <option value="passport">Passport</option>
-                <option value="mnc">MNC</option>
+                <option value="mnc">My Number Card</option>
                 <option value="identity_check">Identity Check</option>
               </select>
             </div>
@@ -671,22 +745,45 @@ export function DemoClient(): ReactElement {
                     }
                   />
                   {identityAttributes.issuing_country.enabled && (
-                    <input
-                      type="text"
-                      aria-label="Issuing country value"
-                      value={identityAttributes.issuing_country.value}
-                      onChange={(e) =>
-                        setIdentityAttributes((current) => ({
-                          ...current,
-                          issuing_country: {
-                            ...current.issuing_country,
-                            value: normalizeAlpha3(e.target.value),
-                          },
-                        }))
-                      }
-                      maxLength={3}
-                      placeholder="JPN"
-                    />
+                    <>
+                      <input
+                        type="text"
+                        aria-label="Issuing country value"
+                        value={identityAttributes.issuing_country.value}
+                        onChange={(e) =>
+                          setIdentityAttributes((current) => ({
+                            ...current,
+                            issuing_country: {
+                              ...current.issuing_country,
+                              value: normalizeAlpha3(e.target.value),
+                            },
+                          }))
+                        }
+                        maxLength={3}
+                        placeholder="JPN"
+                      />
+                      {identityAttributes.issuing_country.value &&
+                        (isValidAlpha3(
+                          identityAttributes.issuing_country.value,
+                        ) ? (
+                          <span
+                            className="config-note"
+                            style={{ flex: "none" }}
+                          >
+                            {countries.getName(
+                              identityAttributes.issuing_country.value,
+                              "en",
+                            )}
+                          </span>
+                        ) : (
+                          <span
+                            className="config-note"
+                            style={{ flex: "none", color: "#ef4444" }}
+                          >
+                            ISO 3166-1 alpha-3
+                          </span>
+                        ))}
+                    </>
                   )}
                 </div>
                 <div className="config-row">
@@ -776,22 +873,43 @@ export function DemoClient(): ReactElement {
                     }
                   />
                   {identityAttributes.nationality.enabled && (
-                    <input
-                      type="text"
-                      aria-label="Nationality value"
-                      value={identityAttributes.nationality.value}
-                      onChange={(e) =>
-                        setIdentityAttributes((current) => ({
-                          ...current,
-                          nationality: {
-                            ...current.nationality,
-                            value: normalizeAlpha3(e.target.value),
-                          },
-                        }))
-                      }
-                      maxLength={3}
-                      placeholder="JPN"
-                    />
+                    <>
+                      <input
+                        type="text"
+                        aria-label="Nationality value"
+                        value={identityAttributes.nationality.value}
+                        onChange={(e) =>
+                          setIdentityAttributes((current) => ({
+                            ...current,
+                            nationality: {
+                              ...current.nationality,
+                              value: normalizeAlpha3(e.target.value),
+                            },
+                          }))
+                        }
+                        maxLength={3}
+                        placeholder="JPN"
+                      />
+                      {identityAttributes.nationality.value &&
+                        (isValidAlpha3(identityAttributes.nationality.value) ? (
+                          <span
+                            className="config-note"
+                            style={{ flex: "none" }}
+                          >
+                            {countries.getName(
+                              identityAttributes.nationality.value,
+                              "en",
+                            )}
+                          </span>
+                        ) : (
+                          <span
+                            className="config-note"
+                            style={{ flex: "none", color: "#ef4444" }}
+                          >
+                            ISO 3166-1 alpha-3
+                          </span>
+                        ))}
+                    </>
                   )}
                 </div>
               </>
@@ -893,7 +1011,10 @@ export function DemoClient(): ReactElement {
             onSuccess={(result) => {}}
             handleVerify={async (result) => {
               setWidgetIdkitResult(result);
-              const verified = await verifyProof(result);
+              const verified = await verifyProof(
+                result,
+                overrideDevPortalBaseUrl,
+              );
               setWidgetVerifyResult(verified);
             }}
             onError={(errorCode) => {
@@ -916,7 +1037,10 @@ export function DemoClient(): ReactElement {
             onSuccess={(result) => {}}
             handleVerify={async (result) => {
               setWidgetIdkitResult(result);
-              const verified = await verifyProof(result);
+              const verified = await verifyProof(
+                result,
+                overrideDevPortalBaseUrl,
+              );
               setWidgetVerifyResult(verified);
             }}
             onError={(errorCode) => {
@@ -931,6 +1055,28 @@ export function DemoClient(): ReactElement {
       {widgetIdkitResult && (
         <>
           <h3>IDKit response</h3>
+          {widgetIdkitResult.protocol_version === "4.0" &&
+            !("session_id" in widgetIdkitResult) &&
+            (wasIdentityCheck ||
+              widgetIdkitResult.identity_attested !== undefined) && (
+              <p
+                style={{
+                  color:
+                    widgetIdkitResult.identity_attested === true
+                      ? "#22c55e"
+                      : "#ef4444",
+                  fontWeight: "bold",
+                  margin: "8px 0",
+                }}
+              >
+                Identity Attested:{" "}
+                {widgetIdkitResult.identity_attested === true
+                  ? "✓ Yes"
+                  : widgetIdkitResult.identity_attested === false
+                    ? "✗ No"
+                    : "✗ Missing"}
+              </p>
+            )}
           <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
             {JSON.stringify(widgetIdkitResult, null, 2)}
           </pre>
