@@ -1,12 +1,20 @@
 export { useIDKitRequest } from "./hooks/useIDKitRequest";
+export { useIDKitInviteCodeRequest } from "./hooks/useIDKitInviteCodeRequest";
 export { useIDKitSession } from "./hooks/useIDKitSession";
 
 export { IDKitRequestWidget } from "./widget/IDKitRequestWidget";
+export { IDKitInviteCodeRequestWidget } from "./widget/IDKitInviteCodeRequestWidget";
 export { IDKitSessionWidget } from "./widget/IDKitSessionWidget";
-export type { IDKitHookResult, PollingConfig } from "./types/common";
+export type {
+  IDKitHookResult,
+  IDKitInviteCodeHookResult,
+  PollingConfig,
+} from "./types/common";
 export type {
   IDKitRequestHookConfig,
   UseIDKitRequestHookResult,
+  IDKitInviteCodeRequestHookConfig,
+  UseIDKitInviteCodeRequestHookResult,
 } from "./types/request";
 export type {
   IDKitSessionHookConfig,
@@ -14,6 +22,7 @@ export type {
 } from "./types/session";
 export type {
   IDKitRequestWidgetProps,
+  IDKitInviteCodeRequestWidgetProps,
   IDKitSessionWidgetProps,
 } from "./types/widget";
 
@@ -30,6 +39,8 @@ export {
   secureDocumentLegacy,
   deviceLegacy,
   selfieCheckLegacy,
+  proofOfHuman,
+  passport,
   IDKitErrorCodes,
   signRequest,
   isDebug,
@@ -50,4 +61,6 @@ export type {
   ResponseItemV4,
   ResponseItemSession,
   IDKitErrorCode,
+  ProofOfHumanPreset,
+  PassportPreset,
 } from "@worldcoin/idkit-core";

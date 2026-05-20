@@ -10,6 +10,14 @@ const baseConfig: BuilderConfig = {
   action: "test-action",
 };
 
+const proofResponseProof = [1n, 2n, 3n, 4n, 5n]
+  .map((value) => value.toString(16).padStart(64, "0"))
+  .join("");
+
+function proofResponseNullifier(value: string): string {
+  return `nil_${value.padStart(64, "0")}`;
+}
+
 describe("native transport request lifecycle", () => {
   let listeners: Array<(event: MessageEvent) => void> = [];
   let miniKitHandlers: Record<string, (payload: any) => void> = {};
@@ -188,7 +196,7 @@ describe("native transport request lifecycle", () => {
   it("uses per-identifier signal hashes when response omits signal_hash", async () => {
     const signalHashes = {
       proof_of_human: hashSignal("poh-signal"),
-      face: hashSignal("face-signal"),
+      selfie: hashSignal("selfie-signal"),
     };
 
     const req = createNativeRequest({}, baseConfig, signalHashes, "");
@@ -199,18 +207,20 @@ describe("native transport request lifecycle", () => {
     miniKitHandlers["miniapp-verify-action"]?.({
       status: "success",
       proof_response: {
+        id: "req_abc123",
+        version: 1,
         responses: [
           {
             identifier: "proof_of_human",
-            proof: ["0x01"],
-            nullifier: "0x02",
+            proof: proofResponseProof,
+            nullifier: proofResponseNullifier("a"),
             issuer_schema_id: 1,
             expires_at_min: 0,
           },
           {
-            identifier: "face",
-            proof: ["0x11"],
-            nullifier: "0x12",
+            identifier: "selfie",
+            proof: proofResponseProof,
+            nullifier: proofResponseNullifier("b"),
             issuer_schema_id: 11,
             expires_at_min: 0,
           },
@@ -225,9 +235,92 @@ describe("native transport request lifecycle", () => {
         signalHashes.proof_of_human,
       );
       expect(completion.result.responses[1]?.signal_hash).toBe(
-        signalHashes.face,
+        signalHashes.selfie,
       );
     }
+  });
+
+  it("normalizes wrapped v4 ProofResponse fields from native host", async () => {
+    const req = createNativeRequest({}, baseConfig, {}, "");
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      proof_response: {
+        id: "req_abc123",
+        version: 1,
+        responses: [
+          {
+            identifier: "proof_of_human",
+            proof: proofResponseProof,
+            nullifier: proofResponseNullifier("a"),
+            issuer_schema_id: 1,
+            expires_at_min: 0,
+          },
+        ],
+      },
+    });
+
+    const completion = await completionPromise;
+    expect(completion.success).toBe(true);
+    if (completion.success) {
+      expect(completion.result.protocol_version).toBe("4.0");
+      expect(completion.result.responses[0]).toMatchObject({
+        proof: ["1", "2", "3", "4", "5"],
+        nullifier: `0x${"a".padStart(64, "0")}`,
+      });
+    }
+  });
+
+  it("maps v4 ProofResponse error codes from native host", async () => {
+    const req = createNativeRequest({}, baseConfig, {}, "");
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      proof_response: {
+        id: "req_abc123",
+        version: 1,
+        error: "nullifier_replay",
+        responses: [],
+      },
+    });
+
+    const completion = await completionPromise;
+    expect(completion).toEqual({
+      success: false,
+      error: IDKitErrorCodes.NullifierReplayed,
+    });
+  });
+
+  it("rejects root v4 ProofResponse instead of treating it as legacy v3", async () => {
+    const req = createNativeRequest({}, baseConfig, {}, "");
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      id: "req_abc123",
+      version: 1,
+      responses: [
+        {
+          identifier: "proof_of_human",
+          proof: proofResponseProof,
+          nullifier: proofResponseNullifier("a"),
+          issuer_schema_id: 1,
+          expires_at_min: 0,
+        },
+      ],
+    });
+
+    await expect(completionPromise).resolves.toEqual({
+      success: false,
+      error: IDKitErrorCodes.UnexpectedResponse,
+    });
   });
 
   it("prefers response signal_hash over signal hashes map", async () => {

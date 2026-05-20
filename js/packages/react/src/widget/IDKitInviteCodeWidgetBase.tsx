@@ -6,16 +6,16 @@ import {
   type ReactElement,
 } from "react";
 import { IDKitErrorCodes } from "@worldcoin/idkit-core";
-import type { IDKitHookResult } from "../types";
+import type { IDKitInviteCodeHookResult } from "../types";
 import { IDKitModal } from "./IDKitModal";
-import { WorldIDState } from "../components/States/WorldIDState";
+import { InviteCodeState } from "../components/States/InviteCodeState";
 import { SuccessState } from "../components/States/SuccessState";
 import { ErrorState } from "../components/States/ErrorState";
 import { HostAppVerificationState } from "../components/States/HostAppVerificationState";
 import { setLocalizationConfig } from "../lang";
 import type { SupportedLanguage } from "../lang/types";
 
-type VisualStage = "worldid" | "host_verification" | "success" | "error";
+type VisualStage = "invite_code" | "host_verification" | "success" | "error";
 
 function getVisualStage(
   isSuccess: boolean,
@@ -25,7 +25,7 @@ function getVisualStage(
   if (isError) return "error";
   if (isHostVerifying) return "host_verification";
   if (isSuccess) return "success";
-  return "worldid";
+  return "invite_code";
 }
 
 type MaybePromise<T> = Promise<T> | T;
@@ -35,8 +35,8 @@ type HostVerifyRun<TResult> = {
   gen: number;
 };
 
-export type IDKitWidgetBaseProps<TResult> = {
-  flow: IDKitHookResult<TResult>;
+export type IDKitInviteCodeWidgetBaseProps<TResult> = {
+  flow: IDKitInviteCodeHookResult<TResult>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   handleVerify?: (result: TResult) => MaybePromise<void>;
@@ -44,10 +44,9 @@ export type IDKitWidgetBaseProps<TResult> = {
   onError?: (errorCode: IDKitErrorCodes) => MaybePromise<void>;
   autoClose?: boolean;
   language?: SupportedLanguage;
-  showSimulatorCallout: boolean;
 };
 
-export function IDKitWidgetBase<TResult>({
+export function IDKitInviteCodeWidgetBase<TResult>({
   flow,
   open,
   onOpenChange,
@@ -56,8 +55,7 @@ export function IDKitWidgetBase<TResult>({
   onError,
   autoClose = true,
   language,
-  showSimulatorCallout,
-}: IDKitWidgetBaseProps<TResult>): ReactElement | null {
+}: IDKitInviteCodeWidgetBaseProps<TResult>): ReactElement | null {
   const { open: openFlow, reset: resetFlow } = flow;
 
   const [hostVerifyResult, setHostVerifyResult] = useState<
@@ -189,11 +187,11 @@ export function IDKitWidgetBase<TResult>({
 
   return (
     <IDKitModal open={open} onOpenChange={onOpenChange}>
-      {stage === "worldid" && (
-        <WorldIDState
+      {stage === "invite_code" && (
+        <InviteCodeState
           connectorURI={flow.connectorURI}
+          codeExpiresAt={flow.codeExpiresAt}
           isAwaitingUserConfirmation={flow.isAwaitingUserConfirmation}
-          showSimulatorCallout={showSimulatorCallout}
         />
       )}
       {stage === "host_verification" && (

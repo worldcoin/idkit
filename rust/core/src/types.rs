@@ -29,8 +29,8 @@ use std::sync::Arc;
 pub enum CredentialType {
     /// Proof of human credential
     ProofOfHuman,
-    /// Face credential
-    Face,
+    /// Selfie credential
+    Selfie,
     /// Passport credential (ICAO 9303 compliant travel document)
     Passport,
     /// MNC (My Number Card) credential
@@ -43,7 +43,7 @@ impl CredentialType {
     pub const fn issuer_schema_id(&self) -> u64 {
         match self {
             Self::ProofOfHuman => 1,
-            Self::Face => 11,
+            Self::Selfie => 11,
             Self::Passport => 9303,
             Self::Mnc => 9310,
         }
@@ -56,7 +56,7 @@ impl CredentialType {
     pub const fn from_issuer_schema_id(id: u64) -> Option<Self> {
         match id {
             1 => Some(Self::ProofOfHuman),
-            11 => Some(Self::Face),
+            11 => Some(Self::Selfie),
             9303 => Some(Self::Passport),
             9310 => Some(Self::Mnc),
             _ => None,
@@ -625,7 +625,7 @@ impl<'de> Deserialize<'de> for BridgeResponseV1 {
 pub enum ResponseItem {
     /// Protocol version 4.0 (World ID v4)
     V4 {
-        /// Credential identifier (e.g., `proof_of_human`, `face`, `passport`, `mnc`)
+        /// Credential identifier (e.g., `proof_of_human`, `selfie`, `passport`, `mnc`)
         identifier: String,
         /// Signal hash (optional, included if signal was provided in request)
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -646,7 +646,7 @@ pub enum ResponseItem {
     },
     /// Session proof (World ID v4 sessions)
     Session {
-        /// Credential identifier (e.g., `proof_of_human`, `face`, `passport`, `mnc`)
+        /// Credential identifier (e.g., `proof_of_human`, `selfie`, `passport`, `mnc`)
         identifier: String,
         /// Signal hash (optional, included if signal was provided in request)
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -670,7 +670,7 @@ pub enum ResponseItem {
     },
     /// Protocol version 3.0 (World ID v3 - legacy format)
     V3 {
-        /// Credential identifier (e.g., `proof_of_human`, `face`)
+        /// Credential identifier (e.g., `proof_of_human`, `selfie`)
         identifier: String,
         /// Signal hash (hash of the signal provided in the request, or hash of empty signal)
         signal_hash: String,
@@ -886,10 +886,12 @@ impl BridgeUrl {
             crate::Error::InvalidConfiguration(format!("Failed to parse Bridge URL: {e}"))
         })?;
 
-        let is_localhost = matches!(parsed.host_str(), Some("localhost" | "127.0.0.1"));
-
-        // Staging localhost: skip all validation
-        if is_staging && is_localhost {
+        // Staging dev hosts (loopback, RFC1918 private IPv4, `*.local` mDNS):
+        // skip all validation. The relaxation exists so devs can run a local
+        // wallet-bridge during testing — including the phone-on-LAN ↔
+        // desktop-bridge case where the URL the phone needs to reach is the
+        // dev machine's LAN IP, not `localhost`.
+        if is_staging && is_dev_host(parsed.host().as_ref()) {
             return Ok(Self(url));
         }
 
@@ -935,6 +937,26 @@ impl BridgeUrl {
             .map_err(|e| crate::Error::InvalidConfiguration(format!("Invalid bridge URL: {e}")))?;
         base.join(path)
             .map_err(|e| crate::Error::InvalidConfiguration(format!("Failed to join path: {e}")))
+    }
+}
+
+/// Classifies a host as a developer-machine address so the staging
+/// `BridgeUrl` validator can relax HTTPS / port / path checks. Covers:
+///
+/// - `localhost`
+/// - IPv4 loopback (127.0.0.0/8) and IPv6 loopback (`::1`)
+/// - RFC1918 private IPv4: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+/// - `*.local` mDNS hostnames
+///
+/// Public IPs and non-`.local` hostnames still get the production validator.
+fn is_dev_host(host: Option<&url::Host<&str>>) -> bool {
+    match host {
+        Some(url::Host::Domain(name)) => {
+            name.eq_ignore_ascii_case("localhost") || name.to_ascii_lowercase().ends_with(".local")
+        }
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback() || ip.is_private(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        None => false,
     }
 }
 
@@ -1151,7 +1173,7 @@ mod tests {
         assert_eq!(item.genesis_issued_at_min, None);
 
         // Test without signal
-        let no_signal = CredentialRequest::new(CredentialType::Face, None);
+        let no_signal = CredentialRequest::new(CredentialType::Selfie, None);
         assert_eq!(no_signal.signal, None);
     }
 
@@ -1188,8 +1210,10 @@ mod tests {
     #[test]
     fn test_request_item_with_string_signal() {
         // Test creating request item with string signal
-        let item =
-            CredentialRequest::new(CredentialType::Face, Some(Signal::from_string("my_signal")));
+        let item = CredentialRequest::new(
+            CredentialType::Selfie,
+            Some(Signal::from_string("my_signal")),
+        );
         assert_eq!(item.signal, Some(Signal::from_string("my_signal")));
 
         // String signals should also be retrievable as bytes
@@ -1202,7 +1226,7 @@ mod tests {
         let signal = "0x3df41d9d0ba00d8fbe5a9896bb01efc4b3787b7c";
         let expected = hex::decode(signal.strip_prefix("0x").unwrap()).unwrap();
         let item = CredentialRequest::new(
-            CredentialType::Face,
+            CredentialType::Selfie,
             Some(Signal::String(signal.to_string())),
         );
 
@@ -1347,7 +1371,7 @@ mod tests {
     #[test]
     fn test_idkit_result_v3() {
         let responses = vec![ResponseItem::V3 {
-            identifier: "face".to_string(),
+            identifier: "selfie".to_string(),
             signal_hash: String::new(),
             proof: "0xproof".to_string(),
             merkle_root: "0xroot".to_string(),
@@ -1374,7 +1398,7 @@ mod tests {
     #[test]
     fn test_credential_type_issuer_schema_id() {
         assert_eq!(CredentialType::ProofOfHuman.issuer_schema_id(), 1);
-        assert_eq!(CredentialType::Face.issuer_schema_id(), 11);
+        assert_eq!(CredentialType::Selfie.issuer_schema_id(), 11);
         assert_eq!(CredentialType::Passport.issuer_schema_id(), 9303);
         assert_eq!(CredentialType::Mnc.issuer_schema_id(), 9310);
     }
@@ -1387,7 +1411,7 @@ mod tests {
         );
         assert_eq!(
             CredentialType::from_issuer_schema_id(11),
-            Some(CredentialType::Face)
+            Some(CredentialType::Selfie)
         );
         assert_eq!(
             CredentialType::from_issuer_schema_id(9303),

@@ -6,7 +6,7 @@ import {
 import { bytesToHex, hexToBytes, keccak256, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-type TestCaseId =
+type RpContextCaseId =
   | "valid_success"
   | "invalid_rp_signature"
   | "duplicate_nonce"
@@ -28,12 +28,12 @@ type RpContextPayload = {
 };
 
 type RequestBody = {
-  caseId: TestCaseId;
+  caseId: RpContextCaseId;
   action?: string;
   nonce?: string;
 };
 
-const KNOWN_CASES = new Set<TestCaseId>([
+const KNOWN_CASES = new Set<RpContextCaseId>([
   "valid_success",
   "invalid_rp_signature",
   "duplicate_nonce",
@@ -47,7 +47,7 @@ const KNOWN_CASES = new Set<TestCaseId>([
   "rp_signature_expired",
 ]);
 
-const DEFAULT_ACTION = "idkit-test-case";
+const DEFAULT_ACTION = "idkit-arena";
 const DEFAULT_TTL_SEC = 300;
 const RP_ID_FORMAT = /^rp_[0-9a-fA-F]{1,16}$/;
 
@@ -167,7 +167,10 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const body = (await request.json()) as RequestBody;
     if (!KNOWN_CASES.has(body.caseId)) {
-      return jsonError(`Unknown test case: ${String(body.caseId)}`, 400);
+      return jsonError(
+        `Unknown Arena context case: ${String(body.caseId)}`,
+        400,
+      );
     }
 
     const signingKey = process.env.RP_SIGNING_KEY;
@@ -314,7 +317,7 @@ export async function POST(request: Request): Promise<Response> {
       note,
     });
   } catch (error) {
-    console.error("Error generating test-case RP context:", error);
+    console.error("Error generating Arena RP context:", error);
     return jsonError(
       error instanceof Error ? error.message : "Unknown server error",
       500,

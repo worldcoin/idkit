@@ -6,14 +6,17 @@ import {
   documentLegacy,
   deviceLegacy,
   selfieCheckLegacy,
+  IDKitInviteCodeRequestWidget,
   IDKitRequestWidget,
   orbLegacy,
+  passport as passportPreset,
+  proofOfHuman,
   secureDocumentLegacy,
   setDebug,
   type ConstraintNode,
   type IDKitResult,
   type RpContext,
-  Preset,
+  type Preset,
 } from "@worldcoin/idkit";
 
 setDebug(true);
@@ -32,11 +35,13 @@ const RETURN_TO_TOOLTIP =
 
 type PresetKind = "orb" | "secure_document" | "document" | "device" | "selfie";
 
-type V4CredentialType = "proof_of_human" | "passport";
+type V4CredentialType = "proof_of_human" | "selfie" | "passport" | "mnc";
 
 const V4_CREDENTIAL_TO_NAME: Record<V4CredentialType, string> = {
   proof_of_human: "Proof of Human",
+  selfie: "Selfie",
   passport: "Passport",
+  mnc: "MNC",
 };
 
 const PRESET_KIND_TO_NAME: Record<PresetKind, string> = {
@@ -117,10 +122,16 @@ async function verifyProof(payload: IDKitResult): Promise<unknown> {
   });
 
   const json = await response.json();
+  console.log("Verify proof response:", {
+    ok: response.ok,
+    status: response.status,
+    statusText: response.statusText,
+    payload: json,
+  });
+
   if (!response.ok) {
     throw new Error(json.error ?? "Verification failed");
   }
-
   return json;
 }
 
@@ -153,6 +164,8 @@ export function DemoClient(): ReactElement {
   const [returnTo, setReturnTo] = useState("");
   const [isReturnToTooltipOpen, setIsReturnToTooltipOpen] = useState(false);
   const [requireUserPresence, setRequireUserPresence] = useState(false);
+  const [useInviteCode, setUseInviteCode] = useState(false);
+  const isV4PresetCredential = v4CredentialType !== "mnc";
 
   const genesisIssuedAtMin =
     genesisEnabled && genesisDate
@@ -168,11 +181,15 @@ export function DemoClient(): ReactElement {
       } = useMemo(
     () =>
       worldIdVersion === "4.0"
-        ? {
-            constraints: CredentialRequest(v4CredentialType, {
-              genesis_issued_at_min: genesisIssuedAtMin,
-            }),
-          }
+        ? v4CredentialType === "proof_of_human"
+          ? { preset: proofOfHuman({ signal: widgetSignal }) }
+          : v4CredentialType === "passport"
+            ? { preset: passportPreset({ signal: widgetSignal }) }
+            : {
+                constraints: CredentialRequest(v4CredentialType, {
+                  genesis_issued_at_min: genesisIssuedAtMin,
+                }),
+              }
         : { preset: createPreset(presetKind, widgetSignal) },
     [
       worldIdVersion,
@@ -206,11 +223,11 @@ export function DemoClient(): ReactElement {
   }, [environment]);
 
   useEffect(() => {
-    if (worldIdVersion !== "4.0") {
+    if (worldIdVersion !== "4.0" || isV4PresetCredential) {
       setGenesisEnabled(false);
       setGenesisDate("");
     }
-  }, [worldIdVersion]);
+  }, [isV4PresetCredential, worldIdVersion]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -298,6 +315,15 @@ export function DemoClient(): ReactElement {
             <option value="staging">Staging</option>
           </select>
         </div>
+        <div className="config-row">
+          <label htmlFor="cfgUseInviteCode">Use invite code</label>
+          <input
+            type="checkbox"
+            id="cfgUseInviteCode"
+            checked={useInviteCode}
+            onChange={(e) => setUseInviteCode(e.target.checked)}
+          />
+        </div>
         {environment === "staging" && (
           <div className="config-row">
             <label htmlFor="cfgOverrideConnectBaseUrl">
@@ -384,8 +410,10 @@ export function DemoClient(): ReactElement {
                   setV4CredentialType(e.target.value as V4CredentialType)
                 }
               >
-                <option value="proof_of_human">Proof Of Human (Orb)</option>
+                <option value="proof_of_human">Proof Of Human</option>
+                <option value="selfie">Selfie</option>
                 <option value="passport">Passport</option>
+                <option value="mnc">MNC</option>
               </select>
             </div>
             <div className="config-row">
@@ -427,6 +455,7 @@ export function DemoClient(): ReactElement {
                 type="checkbox"
                 id="cfgGenesisEnabled"
                 checked={genesisEnabled}
+                disabled={isV4PresetCredential}
                 onChange={(e) => setGenesisEnabled(e.target.checked)}
               />
               {genesisEnabled && (
@@ -518,31 +547,54 @@ export function DemoClient(): ReactElement {
       </div>
       {widgetError && <p className="status">Error: {widgetError}</p>}
 
-      {widgetRpContext && (
-        <IDKitRequestWidget
-          open={widgetOpen}
-          onOpenChange={setWidgetOpen}
-          app_id={APP_ID}
-          action={action || "test-action"}
-          rp_context={widgetRpContext}
-          allow_legacy_proofs={true}
-          require_user_presence={requireUserPresence}
-          {...widgetConstraintsOrPreset}
-          onSuccess={(result) => {
-            setWidgetIdkitResult(result);
-          }}
-          handleVerify={async (result) => {
-            const verified = await verifyProof(result);
-            setWidgetVerifyResult(verified);
-          }}
-          onError={(errorCode) => {
-            setWidgetError(`Verification failed: ${errorCode}`);
-          }}
-          environment={environment}
-          override_connect_base_url={overrideConnectBaseUrl}
-          return_to={effectiveReturnTo}
-        />
-      )}
+      {widgetRpContext &&
+        (useInviteCode ? (
+          <IDKitInviteCodeRequestWidget
+            open={widgetOpen}
+            onOpenChange={setWidgetOpen}
+            app_id={APP_ID}
+            action={action || "test-action"}
+            rp_context={widgetRpContext}
+            allow_legacy_proofs={true}
+            require_user_presence={requireUserPresence}
+            {...widgetConstraintsOrPreset}
+            onSuccess={(result) => {}}
+            handleVerify={async (result) => {
+              setWidgetIdkitResult(result);
+              const verified = await verifyProof(result);
+              setWidgetVerifyResult(verified);
+            }}
+            onError={(errorCode) => {
+              setWidgetError(`Verification failed: ${errorCode}`);
+            }}
+            environment={environment}
+            override_connect_base_url={overrideConnectBaseUrl}
+            return_to={effectiveReturnTo}
+          />
+        ) : (
+          <IDKitRequestWidget
+            open={widgetOpen}
+            onOpenChange={setWidgetOpen}
+            app_id={APP_ID}
+            action={action || "test-action"}
+            rp_context={widgetRpContext}
+            allow_legacy_proofs={true}
+            require_user_presence={requireUserPresence}
+            {...widgetConstraintsOrPreset}
+            onSuccess={(result) => {}}
+            handleVerify={async (result) => {
+              setWidgetIdkitResult(result);
+              const verified = await verifyProof(result);
+              setWidgetVerifyResult(verified);
+            }}
+            onError={(errorCode) => {
+              setWidgetError(`Verification failed: ${errorCode}`);
+            }}
+            environment={environment}
+            override_connect_base_url={overrideConnectBaseUrl}
+            return_to={effectiveReturnTo}
+          />
+        ))}
 
       {widgetIdkitResult && (
         <>

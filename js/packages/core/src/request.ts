@@ -73,6 +73,46 @@ export interface IDKitRequest {
 }
 
 /**
+ * Shared poll loop. Used by both URL-mode and invite-code-mode request impls;
+ * the loop body is identical between the two paths because the bridge
+ * `Status` shape is mode-agnostic.
+ */
+async function pollUntilCompletionLoop(
+  pollOnce: () => Promise<Status>,
+  options?: WaitOptions,
+): Promise<IDKitCompletionResult> {
+  const pollInterval = options?.pollInterval ?? 1000;
+  const timeout = options?.timeout ?? 900_000; // 15 minutes default
+  const startTime = Date.now();
+
+  while (true) {
+    if (options?.signal?.aborted) {
+      return { success: false, error: IDKitErrorCodes.Cancelled };
+    }
+
+    if (Date.now() - startTime > timeout) {
+      return { success: false, error: IDKitErrorCodes.Timeout };
+    }
+
+    const status = await pollOnce();
+
+    if (status.type === "confirmed" && status.result) {
+      return { success: true, result: status.result };
+    }
+
+    if (status.type === "failed") {
+      return {
+        success: false,
+        error:
+          (status.error as IDKitErrorCodes) ?? IDKitErrorCodes.GenericError,
+      };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+  }
+}
+
+/**
  * Internal request implementation (bridge/WASM path)
  */
 class IDKitRequestImpl implements IDKitRequest {
@@ -98,38 +138,69 @@ class IDKitRequestImpl implements IDKitRequest {
     return (await this.wasmRequest.pollForStatus()) as Status;
   }
 
-  async pollUntilCompletion(
-    options?: WaitOptions,
-  ): Promise<IDKitCompletionResult> {
-    const pollInterval = options?.pollInterval ?? 1000;
-    const timeout = options?.timeout ?? 900_000; // 15 minutes default
-    const startTime = Date.now();
+  pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult> {
+    return pollUntilCompletionLoop(() => this.pollOnce(), options);
+  }
+}
 
-    while (true) {
-      if (options?.signal?.aborted) {
-        return { success: false, error: IDKitErrorCodes.Cancelled };
-      }
+/**
+ * An invite-code mode World ID verification request (WDP-73).
+ *
+ * Sibling shape to {@link IDKitRequest}, but discovery happens through a
+ * URL pointing at the `world.org/verify` landing page (which displays the
+ * code for the user to type into World App). The polling lifecycle is
+ * byte-identical to URL mode — same `Status`, same `IDKitCompletionResult` —
+ * so adopters write the same poll loop.
+ */
+export interface IDKitInviteCodeRequest {
+  /** URL to display to the user. Same shape as URL/QR mode's `connectorURI` with `&c=<code>&a=<app_id>` appended. */
+  readonly connectorURI: string;
+  /** Unix-seconds expiry of the unredeemed code. After this point bridge will reject the redeem. */
+  readonly expiresAt: number;
+  /** Unique request ID for this verification */
+  readonly requestId: string;
+  /** Poll once for current status (for manual polling) */
+  pollOnce(): Promise<Status>;
+  /** Poll continuously until completion or timeout */
+  pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult>;
+}
 
-      if (Date.now() - startTime > timeout) {
-        return { success: false, error: IDKitErrorCodes.Timeout };
-      }
+/**
+ * Internal invite-code request implementation (bridge/WASM only — code mode
+ * has no in-app native postMessage path by design; the user is on a different
+ * device than World App).
+ */
+class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
+  private wasmRequest: WasmModule.IDKitInviteCodeRequest;
+  private _connectorURI: string;
+  private _expiresAt: number;
+  private _requestId: string;
 
-      const status = await this.pollOnce();
+  constructor(wasmRequest: WasmModule.IDKitInviteCodeRequest) {
+    this.wasmRequest = wasmRequest;
+    this._connectorURI = wasmRequest.connectUrl();
+    this._expiresAt = wasmRequest.expiresAt();
+    this._requestId = wasmRequest.requestId();
+  }
 
-      if (status.type === "confirmed" && status.result) {
-        return { success: true, result: status.result };
-      }
+  get connectorURI(): string {
+    return this._connectorURI;
+  }
 
-      if (status.type === "failed") {
-        return {
-          success: false,
-          error:
-            (status.error as IDKitErrorCodes) ?? IDKitErrorCodes.GenericError,
-        };
-      }
+  get expiresAt(): number {
+    return this._expiresAt;
+  }
 
-      await new Promise((resolve) => setTimeout(resolve, pollInterval));
-    }
+  get requestId(): string {
+    return this._requestId;
+  }
+
+  async pollOnce(): Promise<Status> {
+    return (await this.wasmRequest.pollForStatus()) as Status;
+  }
+
+  pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult> {
+    return pollUntilCompletionLoop(() => this.pollOnce(), options);
   }
 }
 
@@ -140,14 +211,14 @@ class IDKitRequestImpl implements IDKitRequest {
 /**
  * Creates a CredentialRequest for a credential type
  *
- * @param credential_type - The type of credential to request (e.g., 'proof_of_human', 'face')
+ * @param credential_type - The type of credential to request (e.g., 'proof_of_human', 'selfie')
  * @param options - Optional signal, genesis_issued_at_min, and expires_at_min
  * @returns A CredentialRequest object
  *
  * @example
  * ```typescript
  * const orb = CredentialRequest('proof_of_human', { signal: 'user-123' })
- * const face = CredentialRequest('face')
+ * const selfie = CredentialRequest('selfie')
  * // Require credential to be valid for at least one year
  * const withExpiry = CredentialRequest('proof_of_human', { expires_at_min: Date.now() / 1000 + 60 * 60 * 60 * 24 * 365 })
  * ```
@@ -176,7 +247,7 @@ export function CredentialRequest(
  *
  * @example
  * ```typescript
- * const constraint = any(CredentialRequest('proof_of_human'), CredentialRequest('face'))
+ * const constraint = any(CredentialRequest('proof_of_human'), CredentialRequest('selfie'))
  * ```
  */
 export function any(...nodes: ConstraintNode[]): { any: ConstraintNode[] } {
@@ -232,6 +303,8 @@ export type {
   DocumentLegacyPreset,
   SelfieCheckLegacyPreset,
   DeviceLegacyPreset,
+  ProofOfHumanPreset,
+  PassportPreset,
 } from "./lib/wasm";
 
 // Import WASM preset type for function return types
@@ -242,6 +315,8 @@ import type {
   DocumentLegacyPreset,
   SelfieCheckLegacyPreset,
   DeviceLegacyPreset,
+  ProofOfHumanPreset,
+  PassportPreset,
 } from "./lib/wasm";
 
 /**
@@ -335,7 +410,7 @@ export function deviceLegacy(
  *
  * @example
  * ```typescript
- * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: false })
+ * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: true })
  *   .preset(selfieCheckLegacy({ signal: 'user-123' }))
  * ```
  */
@@ -343,6 +418,40 @@ export function selfieCheckLegacy(
   opts: { signal?: string } = {},
 ): SelfieCheckLegacyPreset {
   return { type: "SelfieCheckLegacy", signal: opts.signal };
+}
+
+/**
+ * Creates a ProofOfHuman preset for World ID 4.0 with legacy Orb fallback
+ *
+ * @param opts - Optional configuration with signal
+ * @returns A ProofOfHuman preset
+ *
+ * @example
+ * ```typescript
+ * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: true })
+ *   .preset(proofOfHuman({ signal: 'user-123' }))
+ * ```
+ */
+export function proofOfHuman(
+  opts: { signal?: string } = {},
+): ProofOfHumanPreset {
+  return { type: "ProofOfHuman", signal: opts.signal };
+}
+
+/**
+ * Creates a Passport preset for World ID 4.0 with legacy document fallback
+ *
+ * @param opts - Optional configuration with signal
+ * @returns A Passport preset
+ *
+ * @example
+ * ```typescript
+ * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: false })
+ *   .preset(passport({ signal: 'user-123' }))
+ * ```
+ */
+export function passport(opts: { signal?: string } = {}): PassportPreset {
+  return { type: "Passport", signal: opts.signal };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -433,7 +542,7 @@ class IDKitBuilder {
    * @example
    * ```typescript
    * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: false })
-   *   .constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('face')));
+   *   .constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('selfie')));
    * ```
    */
   async constraints(constraints: ConstraintNode): Promise<IDKitRequest> {
@@ -476,7 +585,7 @@ class IDKitBuilder {
    * Presets provide a simplified way to create requests with predefined
    * credential configurations.
    *
-   * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), documentLegacy(), selfieCheckLegacy(), or deviceLegacy()
+   * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), documentLegacy(), selfieCheckLegacy(), deviceLegacy(), proofOfHuman(), or passport()
    * @returns A new IDKitRequest instance
    *
    * @example
@@ -550,6 +659,72 @@ class IDKitBuilder {
   }
 }
 
+/**
+ * Builder for invite-code mode requests (WDP-73).
+ *
+ * Code mode is bridge-only by definition: the user is on a different device
+ * than World App (e.g. desktop browser ↔ phone), so there's no in-app native
+ * postMessage path to branch on. This builder skips the `isInWorldApp()`
+ * check that {@link IDKitBuilder} performs.
+ */
+class IDKitInviteCodeBuilder {
+  private config: BuilderConfig;
+
+  constructor(config: BuilderConfig) {
+    this.config = config;
+  }
+
+  /**
+   * Creates an invite-code mode IDKit request with the given constraints.
+   *
+   * @param constraints - Constraint tree (CredentialRequest or any/all/enumerate combinators)
+   * @returns A new IDKitInviteCodeRequest instance
+   *
+   * @example
+   * ```typescript
+   * const request = await IDKit.requestWithInviteCode({ app_id, action, rp_context, allow_legacy_proofs: false })
+   *   .constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('selfie')));
+   * displayLink(request.connectorURI);
+   * ```
+   */
+  async constraints(
+    constraints: ConstraintNode,
+  ): Promise<IDKitInviteCodeRequest> {
+    await initIDKit();
+
+    const wasmBuilder = createWasmBuilderFromConfig(this.config);
+    const wasmRequest = (await wasmBuilder.constraintsWithInviteCode(
+      constraints,
+    )) as unknown as WasmModule.IDKitInviteCodeRequest;
+    return new IDKitInviteCodeRequestImpl(wasmRequest);
+  }
+
+  /**
+   * Creates an invite-code mode IDKit request from a preset.
+   *
+   * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), documentLegacy(), selfieCheckLegacy(), deviceLegacy(), proofOfHuman(), or passport()
+   * @returns A new IDKitInviteCodeRequest instance
+   */
+  async preset(preset: Preset): Promise<IDKitInviteCodeRequest> {
+    if (
+      this.config.type === "createSession" ||
+      this.config.type === "proveSession"
+    ) {
+      throw new Error(
+        "Presets are not supported for session flows. Use .constraints() instead.",
+      );
+    }
+
+    await initIDKit();
+
+    const wasmBuilder = createWasmBuilderFromConfig(this.config);
+    const wasmRequest = (await wasmBuilder.presetWithInviteCode(
+      preset,
+    )) as unknown as WasmModule.IDKitInviteCodeRequest;
+    return new IDKitInviteCodeRequestImpl(wasmRequest);
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Entry points
 // ─────────────────────────────────────────────────────────────────────────────
@@ -582,7 +757,7 @@ class IDKitBuilder {
  *   action: 'my-action',
  *   rp_context: { ... },
  *   allow_legacy_proofs: false,
- * }).constraints(enumerate(CredentialRequest('proof_of_human'), CredentialRequest('face')));
+ * }).constraints(enumerate(CredentialRequest('proof_of_human'), CredentialRequest('selfie')));
  *
  * // In World App: connectorURI is empty, result comes via postMessage
  * // On web: connectorURI is the QR URL to display
@@ -628,6 +803,64 @@ function createRequest(config: IDKitRequestConfig): IDKitBuilder {
 }
 
 /**
+ * Creates an invite-code mode IDKit request builder (WDP-73).
+ *
+ * Sibling entry point to {@link createRequest}. Validates the same required
+ * fields, returns a {@link IDKitInviteCodeBuilder} whose `.constraints()` /
+ * `.preset()` methods produce {@link IDKitInviteCodeRequest} handles.
+ *
+ * @example
+ * ```typescript
+ * const request = await IDKit.requestWithInviteCode({
+ *   app_id: 'app_staging_xxxxx',
+ *   action: 'my-action',
+ *   rp_context: { ... },
+ *   allow_legacy_proofs: false,
+ * }).constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('selfie')));
+ *
+ * displayLink(request.connectorURI);          // user opens this URL on their phone
+ * const proof = await request.pollUntilCompletion();
+ * ```
+ */
+function createRequestWithInviteCode(
+  config: IDKitRequestConfig,
+): IDKitInviteCodeBuilder {
+  // Validate required fields — mirror createRequest exactly so integrators
+  // don't get different validation between the two paths.
+  if (!config.app_id) {
+    throw new Error("app_id is required");
+  }
+  if (!config.action) {
+    throw new Error("action is required");
+  }
+  if (!config.rp_context) {
+    throw new Error(
+      "rp_context is required. Generate it on your backend using signRequest().",
+    );
+  }
+  if (typeof config.allow_legacy_proofs !== "boolean") {
+    throw new Error(
+      "allow_legacy_proofs is required. Set to true to accept v3 proofs during migration, " +
+        "or false to only accept v4 proofs.",
+    );
+  }
+
+  return new IDKitInviteCodeBuilder({
+    type: "request",
+    app_id: config.app_id,
+    action: String(config.action),
+    rp_context: config.rp_context,
+    action_description: config.action_description,
+    bridge_url: config.bridge_url,
+    return_to: config.return_to,
+    allow_legacy_proofs: config.allow_legacy_proofs,
+    require_user_presence: config.require_user_presence ?? false,
+    override_connect_base_url: config.override_connect_base_url,
+    environment: config.environment,
+  });
+}
+
+/**
  * Creates a new session builder (no action, no existing session_id)
  *
  * Use this when creating a new session for a user who doesn't have one yet.
@@ -645,7 +878,7 @@ function createRequest(config: IDKitRequestConfig): IDKitBuilder {
  * const request = await IDKit.createSession({
  *   app_id: 'app_staging_xxxxx',
  *   rp_context: { ... },
- * }).constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('face')));
+ * }).constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('selfie')));
  *
  * // Display QR, wait for proof
  * const result = await request.pollUntilCompletion();
@@ -696,7 +929,7 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
  * const request = await IDKit.proveSession(savedSessionId, {
  *   app_id: 'app_staging_xxxxx',
  *   rp_context: { ... },
- * }).constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('face')));
+ * }).constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('selfie')));
  *
  * const result = await request.pollUntilCompletion();
  * // result.session_id -> same session
@@ -763,6 +996,8 @@ function proveSession(
 export const IDKit = {
   /** Create a new verification request */
   request: createRequest,
+  /** Create a new invite-code mode verification request (WDP-73) */
+  requestWithInviteCode: createRequestWithInviteCode,
   /** Create a new session (no action, no existing session_id) */
   createSession,
   /** Prove an existing session (no action, has session_id) */
@@ -785,4 +1020,8 @@ export const IDKit = {
   deviceLegacy,
   /** Create a SelfieCheckLegacy preset for face verification */
   selfieCheckLegacy,
+  /** Create a ProofOfHuman preset for World ID 4.0 with legacy Orb fallback */
+  proofOfHuman,
+  /** Create a Passport preset for World ID 4.0 with legacy document fallback */
+  passport,
 };

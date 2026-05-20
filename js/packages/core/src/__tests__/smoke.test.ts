@@ -12,6 +12,8 @@ import {
   orbLegacy,
   deviceLegacy,
   selfieCheckLegacy,
+  proofOfHuman,
+  passport,
   isNode,
   IDKitErrorCodes,
   signRequest,
@@ -51,6 +53,8 @@ describe("IDKitRequest API", () => {
     expect(typeof enumerate).toBe("function");
     expect(typeof orbLegacy).toBe("function");
     expect(typeof selfieCheckLegacy).toBe("function");
+    expect(typeof proofOfHuman).toBe("function");
+    expect(typeof passport).toBe("function");
   });
 
   it("should create CredentialRequest correctly", () => {
@@ -61,16 +65,16 @@ describe("IDKitRequest API", () => {
 
   it("should create any() constraint correctly", () => {
     const poh = CredentialRequest("proof_of_human");
-    const face = CredentialRequest("face");
-    const constraint = any(poh, face);
+    const selfie = CredentialRequest("selfie");
+    const constraint = any(poh, selfie);
     expect(constraint).toHaveProperty("any");
     expect(constraint.any).toHaveLength(2);
   });
 
   it("should create enumerate() constraint correctly", () => {
     const poh = CredentialRequest("proof_of_human");
-    const face = CredentialRequest("face");
-    const constraint = enumerate(poh, face);
+    const selfie = CredentialRequest("selfie");
+    const constraint = enumerate(poh, selfie);
     expect(constraint).toHaveProperty("enumerate");
     expect(constraint.enumerate).toHaveLength(2);
   });
@@ -91,6 +95,18 @@ describe("IDKitRequest API", () => {
     const preset = deviceLegacy({ signal: "device-signal" });
     expect(preset).toHaveProperty("type", "DeviceLegacy");
     expect(preset).toHaveProperty("signal", "device-signal");
+  });
+
+  it("should create proofOfHuman preset correctly", () => {
+    const preset = proofOfHuman({ signal: "poh-signal" });
+    expect(preset).toHaveProperty("type", "ProofOfHuman");
+    expect(preset).toHaveProperty("signal", "poh-signal");
+  });
+
+  it("should create passport preset correctly", () => {
+    const preset = passport({ signal: "passport-signal" });
+    expect(preset).toHaveProperty("type", "Passport");
+    expect(preset).toHaveProperty("signal", "passport-signal");
   });
 
   it("should throw error when rp_context is missing", () => {
