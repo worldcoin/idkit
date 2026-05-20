@@ -23,7 +23,7 @@ import type {
 } from "../request";
 import type { IDKitResult } from "../types/result";
 import { IDKitErrorCodes } from "../types/result";
-import type { IDKitResultV3 } from "../lib/wasm";
+import type { IDKitResultV3, IntegrityBundle } from "../lib/wasm";
 import { WasmModule } from "../lib/wasm";
 import { isDebug } from "../lib/debug";
 
@@ -374,6 +374,7 @@ function nativeResultToIDKitResult(
 ): IDKitResult {
   const p = payload as Record<string, any>;
   const rpNonce = config.rp_context?.nonce ?? "";
+  const integrity_bundle = normalizeIntegrityBundle(p);
 
   // V4 response wrapped in `proof_response` envelope.
   if ("proof_response" in p && p.proof_response != null) {
@@ -386,7 +387,7 @@ function nativeResultToIDKitResult(
         ),
       });
 
-    return WasmModule.proofResponseToIDKitResult(proof_response, {
+    const result = WasmModule.proofResponseToIDKitResult(proof_response, {
       nonce: rpNonce,
       action: config.action,
       action_description: config.action_description,
@@ -394,6 +395,9 @@ function nativeResultToIDKitResult(
       signal_hashes: signalHashes,
       identity_attested: p.identity_attested,
     }) as IDKitResult;
+
+    result.integrity_bundle = integrity_bundle;
+    return result;
   }
 
   // Protocol ProofResponse must be nested under `proof_response`.
@@ -426,6 +430,7 @@ function nativeResultToIDKitResult(
         nullifier: v.nullifier_hash,
       })),
       environment: config.environment ?? "production",
+      integrity_bundle,
     } satisfies IDKitResultV3;
   }
 
@@ -447,5 +452,17 @@ function nativeResultToIDKitResult(
       },
     ],
     environment: config.environment ?? "production",
+    integrity_bundle,
   } satisfies IDKitResultV3;
+}
+
+function normalizeIntegrityBundle(
+  payload: Record<string, any>,
+): IntegrityBundle | undefined {
+  const integrityBundle = payload.integrity_bundle;
+  if (integrityBundle == null || typeof integrityBundle !== "object") {
+    return undefined;
+  }
+
+  return integrityBundle as IntegrityBundle;
 }

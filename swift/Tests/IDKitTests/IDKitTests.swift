@@ -26,7 +26,8 @@ private func sampleResult(sessionId: String? = nil) -> IDKitResult {
         sessionId: sessionId,
         responses: [],
         environment: "production",
-        identityAttested: nil
+        identityAttested: nil,
+        integrityBundle: nil
     )
 }
 

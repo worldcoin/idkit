@@ -51,6 +51,8 @@ export type {
   IDKitResult,
   IDKitResultV3,
   IDKitResultV4,
+  IntegrityBundle,
+  IntegritySignatureFormat,
   // Session proof response types
   IDKitResultSession,
   ResponseItemSession,
