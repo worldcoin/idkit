@@ -321,6 +321,7 @@ enum BridgeResponse {
     /// Multi-credential legacy: bridge sends v3 proofs via `legacy_responses`
     MultiLegacyResponse {
         legacy_responses: Vec<BridgeResponseV1>,
+        identity_attested: Option<bool>,
         integrity_bundle: Option<IntegrityBundle>,
     },
 
@@ -328,6 +329,7 @@ enum BridgeResponse {
     ResponseV1 {
         #[serde(flatten)]
         response: BridgeResponseV1,
+        identity_attested: Option<bool>,
         integrity_bundle: Option<IntegrityBundle>,
     },
 }
@@ -867,6 +869,7 @@ impl BridgeConnection {
                     BridgeResponse::MultiLegacyResponse {
                         legacy_responses,
                         integrity_bundle,
+                        identity_attested,
                     } => {
                         let responses: Vec<ResponseItem> = legacy_responses
                             .into_iter()
@@ -888,6 +891,7 @@ impl BridgeConnection {
                             responses,
                             self.environment.as_ref(),
                         );
+                        result.identity_attested = identity_attested;
                         result.integrity_bundle = integrity_bundle;
 
                         Ok(Status::Confirmed(result))
@@ -895,6 +899,7 @@ impl BridgeConnection {
                     BridgeResponse::ResponseV1 {
                         response,
                         integrity_bundle,
+                        identity_attested,
                     } => {
                         // V1 responses are always protocol 3.0
                         // For V1 we don't have identifier, use verification_level as key
@@ -908,6 +913,7 @@ impl BridgeConnection {
                             vec![item],
                             self.environment.as_ref(),
                         );
+                        result.identity_attested = identity_attested;
                         result.integrity_bundle = integrity_bundle;
 
                         Ok(Status::Confirmed(result))
@@ -2097,6 +2103,7 @@ mod tests {
             BridgeResponse::ResponseV1 {
                 response: v1,
                 integrity_bundle,
+                identity_attested,
             } => {
                 assert_eq!(v1.verification_level, VerificationLevel::Orb);
                 let bundle = integrity_bundle.expect("integrity bundle");
@@ -2108,6 +2115,7 @@ mod tests {
                 assert_eq!(bundle.timestamp, 1_709_901_234);
                 assert_eq!(bundle.signature, "304502210");
                 assert_eq!(bundle.jwt, "eyJhbGciOiJFUzI1NiIs");
+                assert!(identity_attested.is_none());
             }
             other => panic!("Expected ResponseV1, got: {other:?}"),
         }
@@ -2336,6 +2344,60 @@ mod tests {
                 );
             }
             other => panic!("Expected MultiLegacyResponse, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_bridge_response_multi_legacy_identity_attested() {
+        let json = r#"{
+            "legacy_responses": [
+                {
+                    "proof": "0xproof",
+                    "merkle_root": "0xroot",
+                    "nullifier_hash": "0xnull",
+                    "verification_level": "orb"
+                }
+            ],
+            "identity_attested": true
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        match response {
+            BridgeResponse::MultiLegacyResponse {
+                legacy_responses,
+                identity_attested,
+                integrity_bundle,
+            } => {
+                assert_eq!(legacy_responses.len(), 1);
+                assert_eq!(identity_attested, Some(true));
+                assert!(integrity_bundle.is_none());
+            }
+            other => panic!("Expected MultiLegacyResponse, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_bridge_response_v1_identity_attested() {
+        let json = r#"{
+            "proof": "0xproof",
+            "merkle_root": "0xroot",
+            "nullifier_hash": "0xnull",
+            "verification_level": "orb",
+            "identity_attested": true
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        match response {
+            BridgeResponse::ResponseV1 {
+                response: v1,
+                identity_attested,
+                integrity_bundle,
+            } => {
+                assert_eq!(v1.verification_level, VerificationLevel::Orb);
+                assert_eq!(identity_attested, Some(true));
+                assert!(integrity_bundle.is_none());
+            }
+            other => panic!("Expected ResponseV1, got: {other:?}"),
         }
     }
 
