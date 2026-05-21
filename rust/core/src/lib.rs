@@ -34,7 +34,7 @@ pub use error::{Error, Result};
 pub use preset::Preset;
 pub use types::{
     AppId, BridgeResponseV1, BridgeUrl, CredentialRequest, CredentialType, IDKitResult,
-    ResponseItem, RpContext, Signal, VerificationLevel,
+    IntegrityBundle, IntegritySignatureFormat, ResponseItem, RpContext, Signal, VerificationLevel,
 };
 
 // UniFFI scaffolding for core types

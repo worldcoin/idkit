@@ -6,8 +6,8 @@ use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
     types::{
-        AppId, BridgeResponseV1, BridgeUrl, IDKitResult, IdentityAttribute, ResponseItem,
-        RpContext, VerificationLevel,
+        AppId, BridgeResponseV1, BridgeUrl, IDKitResult, IdentityAttribute, IntegrityBundle,
+        ResponseItem, RpContext, VerificationLevel,
     },
     ConstraintNode, Signal,
 };
@@ -330,6 +330,7 @@ enum BridgeResponse {
         identity_attested: Option<bool>,
         #[serde(default)]
         user_presence_completed: bool,
+        integrity_bundle: Option<IntegrityBundle>,
     },
 
     /// Multi-credential legacy: bridge sends v3 proofs via `legacy_responses`
@@ -337,10 +338,19 @@ enum BridgeResponse {
         legacy_responses: Vec<BridgeResponseV1>,
         #[serde(default)]
         user_presence_completed: bool,
+        identity_attested: Option<bool>,
+        integrity_bundle: Option<IntegrityBundle>,
     },
 
     /// V1 legacy (old World App 3.0, single credential)
-    ResponseV1(BridgeResponseV1WithMetadata),
+    ResponseV1 {
+        #[serde(flatten)]
+        response: BridgeResponseV1,
+        #[serde(default)]
+        user_presence_completed: bool,
+        identity_attested: Option<bool>,
+        integrity_bundle: Option<IntegrityBundle>,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -374,15 +384,6 @@ impl BridgeResponseV2 {
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct BridgeResponseV1WithMetadata {
-    #[serde(flatten)]
-    response: BridgeResponseV1,
-    /// Whether World App completed the requested user-presence check.
-    #[serde(default)]
-    user_presence_completed: bool,
-}
-
 fn user_presence_failure_status(
     require_user_presence: bool,
     user_presence_completed: bool,
@@ -395,6 +396,7 @@ fn user_presence_failure_status(
 }
 
 /// Status of a verification request
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Status {
     /// Waiting for World App to retrieve the request
@@ -923,6 +925,7 @@ impl BridgeConnection {
                         self.handle_bridge_v2_response(
                             response.into_proof_response(),
                             None,
+                            None,
                             user_presence_completed,
                         )
                     }
@@ -930,14 +933,18 @@ impl BridgeConnection {
                         proof_response,
                         identity_attested,
                         user_presence_completed,
+                        integrity_bundle,
                     } => self.handle_bridge_v2_response(
                         proof_response,
                         identity_attested,
+                        integrity_bundle,
                         user_presence_completed,
                     ),
                     BridgeResponse::MultiLegacyResponse {
                         legacy_responses,
                         user_presence_completed,
+                        integrity_bundle,
+                        identity_attested,
                     } => {
                         if let Some(status) = user_presence_failure_status(
                             self.require_user_presence,
@@ -957,7 +964,7 @@ impl BridgeConnection {
                             })
                             .collect();
 
-                        Ok(Status::Confirmed(IDKitResult::new(
+                        let mut result = IDKitResult::new(
                             "3.0",
                             self.nonce.clone(),
                             self.action.clone(),
@@ -965,12 +972,21 @@ impl BridgeConnection {
                             responses,
                             user_presence_completed,
                             self.environment.as_ref(),
-                        )))
+                        );
+                        result.identity_attested = identity_attested;
+                        result.integrity_bundle = integrity_bundle;
+
+                        Ok(Status::Confirmed(result))
                     }
-                    BridgeResponse::ResponseV1(response) => {
+                    BridgeResponse::ResponseV1 {
+                        response,
+                        user_presence_completed,
+                        integrity_bundle,
+                        identity_attested,
+                    } => {
                         if let Some(status) = user_presence_failure_status(
                             self.require_user_presence,
-                            response.user_presence_completed,
+                            user_presence_completed,
                         ) {
                             return Ok(status);
                         }
@@ -978,9 +994,8 @@ impl BridgeConnection {
                         // V1 responses are always protocol 3.0
                         // For V1 we don't have identifier, use verification_level as key
                         let signal_hash = self.cached_signal_hashes.legacy();
-                        let user_presence_completed = response.user_presence_completed;
-                        let item = response.response.into_response_item(signal_hash);
-                        Ok(Status::Confirmed(IDKitResult::new(
+                        let item = response.into_response_item(signal_hash);
+                        let mut result = IDKitResult::new(
                             "3.0",
                             self.nonce.clone(),
                             self.action.clone(),
@@ -988,7 +1003,11 @@ impl BridgeConnection {
                             vec![item],
                             user_presence_completed,
                             self.environment.as_ref(),
-                        )))
+                        );
+                        result.identity_attested = identity_attested;
+                        result.integrity_bundle = integrity_bundle;
+
+                        Ok(Status::Confirmed(result))
                     }
                 }
             }
@@ -1000,6 +1019,7 @@ impl BridgeConnection {
         &self,
         proof_response: world_id_primitives::ProofResponse,
         identity_attested: Option<bool>,
+        integrity_bundle: Option<IntegrityBundle>,
         user_presence_completed: bool,
     ) -> Result<Status> {
         // Protocol-level errors take precedence over user-presence enforcement.
@@ -1013,7 +1033,7 @@ impl BridgeConnection {
             return Ok(status);
         }
 
-        Ok(Status::Confirmed(proof_response_to_idkit_result(
+        let mut result = proof_response_to_idkit_result(
             proof_response,
             ProofResponseConversionContext {
                 nonce: self.nonce.clone(),
@@ -1024,7 +1044,10 @@ impl BridgeConnection {
                 identity_attested,
                 user_presence_completed,
             },
-        )?))
+        )?;
+        result.integrity_bundle = integrity_bundle;
+
+        Ok(Status::Confirmed(result))
     }
 
     /// Returns the request ID for this request.
@@ -1670,6 +1693,7 @@ pub struct IDKitRequestWrapper {
 }
 
 #[cfg(feature = "ffi")]
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, uniffi::Enum)]
 pub enum StatusWrapper {
     /// Waiting for World App to retrieve the request
@@ -1864,7 +1888,7 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use crate::types::{CredentialRequest, CredentialType, Signal};
+    use crate::types::{CredentialRequest, CredentialType, IntegritySignatureFormat, Signal};
 
     #[test]
     fn test_bridge_request_payload_serialization() {
@@ -2128,7 +2152,7 @@ mod tests {
         }"#;
 
         let response: BridgeResponse = serde_json::from_str(json).unwrap();
-        assert!(matches!(response, BridgeResponse::ResponseV1(_)));
+        assert!(matches!(response, BridgeResponse::ResponseV1 { .. }));
     }
 
     /// Android World App sends `credential_type` instead of `verification_level`
@@ -2144,11 +2168,11 @@ mod tests {
 
         let response: BridgeResponse = serde_json::from_str(json).unwrap();
         match response {
-            BridgeResponse::ResponseV1(v1) => {
-                assert_eq!(v1.response.verification_level, VerificationLevel::Device);
-                assert_eq!(v1.response.proof, "0xproof");
-                assert_eq!(v1.response.merkle_root, "0xroot");
-                assert_eq!(v1.response.nullifier_hash, "0xnull");
+            BridgeResponse::ResponseV1 { response: v1, .. } => {
+                assert_eq!(v1.verification_level, VerificationLevel::Device);
+                assert_eq!(v1.proof, "0xproof");
+                assert_eq!(v1.merkle_root, "0xroot");
+                assert_eq!(v1.nullifier_hash, "0xnull");
             }
             other => panic!("Expected ResponseV1, got: {other:?}"),
         }
@@ -2167,8 +2191,49 @@ mod tests {
 
         let response: BridgeResponse = serde_json::from_str(json).unwrap();
         match response {
-            BridgeResponse::ResponseV1(v1) => {
-                assert_eq!(v1.response.verification_level, VerificationLevel::Orb);
+            BridgeResponse::ResponseV1 { response: v1, .. } => {
+                assert_eq!(v1.verification_level, VerificationLevel::Orb);
+            }
+            other => panic!("Expected ResponseV1, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_bridge_response_v1_integrity_bundle() {
+        let json = r#"{
+            "proof": "0xproof",
+            "merkle_root": "0xroot",
+            "nullifier_hash": "0xnull",
+            "verification_level": "orb",
+            "integrity_bundle": {
+                "version": 1,
+                "signature_format": "apple_app_attest",
+                "timestamp": 1709901234,
+                "signature": "304502210",
+                "jwt": "eyJhbGciOiJFUzI1NiIs"
+            }
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        match response {
+            BridgeResponse::ResponseV1 {
+                response: v1,
+                integrity_bundle,
+                identity_attested,
+                user_presence_completed,
+            } => {
+                assert_eq!(v1.verification_level, VerificationLevel::Orb);
+                assert!(!user_presence_completed);
+                let bundle = integrity_bundle.expect("integrity bundle");
+                assert_eq!(bundle.version, 1);
+                assert_eq!(
+                    bundle.signature_format,
+                    IntegritySignatureFormat::AppleAppAttest
+                );
+                assert_eq!(bundle.timestamp, 1_709_901_234);
+                assert_eq!(bundle.signature, "304502210");
+                assert_eq!(bundle.jwt, "eyJhbGciOiJFUzI1NiIs");
+                assert!(identity_attested.is_none());
             }
             other => panic!("Expected ResponseV1, got: {other:?}"),
         }
@@ -2233,7 +2298,7 @@ mod tests {
         };
 
         let status = connection
-            .handle_bridge_v2_response(proof_response, None, false)
+            .handle_bridge_v2_response(proof_response, None, None, false)
             .unwrap();
 
         assert_eq!(status, Status::Failed(AppError::InvalidRpSignature));
@@ -2346,6 +2411,56 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_bridge_response_v2_1_integrity_bundle() {
+        let json = format!(
+            r#"{{
+                "proof_response": {{
+                    "id": "req_integrity",
+                    "version": 1,
+                    "responses": [{{
+                        "identifier": "face",
+                        "issuer_schema_id": 11,
+                        "proof": "{ZERO_PROOF}",
+                        "nullifier": "{ZERO_NULLIFIER}",
+                        "expires_at_min": 1735689600
+                    }}]
+                }},
+                "identity_attested": true,
+                "integrity_bundle": {{
+                    "version": 1,
+                    "signature_format": "android_keystore",
+                    "timestamp": 1709901234,
+                    "signature": "304502210",
+                    "jwt": "eyJhbGciOiJFUzI1NiIs"
+                }}
+            }}"#
+        );
+
+        let response: BridgeResponse = serde_json::from_str(&json).unwrap();
+        match response {
+            BridgeResponse::ResponseV2_1 {
+                proof_response,
+                identity_attested,
+                integrity_bundle,
+                user_presence_completed,
+            } => {
+                assert_eq!(proof_response.id, "req_integrity");
+                assert_eq!(proof_response.responses.len(), 1);
+                assert_eq!(proof_response.responses[0].identifier, "face");
+                assert_eq!(identity_attested, Some(true));
+                assert!(!user_presence_completed);
+                let bundle = integrity_bundle.expect("integrity bundle");
+                assert_eq!(
+                    bundle.signature_format,
+                    IntegritySignatureFormat::AndroidKeystore
+                );
+                assert_eq!(bundle.timestamp, 1_709_901_234);
+            }
+            other => panic!("Expected ResponseV2_1, got: {other:?}"),
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // BridgeResponse::MultiLegacyResponse Parsing Tests
     // ─────────────────────────────────────────────────────────────────────────
@@ -2368,6 +2483,7 @@ mod tests {
             BridgeResponse::MultiLegacyResponse {
                 legacy_responses,
                 user_presence_completed,
+                ..
             } => {
                 assert_eq!(legacy_responses.len(), 1);
                 assert!(!user_presence_completed);
@@ -2405,6 +2521,7 @@ mod tests {
             BridgeResponse::MultiLegacyResponse {
                 legacy_responses,
                 user_presence_completed,
+                ..
             } => {
                 assert_eq!(legacy_responses.len(), 2);
                 assert!(!user_presence_completed);
@@ -2418,6 +2535,62 @@ mod tests {
                 );
             }
             other => panic!("Expected MultiLegacyResponse, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_bridge_response_multi_legacy_identity_attested() {
+        let json = r#"{
+            "legacy_responses": [
+                {
+                    "proof": "0xproof",
+                    "merkle_root": "0xroot",
+                    "nullifier_hash": "0xnull",
+                    "verification_level": "orb"
+                }
+            ],
+            "identity_attested": true
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        match response {
+            BridgeResponse::MultiLegacyResponse {
+                legacy_responses,
+                identity_attested,
+                integrity_bundle,
+                ..
+            } => {
+                assert_eq!(legacy_responses.len(), 1);
+                assert_eq!(identity_attested, Some(true));
+                assert!(integrity_bundle.is_none());
+            }
+            other => panic!("Expected MultiLegacyResponse, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_bridge_response_v1_identity_attested() {
+        let json = r#"{
+            "proof": "0xproof",
+            "merkle_root": "0xroot",
+            "nullifier_hash": "0xnull",
+            "verification_level": "orb",
+            "identity_attested": true
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        match response {
+            BridgeResponse::ResponseV1 {
+                response: v1,
+                identity_attested,
+                integrity_bundle,
+                ..
+            } => {
+                assert_eq!(v1.verification_level, VerificationLevel::Orb);
+                assert_eq!(identity_attested, Some(true));
+                assert!(integrity_bundle.is_none());
+            }
+            other => panic!("Expected ResponseV1, got: {other:?}"),
         }
     }
 

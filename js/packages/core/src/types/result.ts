@@ -10,6 +10,8 @@ export type {
   IDKitResult,
   ResponseItemV4,
   ResponseItemV3,
+  IntegrityBundle,
+  IntegritySignatureFormat,
   // Session proof response types
   ResponseItemSession,
   IDKitResultSession,

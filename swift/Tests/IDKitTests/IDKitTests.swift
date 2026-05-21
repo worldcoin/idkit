@@ -27,7 +27,8 @@ private func sampleResult(sessionId: String? = nil, userPresenceCompleted: Bool 
         responses: [],
         userPresenceCompleted: userPresenceCompleted,
         environment: "production",
-        identityAttested: nil
+        identityAttested: nil,
+        integrityBundle: nil
     )
 }
 

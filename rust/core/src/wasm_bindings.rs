@@ -1388,6 +1388,23 @@ export function computeRpSignatureMessage(nonce: string, createdAt: bigint, expi
 // Export ResponseItem/IDKitResult types for unified response
 #[wasm_bindgen(typescript_custom_section)]
 const TS_IDKIT_RESULT: &str = r#"
+/** Device signature format used by the integrity bundle */
+export type IntegritySignatureFormat = "apple_app_attest" | "android_keystore";
+
+/** World App integrity bundle for proving request-time app integrity */
+export interface IntegrityBundle {
+    /** Version of the integrity bundle */
+    version: number;
+    /** Signature format used by the device */
+    signature_format: IntegritySignatureFormat;
+    /** Unix timestamp of this request, in seconds */
+    timestamp: number;
+    /** Hex-encoded device signature */
+    signature: string;
+    /** Attestation Gateway JWT proving integrity of the public key used to verify the signature */
+    jwt: string;
+}
+
 /** V4 response item for World ID v4 uniqueness proofs */
 export interface ResponseItemV4 {
     /** Credential identifier (e.g., "proof_of_human", "selfie", "passport", "mnc") */
@@ -1450,6 +1467,8 @@ export interface IDKitResultV3 {
     user_presence_completed: boolean;
     /** The environment used for this request ("production" or "staging") */
     environment: string;
+    /** Optional World App integrity bundle for this proof request */
+    integrity_bundle?: IntegrityBundle;
 }
 
 /** V4 result for uniqueness proofs */
@@ -1468,6 +1487,8 @@ export interface IDKitResultV4 {
     user_presence_completed: boolean;
     /** The environment used for this request ("production" or "staging") */
     environment: string;
+    /** Optional World App integrity bundle for this proof request */
+    integrity_bundle?: IntegrityBundle;
 }
 
 /** V4 result for session proofs */
@@ -1486,6 +1507,8 @@ export interface IDKitResultSession {
     user_presence_completed: boolean;
     /** The environment used for this request ("production" or "staging") */
     environment: string;
+    /** Optional World App integrity bundle for this proof request */
+    integrity_bundle?: IntegrityBundle;
 }
 
 /**

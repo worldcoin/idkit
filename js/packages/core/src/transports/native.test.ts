@@ -323,6 +323,76 @@ describe("native transport request lifecycle", () => {
     });
   });
 
+  it("preserves integrity_bundle from v2.1 native responses", async () => {
+    const integrityBundle = {
+      version: 1,
+      signature_format: "android_keystore",
+      timestamp: 1709901234,
+      signature: "304502210",
+      jwt: "eyJhbGciOiJFUzI1NiIs",
+    } as const;
+
+    const req = createNativeRequest({}, baseConfig, {}, "");
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      proof_response: {
+        id: "req_abc123",
+        version: 1,
+        responses: [
+          {
+            identifier: "face",
+            proof: proofResponseProof,
+            nullifier: proofResponseNullifier("a"),
+            issuer_schema_id: 11,
+            expires_at_min: 0,
+          },
+        ],
+      },
+      integrity_bundle: integrityBundle,
+    });
+
+    const completion = await completionPromise;
+    expect(completion.success).toBe(true);
+    if (completion.success) {
+      expect(completion.result.integrity_bundle).toEqual(integrityBundle);
+    }
+  });
+
+  it("preserves integrity_bundle from legacy native responses", async () => {
+    const integrityBundle = {
+      version: 1,
+      signature_format: "apple_app_attest",
+      timestamp: 1709901234,
+      signature: "304502210",
+      jwt: "eyJhbGciOiJFUzI1NiIs",
+    } as const;
+
+    const req = createNativeRequest({}, baseConfig, {}, "");
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      protocol_version: "3.0",
+      verification_level: "orb",
+      proof: "0x01",
+      merkle_root: "0x02",
+      nullifier_hash: "0x03",
+      integrity_bundle: integrityBundle,
+    });
+
+    const completion = await completionPromise;
+    expect(completion.success).toBe(true);
+    if (completion.success) {
+      expect(completion.result.integrity_bundle).toEqual(integrityBundle);
+    }
+  });
+
   it("prefers response signal_hash over signal hashes map", async () => {
     const signalHashes = { proof_of_human: hashSignal("from-constraints") };
 
