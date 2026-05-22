@@ -164,24 +164,31 @@ jobs:
         working-directory: swift
         run: set -o pipefail; xcodebuild test -scheme IDKit -destination "platform=macOS" | xcbeautify
 
-      - name: Check Swift sample app destinations
-        id: check-destinations
+      - name: Check Swift sample app iOS platform
+        id: check-ios-platform
         run: |
           xcodebuild -version
 
-          DESTINATIONS=$(xcodebuild -showdestinations \
+          xcodebuild -showdestinations \
             -project swift/Examples/IDKitSampleApp/IDKitSampleApp.xcodeproj \
-            -scheme IDKitSampleApp 2>&1)
-          echo "$DESTINATIONS"
-          if echo "$DESTINATIONS" | grep -q "Available destinations"; then
-            echo "has_destinations=true" >> $GITHUB_OUTPUT
+            -scheme IDKitSampleApp 2>&1 || true
+
+          IOS_PLATFORM_CHECK_LOG="${RUNNER_TEMP:-/tmp}/ios-platform-check.log"
+          if xcodebuild \
+            -project swift/Examples/IDKitSampleApp/IDKitSampleApp.xcodeproj \
+            -scheme IDKitSampleApp \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -showBuildSettings > "$IOS_PLATFORM_CHECK_LOG" 2>&1; then
+            echo "ios_platform_ready=true" >> $GITHUB_OUTPUT
           else
-            echo "has_destinations=false" >> $GITHUB_OUTPUT
-            echo "No available destinations — skipping build"
+            cat "$IOS_PLATFORM_CHECK_LOG"
+            echo "ios_platform_ready=false" >> $GITHUB_OUTPUT
+            echo "iOS platform is unavailable; downloading platform before build"
           fi
 
       - name: Download iOS platform
-        if: steps.check-destinations.outputs.has_destinations == 'false'
+        if: steps.check-ios-platform.outputs.ios_platform_ready == 'false'
         run: xcodebuild -downloadPlatform iOS
 
       - name: Build Swift sample app for iOS
