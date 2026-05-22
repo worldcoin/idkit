@@ -1997,6 +1997,10 @@ mod tests {
 
         let payload = build_request_payload(&params, false).unwrap();
         let proof_request = payload.get("proof_request").unwrap();
+        assert_eq!(payload["action"], serde_json::json!("test-action"));
+        assert_eq!(proof_request["proof_type"], serde_json::json!("uniqueness"));
+        assert!(proof_request.get("action").is_some());
+        assert_eq!(proof_request["session_id"], serde_json::Value::Null);
         assert_eq!(
             proof_request["proof_requests"][0]["identifier"],
             serde_json::json!("selfie")
@@ -2006,6 +2010,50 @@ mod tests {
             serde_json::json!(11)
         );
         assert_eq!(payload["verification_level"], serde_json::json!("device"));
+    }
+
+    #[test]
+    fn test_build_request_payload_omits_top_level_action_for_sessions() {
+        let app_id = AppId::new("app_test").unwrap();
+        let signature = "0x".to_string() + &"00".repeat(64) + "1b";
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &signature,
+        )
+        .unwrap();
+        let constraints = ConstraintNode::item(CredentialRequest::new(
+            CredentialType::ProofOfHuman,
+            Some(Signal::from_string("session-signal")),
+        ));
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::CreateSession,
+            constraints: Some(constraints),
+            rp_context,
+            action_description: None,
+            legacy_verification_level: VerificationLevel::Device,
+            legacy_signal: String::new(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: Some(Environment::Production),
+            identity_attributes: None,
+        };
+
+        let payload = build_request_payload(&params, false).unwrap();
+        let proof_request = payload.get("proof_request").unwrap();
+        assert!(payload.get("action").is_none());
+        assert_eq!(
+            proof_request["proof_type"],
+            serde_json::json!("create_session")
+        );
+        assert_eq!(proof_request["action"], serde_json::Value::Null);
+        assert_eq!(proof_request["session_id"], serde_json::Value::Null);
     }
 
     #[test]
