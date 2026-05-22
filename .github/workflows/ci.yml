@@ -315,3 +315,41 @@ jobs:
       - name: Build Kotlin sample app
         working-directory: kotlin/Examples/IDKitSampleApp
         run: ./gradlew :app:assembleDebug
+
+      - name: Validate Kotlin Maven publication
+        run: |
+          set -euo pipefail
+
+          ./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin :bindings:publishToMavenLocal
+          ./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin \
+            -Pidkit.publish.mavenCentral=true \
+            :bindings:publishToMavenCentral --dry-run
+
+          VERSION="$(grep '^version=' kotlin/gradle.properties | cut -d= -f2- | tr -d '[:space:]')"
+          ARTIFACT_DIR="$HOME/.m2/repository/com/worldcoin/idkit/$VERSION"
+          ARTIFACT_BASE="$ARTIFACT_DIR/idkit-$VERSION"
+
+          for artifact in \
+            "$ARTIFACT_BASE.aar" \
+            "$ARTIFACT_BASE.pom" \
+            "$ARTIFACT_BASE.module" \
+            "$ARTIFACT_BASE-sources.jar" \
+            "$ARTIFACT_BASE-javadoc.jar"; do
+            if [ ! -s "$artifact" ]; then
+              echo "::error::Missing Maven publication artifact: $artifact"
+              exit 1
+            fi
+          done
+
+          grep -q '<groupId>com.worldcoin</groupId>' "$ARTIFACT_BASE.pom"
+          grep -q '<artifactId>idkit</artifactId>' "$ARTIFACT_BASE.pom"
+          grep -q '<packaging>aar</packaging>' "$ARTIFACT_BASE.pom"
+
+          AAR_CONTENTS="$(mktemp)"
+          jar tf "$ARTIFACT_BASE.aar" > "$AAR_CONTENTS"
+          for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+            if ! grep -q "^jni/$abi/libidkit.so$" "$AAR_CONTENTS"; then
+              echo "::error::Missing native library in AAR: jni/$abi/libidkit.so"
+              exit 1
+            fi
+          done

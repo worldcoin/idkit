@@ -1,22 +1,64 @@
+import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
+import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.publish.maven.tasks.PublishToMavenLocal
+import org.gradle.api.publish.maven.tasks.PublishToMavenRepository
+import org.gradle.jvm.tasks.Jar
+
 plugins {
     id("com.android.library")
     kotlin("android")
-    `maven-publish`
+    id("com.vanniktech.maven.publish.base") version "0.34.0"
 }
 
-group = "com.worldcoin"
+val libraryGroup = "com.worldcoin"
+val libraryArtifactId = "idkit"
 
-// Support version override from CI for dev releases
-version = System.getenv("PKG_VERSION")?.takeIf { it.isNotBlank() }
+// Allow callers to exercise the Maven publication with an explicit artifact version.
+val libraryVersion = System.getenv("PKG_VERSION")?.takeIf { it.isNotBlank() }
     ?: project.version.toString().takeIf { it.isNotBlank() && it != "unspecified" }
     ?: throw GradleException("Could not find version in kotlin/gradle.properties")
+
+val enableMavenCentralPublishing = providers.gradleProperty("idkit.publish.mavenCentral")
+    .map(String::toBoolean)
+    .orElse(false)
+
+val emptyJavadocJar by tasks.registering(Jar::class) {
+    archiveClassifier.set("javadoc")
+}
+
+val requiredNativeAbis = listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+val verifyKotlinNativeLibraries by tasks.registering {
+    group = "verification"
+    description = "Verifies that Kotlin publishing includes native IDKit libraries for every Android ABI."
+
+    doLast {
+        val missingLibraries = requiredNativeAbis.map { abi ->
+            abi to layout.projectDirectory.file("src/main/jniLibs/$abi/libidkit.so").asFile
+        }.filter { (_, library) ->
+            !library.isFile || library.length() == 0L
+        }
+
+        if (missingLibraries.isNotEmpty()) {
+            val missing = missingLibraries.joinToString(separator = "\n") { (abi, library) ->
+                "- $abi: ${library.relativeTo(projectDir)}"
+            }
+            throw GradleException(
+                "Missing native libraries required for publishing:\n$missing\n" +
+                    "Run `bash scripts/build-kotlin.sh` from the repository root before publishing.",
+            )
+        }
+    }
+}
+
+group = libraryGroup
+version = libraryVersion
 
 android {
     namespace = "com.worldcoin.idkit"
     compileSdk = 35
 
     defaultConfig {
-        minSdk = 26
+        minSdk = 23
     }
 
     compileOptions {
@@ -26,12 +68,6 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
-    }
-
-    publishing {
-        singleVariant("release") {
-            withSourcesJar()
-        }
     }
 
     testOptions {
@@ -53,47 +89,73 @@ dependencies {
     testImplementation("net.java.dev.jna:jna:5.14.0")
 }
 
-afterEvaluate {
-    publishing {
-        publications {
-            create<MavenPublication>("maven") {
-                from(components["release"])
-                groupId = "com.worldcoin"
-                artifactId = "idkit"
-                version = project.version.toString()
-                pom {
-                    name.set("IDKit Kotlin")
-                    description.set("Kotlin bindings for IDKit backed by the Rust core")
-                    url.set("https://github.com/worldcoin/idkit")
-                    licenses {
-                        license {
-                            name.set("MIT License")
-                            url.set("https://opensource.org/licenses/MIT")
-                        }
-                    }
-                    developers {
-                        developer {
-                            id.set("worldcoin")
-                            name.set("Worldcoin")
-                        }
-                    }
-                    scm {
-                        connection.set("scm:git:https://github.com/worldcoin/idkit.git")
-                        developerConnection.set("scm:git:ssh://git@github.com/worldcoin/idkit.git")
-                        url.set("https://github.com/worldcoin/idkit")
-                    }
-                }
+mavenPublishing {
+    configure(
+        AndroidSingleVariantLibrary(
+            variant = "release",
+            sourcesJar = true,
+            publishJavadocJar = false,
+        ),
+    )
+
+    coordinates(libraryGroup, libraryArtifactId, libraryVersion)
+
+    pom {
+        name.set("IDKit Kotlin")
+        description.set("Kotlin bindings for IDKit backed by the Rust core")
+        url.set("https://github.com/worldcoin/idkit")
+        licenses {
+            license {
+                name.set("MIT License")
+                url.set("https://opensource.org/licenses/MIT")
             }
         }
-        repositories {
-            maven {
-                name = "GitHubPackages"
-                url = uri("https://maven.pkg.github.com/worldcoin/idkit")
-                credentials {
-                    username = System.getenv("GITHUB_ACTOR")
-                    password = System.getenv("GITHUB_TOKEN")
-                }
+        developers {
+            developer {
+                id.set("worldcoin")
+                name.set("Worldcoin")
             }
+        }
+        scm {
+            connection.set("scm:git:https://github.com/worldcoin/idkit.git")
+            developerConnection.set("scm:git:ssh://git@github.com/worldcoin/idkit.git")
+            url.set("https://github.com/worldcoin/idkit")
+        }
+    }
+
+    if (enableMavenCentralPublishing.get()) {
+        publishToMavenCentral()
+        signAllPublications()
+    }
+}
+
+publishing {
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/worldcoin/idkit")
+            credentials {
+                username = providers.environmentVariable("GITHUB_ACTOR")
+                    .orElse(providers.environmentVariable("GITHUB_USER"))
+                    .orNull
+                password = providers.environmentVariable("GITHUB_TOKEN").orNull
+            }
+        }
+    }
+}
+
+tasks.withType<PublishToMavenRepository>().configureEach {
+    dependsOn(verifyKotlinNativeLibraries)
+}
+
+tasks.withType<PublishToMavenLocal>().configureEach {
+    dependsOn(verifyKotlinNativeLibraries)
+}
+
+afterEvaluate {
+    publishing {
+        publications.withType<MavenPublication>().configureEach {
+            artifact(emptyJavadocJar)
         }
     }
 }
