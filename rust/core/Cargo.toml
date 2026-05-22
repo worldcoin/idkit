@@ -36,7 +36,6 @@ alloy = { workspace = true }
 alloy-sol-types = { workspace = true }
 alloy-primitives = { workspace = true }
 ruint = { workspace = true }
-taceo-oprf = { workspace = true }
 uniffi = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
 urlencoding = { workspace = true, optional = true }

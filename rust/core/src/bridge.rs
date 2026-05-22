@@ -13,7 +13,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use world_id_primitives::{
-    FieldElement, ProofRequest, ProofResponse, RequestVersion,
+    FieldElement, OprfKeyId, ProofRequest, ProofResponse, ProofType, RequestVersion,
     ResponseItem as ProtocolResponseItem, SessionId,
 };
 
@@ -549,19 +549,19 @@ pub fn build_request_payload(
     // TODO: Clean up session_id handling once the SDK surface can carry the
     // protocol SessionId type directly instead of adapting the `session_<hex>`
     // string form at this bridge boundary.
-    let (action_fe, session_id_fe, action_str) = match &params.kind {
+    let (proof_type, action_fe, session_id_fe, action_str) = match &params.kind {
         RequestKind::Uniqueness { action } => {
             let fe = FieldElement::from_arbitrary_raw_bytes(action.as_bytes());
-            (Some(fe), None, Some(action.clone()))
+            (ProofType::Uniqueness, Some(fe), None, Some(action.clone()))
         }
-        RequestKind::CreateSession => (None, None, None),
+        RequestKind::CreateSession => (ProofType::CreateSession, None, None, None),
         RequestKind::ProveSession { session_id } => {
             let parsed =
                 serde_json::from_value::<SessionId>(serde_json::Value::String(session_id.clone()))
                     .map_err(|_| {
                         Error::InvalidConfiguration("Invalid session_id format".to_string())
                     })?;
-            (None, Some(parsed), None)
+            (ProofType::Session, None, Some(parsed), None)
         }
     };
 
@@ -579,10 +579,11 @@ pub fn build_request_payload(
             Ok(ProofRequest {
                 id: uuid::Uuid::new_v4().to_string(),
                 version: world_id_primitives::RequestVersion::V1,
+                proof_type,
                 created_at: params.rp_context.created_at,
                 expires_at: params.rp_context.expires_at,
                 rp_id: params.rp_context.rp_id,
-                oprf_key_id: taceo_oprf::types::OprfKeyId::new(ruint::aliases::U160::from(
+                oprf_key_id: OprfKeyId::new(ruint::aliases::U160::from(
                     params.rp_context.rp_id.into_inner(),
                 )),
                 action: action_fe,
@@ -1920,12 +1921,11 @@ mod tests {
         let proof_request = ProofRequest {
             id: uuid::Uuid::new_v4().to_string(),
             version: world_id_primitives::RequestVersion::V1,
+            proof_type: ProofType::Uniqueness,
             created_at: rp_context.created_at,
             expires_at: rp_context.expires_at,
             rp_id: rp_context.rp_id,
-            oprf_key_id: taceo_oprf::types::OprfKeyId::new(ruint::aliases::U160::from(
-                rp_context.rp_id.into_inner(),
-            )),
+            oprf_key_id: OprfKeyId::new(ruint::aliases::U160::from(rp_context.rp_id.into_inner())),
             action: Some(action),
             session_id: None,
             signature,
