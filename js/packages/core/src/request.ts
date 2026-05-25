@@ -308,6 +308,7 @@ export type {
   ProofOfHumanPreset,
   PassportPreset,
   IdentityCheckPreset,
+  MncPreset,
 } from "./lib/wasm";
 
 // Import WASM preset type for function return types
@@ -322,6 +323,7 @@ import type {
   ProofOfHumanPreset,
   PassportPreset,
   IdentityCheckPreset,
+  MncPreset,
 } from "./lib/wasm";
 
 /**
@@ -457,6 +459,22 @@ export function proofOfHuman(
  */
 export function passport(opts: { signal?: string } = {}): PassportPreset {
   return { type: "Passport", signal: opts.signal };
+}
+
+/**
+ * Creates an Mnc preset for World ID 4.0 with legacy document fallback
+ *
+ * @param opts - Optional configuration with signal
+ * @returns An Mnc preset
+ *
+ * @example
+ * ```typescript
+ * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: false })
+ *   .preset(mnc({ signal: 'user-123' }))
+ * ```
+ */
+export function mnc(opts: { signal?: string } = {}): MncPreset {
+  return { type: "Mnc", signal: opts.signal };
 }
 
 /**
@@ -1050,6 +1068,8 @@ export const IDKit = {
   proofOfHuman,
   /** Create a Passport preset for World ID 4.0 with legacy document fallback */
   passport,
+  /** Create an Mnc preset for World ID 4.0 with legacy document fallback */
+  mnc,
   /** Create an IdentityCheck preset for World ID 4.0 identity attestation */
   identityCheck,
 };

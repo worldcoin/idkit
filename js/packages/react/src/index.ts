@@ -43,6 +43,7 @@ export {
   proofOfHuman,
   passport,
   identityCheck,
+  mnc,
   IDKitErrorCodes,
   signRequest,
   isDebug,
@@ -70,4 +71,5 @@ export type {
   DocumentType,
   IdentityAttribute,
   IdentityCheckPreset,
+  MncPreset,
 } from "@worldcoin/idkit-core";

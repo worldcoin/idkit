@@ -1669,6 +1669,12 @@ export interface PassportPreset {
     signal?: string;
 }
 
+export interface MncPreset {
+    /** Requests a World ID 4.0 MNC credential with legacy document fallback. */
+    type: "Mnc";
+    signal?: string;
+}
+
 export interface IdentityCheckPreset {
     /** This preset requires World ID 4.0-compatible clients. */
     type: "IdentityCheck";
@@ -1684,6 +1690,7 @@ export type Preset =
     | DeviceLegacyPreset
     | ProofOfHumanPreset
     | PassportPreset
+    | MncPreset
     | IdentityCheckPreset;
 
 export function orbLegacy(signal?: string): Preset;
@@ -1694,6 +1701,7 @@ export function selfieCheckLegacy(signal?: string): Preset;
 export function deviceLegacy(signal?: string): Preset;
 export function proofOfHuman(signal?: string): Preset;
 export function passport(signal?: string): Preset;
+export function mnc(signal?: string): Preset;
 export function identityCheck(params: {
     attributes: IdentityAttribute[];
     legacy_signal?: string;

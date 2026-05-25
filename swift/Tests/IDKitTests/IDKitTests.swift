@@ -258,7 +258,7 @@ func legacyPresetHelpers() {
     case .orbLegacy(let signal):
         #expect(signal == "x")
     case .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy,
-         .identityCheck, .proofOfHuman, .passport:
+         .identityCheck, .proofOfHuman, .passport, .mnc:
         Issue.record("Expected orbLegacy preset")
     }
 
@@ -266,7 +266,7 @@ func legacyPresetHelpers() {
     case .secureDocumentLegacy(let signal):
         #expect(signal == "y")
     case .orbLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy,
-         .identityCheck, .proofOfHuman, .passport:
+         .identityCheck, .proofOfHuman, .passport, .mnc:
         Issue.record("Expected secureDocumentLegacy preset")
     }
 
@@ -274,7 +274,7 @@ func legacyPresetHelpers() {
     case .documentLegacy(let signal):
         #expect(signal == "z")
     case .orbLegacy, .secureDocumentLegacy, .deviceLegacy, .selfieCheckLegacy,
-         .identityCheck, .proofOfHuman, .passport:
+         .identityCheck, .proofOfHuman, .passport, .mnc:
         Issue.record("Expected documentLegacy preset")
     }
 
@@ -282,7 +282,7 @@ func legacyPresetHelpers() {
     case .deviceLegacy(let signal):
         #expect(signal == "d")
     case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .selfieCheckLegacy,
-         .identityCheck, .proofOfHuman, .passport:
+         .identityCheck, .proofOfHuman, .passport, .mnc:
         Issue.record("Expected deviceLegacy preset")
     }
 
@@ -290,7 +290,7 @@ func legacyPresetHelpers() {
     case .selfieCheckLegacy(let signal):
         #expect(signal == "f")
     case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy,
-         .identityCheck, .proofOfHuman, .passport:
+         .identityCheck, .proofOfHuman, .passport, .mnc:
         Issue.record("Expected selfieCheckLegacy preset")
     }
 

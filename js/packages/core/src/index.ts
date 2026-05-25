@@ -21,6 +21,7 @@ export {
   proofOfHuman,
   passport,
   identityCheck,
+  mnc,
   // Types
   type IDKitRequest,
   type IDKitInviteCodeRequest,
@@ -38,6 +39,7 @@ export {
   type ProofOfHumanPreset,
   type PassportPreset,
   type IdentityCheckPreset,
+  type MncPreset,
 } from "./request";
 
 // Config types
