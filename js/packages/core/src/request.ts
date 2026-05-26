@@ -8,7 +8,6 @@ import type {
   IDKitSessionConfig,
   RpContext,
 } from "./types/config";
-import { getSessionCommitment } from "./session";
 import type {
   IDKitResult,
   ConstraintNode,
@@ -1029,8 +1028,6 @@ export const IDKit = {
   createSession,
   /** Prove an existing session (no action, has session_id) */
   proveSession,
-  /** Extract the commitment from an opaque session_id */
-  getSessionCommitment,
   /** Create a CredentialRequest for a credential type */
   CredentialRequest,
   /** Create an OR constraint - at least one child must be satisfied */

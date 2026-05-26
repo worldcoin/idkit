@@ -266,6 +266,7 @@ describe("IDKitRequest API", () => {
       null,
       null,
       false,
+      false,
       null,
       null,
       null,

@@ -8,9 +8,6 @@
 export {
   // IDKit namespace (main entry point)
   IDKit,
-  // Session entry points
-  createSession,
-  proveSession,
   CredentialRequest,
   any,
   all,
