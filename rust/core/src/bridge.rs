@@ -12,7 +12,10 @@ use crate::{
     ConstraintNode, Signal,
 };
 use serde::{Deserialize, Serialize};
-use world_id_primitives::{FieldElement, ProofRequest, SessionId};
+use world_id_primitives::{
+    FieldElement, ProofRequest, ProofResponse, RequestVersion,
+    ResponseItem as ProtocolResponseItem, SessionId,
+};
 
 #[cfg(feature = "native-crypto")]
 use crate::crypto::CryptoKey;
@@ -120,6 +123,9 @@ struct BridgeRequestPayload {
     /// - `true`: Accept both v3 and v4 proofs. Use during migration.
     /// - `false`: Only accept v4 proofs. Use after migration cutoff or for new apps.
     allow_legacy_proofs: bool,
+
+    /// Whether World App should require a user-presence check before verification.
+    require_user_presence: bool,
 
     /// Environment for the bridge request
     environment: Environment,
@@ -234,6 +240,16 @@ impl ResponseItem {
     }
 }
 
+pub struct ProofResponseConversionContext<'a, S: std::hash::BuildHasher> {
+    pub nonce: String,
+    pub action: Option<String>,
+    pub action_description: Option<String>,
+    pub environment: Option<Environment>,
+    pub signal_hashes: &'a std::collections::HashMap<String, String, S>,
+    pub identity_attested: Option<bool>,
+    pub user_presence_completed: bool,
+}
+
 /// Converts a protocol `ProofResponse` to the public `IDKitResult` shape.
 ///
 /// This keeps bridge and native `MiniKit` transports on the same parsing path for
@@ -246,12 +262,7 @@ impl ResponseItem {
 /// cannot be serialized to the public string format.
 pub fn proof_response_to_idkit_result<S: std::hash::BuildHasher>(
     proof_response: world_id_primitives::ProofResponse,
-    nonce: String,
-    action: Option<String>,
-    action_description: Option<String>,
-    environment: Option<Environment>,
-    signal_hashes: &std::collections::HashMap<String, String, S>,
-    identity_attested: Option<bool>,
+    context: ProofResponseConversionContext<'_, S>,
 ) -> Result<IDKitResult> {
     if let Some(error_code) = proof_response.error.as_deref() {
         return Err(Error::AppError(AppError::from_code(error_code)));
@@ -261,16 +272,16 @@ pub fn proof_response_to_idkit_result<S: std::hash::BuildHasher>(
         .responses
         .into_iter()
         .map(|item| {
-            let signal_hash = signal_hashes.get(&item.identifier).cloned();
+            let signal_hash = context.signal_hashes.get(&item.identifier).cloned();
             ResponseItem::from_protocol_item(item, signal_hash)
         })
         .collect::<Result<Vec<_>>>()?;
 
-    let environment = environment.unwrap_or_default().to_string();
+    let environment = context.environment.unwrap_or_default().to_string();
 
     if let Some(session_id) = proof_response.session_id {
         Ok(IDKitResult::new_session(
-            nonce,
+            context.nonce,
             serde_json::to_value(session_id)?
                 .as_str()
                 .ok_or_else(|| {
@@ -279,20 +290,22 @@ pub fn proof_response_to_idkit_result<S: std::hash::BuildHasher>(
                     )
                 })?
                 .to_owned(),
-            action_description,
+            context.action_description,
             responses,
+            context.user_presence_completed,
             environment,
         ))
     } else {
         let mut result = IDKitResult::new(
             "4.0",
-            nonce,
-            action,
-            action_description,
+            context.nonce,
+            context.action,
+            context.action_description,
             responses,
+            context.user_presence_completed,
             environment,
         );
-        result.identity_attested = identity_attested;
+        result.identity_attested = context.identity_attested;
         Ok(result)
     }
 }
@@ -309,18 +322,22 @@ enum BridgeResponse {
     Error { error_code: AppError },
 
     /// World ID 4.0 protocol response
-    ResponseV2(world_id_primitives::ProofResponse),
+    ResponseV2(BridgeResponseV2),
 
     /// World ID 4.0 protocol response with extensions
     ResponseV2_1 {
         proof_response: world_id_primitives::ProofResponse,
         identity_attested: Option<bool>,
+        #[serde(default)]
+        user_presence_completed: bool,
         integrity_bundle: Option<IntegrityBundle>,
     },
 
     /// Multi-credential legacy: bridge sends v3 proofs via `legacy_responses`
     MultiLegacyResponse {
         legacy_responses: Vec<BridgeResponseV1>,
+        #[serde(default)]
+        user_presence_completed: bool,
         identity_attested: Option<bool>,
         integrity_bundle: Option<IntegrityBundle>,
     },
@@ -329,9 +346,53 @@ enum BridgeResponse {
     ResponseV1 {
         #[serde(flatten)]
         response: BridgeResponseV1,
+        #[serde(default)]
+        user_presence_completed: bool,
         identity_attested: Option<bool>,
         integrity_bundle: Option<IntegrityBundle>,
     },
+}
+
+#[derive(Debug, Deserialize)]
+struct BridgeResponseV2 {
+    /// The response id references request id
+    id: String,
+    /// Version corresponding to request version
+    version: RequestVersion,
+    /// Optional session identifier for session proofs
+    #[serde(default)]
+    session_id: Option<SessionId>,
+    /// Protocol-level proof response error
+    #[serde(default)]
+    error: Option<String>,
+    /// Per-credential proof responses
+    responses: Vec<ProtocolResponseItem>,
+    /// Whether World App completed the requested user-presence check.
+    #[serde(default)]
+    user_presence_completed: bool,
+}
+
+impl BridgeResponseV2 {
+    fn into_proof_response(self) -> ProofResponse {
+        ProofResponse {
+            id: self.id,
+            version: self.version,
+            session_id: self.session_id,
+            error: self.error,
+            responses: self.responses,
+        }
+    }
+}
+
+fn user_presence_failure_status(
+    require_user_presence: bool,
+    user_presence_completed: bool,
+) -> Option<Status> {
+    if require_user_presence && !user_presence_completed {
+        Some(Status::Failed(AppError::UserPresenceFailed))
+    } else {
+        None
+    }
 }
 
 /// Status of a verification request
@@ -364,6 +425,7 @@ pub struct BridgeConnectionParams {
     pub legacy_signal: String,
     pub bridge_url: Option<BridgeUrl>,
     pub allow_legacy_proofs: bool,
+    pub require_user_presence: bool,
     /// Optional override for the connect base URL (e.g., for staging environments)
     pub override_connect_base_url: Option<String>,
     /// Optional deep-link callback URL appended as `return_to` on the connector URL
@@ -457,6 +519,8 @@ pub struct BridgeConnection {
     return_to: Option<String>,
     /// Resolved environment for this connection
     environment: Environment,
+    /// Whether a successful response must prove user presence was completed.
+    require_user_presence: bool,
     // ─── Invite-code mode (WDP-73) — None for the legacy URL/QR path ────────
     /// Canonical 6-char Crockford Base32 invite code shown to the user.
     pub(crate) invite_code: Option<String>,
@@ -561,6 +625,7 @@ pub fn build_request_payload(
         signal: legacy_signal_hash,
         timestamp,
         allow_legacy_proofs: params.allow_legacy_proofs,
+        require_user_presence: params.require_user_presence,
         environment: params.environment.unwrap_or_default(),
         return_to: params.return_to.clone(),
     };
@@ -711,6 +776,7 @@ impl BridgeConnection {
             override_connect_base_url: params.override_connect_base_url,
             return_to: params.return_to,
             environment: params.environment.unwrap_or_default(),
+            require_user_presence: params.require_user_presence,
             invite_code: None,
             code_expires_at: None,
         })
@@ -854,23 +920,38 @@ impl BridgeConnection {
 
                 match bridge_response {
                     BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
-                    BridgeResponse::ResponseV2(proof_response) => {
-                        self.handle_bridge_v2_response(proof_response, None, None)
+                    BridgeResponse::ResponseV2(response) => {
+                        let user_presence_completed = response.user_presence_completed;
+                        self.handle_bridge_v2_response(
+                            response.into_proof_response(),
+                            None,
+                            None,
+                            user_presence_completed,
+                        )
                     }
                     BridgeResponse::ResponseV2_1 {
                         proof_response,
                         identity_attested,
+                        user_presence_completed,
                         integrity_bundle,
                     } => self.handle_bridge_v2_response(
                         proof_response,
                         identity_attested,
                         integrity_bundle,
+                        user_presence_completed,
                     ),
                     BridgeResponse::MultiLegacyResponse {
                         legacy_responses,
+                        user_presence_completed,
                         integrity_bundle,
                         identity_attested,
                     } => {
+                        if let Some(status) = user_presence_failure_status(
+                            self.require_user_presence,
+                            user_presence_completed,
+                        ) {
+                            return Ok(status);
+                        }
                         let responses: Vec<ResponseItem> = legacy_responses
                             .into_iter()
                             .map(|item| {
@@ -889,6 +970,7 @@ impl BridgeConnection {
                             self.action.clone(),
                             self.action_description.clone(),
                             responses,
+                            user_presence_completed,
                             self.environment.as_ref(),
                         );
                         result.identity_attested = identity_attested;
@@ -898,9 +980,17 @@ impl BridgeConnection {
                     }
                     BridgeResponse::ResponseV1 {
                         response,
+                        user_presence_completed,
                         integrity_bundle,
                         identity_attested,
                     } => {
+                        if let Some(status) = user_presence_failure_status(
+                            self.require_user_presence,
+                            user_presence_completed,
+                        ) {
+                            return Ok(status);
+                        }
+
                         // V1 responses are always protocol 3.0
                         // For V1 we don't have identifier, use verification_level as key
                         let signal_hash = self.cached_signal_hashes.legacy();
@@ -911,6 +1001,7 @@ impl BridgeConnection {
                             self.action.clone(),
                             self.action_description.clone(),
                             vec![item],
+                            user_presence_completed,
                             self.environment.as_ref(),
                         );
                         result.identity_attested = identity_attested;
@@ -929,20 +1020,30 @@ impl BridgeConnection {
         proof_response: world_id_primitives::ProofResponse,
         identity_attested: Option<bool>,
         integrity_bundle: Option<IntegrityBundle>,
+        user_presence_completed: bool,
     ) -> Result<Status> {
-        // Check for protocol-level error
+        // Protocol-level errors take precedence over user-presence enforcement.
         if let Some(error_code) = proof_response.error.as_deref() {
             return Ok(Status::Failed(AppError::from_code(error_code)));
         }
 
+        if let Some(status) =
+            user_presence_failure_status(self.require_user_presence, user_presence_completed)
+        {
+            return Ok(status);
+        }
+
         let mut result = proof_response_to_idkit_result(
             proof_response,
-            self.nonce.clone(),
-            self.action.clone(),
-            self.action_description.clone(),
-            Some(self.environment),
-            &self.cached_signal_hashes.signal_hashes,
-            identity_attested,
+            ProofResponseConversionContext {
+                nonce: self.nonce.clone(),
+                action: self.action.clone(),
+                action_description: self.action_description.clone(),
+                environment: Some(self.environment),
+                signal_hashes: &self.cached_signal_hashes.signal_hashes,
+                identity_attested,
+                user_presence_completed,
+            },
         )?;
         result.integrity_bundle = integrity_bundle;
 
@@ -1113,6 +1214,7 @@ async fn try_create_invite_code_request(
         override_connect_base_url: params.override_connect_base_url.clone(),
         return_to: params.return_to.clone(),
         environment: params.environment.unwrap_or_default(),
+        require_user_presence: params.require_user_presence,
         invite_code: Some(code),
         code_expires_at: Some(code_expires_at),
     })
@@ -1140,6 +1242,8 @@ pub struct IDKitRequestConfig {
     /// - `true`: Accept both v3 and v4 proofs. Use during migration.
     /// - `false`: Only accept v4 proofs. Use after migration cutoff or for new apps.
     pub allow_legacy_proofs: bool,
+    /// Optional user-presence requirement. Defaults to false when omitted.
+    pub require_user_presence: Option<bool>,
     /// Optional override for the connect base URL (e.g., for staging environments)
     pub override_connect_base_url: Option<String>,
     /// Optional deep-link callback URL appended as `return_to` on the connector URL
@@ -1164,6 +1268,8 @@ pub struct IDKitSessionConfig {
     pub action_description: Option<String>,
     /// Optional bridge URL (defaults to production)
     pub bridge_url: Option<String>,
+    /// Optional user-presence requirement. Defaults to false when omitted.
+    pub require_user_presence: Option<bool>,
     /// Optional override for the connect base URL (e.g., for staging environments)
     pub override_connect_base_url: Option<String>,
     /// Optional deep-link callback URL appended as `return_to` on the connector URL
@@ -1225,6 +1331,7 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: config.allow_legacy_proofs,
+                    require_user_presence: config.require_user_presence.unwrap_or(false),
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -1250,6 +1357,7 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    require_user_presence: config.require_user_presence.unwrap_or(false),
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -1277,6 +1385,7 @@ impl IDKitConfig {
                     legacy_signal: String::new(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    require_user_presence: config.require_user_presence.unwrap_or(false),
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -1337,6 +1446,7 @@ impl IDKitConfig {
                     legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs,
+                    require_user_presence: config.require_user_presence.unwrap_or(false),
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -1361,6 +1471,7 @@ impl IDKitConfig {
                     legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    require_user_presence: config.require_user_presence.unwrap_or(false),
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -1387,6 +1498,7 @@ impl IDKitConfig {
                     legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
                     bridge_url,
                     allow_legacy_proofs: false,
+                    require_user_presence: config.require_user_presence.unwrap_or(false),
                     override_connect_base_url: config.override_connect_base_url.clone(),
                     return_to: config.return_to.clone(),
                     environment: config.environment,
@@ -1832,6 +1944,7 @@ mod tests {
             proof_request: Some(proof_request),
             identity_attributes: None,
             allow_legacy_proofs: false,
+            require_user_presence: false,
             environment: Environment::Production,
             return_to: None,
         };
@@ -1843,6 +1956,7 @@ mod tests {
         assert!(json.contains("proof_request"));
         assert!(json.contains("rp_1234567890abcdef"));
         assert!(json.contains("allow_legacy_proofs"));
+        assert!(json.contains("require_user_presence"));
     }
 
     #[test]
@@ -1874,6 +1988,7 @@ mod tests {
             legacy_signal: String::new(),
             bridge_url: None,
             allow_legacy_proofs: false,
+            require_user_presence: false,
             override_connect_base_url: None,
             return_to: None,
             environment: Some(Environment::Production),
@@ -1921,6 +2036,7 @@ mod tests {
             legacy_signal: String::new(),
             bridge_url: None,
             allow_legacy_proofs: false,
+            require_user_presence: false,
             override_connect_base_url: None,
             return_to: None,
             environment: Some(Environment::Production),
@@ -2104,8 +2220,10 @@ mod tests {
                 response: v1,
                 integrity_bundle,
                 identity_attested,
+                user_presence_completed,
             } => {
                 assert_eq!(v1.verification_level, VerificationLevel::Orb);
+                assert!(!user_presence_completed);
                 let bundle = integrity_bundle.expect("integrity bundle");
                 assert_eq!(bundle.version, 1);
                 assert_eq!(
@@ -2119,6 +2237,71 @@ mod tests {
             }
             other => panic!("Expected ResponseV1, got: {other:?}"),
         }
+    }
+
+    #[test]
+    fn test_bridge_response_v2_user_presence_defaults_false() {
+        let json = r#"{
+            "id": "request-id",
+            "version": 1,
+            "responses": []
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        match response {
+            BridgeResponse::ResponseV2(v2) => {
+                assert!(!v2.user_presence_completed);
+            }
+            other => panic!("Expected ResponseV2, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_bridge_response_v2_user_presence_explicit_true() {
+        let json = r#"{
+            "id": "request-id",
+            "version": 1,
+            "responses": [],
+            "user_presence_completed": true
+        }"#;
+
+        let response: BridgeResponse = serde_json::from_str(json).unwrap();
+        match response {
+            BridgeResponse::ResponseV2(v2) => {
+                assert!(v2.user_presence_completed);
+            }
+            other => panic!("Expected ResponseV2, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_required_user_presence_fails_when_not_completed() {
+        assert_eq!(
+            user_presence_failure_status(true, false),
+            Some(Status::Failed(AppError::UserPresenceFailed))
+        );
+        assert_eq!(user_presence_failure_status(true, true), None);
+        assert_eq!(user_presence_failure_status(false, false), None);
+    }
+
+    #[test]
+    fn test_protocol_error_takes_precedence_over_user_presence_failure() {
+        let mut connection = sample_connection(None);
+        connection.require_user_presence = true;
+
+        let proof_response = ProofResponse {
+            id: "req_failed".to_string(),
+            version: RequestVersion::V1,
+            session_id: None,
+            error: Some("invalid_rp_signature".to_string()),
+            responses: vec![],
+        };
+
+        let status = connection
+            .handle_bridge_v2_response(proof_response, None, None, false)
+            .unwrap();
+
+        assert_eq!(status, Status::Failed(AppError::InvalidRpSignature));
     }
 
     #[test]
@@ -2260,11 +2443,13 @@ mod tests {
                 proof_response,
                 identity_attested,
                 integrity_bundle,
+                user_presence_completed,
             } => {
                 assert_eq!(proof_response.id, "req_integrity");
                 assert_eq!(proof_response.responses.len(), 1);
                 assert_eq!(proof_response.responses[0].identifier, "face");
                 assert_eq!(identity_attested, Some(true));
+                assert!(!user_presence_completed);
                 let bundle = integrity_bundle.expect("integrity bundle");
                 assert_eq!(
                     bundle.signature_format,
@@ -2296,9 +2481,12 @@ mod tests {
         let response: BridgeResponse = serde_json::from_str(json).unwrap();
         match response {
             BridgeResponse::MultiLegacyResponse {
-                legacy_responses, ..
+                legacy_responses,
+                user_presence_completed,
+                ..
             } => {
                 assert_eq!(legacy_responses.len(), 1);
+                assert!(!user_presence_completed);
                 assert_eq!(
                     legacy_responses[0].verification_level,
                     VerificationLevel::Orb
@@ -2331,9 +2519,12 @@ mod tests {
         let response: BridgeResponse = serde_json::from_str(json).unwrap();
         match response {
             BridgeResponse::MultiLegacyResponse {
-                legacy_responses, ..
+                legacy_responses,
+                user_presence_completed,
+                ..
             } => {
                 assert_eq!(legacy_responses.len(), 2);
+                assert!(!user_presence_completed);
                 assert_eq!(
                     legacy_responses[0].verification_level,
                     VerificationLevel::Orb
@@ -2367,6 +2558,7 @@ mod tests {
                 legacy_responses,
                 identity_attested,
                 integrity_bundle,
+                ..
             } => {
                 assert_eq!(legacy_responses.len(), 1);
                 assert_eq!(identity_attested, Some(true));
@@ -2392,6 +2584,7 @@ mod tests {
                 response: v1,
                 identity_attested,
                 integrity_bundle,
+                ..
             } => {
                 assert_eq!(v1.verification_level, VerificationLevel::Orb);
                 assert_eq!(identity_attested, Some(true));
@@ -2450,6 +2643,39 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "ffi")]
+    #[test]
+    fn test_request_config_defaults_user_presence_requirement_to_false() {
+        let signature = "0x".to_string() + &"00".repeat(64) + "1b";
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &signature,
+        )
+        .unwrap();
+        let config = IDKitConfig::Request(IDKitRequestConfig {
+            app_id: "app_test".to_string(),
+            action: "test-action".to_string(),
+            rp_context: std::sync::Arc::new(rp_context),
+            action_description: None,
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            require_user_presence: None,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: None,
+            connect_url_mode: None,
+        });
+
+        let params = config
+            .to_params(ConstraintNode::Any { any: Vec::new() })
+            .unwrap();
+
+        assert!(!params.require_user_presence);
+    }
+
     #[test]
     fn test_selfie_check_legacy_preset_serializes_face_verification_level() {
         let preset = crate::preset::Preset::selfie_check_legacy(Some("face-signal".to_string()));
@@ -2480,6 +2706,7 @@ mod tests {
             legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
             bridge_url: None,
             allow_legacy_proofs: false,
+            require_user_presence: false,
 
             override_connect_base_url: None,
             return_to: None,
@@ -2521,6 +2748,7 @@ mod tests {
             legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
             bridge_url: None,
             allow_legacy_proofs: false,
+            require_user_presence: false,
 
             override_connect_base_url: None,
             return_to: None,
@@ -2562,6 +2790,7 @@ mod tests {
             legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
             bridge_url: None,
             allow_legacy_proofs: bridge_params.allow_legacy_proofs_override.unwrap_or(false),
+            require_user_presence: false,
             override_connect_base_url: None,
             return_to: None,
             environment: Some(Environment::Production),
@@ -2607,6 +2836,7 @@ mod tests {
             legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
             bridge_url: None,
             allow_legacy_proofs: bridge_params.allow_legacy_proofs_override.unwrap_or(false),
+            require_user_presence: false,
             override_connect_base_url: None,
             return_to: None,
             environment: Some(Environment::Production),
@@ -2674,6 +2904,7 @@ mod tests {
             legacy_signal: "test-signal".to_string(),
             bridge_url: None,
             allow_legacy_proofs: false,
+            require_user_presence: false,
 
             override_connect_base_url: None,
             return_to: None,
@@ -2720,6 +2951,7 @@ mod tests {
             legacy_signal: "test-signal".to_string(),
             bridge_url: None,
             allow_legacy_proofs: false,
+            require_user_presence: false,
             override_connect_base_url: None,
             return_to: None,
             environment: None,
@@ -2729,10 +2961,66 @@ mod tests {
         // native=true includes timestamp
         let payload = build_request_payload(&params, true).unwrap();
         assert_eq!(payload["timestamp"], "2023-11-14T22:13:20Z");
+        assert_eq!(payload["require_user_presence"], serde_json::json!(false));
 
         // native=false omits timestamp
         let payload_bridge = build_request_payload(&params, false).unwrap();
         assert!(payload_bridge.get("timestamp").is_none());
+        assert_eq!(
+            payload_bridge["require_user_presence"],
+            serde_json::json!(false)
+        );
+    }
+
+    #[test]
+    fn test_build_request_payload_serializes_user_presence_requirement() {
+        let app_id = AppId::new("app_test").unwrap();
+        let sig = "0x".to_string() + &"00".repeat(64) + "1b";
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &sig,
+        )
+        .unwrap();
+
+        let item = CredentialRequest::new(
+            CredentialType::ProofOfHuman,
+            Some(Signal::from_string("test")),
+        );
+        let constraints = ConstraintNode::item(item);
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::Uniqueness {
+                action: "my-action".to_string(),
+            },
+            constraints: Some(constraints),
+            rp_context,
+            action_description: None,
+            legacy_verification_level: VerificationLevel::Orb,
+            legacy_signal: "test-signal".to_string(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            require_user_presence: true,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: None,
+            identity_attributes: None,
+        };
+
+        let bridge_payload = build_request_payload(&params, false).unwrap();
+        assert_eq!(
+            bridge_payload["require_user_presence"],
+            serde_json::json!(true)
+        );
+
+        let native_payload = build_request_payload(&params, true).unwrap();
+        assert_eq!(
+            native_payload["require_user_presence"],
+            serde_json::json!(true)
+        );
     }
 
     #[test]
@@ -2760,6 +3048,7 @@ mod tests {
             legacy_signal: "test-signal".to_string(),
             bridge_url: None,
             allow_legacy_proofs: false,
+            require_user_presence: false,
             override_connect_base_url: None,
             return_to: Some("idkitsample://callback".to_string()),
             environment: None,
@@ -2796,6 +3085,7 @@ mod tests {
             legacy_signal: "test-signal".to_string(),
             bridge_url: None,
             allow_legacy_proofs: false,
+            require_user_presence: false,
             override_connect_base_url: None,
             return_to: None,
             environment: None,
@@ -2837,6 +3127,7 @@ mod tests {
             legacy_signal: address.to_string(),
             bridge_url: None,
             allow_legacy_proofs: false,
+            require_user_presence: false,
 
             override_connect_base_url: None,
             return_to: None,
@@ -2876,6 +3167,7 @@ mod tests {
             override_connect_base_url: None,
             return_to,
             environment: Environment::Production,
+            require_user_presence: false,
             invite_code: None,
             code_expires_at: None,
         }

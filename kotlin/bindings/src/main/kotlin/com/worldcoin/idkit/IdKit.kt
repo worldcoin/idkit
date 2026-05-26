@@ -13,11 +13,10 @@ import uniffi.idkit_core.AppError
 // import uniffi.idkit_core.CredentialRequest
 // import uniffi.idkit_core.CredentialType
 import uniffi.idkit_core.IdKitBuilder
-import uniffi.idkit_core.IdKitRequestConfig
+import uniffi.idkit_core.IdKitRequestConfig as NativeIDKitRequestConfig
 import uniffi.idkit_core.IdKitRequestWrapper
 import uniffi.idkit_core.IdKitResult
-// TODO: Re-enable when World ID 4.0 is live
-// import uniffi.idkit_core.IdKitSessionConfig
+import uniffi.idkit_core.IdKitSessionConfig as NativeIDKitSessionConfig
 import uniffi.idkit_core.Preset
 import uniffi.idkit_core.Signal
 import uniffi.idkit_core.StatusWrapper
@@ -31,12 +30,62 @@ import uniffi.idkit_core.idkitResultToJson as nativeIdkitResultToJson
 // import uniffi.idkit_core.proveSession as nativeProveSession
 import uniffi.idkit_core.request as nativeRequest
 
-typealias IDKitRequestConfig = IdKitRequestConfig
-// TODO: Re-enable when World ID 4.0 is live
-// typealias IDKitSessionConfig = IdKitSessionConfig
 typealias IDKitResult = IdKitResult
 typealias RpContext = uniffi.idkit_core.RpContext
 typealias Environment = uniffi.idkit_core.Environment
+typealias ConnectUrlMode = uniffi.idkit_core.ConnectUrlMode
+
+data class IDKitRequestConfig(
+    val appId: String,
+    val action: String,
+    val rpContext: RpContext,
+    val actionDescription: String? = null,
+    val bridgeUrl: String? = null,
+    val allowLegacyProofs: Boolean = false,
+    val requireUserPresence: Boolean = false,
+    val overrideConnectBaseUrl: String? = null,
+    val returnTo: String? = null,
+    val environment: Environment? = null,
+    val connectUrlMode: ConnectUrlMode? = null,
+) {
+    internal fun toNative(): NativeIDKitRequestConfig =
+        NativeIDKitRequestConfig(
+            appId = appId,
+            action = action,
+            rpContext = rpContext,
+            actionDescription = actionDescription,
+            bridgeUrl = bridgeUrl,
+            allowLegacyProofs = allowLegacyProofs,
+            requireUserPresence = requireUserPresence,
+            overrideConnectBaseUrl = overrideConnectBaseUrl,
+            returnTo = returnTo,
+            environment = environment,
+            connectUrlMode = connectUrlMode,
+        )
+}
+
+data class IDKitSessionConfig(
+    val appId: String,
+    val rpContext: RpContext,
+    val actionDescription: String? = null,
+    val bridgeUrl: String? = null,
+    val requireUserPresence: Boolean = false,
+    val overrideConnectBaseUrl: String? = null,
+    val returnTo: String? = null,
+    val environment: Environment? = null,
+) {
+    internal fun toNative(): NativeIDKitSessionConfig =
+        NativeIDKitSessionConfig(
+            appId = appId,
+            rpContext = rpContext,
+            actionDescription = actionDescription,
+            bridgeUrl = bridgeUrl,
+            requireUserPresence = requireUserPresence,
+            overrideConnectBaseUrl = overrideConnectBaseUrl,
+            returnTo = returnTo,
+            environment = environment,
+        )
+}
 
 class IDKitClientError(message: String) : IllegalArgumentException(message)
 
@@ -54,6 +103,7 @@ enum class IDKitErrorCode(val rawValue: String) {
     CONNECTION_FAILED("connection_failed"),
     MAX_VERIFICATIONS_REACHED("max_verifications_reached"),
     FAILED_BY_HOST_APP("failed_by_host_app"),
+    USER_PRESENCE_FAILED("user_presence_failed"),
     INVALID_RP_SIGNATURE("invalid_rp_signature"),
     NULLIFIER_REPLAYED("nullifier_replayed"),
     DUPLICATE_NONCE("duplicate_nonce"),
@@ -83,6 +133,7 @@ enum class IDKitErrorCode(val rawValue: String) {
             AppError.CONNECTION_FAILED -> CONNECTION_FAILED
             AppError.MAX_VERIFICATIONS_REACHED -> MAX_VERIFICATIONS_REACHED
             AppError.FAILED_BY_HOST_APP -> FAILED_BY_HOST_APP
+            AppError.USER_PRESENCE_FAILED -> USER_PRESENCE_FAILED
             AppError.INVALID_RP_SIGNATURE -> INVALID_RP_SIGNATURE
             AppError.NULLIFIER_REPLAYED -> NULLIFIER_REPLAYED
             AppError.DUPLICATE_NONCE -> DUPLICATE_NONCE
@@ -202,19 +253,19 @@ object IDKit {
     fun request(config: IDKitRequestConfig): IDKitBuilder {
         require(config.appId.isNotBlank()) { "app_id is required" }
         require(config.action.isNotBlank()) { "action is required" }
-        return IDKitBuilder(nativeRequest(config))
+        return IDKitBuilder(nativeRequest(config.toNative()))
     }
 
     // TODO: Re-enable when World ID 4.0 is live
     // fun createSession(config: IDKitSessionConfig): IDKitBuilder {
     //     require(config.appId.isNotBlank()) { "app_id is required" }
-    //     return IDKitBuilder(nativeCreateSession(config))
+    //     return IDKitBuilder(nativeCreateSession(config.toNative()))
     // }
 
     // fun proveSession(sessionId: String, config: IDKitSessionConfig): IDKitBuilder {
     //     require(sessionId.isNotBlank()) { "session_id is required" }
     //     require(config.appId.isNotBlank()) { "app_id is required" }
-    //     return IDKitBuilder(nativeProveSession(sessionId, config))
+    //     return IDKitBuilder(nativeProveSession(sessionId, config.toNative()))
     // }
 
     fun hashSignal(signal: String): String = hashSignalFfi(Signal.fromString(signal))

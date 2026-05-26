@@ -118,6 +118,10 @@ pub enum AppError {
     #[error("Verification failed by host app")]
     FailedByHostApp,
 
+    /// User presence check failed or was not completed
+    #[error("User presence check failed")]
+    UserPresenceFailed,
+
     /// RP signature is invalid
     #[error("Invalid RP signature")]
     InvalidRpSignature,
@@ -182,6 +186,7 @@ impl AppError {
             "connection_failed" => Self::ConnectionFailed,
             "max_verifications_reached" => Self::MaxVerificationsReached,
             "failed_by_host_app" => Self::FailedByHostApp,
+            "user_presence_failed" => Self::UserPresenceFailed,
             "invalid_rp_signature" => Self::InvalidRpSignature,
             "nullifier_replayed" | "nullifier_replay" => Self::NullifierReplayed,
             "duplicate_nonce" => Self::DuplicateNonce,

@@ -17,7 +17,7 @@ private actor StatusPoller {
     }
 }
 
-private func sampleResult(sessionId: String? = nil) -> IDKitResult {
+private func sampleResult(sessionId: String? = nil, userPresenceCompleted: Bool = false) -> IDKitResult {
     IDKitResult(
         protocolVersion: "4.0",
         nonce: "0x1234",
@@ -25,6 +25,7 @@ private func sampleResult(sessionId: String? = nil) -> IDKitResult {
         actionDescription: "Sample action",
         sessionId: sessionId,
         responses: [],
+        userPresenceCompleted: userPresenceCompleted,
         environment: "production",
         identityAttested: nil,
         integrityBundle: nil
@@ -51,6 +52,7 @@ func idkitEntrypoints() throws {
         actionDescription: nil,
         bridgeUrl: nil,
         allowLegacyProofs: false,
+        requireUserPresence: false,
         overrideConnectBaseUrl: nil,
         returnTo: nil,
         environment: nil,
@@ -63,6 +65,7 @@ func idkitEntrypoints() throws {
     //     rpContext: try sampleRpContext(),
     //     actionDescription: nil,
     //     bridgeUrl: nil,
+    //     requireUserPresence: false,
     //     overrideConnectBaseUrl: nil,
     //     returnTo: nil,
     //     environment: nil
@@ -84,6 +87,7 @@ func statusMapping() {
     #expect(IDKitRequest.mapStatus(.awaitingConfirmation) == .awaitingConfirmation)
     #expect(IDKitRequest.mapStatus(.confirmed(result: result)) == .confirmed(result))
     #expect(IDKitRequest.mapStatus(.failed(error: .invalidNetwork)) == .failed(.invalidNetwork))
+    #expect(IDKitRequest.mapStatus(.failed(error: .userPresenceFailed)) == .failed(.userPresenceFailed))
     #expect(IDKitRequest.mapStatus(.failed(error: .invalidRpSignature)) == .failed(.invalidRpSignature))
     #expect(IDKitRequest.mapStatus(.failed(error: .nullifierReplayed)) == .failed(.nullifierReplayed))
     #expect(IDKitRequest.mapStatus(.failed(error: .duplicateNonce)) == .failed(.duplicateNonce))

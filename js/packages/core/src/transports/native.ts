@@ -80,6 +80,7 @@ export interface BuilderConfig {
   bridge_url?: string;
   return_to?: string;
   allow_legacy_proofs?: boolean;
+  require_user_presence?: boolean;
   override_connect_base_url?: string;
   environment?: string;
 }
@@ -175,11 +176,23 @@ class NativeIDKitRequest implements IDKitRequest {
         }
 
         try {
+          const userPresenceCompleted =
+            getUserPresenceCompleted(responsePayload);
+
+          if (config.require_user_presence === true && !userPresenceCompleted) {
+            this.complete({
+              success: false,
+              error: IDKitErrorCodes.UserPresenceFailed,
+            });
+            return;
+          }
+
           const result = nativeResultToIDKitResult(
             responsePayload,
             config,
             signalHashes,
             legacySignalHash,
+            userPresenceCompleted,
           );
           if (isDebug())
             console.debug(
@@ -371,6 +384,7 @@ function nativeResultToIDKitResult(
   config: BuilderConfig,
   signalHashes: Record<string, string>,
   legacySignalHash: string,
+  userPresenceCompleted: boolean,
 ): IDKitResult {
   const p = payload as Record<string, any>;
   const rpNonce = config.rp_context?.nonce ?? "";
@@ -394,6 +408,7 @@ function nativeResultToIDKitResult(
       environment: config.environment ?? "production",
       signal_hashes: signalHashes,
       identity_attested: p.identity_attested,
+      user_presence_completed: userPresenceCompleted,
     }) as IDKitResult;
 
     result.integrity_bundle = integrity_bundle;
@@ -429,6 +444,7 @@ function nativeResultToIDKitResult(
         merkle_root: v.merkle_root,
         nullifier: v.nullifier_hash,
       })),
+      user_presence_completed: userPresenceCompleted,
       environment: config.environment ?? "production",
       integrity_bundle,
     } satisfies IDKitResultV3;
@@ -451,9 +467,19 @@ function nativeResultToIDKitResult(
         nullifier: p.nullifier_hash,
       },
     ],
+    user_presence_completed: userPresenceCompleted,
     environment: config.environment ?? "production",
     integrity_bundle,
   } satisfies IDKitResultV3;
+}
+
+function getUserPresenceCompleted(payload: unknown): boolean {
+  const p = payload as Record<string, any>;
+  return (
+    p?.user_presence_completed === true ||
+    (p?.proof_response as Record<string, any> | undefined)
+      ?.user_presence_completed === true
+  );
 }
 
 function normalizeIntegrityBundle(

@@ -16,7 +16,10 @@ import uniffi.idkit_core.RpContext
 import uniffi.idkit_core.StatusWrapper
 
 class IDKitTests {
-    private fun sampleResult(sessionId: String? = null): IDKitResult =
+    private fun sampleResult(
+        sessionId: String? = null,
+        userPresenceCompleted: Boolean = false,
+    ): IDKitResult =
         IDKitResult(
             protocolVersion = "4.0",
             nonce = "0x1234",
@@ -24,6 +27,7 @@ class IDKitTests {
             actionDescription = "Sample action",
             sessionId = sessionId,
             responses = emptyList<ResponseItem>(),
+            userPresenceCompleted = userPresenceCompleted,
             environment = "production",
         )
 
@@ -47,6 +51,7 @@ class IDKitTests {
             actionDescription = null,
             bridgeUrl = null,
             allowLegacyProofs = false,
+            requireUserPresence = false,
             overrideConnectBaseUrl = null,
             returnTo = null,
             environment = Environment.STAGING,
@@ -58,6 +63,7 @@ class IDKitTests {
         //     rpContext = sampleRpContext(),
         //     actionDescription = null,
         //     bridgeUrl = null,
+        //     requireUserPresence = false,
         //     overrideConnectBaseUrl = null,
         //     returnTo = null,
         //     environment = Environment.STAGING,
@@ -88,6 +94,10 @@ class IDKitTests {
         assertEquals(
             IDKitStatus.Failed(IDKitErrorCode.INVALID_NETWORK),
             IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.INVALID_NETWORK)),
+        )
+        assertEquals(
+            IDKitStatus.Failed(IDKitErrorCode.USER_PRESENCE_FAILED),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.USER_PRESENCE_FAILED)),
         )
         assertEquals(
             IDKitStatus.Failed(IDKitErrorCode.INVALID_RP_SIGNATURE),

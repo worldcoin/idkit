@@ -27,6 +27,7 @@ func basicVerification() async throws {
         actionDescription: "Example verification",
         bridgeUrl: nil,
         allowLegacyProofs: false,
+        requireUserPresence: false,
         overrideConnectBaseUrl: nil,
         returnTo: nil,
         environment: .staging,

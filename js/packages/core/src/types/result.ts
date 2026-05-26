@@ -44,6 +44,7 @@ export enum IDKitErrorCodes {
   ConnectionFailed = "connection_failed",
   MaxVerificationsReached = "max_verifications_reached",
   FailedByHostApp = "failed_by_host_app",
+  UserPresenceFailed = "user_presence_failed",
   InvalidRpSignature = "invalid_rp_signature",
   NullifierReplayed = "nullifier_replayed",
   DuplicateNonce = "duplicate_nonce",

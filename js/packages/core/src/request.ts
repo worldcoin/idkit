@@ -481,6 +481,7 @@ function createWasmBuilderFromConfig(
       config.action_description ?? null,
       config.bridge_url ?? null,
       config.allow_legacy_proofs ?? false,
+      config.require_user_presence ?? false,
       config.override_connect_base_url ?? null,
       config.return_to ?? null,
       config.environment ?? null,
@@ -494,6 +495,7 @@ function createWasmBuilderFromConfig(
       rpContext,
       config.action_description ?? null,
       config.bridge_url ?? null,
+      config.require_user_presence ?? false,
       config.override_connect_base_url ?? null,
       config.return_to ?? null,
       config.environment ?? null,
@@ -506,6 +508,7 @@ function createWasmBuilderFromConfig(
     rpContext,
     config.action_description ?? null,
     config.bridge_url ?? null,
+    config.require_user_presence ?? false,
     config.override_connect_base_url ?? null,
     config.return_to ?? null,
     config.environment ?? null,
@@ -793,6 +796,7 @@ function createRequest(config: IDKitRequestConfig): IDKitBuilder {
     bridge_url: config.bridge_url,
     return_to: config.return_to,
     allow_legacy_proofs: config.allow_legacy_proofs,
+    require_user_presence: config.require_user_presence ?? false,
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
   });
@@ -850,6 +854,7 @@ function createRequestWithInviteCode(
     bridge_url: config.bridge_url,
     return_to: config.return_to,
     allow_legacy_proofs: config.allow_legacy_proofs,
+    require_user_presence: config.require_user_presence ?? false,
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
   });
@@ -899,6 +904,7 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
     action_description: config.action_description,
     bridge_url: config.bridge_url,
     return_to: config.return_to,
+    require_user_presence: config.require_user_presence ?? false,
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
   });
@@ -960,6 +966,7 @@ function proveSession(
     action_description: config.action_description,
     bridge_url: config.bridge_url,
     return_to: config.return_to,
+    require_user_presence: config.require_user_presence ?? false,
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
   });

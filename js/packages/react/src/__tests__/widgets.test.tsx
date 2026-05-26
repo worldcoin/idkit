@@ -115,7 +115,7 @@ function createSessionProps(
     onSuccess: vi.fn(),
     app_id: "app_test",
     rp_context: baseRpContext,
-    constraints: { type: "orb" },
+    constraints: { all: [] },
     ...overrides,
   } as IDKitSessionWidgetProps;
 }
