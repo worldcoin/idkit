@@ -18,6 +18,10 @@ export interface TranslationStrings {
   "Please check your connection and try again.": string;
   "Verification declined": string;
   "Failed to verify your credential proof. Please contact the website owner.": string;
+  "Verification requirements not met": string;
+  "Your World ID doesn't meet the requirements for this verification.": string;
+  "Presence check failed": string;
+  "World App couldn't confirm your presence for this request.": string;
   "We couldn't complete your request. Please try again.": string;
   "Try Again": string;
   Close: string;

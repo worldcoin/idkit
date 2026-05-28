@@ -16,12 +16,15 @@ type ErrorVariant =
   | "configuration_error"
   | "connection"
   | "host_verification"
+  | "identity_attributes_not_matched"
+  | "user_presence_failed"
   | "generic";
 
 const errorCodeVariants: Partial<Record<IDKitErrorCodes, ErrorVariant>> = {
   [IDKitErrorCodes.UserRejected]: "cancelled",
   [IDKitErrorCodes.VerificationRejected]: "cancelled",
   [IDKitErrorCodes.Cancelled]: "cancelled",
+  [IDKitErrorCodes.UserPresenceFailed]: "user_presence_failed",
   [IDKitErrorCodes.ConnectionFailed]: "connection",
   [IDKitErrorCodes.FailedByHostApp]: "host_verification",
   [IDKitErrorCodes.InvalidRpSignature]: "configuration_error",
@@ -33,6 +36,8 @@ const errorCodeVariants: Partial<Record<IDKitErrorCodes, ErrorVariant>> = {
   [IDKitErrorCodes.TimestampTooFarInFuture]: "configuration_error",
   [IDKitErrorCodes.InvalidTimestamp]: "configuration_error",
   [IDKitErrorCodes.RpSignatureExpired]: "configuration_error",
+  [IDKitErrorCodes.IdentityAttributesNotMatched]:
+    "identity_attributes_not_matched",
   [IDKitErrorCodes.InvalidRpIdFormat]: "configuration_error",
 };
 
@@ -73,6 +78,22 @@ const variantConfig = {
     Icon: ErrorIcon,
     actionLabel: "Try Again" as const,
     action: "retry" as const,
+  },
+  identity_attributes_not_matched: {
+    title: "Verification requirements not met" as const,
+    message:
+      "Your World ID doesn't meet the requirements for this verification." as const,
+    Icon: WarningIcon,
+    actionLabel: "Close" as const,
+    action: "close" as const,
+  },
+  user_presence_failed: {
+    title: "Presence check failed" as const,
+    message:
+      "World App couldn't confirm your presence for this request." as const,
+    Icon: WarningIcon,
+    actionLabel: "Close" as const,
+    action: "close" as const,
   },
   generic: {
     title: "Something went wrong" as const,

@@ -19,6 +19,13 @@ export const es: TranslationStrings = {
   "Verification declined": "Verificaci\u00f3n rechazada",
   "Failed to verify your credential proof. Please contact the website owner.":
     "No se pudo verificar tu prueba de credencial. Por favor contacta al propietario del sitio web.",
+  "Verification requirements not met":
+    "No se cumplen los requisitos de verificacion",
+  "Your World ID doesn't meet the requirements for this verification.":
+    "Tu World ID no cumple los requisitos para esta verificacion.",
+  "Presence check failed": "Fallo la comprobacion de presencia",
+  "World App couldn't confirm your presence for this request.":
+    "World App no pudo confirmar tu presencia para esta solicitud.",
   "We couldn't complete your request. Please try again.":
     "No pudimos completar tu solicitud. Por favor intenta de nuevo.",
   "Try Again": "Intentar de nuevo",
