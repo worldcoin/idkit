@@ -19,6 +19,12 @@ export const en: TranslationStrings = {
   "Verification declined": "Verification declined",
   "Failed to verify your credential proof. Please contact the website owner.":
     "Failed to verify your credential proof. Please contact the website owner.",
+  "Verification requirements not met": "Verification requirements not met",
+  "Your World ID doesn't meet the requirements for this verification.":
+    "Your World ID doesn't meet the requirements for this verification.",
+  "Presence check failed": "Presence check failed",
+  "World App couldn't confirm your presence for this request.":
+    "World App couldn't confirm your presence for this request.",
   "We couldn't complete your request. Please try again.":
     "We couldn't complete your request. Please try again.",
   "Try Again": "Try Again",

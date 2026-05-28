@@ -257,6 +257,66 @@ describe("widgets", () => {
     expect(flow.reset).not.toHaveBeenCalled();
   });
 
+  it("request widget shows requirements state for identity attribute mismatches", async () => {
+    const flow = createFlow({
+      isError: true,
+      errorCode: IDKitErrorCodes.IdentityAttributesNotMatched,
+    });
+    useIDKitRequestMock.mockReturnValue(flow);
+
+    const onError = vi.fn();
+    const onOpenChange = vi.fn();
+
+    render(
+      <IDKitRequestWidget {...createRequestProps({ onError, onOpenChange })} />,
+    );
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(
+        IDKitErrorCodes.IdentityAttributesNotMatched,
+      );
+    });
+    expect(screen.getByText("Verification requirements not met")).toBeDefined();
+    expect(
+      screen.getByText(
+        "Your World ID doesn't meet the requirements for this verification.",
+      ),
+    ).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(flow.reset).not.toHaveBeenCalled();
+  });
+
+  it("request widget shows terminal state for user presence failures", async () => {
+    const flow = createFlow({
+      isError: true,
+      errorCode: IDKitErrorCodes.UserPresenceFailed,
+    });
+    useIDKitRequestMock.mockReturnValue(flow);
+
+    const onError = vi.fn();
+    const onOpenChange = vi.fn();
+
+    render(
+      <IDKitRequestWidget {...createRequestProps({ onError, onOpenChange })} />,
+    );
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(IDKitErrorCodes.UserPresenceFailed);
+    });
+    expect(screen.getByText("Presence check failed")).toBeDefined();
+    expect(
+      screen.getByText(
+        "World App couldn't confirm your presence for this request.",
+      ),
+    ).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(flow.reset).not.toHaveBeenCalled();
+  });
+
   it("request widget waits for handleVerify to resolve before calling onSuccess", async () => {
     const flow = createFlow({
       isSuccess: true,
