@@ -160,6 +160,8 @@ pub enum AppError {
 
     /// Identity attributes did not match the required values
     #[error("Identity attributes not matched")]
+    // An early android version using this error code instead of `identity_attributes_not_matched`
+    #[serde(alias = "identity_attribute_mismatch")]
     IdentityAttributesNotMatched,
 
     /// Generic error
@@ -196,7 +198,10 @@ impl AppError {
             "timestamp_too_far_in_future" => Self::TimestampTooFarInFuture,
             "invalid_timestamp" => Self::InvalidTimestamp,
             "rp_signature_expired" => Self::RpSignatureExpired,
-            "identity_attributes_not_matched" => Self::IdentityAttributesNotMatched,
+            // An early android version using this error code instead of `identity_attributes_not_matched`
+            "identity_attributes_not_matched" | "identity_attribute_mismatch" => {
+                Self::IdentityAttributesNotMatched
+            }
             _ => Self::GenericError,
         }
     }
