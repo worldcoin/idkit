@@ -308,6 +308,10 @@ jobs:
         with:
           packages: tools platform-tools platforms;android-35 build-tools;35.0.0
 
+      - name: Run tests
+        working-directory: kotlin/
+        run: gradle bindings:test
+
       - name: Build Kotlin sample app
         working-directory: kotlin/Examples/IDKitSampleApp
         run: ./gradlew :app:assembleDebug

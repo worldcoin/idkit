@@ -33,6 +33,13 @@ android {
             withSourcesJar()
         }
     }
+
+    testOptions {
+        unitTests.all { test ->
+            val rustLibDir = project.projectDir.resolve("../../target/release").canonicalPath
+            test.jvmArgs("-Djna.library.path=$rustLibDir")
+        }
+    }
 }
 
 dependencies {
@@ -42,6 +49,8 @@ dependencies {
     implementation(kotlin("stdlib"))
 
     testImplementation(kotlin("test"))
+    // The @aar variant doesn't bundle libjnidispatch — use the plain JVM jar for unit tests
+    testImplementation("net.java.dev.jna:jna:5.14.0")
 }
 
 afterEvaluate {

@@ -33,6 +33,8 @@ import uniffi.idkit_core.request as nativeRequest
 typealias IDKitResult = IdKitResult
 typealias RpContext = uniffi.idkit_core.RpContext
 typealias Environment = uniffi.idkit_core.Environment
+typealias DocumentType = uniffi.idkit_core.DocumentType
+typealias IdentityAttribute = uniffi.idkit_core.IdentityAttribute
 typealias ConnectUrlMode = uniffi.idkit_core.ConnectUrlMode
 
 data class IDKitRequestConfig(
@@ -383,6 +385,12 @@ fun deviceLegacy(signal: String? = null): Preset = Preset.DeviceLegacy(signal = 
  * Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
  */
 fun selfieCheckLegacy(signal: String? = null): Preset = Preset.SelfieCheckLegacy(signal = signal)
+
+/**
+ * Returns the identity check preset.
+ */
+fun identityCheck(attributes: List<IdentityAttribute>, legacySignal: String? = null): Preset =
+    Preset.IdentityCheck(attributes = attributes, legacySignal = legacySignal)
 
 fun idkitResultToJson(result: IDKitResult): String = nativeIdkitResultToJson(result)
 

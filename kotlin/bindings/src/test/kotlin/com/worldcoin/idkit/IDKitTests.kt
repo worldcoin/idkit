@@ -5,11 +5,15 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import uniffi.idkit_core.AppError
+import uniffi.idkit_core.ConnectUrlMode
 // TODO: Re-enable when World ID 4.0 is live
 // import uniffi.idkit_core.CredentialType
+import uniffi.idkit_core.DocumentType
 import uniffi.idkit_core.Environment
+import uniffi.idkit_core.IdentityAttribute
 import uniffi.idkit_core.Preset
 import uniffi.idkit_core.ResponseItem
 import uniffi.idkit_core.RpContext
@@ -29,6 +33,8 @@ class IDKitTests {
             responses = emptyList<ResponseItem>(),
             userPresenceCompleted = userPresenceCompleted,
             environment = "production",
+            identityAttested = null,
+            integrityBundle = null,
         )
 
     private fun sampleRpContext(): RpContext {
@@ -55,6 +61,7 @@ class IDKitTests {
             overrideConnectBaseUrl = null,
             returnTo = null,
             environment = Environment.STAGING,
+            connectUrlMode = ConnectUrlMode.DEFAULT,
         )
 
         // TODO: Re-enable when World ID 4.0 is live
@@ -301,11 +308,36 @@ class IDKitTests {
         assertTrue(doc is Preset.DocumentLegacy)
         assertTrue(device is Preset.DeviceLegacy)
         assertTrue(face is Preset.SelfieCheckLegacy)
-        assertEquals("x", (orb as Preset.OrbLegacy).signal)
-        assertEquals("y", (secureDoc as Preset.SecureDocumentLegacy).signal)
-        assertEquals("z", (doc as Preset.DocumentLegacy).signal)
-        assertEquals("d", (device as Preset.DeviceLegacy).signal)
-        assertEquals("f", (face as Preset.SelfieCheckLegacy).signal)
+        assertEquals("x", (orb).signal)
+        assertEquals("y", (secureDoc).signal)
+        assertEquals("z", (doc).signal)
+        assertEquals("d", (device).signal)
+        assertEquals("f", (face).signal)
+    }
+
+    @Test
+    fun `identityCheck helper exposes canonical preset`() {
+        val attributes = listOf(
+            IdentityAttribute.MinimumAge(21u),
+            IdentityAttribute.Nationality("JPN"),
+            IdentityAttribute.DocumentType(DocumentType.PASSPORT),
+        )
+
+        val preset = identityCheck(attributes = attributes)
+
+        assertTrue(preset is Preset.IdentityCheck)
+        assertEquals(attributes, preset.attributes)
+        assertNull(preset.legacySignal)
+    }
+
+    @Test
+    fun `identityCheck helper preserves legacySignal`() {
+        val attributes = listOf(IdentityAttribute.MinimumAge(18u))
+
+        val preset = identityCheck(attributes = attributes, legacySignal = "my-signal")
+
+        assertTrue(preset is Preset.IdentityCheck)
+        assertEquals("my-signal", preset.legacySignal)
     }
 
     @Test
