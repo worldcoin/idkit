@@ -198,9 +198,10 @@ impl AppError {
             "timestamp_too_far_in_future" => Self::TimestampTooFarInFuture,
             "invalid_timestamp" => Self::InvalidTimestamp,
             "rp_signature_expired" => Self::RpSignatureExpired,
-            "identity_attributes_not_matched" => Self::IdentityAttributesNotMatched,
             // An early android version using this error code instead of `identity_attributes_not_matched`
-            "identity_attribute_mismatch" => Self::IdentityAttributesNotMatched,
+            "identity_attributes_not_matched" | "identity_attribute_mismatch" => {
+                Self::IdentityAttributesNotMatched
+            }
             _ => Self::GenericError,
         }
     }
