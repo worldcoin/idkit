@@ -160,6 +160,8 @@ pub enum AppError {
 
     /// Identity attributes did not match the required values
     #[error("Identity attributes not matched")]
+    // An early android version using this error code instead of `identity_attributes_not_matched`
+    #[serde(alias = "identity_attribute_mismatch")]
     IdentityAttributesNotMatched,
 
     /// Generic error

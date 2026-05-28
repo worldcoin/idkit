@@ -2631,6 +2631,14 @@ mod tests {
             ),
             ("invalid_timestamp", AppError::InvalidTimestamp),
             ("rp_signature_expired", AppError::RpSignatureExpired),
+            (
+                "identity_attributes_not_matched",
+                AppError::IdentityAttributesNotMatched,
+            ),
+            (
+                "identity_attribute_mismatch",
+                AppError::IdentityAttributesNotMatched,
+            ),
         ];
 
         for (code, expected) in cases {
