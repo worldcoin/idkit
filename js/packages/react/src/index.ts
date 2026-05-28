@@ -41,6 +41,7 @@ export {
   selfieCheckLegacy,
   proofOfHuman,
   passport,
+  identityCheck,
   IDKitErrorCodes,
   signRequest,
   isDebug,
@@ -65,4 +66,7 @@ export type {
   IDKitErrorCode,
   ProofOfHumanPreset,
   PassportPreset,
+  DocumentType,
+  IdentityAttribute,
+  IdentityCheckPreset,
 } from "@worldcoin/idkit-core";

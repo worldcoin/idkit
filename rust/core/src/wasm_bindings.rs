@@ -739,6 +739,16 @@ impl IDKitConfigWasm {
     }
 }
 
+fn validate_v1_preset_support(preset: &Preset) -> Result<(), &'static str> {
+    if matches!(preset, Preset::IdentityCheck { .. }) {
+        return Err(
+            "IdentityCheck presets are not supported for nativePayloadV1FromPreset. Use nativePayloadFromPreset with a World ID 4.0-compatible client instead.",
+        );
+    }
+
+    Ok(())
+}
+
 /// Unified builder for creating `IDKit` requests and sessions (WASM)
 #[wasm_bindgen(js_name = IDKitBuilder)]
 pub struct IDKitBuilderWasm {
@@ -952,6 +962,8 @@ impl IDKitBuilderWasm {
     pub fn native_payload_v1_from_preset(self, preset_json: JsValue) -> Result<JsValue, JsValue> {
         let preset: Preset = serde_wasm_bindgen::from_value(preset_json)
             .map_err(|e| JsValue::from_str(&format!("Invalid preset: {e}")))?;
+
+        validate_v1_preset_support(&preset).map_err(JsValue::from_str)?;
 
         let params = self.config.to_params_from_preset(preset)?;
 
@@ -1487,6 +1499,8 @@ export interface IDKitResultV4 {
     user_presence_completed: boolean;
     /** The environment used for this request ("production" or "staging") */
     environment: string;
+    /** Whether identity attributes were attested. Only present on IdentityCheck responses. */
+    identity_attested?: boolean;
     /** Optional World App integrity bundle for this proof request */
     integrity_bundle?: IntegrityBundle;
 }
@@ -1602,6 +1616,16 @@ export type Status =
 // Export preset types
 #[wasm_bindgen(typescript_custom_section)]
 const TS_PRESET: &str = r#"
+export type DocumentType = "passport" | "eid" | "mnc";
+
+export type IdentityAttribute =
+    | { type: "document_type"; value: DocumentType }
+    | { type: "document_number"; value: string }
+    | { type: "issuing_country"; value: string }
+    | { type: "full_name"; value: string }
+    | { type: "minimum_age"; value: number }
+    | { type: "nationality"; value: string };
+
 export interface OrbLegacyPreset {
     /** This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions. */
     type: "OrbLegacy";
@@ -1645,7 +1669,22 @@ export interface PassportPreset {
     signal?: string;
 }
 
-export type Preset = OrbLegacyPreset | SecureDocumentLegacyPreset | DocumentLegacyPreset | SelfieCheckLegacyPreset | DeviceLegacyPreset | ProofOfHumanPreset | PassportPreset;
+export interface IdentityCheckPreset {
+    /** This preset requires World ID 4.0-compatible clients. */
+    type: "IdentityCheck";
+    attributes: IdentityAttribute[];
+    legacy_signal?: string;
+}
+
+export type Preset =
+    | OrbLegacyPreset
+    | SecureDocumentLegacyPreset
+    | DocumentLegacyPreset
+    | SelfieCheckLegacyPreset
+    | DeviceLegacyPreset
+    | ProofOfHumanPreset
+    | PassportPreset
+    | IdentityCheckPreset;
 
 export function orbLegacy(signal?: string): Preset;
 export function secureDocumentLegacy(signal?: string): Preset;
@@ -1655,6 +1694,10 @@ export function selfieCheckLegacy(signal?: string): Preset;
 export function deviceLegacy(signal?: string): Preset;
 export function proofOfHuman(signal?: string): Preset;
 export function passport(signal?: string): Preset;
+export function identityCheck(params: {
+    attributes: IdentityAttribute[];
+    legacy_signal?: string;
+}): Preset;
 "#;
 
 // Export RP signature types
@@ -1733,11 +1776,26 @@ export function proveSession(
 
 #[cfg(test)]
 mod tests {
-    use super::IDKitConfigWasm;
-    use crate::{ConstraintNode, RpContext};
+    use super::{validate_v1_preset_support, IDKitConfigWasm};
+    use crate::{types::IdentityAttribute, ConstraintNode, Preset, RpContext};
 
     fn sample_rp_context() -> RpContext {
         RpContext::new("rp_123456789abcdef0", "0x01", 1, 2, "0x1234").expect("valid rp_context")
+    }
+
+    fn sample_request_config() -> IDKitConfigWasm {
+        IDKitConfigWasm::Request {
+            app_id: "app_staging_test".to_string(),
+            action: "test-action".to_string(),
+            rp_context: sample_rp_context(),
+            action_description: None,
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            require_user_presence: false,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: None,
+        }
     }
 
     #[test]
@@ -1832,5 +1890,25 @@ mod tests {
             params.return_to.as_deref(),
             Some("idkit://callback?step=prove")
         );
+    }
+
+    #[test]
+    fn native_payload_v1_from_preset_rejects_identity_check() {
+        let preset = Preset::identity_check(vec![IdentityAttribute::MinimumAge(21)], None);
+
+        assert!(validate_v1_preset_support(&preset)
+            .expect_err("identity check should be rejected for v1")
+            .contains("IdentityCheck presets are not supported"));
+    }
+
+    #[test]
+    fn native_payload_v1_from_preset_allows_legacy_presets() {
+        let config = sample_request_config();
+        let preset = Preset::device_legacy(Some("device-signal".to_string()));
+
+        validate_v1_preset_support(&preset).expect("legacy preset should be allowed for v1");
+        config
+            .to_params_from_preset(preset)
+            .expect("legacy preset should produce a v1 payload");
     }
 }

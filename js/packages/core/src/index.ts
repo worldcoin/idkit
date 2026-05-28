@@ -20,6 +20,7 @@ export {
   selfieCheckLegacy,
   proofOfHuman,
   passport,
+  identityCheck,
   // Types
   type IDKitRequest,
   type IDKitInviteCodeRequest,
@@ -27,6 +28,8 @@ export {
   type WaitOptions,
   type RpContext,
   type Preset,
+  type IdentityAttribute,
+  type DocumentType,
   type OrbLegacyPreset,
   type SecureDocumentLegacyPreset,
   type DocumentLegacyPreset,
@@ -34,6 +37,7 @@ export {
   type SelfieCheckLegacyPreset,
   type ProofOfHumanPreset,
   type PassportPreset,
+  type IdentityCheckPreset,
 } from "./request";
 
 // Config types

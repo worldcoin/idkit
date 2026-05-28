@@ -298,6 +298,8 @@ export function enumerate(...nodes: ConstraintNode[]): {
 // Re-export preset types from WASM (source of truth in rust/core/src/wasm_bindings.rs)
 export type {
   Preset,
+  IdentityAttribute,
+  DocumentType,
   OrbLegacyPreset,
   SecureDocumentLegacyPreset,
   DocumentLegacyPreset,
@@ -305,11 +307,13 @@ export type {
   DeviceLegacyPreset,
   ProofOfHumanPreset,
   PassportPreset,
+  IdentityCheckPreset,
 } from "./lib/wasm";
 
 // Import WASM preset type for function return types
 import type {
   Preset,
+  IdentityAttribute,
   OrbLegacyPreset,
   SecureDocumentLegacyPreset,
   DocumentLegacyPreset,
@@ -317,6 +321,7 @@ import type {
   DeviceLegacyPreset,
   ProofOfHumanPreset,
   PassportPreset,
+  IdentityCheckPreset,
 } from "./lib/wasm";
 
 /**
@@ -452,6 +457,27 @@ export function proofOfHuman(
  */
 export function passport(opts: { signal?: string } = {}): PassportPreset {
   return { type: "Passport", signal: opts.signal };
+}
+
+/**
+ * Creates an IdentityCheck preset for document-based identity attestation.
+ *
+ * This preset requires World ID 4.0-compatible clients.
+ *
+ * @param params - Identity attribute filters and proof-of-humanity requirement
+ * @returns An IdentityCheck preset
+ */
+export function identityCheck(params: {
+  attributes: IdentityAttribute[];
+  legacy_signal?: string;
+}): IdentityCheckPreset {
+  return {
+    type: "IdentityCheck",
+    attributes: params.attributes,
+    ...(params.legacy_signal !== undefined && {
+      legacy_signal: params.legacy_signal,
+    }),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1024,4 +1050,6 @@ export const IDKit = {
   proofOfHuman,
   /** Create a Passport preset for World ID 4.0 with legacy document fallback */
   passport,
+  /** Create an IdentityCheck preset for World ID 4.0 identity attestation */
+  identityCheck,
 };
