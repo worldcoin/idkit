@@ -793,7 +793,7 @@ class IDKitInviteCodeBuilder {
  * const proof = await request.pollUntilCompletion();
  * ```
  */
-function createRequest(config: IDKitRequestConfig): IDKitBuilder {
+export function createRequest(config: IDKitRequestConfig): IDKitBuilder {
   // Validate required fields
   if (!config.app_id) {
     throw new Error("app_id is required");
@@ -912,7 +912,7 @@ function createRequestWithInviteCode(
  * // result.responses[0].session_nullifier -> for session tracking
  * ```
  */
-function createSession(config: IDKitSessionConfig): IDKitBuilder {
+export function createSession(config: IDKitSessionConfig): IDKitBuilder {
   // Validate required fields
   if (!config.app_id) {
     throw new Error("app_id is required");
@@ -962,7 +962,7 @@ function createSession(config: IDKitSessionConfig): IDKitBuilder {
  * // result.responses[0].session_nullifier -> should match for same user
  * ```
  */
-function proveSession(
+export function proveSession(
   sessionId: `session_${string}`,
   config: IDKitSessionConfig,
 ): IDKitBuilder {

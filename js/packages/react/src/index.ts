@@ -30,6 +30,7 @@ export type { SupportedLanguage } from "./lang/types";
 
 export {
   IDKit,
+  getSessionCommitment,
   CredentialRequest,
   any,
   all,

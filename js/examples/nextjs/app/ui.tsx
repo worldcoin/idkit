@@ -11,6 +11,7 @@ import {
   selfieCheckLegacy,
   IDKitInviteCodeRequestWidget,
   IDKitRequestWidget,
+  IDKitSessionWidget,
   orbLegacy,
   passport as passportPreset,
   proofOfHuman,
@@ -20,6 +21,7 @@ import {
   type DocumentType,
   type IdentityAttribute,
   type IDKitResult,
+  type IDKitResultSession,
   type Preset,
   type RpContext,
 } from "@worldcoin/idkit";
@@ -44,12 +46,15 @@ const RETURN_TO_TOOLTIP =
 
 type PresetKind = "orb" | "secure_document" | "document" | "device" | "selfie";
 
+type FlowMode = "request" | "create_session" | "session";
+
 type V4CredentialType =
   | "proof_of_human"
   | "selfie"
   | "passport"
   | "mnc"
   | "identity_check";
+type SessionCredentialType = Exclude<V4CredentialType, "identity_check">;
 
 type IdentityAttributesConfig = {
   document_type: { enabled: boolean; value: DocumentType };
@@ -67,6 +72,14 @@ const DEFAULT_IDENTITY_ATTRIBUTES: IdentityAttributesConfig = {
   full_name: { enabled: false, value: "" },
   minimum_age: { enabled: false, value: "" },
   nationality: { enabled: false, value: "" },
+};
+
+const SESSION_ID_PATTERN = /^session_[0-9a-fA-F]{128}$/;
+
+const FLOW_MODE_TO_NAME: Record<FlowMode, string> = {
+  request: "Request",
+  create_session: "Create Session",
+  session: "Session",
 };
 
 const V4_CREDENTIAL_TO_NAME: Record<V4CredentialType, string> = {
@@ -161,11 +174,22 @@ function createPreset(kind: PresetKind, signal: string) {
   }
 }
 
-async function fetchRpContext(action: string): Promise<RpContext> {
+async function fetchRpContext(
+  signatureType: FlowMode,
+  action?: string,
+): Promise<RpContext> {
+  const body: { signature_type: FlowMode; action?: string } = {
+    signature_type: signatureType,
+  };
+
+  if (signatureType === "request" && action) {
+    body.action = action;
+  }
+
   const response = await fetch("/api/rp-signature", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ action }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -257,14 +281,23 @@ export function DemoClient(): ReactElement {
   const [genesisEnabled, setGenesisEnabled] = useState(false);
   const [genesisDate, setGenesisDate] = useState("");
   const [isGenesisTooltipOpen, setIsGenesisTooltipOpen] = useState(false);
+  const [sessionId, setSessionId] = useState("");
+  const [widgetSessionResult, setWidgetSessionResult] =
+    useState<IDKitResultSession | null>(null);
   const [useReturnTo, setUseReturnTo] = useState(false);
   const [returnTo, setReturnTo] = useState("");
   const [isReturnToTooltipOpen, setIsReturnToTooltipOpen] = useState(false);
   const [requireUserPresence, setRequireUserPresence] = useState(false);
   const [useInviteCode, setUseInviteCode] = useState(false);
+  const [flowMode, setFlowMode] = useState<FlowMode>("request");
   const [wasIdentityCheck, setWasIdentityCheck] = useState(false);
   const isV4PresetCredential =
     v4CredentialType !== "mnc" && v4CredentialType !== "identity_check";
+  const isSessionFlow = flowMode !== "request";
+  const isCreateSessionFlow = flowMode === "create_session";
+  const isProveSessionFlow = flowMode === "session";
+  const sessionCredentialType: SessionCredentialType =
+    v4CredentialType === "identity_check" ? "proof_of_human" : v4CredentialType;
 
   const genesisIssuedAtMin =
     genesisEnabled && genesisDate
@@ -277,11 +310,13 @@ export function DemoClient(): ReactElement {
   );
 
   const isIdentityCheck =
-    worldIdVersion === "4.0" && v4CredentialType === "identity_check";
+    !isSessionFlow &&
+    worldIdVersion === "4.0" &&
+    v4CredentialType === "identity_check";
   const canStartWidgetFlow =
     !isIdentityCheck || identityAttributesPayload.length > 0;
 
-  const widgetConstraintsOrPreset:
+  const requestConstraintsOrPreset:
     | { constraints: ConstraintNode }
     | { preset: Preset } = useMemo(() => {
     if (worldIdVersion !== "4.0") {
@@ -313,6 +348,14 @@ export function DemoClient(): ReactElement {
     identityAttributesPayload,
     widgetSignal,
   ]);
+
+  const sessionConstraints = useMemo(
+    () =>
+      CredentialRequest(sessionCredentialType, {
+        genesis_issued_at_min: genesisIssuedAtMin,
+      }),
+    [sessionCredentialType, genesisIssuedAtMin],
+  );
 
   const overrideConnectBaseUrl =
     environment === "staging" && useStagingConnectBaseUrl
@@ -355,7 +398,19 @@ export function DemoClient(): ReactElement {
       setGenesisEnabled(false);
       setGenesisDate("");
     }
-  }, [v4CredentialType]);
+
+    if (flowMode !== "request") {
+      setWorldIdVersion("4.0");
+      setUseInviteCode(false);
+      if (v4CredentialType === "identity_check") {
+        setV4CredentialType("proof_of_human");
+      }
+    }
+
+    if (flowMode !== "session") {
+      setSessionId("");
+    }
+  }, [flowMode, v4CredentialType]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -373,6 +428,7 @@ export function DemoClient(): ReactElement {
     setWidgetError(null);
     setWidgetVerifyResult(null);
     setWidgetIdkitResult(null);
+    setWidgetSessionResult(null);
     setWasIdentityCheck(isIdentityCheck);
 
     if (!canStartWidgetFlow) {
@@ -380,8 +436,20 @@ export function DemoClient(): ReactElement {
       return;
     }
 
+    const trimmedSessionId = sessionId.trim();
+
+    if (isProveSessionFlow && !SESSION_ID_PATTERN.test(trimmedSessionId)) {
+      setWidgetError(
+        "Session ID must be in the format session_<128 hex characters>.",
+      );
+      return;
+    }
+
     try {
-      const rpContext = await fetchRpContext(action || "test-action");
+      const rpContext = await fetchRpContext(
+        flowMode,
+        isSessionFlow ? undefined : action || "test-action",
+      );
       setWidgetSignal(`demo-signal-${Date.now()}`);
       setWidgetRpContext(rpContext);
       setWidgetOpen(true);
@@ -420,6 +488,20 @@ export function DemoClient(): ReactElement {
       </button>
       <section className="config-panel">
         <div className="config-row">
+          <label htmlFor="cfgFlowMode">Flow</label>
+          <select
+            id="cfgFlowMode"
+            value={flowMode}
+            onChange={(e) => setFlowMode(e.target.value as FlowMode)}
+          >
+            <option value="request">{FLOW_MODE_TO_NAME.request}</option>
+            <option value="create_session">
+              {FLOW_MODE_TO_NAME.create_session}
+            </option>
+            <option value="session">{FLOW_MODE_TO_NAME.session}</option>
+          </select>
+        </div>
+        <div className="config-row">
           <label htmlFor="cfgAppId">App ID</label>
           <input type="text" id="cfgAppId" value={APP_ID} readOnly />
         </div>
@@ -427,15 +509,29 @@ export function DemoClient(): ReactElement {
           <label htmlFor="cfgRpId">RP ID</label>
           <input type="text" id="cfgRpId" value={RP_ID} readOnly />
         </div>
-        <div className="config-row">
-          <label htmlFor="cfgAction">Action</label>
-          <input
-            type="text"
-            id="cfgAction"
-            value={action}
-            onChange={(e) => setAction(e.target.value)}
-          />
-        </div>
+        {!isSessionFlow && (
+          <div className="config-row">
+            <label htmlFor="cfgAction">Action</label>
+            <input
+              type="text"
+              id="cfgAction"
+              value={action}
+              onChange={(e) => setAction(e.target.value)}
+            />
+          </div>
+        )}
+        {isProveSessionFlow && (
+          <div className="config-row">
+            <label htmlFor="cfgSessionId">Session ID</label>
+            <input
+              type="text"
+              id="cfgSessionId"
+              value={sessionId}
+              onChange={(e) => setSessionId(e.target.value)}
+              placeholder="session_..."
+            />
+          </div>
+        )}
         <div className="config-row">
           <label htmlFor="cfgEnv">Environment</label>
           <select
@@ -449,15 +545,17 @@ export function DemoClient(): ReactElement {
             <option value="staging">Staging</option>
           </select>
         </div>
-        <div className="config-row">
-          <label htmlFor="cfgUseInviteCode">Use invite code</label>
-          <input
-            type="checkbox"
-            id="cfgUseInviteCode"
-            checked={useInviteCode}
-            onChange={(e) => setUseInviteCode(e.target.checked)}
-          />
-        </div>
+        {!isSessionFlow && (
+          <div className="config-row">
+            <label htmlFor="cfgUseInviteCode">Use invite code</label>
+            <input
+              type="checkbox"
+              id="cfgUseInviteCode"
+              checked={useInviteCode}
+              onChange={(e) => setUseInviteCode(e.target.checked)}
+            />
+          </div>
+        )}
         {environment === "staging" && (
           <div className="config-row">
             <label htmlFor="cfgOverrideConnectBaseUrl">
@@ -556,13 +654,14 @@ export function DemoClient(): ReactElement {
             id="cfgWorldID"
             value={worldIdVersion}
             onChange={(e) => setWorldIdVersion(e.target.value as "3.0" | "4.0")}
+            disabled={isSessionFlow}
           >
             <option value="3.0">3.0</option>
             <option value="4.0">4.0</option>
           </select>
         </div>
 
-        {worldIdVersion === "3.0" && (
+        {!isSessionFlow && worldIdVersion === "3.0" && (
           <div className="config-row">
             <label htmlFor="cfgCredentialv3">Credential</label>
             <select
@@ -594,7 +693,9 @@ export function DemoClient(): ReactElement {
                 <option value="selfie">Selfie</option>
                 <option value="passport">Passport</option>
                 <option value="mnc">My Number Card</option>
-                <option value="identity_check">Identity Check</option>
+                {!isSessionFlow && (
+                  <option value="identity_check">Identity Check</option>
+                )}
               </select>
             </div>
             {v4CredentialType !== "identity_check" && (
@@ -652,7 +753,7 @@ export function DemoClient(): ReactElement {
                 </div>
               </>
             )}
-            {v4CredentialType === "identity_check" && (
+            {!isSessionFlow && v4CredentialType === "identity_check" && (
               <>
                 <div className="config-row">
                   <label htmlFor="cfgIdentityDocumentType">Document type</label>
@@ -976,7 +1077,7 @@ export function DemoClient(): ReactElement {
       </section>
 
       <div className="stack">
-        {worldIdVersion === "3.0" && (
+        {!isSessionFlow && worldIdVersion === "3.0" && (
           <>
             <button onClick={startWidgetFlow}>
               Verify with {PRESET_KIND_TO_NAME[presetKind]}
@@ -984,12 +1085,22 @@ export function DemoClient(): ReactElement {
           </>
         )}
 
-        {worldIdVersion === "4.0" && (
-          <>
-            <button onClick={startWidgetFlow} disabled={!canStartWidgetFlow}>
-              Verify with {V4_CREDENTIAL_TO_NAME[v4CredentialType]}
-            </button>
-          </>
+        {!isSessionFlow && worldIdVersion === "4.0" && (
+          <button onClick={startWidgetFlow} disabled={!canStartWidgetFlow}>
+            Verify with {V4_CREDENTIAL_TO_NAME[v4CredentialType]}
+          </button>
+        )}
+
+        {isCreateSessionFlow && (
+          <button onClick={startWidgetFlow}>
+            Create Session with {V4_CREDENTIAL_TO_NAME[sessionCredentialType]}
+          </button>
+        )}
+
+        {isProveSessionFlow && (
+          <button onClick={startWidgetFlow}>
+            Prove Session with {V4_CREDENTIAL_TO_NAME[sessionCredentialType]}
+          </button>
         )}
       </div>
       {isIdentityCheck && identityAttributesPayload.length === 0 && (
@@ -998,6 +1109,7 @@ export function DemoClient(): ReactElement {
       {widgetError && <p className="status">Error: {widgetError}</p>}
 
       {widgetRpContext &&
+        !isSessionFlow &&
         (useInviteCode ? (
           <IDKitInviteCodeRequestWidget
             open={widgetOpen}
@@ -1007,8 +1119,8 @@ export function DemoClient(): ReactElement {
             rp_context={widgetRpContext}
             allow_legacy_proofs={true}
             require_user_presence={requireUserPresence}
-            {...widgetConstraintsOrPreset}
-            onSuccess={(result) => {}}
+            {...requestConstraintsOrPreset}
+            onSuccess={() => {}}
             handleVerify={async (result) => {
               setWidgetIdkitResult(result);
               const verified = await verifyProof(
@@ -1033,8 +1145,8 @@ export function DemoClient(): ReactElement {
             rp_context={widgetRpContext}
             allow_legacy_proofs={true}
             require_user_presence={requireUserPresence}
-            {...widgetConstraintsOrPreset}
-            onSuccess={(result) => {}}
+            {...requestConstraintsOrPreset}
+            onSuccess={() => {}}
             handleVerify={async (result) => {
               setWidgetIdkitResult(result);
               const verified = await verifyProof(
@@ -1051,6 +1163,36 @@ export function DemoClient(): ReactElement {
             return_to={effectiveReturnTo}
           />
         ))}
+
+      {widgetRpContext && isSessionFlow && (
+        <IDKitSessionWidget
+          open={widgetOpen}
+          onOpenChange={setWidgetOpen}
+          app_id={APP_ID}
+          rp_context={widgetRpContext}
+          constraints={sessionConstraints}
+          {...(isProveSessionFlow
+            ? {
+                existing_session_id: sessionId.trim() as `session_${string}`,
+              }
+            : {})}
+          onSuccess={() => {}}
+          handleVerify={async (result) => {
+            setWidgetSessionResult(result);
+            const verified = await verifyProof(
+              result as unknown as IDKitResult,
+              overrideDevPortalBaseUrl,
+            );
+            setWidgetVerifyResult(verified);
+          }}
+          onError={(errorCode) => {
+            setWidgetError(`Verification failed: ${errorCode}`);
+          }}
+          environment={environment}
+          override_connect_base_url={overrideConnectBaseUrl}
+          return_to={effectiveReturnTo}
+        />
+      )}
 
       {widgetIdkitResult && (
         <>
@@ -1079,6 +1221,21 @@ export function DemoClient(): ReactElement {
             )}
           <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
             {JSON.stringify(widgetIdkitResult, null, 2)}
+          </pre>
+        </>
+      )}
+
+      {widgetSessionResult && (
+        <>
+          <h3>Session response</h3>
+          <p>
+            <strong>Session ID:</strong>{" "}
+            <code style={{ wordBreak: "break-all" }}>
+              {widgetSessionResult.session_id}
+            </code>
+          </p>
+          <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+            {JSON.stringify(widgetSessionResult, null, 2)}
           </pre>
         </>
       )}

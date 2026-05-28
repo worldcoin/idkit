@@ -13,7 +13,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use world_id_primitives::{
-    FieldElement, ProofRequest, ProofResponse, RequestVersion,
+    FieldElement, OprfKeyId, ProofRequest, ProofResponse, ProofType, RequestVersion,
     ResponseItem as ProtocolResponseItem, SessionId,
 };
 
@@ -84,7 +84,8 @@ struct BridgeRequestPayload {
     /// Application ID from the Developer Portal
     app_id: String,
 
-    /// Action ID from the Developer Portal (optional for session-only flows)
+    /// Action ID from the Developer Portal.
+    /// Session flows serialize this as an empty string for mobile bridge compatibility.
     #[serde(skip_serializing_if = "Option::is_none")]
     action: Option<String>,
 
@@ -549,19 +550,19 @@ pub fn build_request_payload(
     // TODO: Clean up session_id handling once the SDK surface can carry the
     // protocol SessionId type directly instead of adapting the `session_<hex>`
     // string form at this bridge boundary.
-    let (action_fe, session_id_fe, action_str) = match &params.kind {
+    let (proof_type, action_fe, session_id_fe, action_str) = match &params.kind {
         RequestKind::Uniqueness { action } => {
             let fe = FieldElement::from_arbitrary_raw_bytes(action.as_bytes());
-            (Some(fe), None, Some(action.clone()))
+            (ProofType::Uniqueness, Some(fe), None, Some(action.clone()))
         }
-        RequestKind::CreateSession => (None, None, None),
+        RequestKind::CreateSession => (ProofType::CreateSession, None, None, Some(String::new())),
         RequestKind::ProveSession { session_id } => {
             let parsed =
                 serde_json::from_value::<SessionId>(serde_json::Value::String(session_id.clone()))
                     .map_err(|_| {
                         Error::InvalidConfiguration("Invalid session_id format".to_string())
                     })?;
-            (None, Some(parsed), None)
+            (ProofType::Session, None, Some(parsed), Some(String::new()))
         }
     };
 
@@ -579,10 +580,11 @@ pub fn build_request_payload(
             Ok(ProofRequest {
                 id: uuid::Uuid::new_v4().to_string(),
                 version: world_id_primitives::RequestVersion::V1,
+                proof_type,
                 created_at: params.rp_context.created_at,
                 expires_at: params.rp_context.expires_at,
                 rp_id: params.rp_context.rp_id,
-                oprf_key_id: taceo_oprf::types::OprfKeyId::new(ruint::aliases::U160::from(
+                oprf_key_id: OprfKeyId::new(ruint::aliases::U160::from(
                     params.rp_context.rp_id.into_inner(),
                 )),
                 action: action_fe,
@@ -1920,12 +1922,11 @@ mod tests {
         let proof_request = ProofRequest {
             id: uuid::Uuid::new_v4().to_string(),
             version: world_id_primitives::RequestVersion::V1,
+            proof_type: ProofType::Uniqueness,
             created_at: rp_context.created_at,
             expires_at: rp_context.expires_at,
             rp_id: rp_context.rp_id,
-            oprf_key_id: taceo_oprf::types::OprfKeyId::new(ruint::aliases::U160::from(
-                rp_context.rp_id.into_inner(),
-            )),
+            oprf_key_id: OprfKeyId::new(ruint::aliases::U160::from(rp_context.rp_id.into_inner())),
             action: Some(action),
             session_id: None,
             signature,
@@ -1997,6 +1998,10 @@ mod tests {
 
         let payload = build_request_payload(&params, false).unwrap();
         let proof_request = payload.get("proof_request").unwrap();
+        assert_eq!(payload["action"], serde_json::json!("test-action"));
+        assert_eq!(proof_request["proof_type"], serde_json::json!("uniqueness"));
+        assert!(proof_request.get("action").is_some());
+        assert_eq!(proof_request["session_id"], serde_json::Value::Null);
         assert_eq!(
             proof_request["proof_requests"][0]["identifier"],
             serde_json::json!("selfie")
@@ -2006,6 +2011,88 @@ mod tests {
             serde_json::json!(11)
         );
         assert_eq!(payload["verification_level"], serde_json::json!("device"));
+    }
+
+    #[test]
+    fn test_build_request_payload_includes_empty_top_level_action_for_sessions() {
+        let app_id = AppId::new("app_test").unwrap();
+        let signature = "0x".to_string() + &"00".repeat(64) + "1b";
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &signature,
+        )
+        .unwrap();
+        let constraints = ConstraintNode::item(CredentialRequest::new(
+            CredentialType::ProofOfHuman,
+            Some(Signal::from_string("session-signal")),
+        ));
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::CreateSession,
+            constraints: Some(constraints),
+            rp_context,
+            action_description: None,
+            legacy_verification_level: VerificationLevel::Device,
+            legacy_signal: String::new(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            require_user_presence: false,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: Some(Environment::Production),
+            identity_attributes: None,
+        };
+
+        let payload = build_request_payload(&params, false).unwrap();
+        let proof_request = payload.get("proof_request").unwrap();
+        assert_eq!(payload["action"], serde_json::json!(""));
+        assert_eq!(
+            proof_request["proof_type"],
+            serde_json::json!("create_session")
+        );
+
+        let session_id = serde_json::to_value(SessionId::default())
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let prove_params = BridgeConnectionParams {
+            app_id: AppId::new("app_test").unwrap(),
+            kind: RequestKind::ProveSession { session_id },
+            constraints: Some(ConstraintNode::item(CredentialRequest::new(
+                CredentialType::ProofOfHuman,
+                Some(Signal::from_string("session-signal")),
+            ))),
+            rp_context: RpContext::new(
+                "rp_1234567890abcdef",
+                "0x0000000000000000000000000000000000000000000000000000000000000001",
+                1_700_000_000,
+                1_700_003_600,
+                &signature,
+            )
+            .unwrap(),
+            action_description: None,
+            legacy_verification_level: VerificationLevel::Device,
+            legacy_signal: String::new(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            require_user_presence: false,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: Some(Environment::Production),
+            identity_attributes: None,
+        };
+
+        let prove_payload = build_request_payload(&prove_params, false).unwrap();
+        assert_eq!(prove_payload["action"], serde_json::json!(""));
+        assert_eq!(
+            prove_payload["proof_request"]["proof_type"],
+            serde_json::json!("session")
+        );
     }
 
     #[test]
