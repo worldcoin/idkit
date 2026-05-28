@@ -580,6 +580,11 @@ public func selfieCheckLegacy(signal: String? = nil) -> Preset {
     .selfieCheckLegacy(signal: signal)
 }
 
+/// Returns the identity check preset.
+public func identityCheck(attributes: [IdentityAttribute], legacySignal: String? = nil) -> Preset {
+    .identityCheck(attributes: attributes, legacySignal: legacySignal)
+}
+
 // TODO: Re-enable when World ID 4.0 is live
 // private struct CredentialRequestJSON: Encodable {
 //     let type: String
