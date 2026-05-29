@@ -304,13 +304,6 @@ export function DemoClient(): ReactElement {
     genesisEnabled && genesisDate
       ? Math.floor(new Date(genesisDate).getTime() / 1000)
       : undefined;
-  const isMncGenesisConstraintsRequest =
-    worldIdVersion === "4.0" &&
-    v4CredentialType === "mnc" &&
-    genesisIssuedAtMin != null;
-  // MNC + genesis uses constraints(). Keep this branch v4-only to avoid a legacy
-  // fallback being interpreted as device-level when the request is document-scoped.
-  const shouldAllowLegacyProofs = !isMncGenesisConstraintsRequest;
 
   const identityAttributesPayload = useMemo(
     () => buildIdentityAttributes(identityAttributes),

@@ -304,7 +304,7 @@ func legacyPresetHelpers() {
         #expect(attributes == expected)
         #expect(legacySignal == nil)
     case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy,
-         .proofOfHuman, .passport:
+         .proofOfHuman, .passport, .mnc:
         Issue.record("Expected identityCheck preset")
     }
 
@@ -316,7 +316,7 @@ func legacyPresetHelpers() {
     case let .identityCheck(attributes: _, legacySignal: legacySignal):
         #expect(legacySignal == "my-signal")
     case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy,
-         .proofOfHuman, .passport:
+         .proofOfHuman, .passport, .mnc:
         Issue.record("Expected identityCheck preset with signal")
     }
 }
