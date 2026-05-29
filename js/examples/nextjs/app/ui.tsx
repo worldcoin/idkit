@@ -14,6 +14,7 @@ import {
   IDKitSessionWidget,
   orbLegacy,
   passport as passportPreset,
+  mnc as mncPreset,
   proofOfHuman,
   secureDocumentLegacy,
   setDebug,
@@ -315,6 +316,14 @@ export function DemoClient(): ReactElement {
     v4CredentialType === "identity_check";
   const canStartWidgetFlow =
     !isIdentityCheck || identityAttributesPayload.length > 0;
+  const isMncGenesisConstraintsRequest =
+    !isSessionFlow &&
+    worldIdVersion === "4.0" &&
+    v4CredentialType === "mnc" &&
+    genesisIssuedAtMin != null;
+  // MNC + genesis uses constraints(). Keep this branch v4-only to avoid a legacy
+  // fallback being interpreted as device-level when the request is document-scoped.
+  const shouldAllowLegacyProofs = !isMncGenesisConstraintsRequest;
 
   const requestConstraintsOrPreset:
     | { constraints: ConstraintNode }
@@ -327,6 +336,17 @@ export function DemoClient(): ReactElement {
     }
     if (v4CredentialType === "passport") {
       return { preset: passportPreset({ signal: widgetSignal }) };
+    }
+    if (v4CredentialType === "mnc") {
+      if (genesisIssuedAtMin == null) {
+        return { preset: mncPreset({ signal: widgetSignal }) };
+      }
+      return {
+        constraints: CredentialRequest("mnc", {
+          signal: widgetSignal,
+          genesis_issued_at_min: genesisIssuedAtMin,
+        }),
+      };
     }
     if (v4CredentialType === "identity_check") {
       return {
@@ -1117,7 +1137,7 @@ export function DemoClient(): ReactElement {
             app_id={APP_ID}
             action={action || "test-action"}
             rp_context={widgetRpContext}
-            allow_legacy_proofs={true}
+            allow_legacy_proofs={shouldAllowLegacyProofs}
             require_user_presence={requireUserPresence}
             {...requestConstraintsOrPreset}
             onSuccess={() => {}}
@@ -1143,7 +1163,7 @@ export function DemoClient(): ReactElement {
             app_id={APP_ID}
             action={action || "test-action"}
             rp_context={widgetRpContext}
-            allow_legacy_proofs={true}
+            allow_legacy_proofs={shouldAllowLegacyProofs}
             require_user_presence={requireUserPresence}
             {...requestConstraintsOrPreset}
             onSuccess={() => {}}

@@ -74,6 +74,7 @@ export type {
   ProofOfHumanPreset,
   PassportPreset,
   IdentityCheckPreset,
+  MncPreset,
   // Native transport types
   NativePayloadResult,
 } from "../../wasm/idkit_wasm.js";

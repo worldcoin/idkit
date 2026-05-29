@@ -97,6 +97,16 @@ pub enum Preset {
         signal: Option<String>,
     },
 
+    /// MNC (My Number Card) verification (World ID 4.0 with legacy fallback)
+    ///
+    /// Requests a World ID 4.0 MNC credential, with optional signal.
+    /// Falls back to legacy document proofs when World ID 4.0 is unavailable.
+    Mnc {
+        /// Optional signal to include in the proof.
+        /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
+        signal: Option<String>,
+    },
+
     /// Document-based identity attestation (World ID 4.0)
     ///
     /// Requests an NFC document or MNC (JP My Number Card) credential.
@@ -163,6 +173,12 @@ impl Preset {
     #[must_use]
     pub fn passport(signal: Option<String>) -> Self {
         Self::Passport { signal }
+    }
+
+    /// Creates a new `Mnc` preset with optional signal
+    #[must_use]
+    pub fn mnc(signal: Option<String>) -> Self {
+        Self::Mnc { signal }
     }
 
     #[must_use]
@@ -238,6 +254,16 @@ impl Preset {
             Self::Passport { signal } => BridgeParams {
                 constraints: Some(ConstraintNode::item(CredentialRequest::new(
                     CredentialType::Passport,
+                    signal.clone().map(Signal::from_string),
+                ))),
+                legacy_verification_level: Some(VerificationLevel::Document),
+                legacy_signal: signal,
+                identity_attributes: None,
+                allow_legacy_proofs_override: Some(true),
+            },
+            Self::Mnc { signal } => BridgeParams {
+                constraints: Some(ConstraintNode::item(CredentialRequest::new(
+                    CredentialType::Mnc,
                     signal.clone().map(Signal::from_string),
                 ))),
                 legacy_verification_level: Some(VerificationLevel::Document),
@@ -389,6 +415,31 @@ mod tests {
                 );
             }
             _ => panic!("expected passport constraint to be one passport item"),
+        }
+    }
+
+    #[test]
+    fn mnc_preset_builds_v4_constraint_with_legacy_document_fallback() {
+        let preset = Preset::mnc(Some("mnc-signal".to_string()));
+        let bridge_params = preset.into_bridge_params();
+
+        assert_eq!(
+            bridge_params.legacy_verification_level,
+            Some(VerificationLevel::Document)
+        );
+        assert_eq!(bridge_params.legacy_signal, Some("mnc-signal".to_string()));
+        assert_eq!(bridge_params.identity_attributes, None);
+        assert_eq!(bridge_params.allow_legacy_proofs_override, Some(true));
+
+        match bridge_params.constraints {
+            Some(ConstraintNode::Item(item)) => {
+                assert_eq!(item.credential_type, CredentialType::Mnc);
+                assert_eq!(
+                    item.signal.as_ref().and_then(Signal::as_str),
+                    Some("mnc-signal")
+                );
+            }
+            _ => panic!("expected mnc constraint to be one mnc item"),
         }
     }
 
