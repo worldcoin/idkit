@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { __ } from "../../lang";
+import { useMedia } from "../../hooks/useMedia";
 import { WorldcoinIcon } from "../Icons/WorldIcon";
 import { LoadingIcon } from "../Icons/LoadingIcon";
 import { QRCode } from "../../widget/QRCode";
@@ -26,7 +27,11 @@ export function InviteCodeState({
   codeExpiresAt,
   isAwaitingUserConfirmation,
 }: InviteCodeStateProps): ReactElement {
+  const media = useMedia();
   const now = useNowInSeconds();
+  const inviteCode = connectorURI
+    ? new URL(connectorURI).searchParams.get("c")
+    : null;
   const secondsRemaining =
     codeExpiresAt !== null ? Math.max(0, codeExpiresAt - now) : null;
 
@@ -46,32 +51,133 @@ export function InviteCodeState({
       <h2 className="idkit-heading">{__("Connect your World ID")}</h2>
 
       <p className="idkit-subtext">
-        {__("Scan with your phone to continue verifying")}
+        {media === "mobile"
+          ? __(
+              "You will be redirected to the app, please return to this page once you're done",
+            )
+          : __("Scan with your phone to continue verifying")}
       </p>
 
-      <div className="idkit-qr-container">
-        {isAwaitingUserConfirmation && (
-          <div className="idkit-qr-overlay">
-            <div className="idkit-spinner">
-              <LoadingIcon />
-            </div>
-            <div className="idkit-connecting-text">
-              <p>{__("Connecting...")}</p>
-              <p>{__("Please continue in app")}</p>
-            </div>
-          </div>
-        )}
+      {/* Mobile: deep-link button */}
+      <div className="idkit-mobile-only">
+        <a href={connectorURI ?? undefined} className="idkit-deeplink-btn">
+          <WorldcoinIcon />
+          <span>{__("Open World App")}</span>
+        </a>
+      </div>
 
-        <div
-          className={`idkit-qr-blur ${isAwaitingUserConfirmation ? "blurred" : ""}`}
-        >
-          <div className="idkit-qr-wrapper">
-            <div className="idkit-qr-inner">
-              {connectorURI ? <QRCode data={connectorURI} /> : null}
+      {/* Desktop: QR code */}
+      <div className="idkit-desktop-only">
+        <div className="idkit-qr-container">
+          {isAwaitingUserConfirmation && (
+            <div className="idkit-qr-overlay">
+              <div className="idkit-spinner">
+                <LoadingIcon />
+              </div>
+              <div className="idkit-connecting-text">
+                <p>{__("Connecting...")}</p>
+                <p>{__("Please continue in app")}</p>
+              </div>
+            </div>
+          )}
+
+          <div
+            className={`idkit-qr-blur ${isAwaitingUserConfirmation ? "blurred" : ""}`}
+          >
+            <div className="idkit-qr-wrapper">
+              <div className="idkit-qr-inner">
+                {connectorURI ? <QRCode data={connectorURI} /> : null}
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {connectorURI && (
+        <a
+          href={connectorURI}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            marginTop: 12,
+            padding: "8px 16px",
+            borderRadius: 8,
+            border: "1px solid var(--idkit-border, rgba(0,0,0,0.1))",
+            background: "var(--idkit-surface, transparent)",
+            color: "var(--idkit-text-primary)",
+            fontSize: 14,
+            textDecoration: "none",
+            cursor: "pointer",
+          }}
+        >
+          {__("Open Connector URL")}
+        </a>
+      )}
+
+      {inviteCode && (
+        <div
+          style={{
+            marginTop: 16,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <p
+            style={{
+              margin: 0,
+              fontSize: 14,
+              color: "var(--idkit-text-secondary)",
+            }}
+          >
+            {__("Or enter this code in World App")}
+          </p>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <code
+              style={{
+                fontFamily:
+                  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+                fontSize: 24,
+                fontWeight: 600,
+                letterSpacing: "0.1em",
+                padding: "8px 16px",
+                borderRadius: 8,
+                background: "var(--idkit-surface-muted, rgba(0,0,0,0.04))",
+                color: "var(--idkit-text-primary)",
+                userSelect: "all",
+              }}
+            >
+              {inviteCode}
+            </code>
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof navigator !== "undefined" && navigator.clipboard) {
+                  void navigator.clipboard.writeText(inviteCode);
+                }
+              }}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "1px solid var(--idkit-border, rgba(0,0,0,0.1))",
+                background: "var(--idkit-surface, transparent)",
+                color: "var(--idkit-text-primary)",
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              {__("Copy")}
+            </button>
+          </div>
+        </div>
+      )}
 
       {secondsRemaining !== null && (
         <div

@@ -130,7 +130,7 @@ struct ContentView: View {
                     .disabled(model.isLoading)
                 }
 
-                if model.mode == .connectUrl, let connectorURL = model.connectorURL {
+                if let connectorURL = model.connectorURL {
                     Section("Connector URL") {
                         HStack {
                             Button("Open Connector URL", systemImage: "link") {
@@ -145,6 +145,20 @@ struct ContentView: View {
                             .font(.footnote.monospaced())
                             .textSelection(.enabled)
                     }.buttonStyle(.borderless) // This is necessary to prevent the entire section from forwarding tap gestures to the first button in the Section.
+                }
+
+                if model.mode == .inviteCode, let code = model.inviteCode {
+                    Section("Invite Code") {
+                        HStack {
+                            Text(code)
+                                .font(.title.monospaced())
+                                .textSelection(.enabled)
+                            Spacer()
+                            Button("", systemImage: "clipboard") {
+                                UIPasteboard.general.string = code
+                            }
+                        }
+                    }.buttonStyle(.borderless)
                 }
 
                 if model.mode == .inviteCode, let expiresAt = model.codeExpiresAt {
@@ -187,6 +201,7 @@ final class SampleModel: ObservableObject {
     @Published var legacyPreset: SampleLegacyPreset = .orb
     @Published var mode: SampleMode = .connectUrl
     @Published var connectorURL: URL?
+    @Published var inviteCode: String?
     @Published var codeExpiresAt: Date?
     @Published var logs = ""
     @Published var isLoading = false
@@ -251,6 +266,7 @@ final class SampleModel: ObservableObject {
 
                 completionTask?.cancel()
                 connectorURL = request.connectorURL
+                inviteCode = nil
                 codeExpiresAt = nil
                 pendingRequest = request
                 pendingInviteCodeRequest = nil
@@ -275,6 +291,8 @@ final class SampleModel: ObservableObject {
                 // renders the landing page rather than redirecting into World
                 // App. The shared "Connector URL" Section displays it.
                 connectorURL = request.connectorURL
+                inviteCode = URLComponents(url: request.connectorURL, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first(where: { $0.name == "c" })?.value
                 codeExpiresAt = request.expiresAt
                 pendingRequest = nil
                 pendingInviteCodeRequest = request
