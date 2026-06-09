@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactElement,
+} from "react";
 import countries from "i18n-iso-countries";
 import enLocale from "i18n-iso-countries/langs/en.json";
 import {
@@ -57,6 +63,8 @@ type V4CredentialType =
   | "identity_check";
 type SessionCredentialType = Exclude<V4CredentialType, "identity_check">;
 
+type ShareStatus = "copied" | "copy-fallback" | "copy-failed" | "invalid";
+
 type IdentityAttributesConfig = {
   document_type: { enabled: boolean; value: DocumentType };
   document_number: { enabled: boolean; value: string };
@@ -75,7 +83,58 @@ const DEFAULT_IDENTITY_ATTRIBUTES: IdentityAttributesConfig = {
   nationality: { enabled: false, value: "" },
 };
 
+type SharedDemoState = {
+  action: string;
+  environment: "production" | "staging";
+  flowMode: FlowMode;
+  genesisDate: string;
+  genesisEnabled: boolean;
+  identityAttributes: IdentityAttributesConfig;
+  presetKind: PresetKind;
+  requireUserPresence: boolean;
+  returnTo: string;
+  sessionId: string;
+  useInviteCode: boolean;
+  useReturnTo: boolean;
+  useStagingConnectBaseUrl: boolean;
+  useStagingDevPortalUrl: boolean;
+  v4CredentialType: V4CredentialType;
+  worldIdVersion: "3.0" | "4.0";
+};
+
 const SESSION_ID_PATTERN = /^session_[0-9a-fA-F]{128}$/;
+
+const SHARED_CONFIG_VERSION = 1;
+const SHARED_CONFIG_PAGE = "demo";
+
+const FLOW_MODES: readonly FlowMode[] = [
+  "request",
+  "create_session",
+  "session",
+];
+const ENVIRONMENTS = ["production", "staging"] as const;
+const WORLD_ID_VERSIONS = ["3.0", "4.0"] as const;
+const V4_CREDENTIAL_TYPES: readonly V4CredentialType[] = [
+  "proof_of_human",
+  "selfie",
+  "passport",
+  "mnc",
+  "identity_check",
+];
+const SESSION_CREDENTIAL_TYPES: readonly SessionCredentialType[] = [
+  "proof_of_human",
+  "selfie",
+  "passport",
+  "mnc",
+];
+const PRESET_KINDS: readonly PresetKind[] = [
+  "orb",
+  "secure_document",
+  "document",
+  "device",
+  "selfie",
+];
+const DOCUMENT_TYPES: readonly DocumentType[] = ["passport", "eid", "mnc"];
 
 const FLOW_MODE_TO_NAME: Record<FlowMode, string> = {
   request: "Request",
@@ -98,6 +157,352 @@ const PRESET_KIND_TO_NAME: Record<PresetKind, string> = {
   device: "Device",
   selfie: "Selfie Check",
 };
+
+function cloneIdentityAttributes(
+  config: IdentityAttributesConfig,
+): IdentityAttributesConfig {
+  return {
+    document_type: { ...config.document_type },
+    document_number: { ...config.document_number },
+    issuing_country: { ...config.issuing_country },
+    full_name: { ...config.full_name },
+    minimum_age: { ...config.minimum_age },
+    nationality: { ...config.nationality },
+  };
+}
+
+function createDefaultSharedDemoState(): SharedDemoState {
+  return {
+    action: "test-action",
+    environment: "production",
+    flowMode: "request",
+    genesisDate: "",
+    genesisEnabled: false,
+    identityAttributes: cloneIdentityAttributes(DEFAULT_IDENTITY_ATTRIBUTES),
+    presetKind: "orb",
+    requireUserPresence: false,
+    returnTo: "",
+    sessionId: "",
+    useInviteCode: false,
+    useReturnTo: false,
+    useStagingConnectBaseUrl: false,
+    useStagingDevPortalUrl: false,
+    v4CredentialType: "proof_of_human",
+    worldIdVersion: "4.0",
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function coerceBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function coerceString(
+  value: unknown,
+  fallback: string,
+  maxLength: number,
+): string {
+  return typeof value === "string" ? value.slice(0, maxLength) : fallback;
+}
+
+function pickChoice<T extends string>(
+  value: unknown,
+  choices: readonly T[],
+  fallback: T,
+): T {
+  return typeof value === "string" &&
+    (choices as readonly string[]).includes(value)
+    ? (value as T)
+    : fallback;
+}
+
+function coerceAttributeConfig(
+  value: unknown,
+  fallback: { enabled: boolean; value: string },
+  maxLength: number,
+): { enabled: boolean; value: string } {
+  if (!isRecord(value)) {
+    return { ...fallback };
+  }
+
+  return {
+    enabled: coerceBoolean(value.enabled, fallback.enabled),
+    value: coerceString(value.value, fallback.value, maxLength),
+  };
+}
+
+function normalizeIdentityAttributes(value: unknown): IdentityAttributesConfig {
+  const fallback = cloneIdentityAttributes(DEFAULT_IDENTITY_ATTRIBUTES);
+
+  if (!isRecord(value)) {
+    return fallback;
+  }
+
+  const documentType = isRecord(value.document_type)
+    ? {
+        enabled: coerceBoolean(
+          value.document_type.enabled,
+          fallback.document_type.enabled,
+        ),
+        value: pickChoice(
+          value.document_type.value,
+          DOCUMENT_TYPES,
+          fallback.document_type.value,
+        ),
+      }
+    : fallback.document_type;
+
+  const issuingCountry = coerceAttributeConfig(
+    value.issuing_country,
+    fallback.issuing_country,
+    3,
+  );
+  const nationality = coerceAttributeConfig(
+    value.nationality,
+    fallback.nationality,
+    3,
+  );
+
+  return {
+    document_type: documentType,
+    document_number: coerceAttributeConfig(
+      value.document_number,
+      fallback.document_number,
+      120,
+    ),
+    issuing_country: {
+      ...issuingCountry,
+      value: normalizeAlpha3(issuingCountry.value),
+    },
+    full_name: coerceAttributeConfig(value.full_name, fallback.full_name, 120),
+    minimum_age: coerceAttributeConfig(
+      value.minimum_age,
+      fallback.minimum_age,
+      3,
+    ),
+    nationality: {
+      ...nationality,
+      value: normalizeAlpha3(nationality.value),
+    },
+  };
+}
+
+function normalizeSharedDemoState(value: unknown): SharedDemoState | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const fallback = createDefaultSharedDemoState();
+  const environment = pickChoice(
+    value.environment,
+    ENVIRONMENTS,
+    fallback.environment,
+  );
+  const flowMode = pickChoice(value.flowMode, FLOW_MODES, fallback.flowMode);
+  const worldIdVersion = pickChoice(
+    value.worldIdVersion,
+    WORLD_ID_VERSIONS,
+    fallback.worldIdVersion,
+  );
+  const v4CredentialType = pickChoice(
+    value.v4CredentialType,
+    V4_CREDENTIAL_TYPES,
+    fallback.v4CredentialType,
+  );
+
+  const state: SharedDemoState = {
+    action: coerceString(value.action, fallback.action, 200),
+    environment,
+    flowMode,
+    genesisDate: coerceString(value.genesisDate, fallback.genesisDate, 100),
+    genesisEnabled: coerceBoolean(
+      value.genesisEnabled,
+      fallback.genesisEnabled,
+    ),
+    identityAttributes: normalizeIdentityAttributes(value.identityAttributes),
+    presetKind: pickChoice(value.presetKind, PRESET_KINDS, fallback.presetKind),
+    requireUserPresence: coerceBoolean(
+      value.requireUserPresence,
+      fallback.requireUserPresence,
+    ),
+    returnTo: coerceString(value.returnTo, fallback.returnTo, 500),
+    sessionId: coerceString(value.sessionId, fallback.sessionId, 160),
+    useInviteCode: coerceBoolean(value.useInviteCode, fallback.useInviteCode),
+    useReturnTo: coerceBoolean(value.useReturnTo, fallback.useReturnTo),
+    useStagingConnectBaseUrl: coerceBoolean(
+      value.useStagingConnectBaseUrl,
+      fallback.useStagingConnectBaseUrl,
+    ),
+    useStagingDevPortalUrl: coerceBoolean(
+      value.useStagingDevPortalUrl,
+      fallback.useStagingDevPortalUrl,
+    ),
+    v4CredentialType,
+    worldIdVersion,
+  };
+
+  if (state.environment !== "staging") {
+    state.useStagingConnectBaseUrl = false;
+    state.useStagingDevPortalUrl = false;
+  }
+
+  if (state.flowMode !== "request") {
+    state.worldIdVersion = "4.0";
+    state.useInviteCode = false;
+    if (
+      !(SESSION_CREDENTIAL_TYPES as readonly string[]).includes(
+        state.v4CredentialType,
+      )
+    ) {
+      state.v4CredentialType = "proof_of_human";
+    }
+  }
+
+  if (state.flowMode !== "session") {
+    state.sessionId = "";
+  }
+
+  if (state.worldIdVersion !== "4.0") {
+    state.genesisEnabled = false;
+    state.genesisDate = "";
+    state.identityAttributes = cloneIdentityAttributes(
+      DEFAULT_IDENTITY_ATTRIBUTES,
+    );
+  }
+
+  if (state.v4CredentialType !== "mnc") {
+    state.genesisEnabled = false;
+    state.genesisDate = "";
+  }
+
+  if (
+    state.worldIdVersion !== "4.0" ||
+    state.flowMode !== "request" ||
+    state.v4CredentialType !== "identity_check"
+  ) {
+    state.identityAttributes = cloneIdentityAttributes(
+      DEFAULT_IDENTITY_ATTRIBUTES,
+    );
+  }
+
+  return state;
+}
+
+function encodeBase64Url(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary)
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "");
+}
+
+function decodeBase64Url(value: string): string {
+  const base64 = value.replaceAll("-", "+").replaceAll("_", "/");
+  const padded = base64.padEnd(
+    base64.length + ((4 - (base64.length % 4)) % 4),
+    "=",
+  );
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+
+  return new TextDecoder().decode(bytes);
+}
+
+function encodeSharedConfig(state: SharedDemoState): string {
+  return encodeBase64Url(
+    JSON.stringify({
+      v: SHARED_CONFIG_VERSION,
+      page: SHARED_CONFIG_PAGE,
+      state,
+    }),
+  );
+}
+
+function decodeSharedConfig(token: string): SharedDemoState | null {
+  try {
+    const envelope = JSON.parse(decodeBase64Url(token));
+
+    if (
+      !isRecord(envelope) ||
+      envelope.v !== SHARED_CONFIG_VERSION ||
+      envelope.page !== SHARED_CONFIG_PAGE
+    ) {
+      return null;
+    }
+
+    return normalizeSharedDemoState(envelope.state);
+  } catch {
+    return null;
+  }
+}
+
+function createSharedConfigUrl(state: SharedDemoState): string {
+  const url = new URL(window.location.href);
+
+  url.hash = "";
+  url.search = "";
+  url.searchParams.set("config", encodeSharedConfig(state));
+
+  return url.toString();
+}
+
+async function copyText(
+  text: string,
+): Promise<"clipboard" | "fallback" | null> {
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      return "clipboard";
+    }
+  } catch {
+    // Fall through to textarea copy fallback below.
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+
+  try {
+    return document.execCommand("copy") ? "fallback" : null;
+  } catch {
+    return null;
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
+function getShareStatusText(status: ShareStatus): string {
+  switch (status) {
+    case "copied":
+      return "Copied config link.";
+    case "copy-fallback":
+      return "Copied config link.";
+    case "copy-failed":
+      return "Copy failed. Select and copy the link below.";
+    case "invalid":
+      return "Invalid shared config.";
+    default: {
+      const exhaustive: never = status;
+      return exhaustive;
+    }
+  }
+}
 
 function isValidAlpha3(code: string): boolean {
   return code.length === 3 && countries.isValid(code.toUpperCase());
@@ -292,6 +697,9 @@ export function DemoClient(): ReactElement {
   const [useInviteCode, setUseInviteCode] = useState(false);
   const [flowMode, setFlowMode] = useState<FlowMode>("request");
   const [wasIdentityCheck, setWasIdentityCheck] = useState(false);
+  const [isConfigExpanded, setIsConfigExpanded] = useState(true);
+  const [shareStatus, setShareStatus] = useState<ShareStatus | null>(null);
+  const [manualShareUrl, setManualShareUrl] = useState<string | null>(null);
   const isV4PresetCredential =
     v4CredentialType !== "mnc" && v4CredentialType !== "identity_check";
   const isSessionFlow = flowMode !== "request";
@@ -389,6 +797,78 @@ export function DemoClient(): ReactElement {
     ? returnTo.trim() || undefined
     : undefined;
 
+  const createSharedState = useCallback(
+    (): SharedDemoState => ({
+      action,
+      environment,
+      flowMode,
+      genesisDate,
+      genesisEnabled,
+      identityAttributes: cloneIdentityAttributes(identityAttributes),
+      presetKind,
+      requireUserPresence,
+      returnTo,
+      sessionId,
+      useInviteCode,
+      useReturnTo,
+      useStagingConnectBaseUrl,
+      useStagingDevPortalUrl,
+      v4CredentialType,
+      worldIdVersion,
+    }),
+    [
+      action,
+      environment,
+      flowMode,
+      genesisDate,
+      genesisEnabled,
+      identityAttributes,
+      presetKind,
+      requireUserPresence,
+      returnTo,
+      sessionId,
+      useInviteCode,
+      useReturnTo,
+      useStagingConnectBaseUrl,
+      useStagingDevPortalUrl,
+      v4CredentialType,
+      worldIdVersion,
+    ],
+  );
+
+  const applySharedState = useCallback((state: SharedDemoState) => {
+    setAction(state.action);
+    setEnvironment(state.environment);
+    setFlowMode(state.flowMode);
+    setGenesisDate(state.genesisDate);
+    setGenesisEnabled(state.genesisEnabled);
+    setIdentityAttributes(cloneIdentityAttributes(state.identityAttributes));
+    setPresetKind(state.presetKind);
+    setRequireUserPresence(state.requireUserPresence);
+    setReturnTo(state.returnTo);
+    setSessionId(state.sessionId);
+    setUseInviteCode(state.useInviteCode);
+    setUseReturnTo(state.useReturnTo);
+    setUseStagingConnectBaseUrl(state.useStagingConnectBaseUrl);
+    setUseStagingDevPortalUrl(state.useStagingDevPortalUrl);
+    setV4CredentialType(state.v4CredentialType);
+    setWorldIdVersion(state.worldIdVersion);
+  }, []);
+
+  const shareConfig = useCallback(async () => {
+    const shareUrl = createSharedConfigUrl(createSharedState());
+    const copyResult = await copyText(shareUrl);
+
+    setManualShareUrl(copyResult ? null : shareUrl);
+    setShareStatus(
+      copyResult === "clipboard"
+        ? "copied"
+        : copyResult === "fallback"
+          ? "copy-fallback"
+          : "copy-failed",
+    );
+  }, [createSharedState]);
+
   useEffect(() => {
     document.documentElement.setAttribute(
       "data-theme",
@@ -444,7 +924,28 @@ export function DemoClient(): ReactElement {
     );
   }, []);
 
-  const startWidgetFlow = async () => {
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("config");
+
+    if (!token) {
+      return;
+    }
+
+    const sharedState = decodeSharedConfig(token);
+
+    if (!sharedState) {
+      setShareStatus("invalid");
+      setIsConfigExpanded(true);
+      return;
+    }
+
+    applySharedState(sharedState);
+    setManualShareUrl(null);
+    setShareStatus(null);
+    setIsConfigExpanded(false);
+  }, [applySharedState]);
+
+  const startWidgetFlow = useCallback(async () => {
     setWidgetError(null);
     setWidgetVerifyResult(null);
     setWidgetIdkitResult(null);
@@ -476,7 +977,15 @@ export function DemoClient(): ReactElement {
     } catch (error) {
       setWidgetError(error instanceof Error ? error.message : "Unknown error");
     }
-  };
+  }, [
+    action,
+    canStartWidgetFlow,
+    flowMode,
+    isIdentityCheck,
+    isProveSessionFlow,
+    isSessionFlow,
+    sessionId,
+  ]);
 
   if (!APP_ID || !RP_ID) {
     return (
@@ -506,7 +1015,48 @@ export function DemoClient(): ReactElement {
       >
         {isLightTheme ? "Dark" : "Light"}
       </button>
-      <section className="config-panel">
+      <section
+        className={`config-panel ${
+          isConfigExpanded ? "" : "config-panel-collapsed"
+        }`}
+      >
+        <div className="config-panel-header">
+          <h2>Configuration</h2>
+          <div className="config-panel-actions">
+            {shareStatus && (
+              <span
+                className={`config-share-status ${
+                  shareStatus === "copy-failed" || shareStatus === "invalid"
+                    ? "error"
+                    : ""
+                }`}
+              >
+                {getShareStatusText(shareStatus)}
+              </span>
+            )}
+            <button
+              type="button"
+              className="secondary"
+              aria-expanded={isConfigExpanded}
+              onClick={() => setIsConfigExpanded((value) => !value)}
+            >
+              {isConfigExpanded ? "Hide" : "Show"}
+            </button>
+            <button type="button" onClick={shareConfig}>
+              Share config
+            </button>
+          </div>
+        </div>
+        {manualShareUrl && (
+          <input
+            type="text"
+            className="manual-share-url"
+            aria-label="Manual share URL"
+            value={manualShareUrl}
+            readOnly
+            onFocus={(event) => event.currentTarget.select()}
+          />
+        )}
         <div className="config-row">
           <label htmlFor="cfgFlowMode">Flow</label>
           <select

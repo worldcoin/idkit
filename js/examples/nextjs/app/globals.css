@@ -142,6 +142,55 @@ pre {
   min-width: 0;
 }
 
+.config-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.config-panel-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.config-panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.config-panel-collapsed .config-row {
+  display: none;
+}
+
+.config-share-status {
+  color: var(--status-color);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.config-share-status.error {
+  color: var(--danger-color);
+}
+
+.manual-share-url {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--control-text);
+}
+
 .config-row {
   display: flex;
   align-items: center;
@@ -387,6 +436,19 @@ pre {
 
   .stack > button {
     width: 100%;
+  }
+
+  .config-panel-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .config-panel-actions {
+    justify-content: flex-start;
+  }
+
+  .config-share-status {
+    flex: 1 1 100%;
   }
 
   .config-row {
