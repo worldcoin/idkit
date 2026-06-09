@@ -6,6 +6,10 @@
   --border-color: #444;
   --button-bg: #333;
   --button-text: #e0e0e0;
+  --control-bg: #333;
+  --control-text: #e0e0e0;
+  --control-border: #444;
+  --control-disabled-bg: #2b2b2b;
   --status-color: #cbd5e1;
   --code-bg: #0f172a;
   --code-text: #e2e8f0;
@@ -23,6 +27,10 @@
   --border-color: #e2e8f0;
   --button-bg: #0f172a;
   --button-text: #ffffff;
+  --control-bg: #ffffff;
+  --control-text: #0f172a;
+  --control-border: #cbd5e1;
+  --control-disabled-bg: #f1f5f9;
   --status-color: #334155;
   --code-bg: #0f172a;
   --code-text: #e2e8f0;
@@ -161,9 +169,9 @@ pre {
   font-size: 14px;
   padding: 6px 10px;
   border-radius: 6px;
-  border: 1px solid var(--border-color);
-  background: var(--button-bg);
-  color: var(--text-color);
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--control-text);
 }
 
 .config-row input[type="checkbox"] {
@@ -188,7 +196,7 @@ pre {
   border-radius: 999px;
   border: 1px solid var(--border-color);
   background: var(--button-bg);
-  color: var(--text-color);
+  color: var(--button-text);
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
@@ -220,7 +228,8 @@ pre {
 }
 
 .config-row input[type="text"][readonly] {
-  opacity: 0.5;
+  background: var(--control-disabled-bg);
+  opacity: 0.75;
 }
 
 .config-note {
