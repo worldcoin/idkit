@@ -58,6 +58,7 @@ main {
   max-width: 980px;
   margin: 0 auto;
   padding: 40px 16px 80px;
+  min-width: 0;
 }
 
 section {
@@ -66,6 +67,8 @@ section {
   border-radius: 14px;
   padding: 18px;
   margin-bottom: 16px;
+  max-width: 100%;
+  min-width: 0;
 }
 
 button {
@@ -107,6 +110,8 @@ pre {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .status {
@@ -126,6 +131,7 @@ pre {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
 }
 
 .config-row {
@@ -133,6 +139,7 @@ pre {
   align-items: center;
   gap: 10px;
   min-height: 34px;
+  min-width: 0;
 }
 
 .config-row > label {
@@ -147,6 +154,8 @@ pre {
 .config-row input[type="datetime-local"],
 .config-row select {
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
   height: 34px;
   font-family: monospace;
   font-size: 14px;
@@ -216,10 +225,13 @@ pre {
 
 .config-note {
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
   font-family: monospace;
   font-size: 12px;
   opacity: 0.7;
   word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .arena-sections,
@@ -259,6 +271,13 @@ pre {
   font-size: 16px;
 }
 
+.test-case-copy,
+.test-case-meta,
+.test-case-meta dd,
+.test-case-result {
+  min-width: 0;
+}
+
 .test-case-copy p {
   margin: 0 0 8px;
   color: var(--status-color);
@@ -289,6 +308,7 @@ pre {
   color: var(--status-color);
   font-size: 13px;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .test-case-actions {
@@ -339,12 +359,70 @@ pre {
 }
 
 @media (max-width: 700px) {
+  main {
+    padding: 64px 16px 64px;
+  }
+
+  section {
+    padding: 16px;
+  }
+
+  button {
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .stack {
+    align-items: stretch;
+  }
+
+  .stack > button {
+    width: 100%;
+  }
+
+  .config-row {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    min-height: 0;
+  }
+
+  .config-row > label {
+    width: 100%;
+    flex-basis: 100%;
+  }
+
+  .config-row input[type="text"],
+  .config-row input[type="number"],
+  .config-row input[type="datetime-local"],
+  .config-row select {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .config-row input[type="checkbox"],
+  .config-row .tooltip {
+    flex: 0 0 auto;
+  }
+
+  .config-note {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .tooltip-content {
+    left: 0;
+    right: auto;
+    width: min(320px, calc(100vw - 48px));
+  }
+
   .test-case-row {
     grid-template-columns: 1fr;
   }
 
   .test-case-actions {
     justify-content: space-between;
+    flex-wrap: wrap;
   }
 
   .test-case-meta > div {

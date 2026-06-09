@@ -23,7 +23,16 @@
         --border-color: #ddd;
       }
 
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        min-width: 0;
+      }
+
       body {
+        margin: 0;
         background-color: var(--bg-color);
         color: var(--text-color);
         font-family:
@@ -31,6 +40,7 @@
           -apple-system,
           sans-serif;
         padding: 20px;
+        min-width: 0;
         transition:
           background-color 0.3s,
           color 0.3s;
@@ -44,6 +54,7 @@
         border-radius: 6px;
         cursor: pointer;
         margin: 4px;
+        max-width: 100%;
       }
 
       button:hover {
@@ -56,6 +67,8 @@
         border-radius: 8px;
         margin-top: 16px;
         border: 1px solid var(--border-color);
+        max-width: 100%;
+        min-width: 0;
       }
 
       pre {
@@ -63,6 +76,7 @@
         padding: 12px;
         border-radius: 4px;
         overflow-x: auto;
+        max-width: 100%;
       }
 
       .theme-toggle {
@@ -120,12 +134,14 @@
         display: flex;
         flex-direction: column;
         gap: 10px;
+        min-width: 0;
       }
 
       .config-row {
         display: flex;
         align-items: center;
         gap: 10px;
+        min-width: 0;
       }
 
       .config-row > label {
@@ -137,6 +153,8 @@
       .config-row input[type="text"],
       .config-row select {
         flex: 1;
+        min-width: 0;
+        max-width: 100%;
         font-family: monospace;
         font-size: 14px;
         padding: 6px 10px;
@@ -157,6 +175,7 @@
         background: var(--button-bg);
         border-radius: 6px;
         word-break: break-all;
+        overflow-wrap: anywhere;
         line-height: 1.5;
         user-select: all;
       }
@@ -166,12 +185,74 @@
         align-items: center;
         gap: 8px;
         margin-top: 10px;
+        min-width: 0;
       }
 
       .copy-row button {
         margin: 0;
         padding: 6px 12px;
         font-size: 13px;
+      }
+
+      body > div {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+      }
+
+      body > div > button {
+        margin: 0;
+      }
+
+      @media (max-width: 700px) {
+        body {
+          padding: 64px 16px 48px;
+        }
+
+        button {
+          white-space: normal;
+        }
+
+        .config-row {
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px 10px;
+        }
+
+        .config-row > label {
+          flex-basis: 100%;
+          min-width: 0;
+        }
+
+        .config-row > label:empty {
+          display: none;
+        }
+
+        .config-row input[type="text"],
+        .config-row select {
+          flex: 1 1 100%;
+          width: 100%;
+        }
+
+        .config-row input[type="checkbox"] {
+          flex: 0 0 auto;
+        }
+
+        .config-row small {
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
+
+        body > div > button,
+        .copy-row button {
+          flex: 1 1 100%;
+        }
+
+        .copy-row {
+          align-items: stretch;
+          flex-wrap: wrap;
+        }
       }
     </style>
   </head>
