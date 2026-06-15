@@ -5,6 +5,7 @@ Kotlin SDK for World ID verification, backed by the Rust core via UniFFI.
 ## Installation
 
 The Kotlin package is published to GitHub Packages as `com.worldcoin:idkit`.
+The same publication is also prepared for `mavenLocal()` and Maven Central. Maven Central upload is available as an explicit local opt-in, but it is intentionally not wired into GitHub release workflows until the required secrets are available there and the workflow has been tested end to end.
 
 GitHub Packages requires authentication for Maven downloads, even for public packages.
 Create a token with `read:packages` and expose it through environment variables.
@@ -20,6 +21,25 @@ dependencyResolutionManagement {
                 password = System.getenv("GITHUB_TOKEN")
             }
         }
+    }
+}
+```
+
+For local integration testing, build the Kotlin artifacts, publish them to `mavenLocal()`, and add `mavenLocal()` to the consuming app repositories:
+
+```bash
+bash scripts/build-kotlin.sh
+./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin :bindings:publishToMavenLocal
+```
+
+Then add `mavenLocal()` to the consuming app repositories:
+
+```kotlin
+dependencyResolutionManagement {
+    repositories {
+        mavenLocal()
+        google()
+        mavenCentral()
     }
 }
 ```
@@ -190,7 +210,52 @@ If Gradle is available locally:
 
 ```bash
 gradle -p kotlin bindings:test
+./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin :bindings:publishToMavenLocal
 ```
+
+## Publishing
+
+The existing Kotlin release workflow publishes to GitHub Packages. That path is still active and uses GitHub's package credentials:
+
+```bash
+./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin :bindings:publish
+```
+
+Without `-Pidkit.publish.mavenCentral=true`, this does not configure Maven Central upload or signing tasks.
+
+For local integration testing, publish the same artifact to the local Maven repository:
+
+```bash
+./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin :bindings:publishToMavenLocal
+```
+
+To publish to Maven Central from a local machine that already has credentials, keep the secrets in `~/.gradle/gradle.properties`:
+
+```properties
+mavenCentralUsername=<central-portal-token-username>
+mavenCentralPassword=<central-portal-token-password>
+signing.keyId=<gpg-key-id>
+signing.password=<gpg-key-password>
+signing.secretKeyRingFile=/path/to/secring.gpg
+```
+
+Then explicitly enable the Central publishing path for that Gradle invocation:
+
+```bash
+./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin \
+  -Pidkit.publish.mavenCentral=true \
+  :bindings:publishToMavenCentral
+```
+
+To upload and release from the Central Portal deployment in one command, run:
+
+```bash
+./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin \
+  -Pidkit.publish.mavenCentral=true \
+  :bindings:publishAndReleaseToMavenCentral
+```
+
+The automated release workflow continues publishing Kotlin artifacts to GitHub Packages, but it does not publish to Maven Central yet. Add Maven Central release-workflow steps only after the required credentials and end-to-end release path are ready.
 
 ## Troubleshooting
 
