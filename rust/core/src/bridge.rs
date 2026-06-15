@@ -509,6 +509,7 @@ pub struct BridgeConnection {
     /// Used to add the `signal_hash` back to the idkit response for convenience
     cached_signal_hashes: CachedSignalHashes,
     /// Request payload built by `IDKit` before bridge encryption/wrapping.
+    /// Stored unconditionally because Rust does not know whether JS debug mode is enabled.
     debug_payload: serde_json::Value,
     /// Action identifier (only for uniqueness proofs)
     action: Option<String>,

@@ -148,14 +148,14 @@ export function createIDKitDebugReport(options: {
   }
 
   const now = new Date().toISOString();
-  const payloadJson =
-    options.payload === undefined
-      ? undefined
-      : stableStringify(options.payload);
-  const payload =
+  const normalizedPayload =
     options.payload === undefined
       ? undefined
       : normalizeForJson(options.payload);
+  const payloadJson =
+    normalizedPayload === undefined
+      ? undefined
+      : (JSON.stringify(normalizedPayload) ?? "undefined");
 
   return {
     schema_version: 1,
@@ -173,7 +173,7 @@ export function createIDKitDebugReport(options: {
       return_to: options.config.return_to,
       allow_legacy_proofs: options.config.allow_legacy_proofs,
       require_user_presence: options.config.require_user_presence,
-      payload_before_transport: payload,
+      payload_before_transport: normalizedPayload,
       payload_before_transport_sha256:
         payloadJson === undefined ? undefined : fingerprintString(payloadJson),
       payload_before_transport_size_bytes:
@@ -344,10 +344,6 @@ function fingerprintBytes(value: Uint8Array): string {
   return bytesToHex(sha256(value));
 }
 
-function stableStringify(value: unknown): string {
-  return JSON.stringify(normalizeForJson(value)) ?? "undefined";
-}
-
 function normalizeForJson(value: unknown): unknown {
   if (typeof value === "bigint") {
     return value.toString();
@@ -367,9 +363,10 @@ function normalizeForJson(value: unknown): unknown {
   if (value && typeof value === "object") {
     const object = value as Record<string, unknown>;
     return Object.fromEntries(
-      Object.keys(object)
-        .sort()
-        .map((childKey) => [childKey, normalizeForJson(object[childKey])]),
+      Object.entries(object).map(([key, child]) => [
+        key,
+        normalizeForJson(child),
+      ]),
     );
   }
 
@@ -381,5 +378,5 @@ function cloneValue(value: unknown): unknown {
     return structuredClone(value);
   }
 
-  return JSON.parse(stableStringify(value));
+  return JSON.parse(JSON.stringify(normalizeForJson(value)) ?? "undefined");
 }

@@ -279,9 +279,10 @@ impl From<Error> for IdkitError {
                 details: err.to_string(),
             },
             Error::InvalidProof(message) => Self::InvalidProof { details: message },
-            Error::BridgeError(message) | Error::BridgeRequestFailed { message, .. } => {
-                Self::BridgeError { details: message }
-            }
+            Error::BridgeError(message) => Self::BridgeError { details: message },
+            // FFI/mobile does not use JS debug reports, so the raw debug payload is intentionally
+            // dropped when crossing this error boundary.
+            Error::BridgeRequestFailed { message, .. } => Self::BridgeError { details: message },
             Error::AppError(app_err) => Self::AppError {
                 details: app_err.to_string(),
             },
