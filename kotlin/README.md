@@ -254,7 +254,7 @@ To upload and release from the Central Portal deployment in one command, run:
   :bindings:publishAndReleaseToMavenCentral
 ```
 
-The automated release workflow continues publishing Kotlin artifacts to GitHub Packages, but it does not publish to Maven Central yet. Add Maven Central release-workflow steps only after the required credentials and end-to-end release path are ready.
+On production releases the workflow runs this Central publish step automatically, using the Sonatype and GPG signing credentials stored as `production` environment secrets. The first release uploads to the Central Portal for manual confirmation before going live; a follow-up change switches it to fully automatic.
 
 ## Troubleshooting
 
