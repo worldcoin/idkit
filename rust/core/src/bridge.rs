@@ -508,7 +508,7 @@ pub struct BridgeConnection {
     /// Cached signal hashes of the request
     /// Used to add the `signal_hash` back to the idkit response for convenience
     cached_signal_hashes: CachedSignalHashes,
-    /// Request payload built by IDKit before bridge encryption/wrapping.
+    /// Request payload built by `IDKit` before bridge encryption/wrapping.
     debug_payload: serde_json::Value,
     /// Action identifier (only for uniqueness proofs)
     action: Option<String>,
