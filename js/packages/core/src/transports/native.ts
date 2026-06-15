@@ -30,9 +30,9 @@ import {
   createIDKitDebugReport,
   emitDebugReport,
   isDebug,
+  requestModeFromConfig,
   updateDebugReport,
   type IDKitDebugReport,
-  type IDKitDebugRequestMode,
 } from "../lib/debug";
 
 const MINIAPP_VERIFY_ACTION = "miniapp-verify-action";
@@ -91,12 +91,6 @@ export interface BuilderConfig {
   require_user_presence?: boolean;
   override_connect_base_url?: string;
   environment?: string;
-}
-
-function requestModeFromConfig(config: BuilderConfig): IDKitDebugRequestMode {
-  if (config.type === "createSession") return "create_session";
-  if (config.type === "proveSession") return "prove_session";
-  return "request";
 }
 
 function getNativePlatform(): "ios" | "android" | "unknown" {

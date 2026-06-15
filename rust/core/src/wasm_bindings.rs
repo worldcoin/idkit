@@ -1227,7 +1227,7 @@ impl IDKitRequest {
             .map(|s| s.request_id().to_string())
     }
 
-    /// Returns the pre-encryption payload for safe debug report generation.
+    /// Returns the pre-encryption payload for debug report generation.
     ///
     /// # Errors
     ///
@@ -1339,7 +1339,7 @@ impl IDKitInviteCodeRequest {
             .map(|s| s.request_id().to_string())
     }
 
-    /// Returns the pre-encryption payload for safe debug report generation.
+    /// Returns the pre-encryption payload for debug report generation.
     ///
     /// # Errors
     ///

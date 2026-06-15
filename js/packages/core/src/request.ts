@@ -27,6 +27,7 @@ import {
   attachDebugReportToError,
   cloneDebugReport,
   createIDKitDebugReport,
+  requestModeFromConfig,
   updateDebugReport,
   type IDKitDebugReport,
   type IDKitDebugRequestMode,
@@ -79,7 +80,7 @@ export interface IDKitRequest {
   pollOnce(): Promise<Status>;
   /** Poll continuously until completion or timeout */
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult>;
-  /** Safe, shareable report for debugging this request when debug mode is enabled */
+  /** Debug report for this request when debug mode is enabled. May include sensitive data. */
   getDebugReport(): IDKitDebugReport | undefined;
 }
 
@@ -121,12 +122,6 @@ async function pollUntilCompletionLoop(
 
     await new Promise((resolve) => setTimeout(resolve, pollInterval));
   }
-}
-
-function requestModeFromConfig(config: BuilderConfig): IDKitDebugRequestMode {
-  if (config.type === "createSession") return "create_session";
-  if (config.type === "proveSession") return "prove_session";
-  return "request";
 }
 
 function getWasmDebugPayload(wasmRequest: unknown): unknown {
@@ -288,7 +283,7 @@ export interface IDKitInviteCodeRequest {
   pollOnce(): Promise<Status>;
   /** Poll continuously until completion or timeout */
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult>;
-  /** Safe, shareable report for debugging this request when debug mode is enabled */
+  /** Debug report for this request when debug mode is enabled. May include sensitive data. */
   getDebugReport(): IDKitDebugReport | undefined;
 }
 

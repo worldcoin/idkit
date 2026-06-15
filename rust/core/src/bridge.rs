@@ -1079,7 +1079,7 @@ impl BridgeConnection {
         &self.request_id
     }
 
-    /// Returns the pre-encryption request payload for safe SDK debug reporting.
+    /// Returns the pre-encryption request payload for SDK debug reporting.
     ///
     /// This does not include bridge encryption keys, IVs, invite codes, or
     /// encrypted request/response bodies.

@@ -4,46 +4,6 @@ import packageJson from "../../package.json";
 
 let _debug = false;
 
-const REDACTED = "[redacted]";
-
-const sensitiveKeyPatterns = [
-  /(^|_|\b)k($|_|\b)/i,
-  /key/i,
-  /secret/i,
-  /token/i,
-  /signature/i,
-  /nonce/i,
-  /^iv$/i,
-  /invite.?code/i,
-  /^code$/i,
-  /cookie/i,
-  /authorization/i,
-  /auth/i,
-  /proof$/i,
-  /nullifier/i,
-];
-
-const sensitiveQueryParams = new Set([
-  "k",
-  "key",
-  "c",
-  "code",
-  "invite_code",
-  "access_token",
-  "refresh_token",
-  "token",
-  "secret",
-  "auth",
-  "authorization",
-  "signature",
-  "nonce",
-  "iv",
-  "proof",
-  "proof_response",
-  "nullifier",
-  "nullifier_hash",
-]);
-
 export type IDKitDebugReportStatus =
   | "created"
   | "sent"
@@ -70,13 +30,6 @@ export type IDKitDebugRuntimePlatform =
   | "world_app_ios"
   | "world_app_android"
   | "unknown";
-
-export type IDKitDebugRedactedValue = {
-  redacted: true;
-  reason: "sensitive";
-  sha256?: string;
-  length?: number;
-};
 
 export type IDKitDebugReport = {
   schema_version: 1;
@@ -109,7 +62,7 @@ export type IDKitDebugReport = {
     bridge_url?: string;
     bridge_host?: string;
     request_id?: string;
-    connector_uri_redacted?: string;
+    connector_uri?: string;
     connector_uri_sha256?: string;
     native_command_version?: 1 | 2;
     native_platform?: "ios" | "android" | "unknown";
@@ -122,10 +75,6 @@ export type IDKitDebugReport = {
     status: IDKitDebugReportStatus;
     error_code?: string;
     error_message?: string;
-  };
-  redaction: {
-    level: "safe";
-    excluded: string[];
   };
 };
 
@@ -166,6 +115,14 @@ export function cloneDebugReport(
   return cloneValue(report) as IDKitDebugReport;
 }
 
+export function requestModeFromConfig(config: {
+  type: "request" | "createSession" | "proveSession";
+}): IDKitDebugRequestMode {
+  if (config.type === "createSession") return "create_session";
+  if (config.type === "proveSession") return "prove_session";
+  return "request";
+}
+
 export function createIDKitDebugReport(options: {
   mode: IDKitDebugRequestMode;
   transportKind: IDKitDebugTransportKind;
@@ -195,6 +152,10 @@ export function createIDKitDebugReport(options: {
     options.payload === undefined
       ? undefined
       : stableStringify(options.payload);
+  const payload =
+    options.payload === undefined
+      ? undefined
+      : normalizeForJson(options.payload);
 
   return {
     schema_version: 1,
@@ -209,13 +170,10 @@ export function createIDKitDebugReport(options: {
       app_id: options.config.app_id,
       action: options.config.action,
       environment: options.config.environment ?? "production",
-      return_to: redactUrl(options.config.return_to),
+      return_to: options.config.return_to,
       allow_legacy_proofs: options.config.allow_legacy_proofs,
       require_user_presence: options.config.require_user_presence,
-      payload_before_transport:
-        options.payload === undefined
-          ? undefined
-          : redactDebugValue(options.payload),
+      payload_before_transport: payload,
       payload_before_transport_sha256:
         payloadJson === undefined ? undefined : fingerprintString(payloadJson),
       payload_before_transport_size_bytes:
@@ -227,10 +185,10 @@ export function createIDKitDebugReport(options: {
     },
     transport: {
       kind: options.transportKind,
-      bridge_url: redactUrl(options.config.bridge_url),
+      bridge_url: options.config.bridge_url,
       bridge_host: getUrlHost(options.config.bridge_url),
       request_id: options.requestId,
-      connector_uri_redacted: redactUrl(options.connectorURI),
+      connector_uri: options.connectorURI,
       connector_uri_sha256: options.connectorURI
         ? fingerprintString(options.connectorURI)
         : undefined,
@@ -241,26 +199,6 @@ export function createIDKitDebugReport(options: {
       created_request_at: now,
       updated_at: now,
       status: "created",
-    },
-    redaction: {
-      level: "safe",
-      excluded: [
-        "encryption keys",
-        "bridge decrypt key",
-        "encryption nonce or iv",
-        "full connector uri",
-        "invite code",
-        "encrypted request body",
-        "encrypted bridge response",
-        "decrypted proof response",
-        "proof values",
-        "nullifier values",
-        "cookies",
-        "auth headers",
-        "access tokens",
-        "private keys",
-        "backend signing secrets",
-      ],
     },
   };
 }
@@ -285,7 +223,7 @@ export function updateDebugReport(
     report.transport.request_id = update.requestId;
   }
   if (update.connectorURI) {
-    report.transport.connector_uri_redacted = redactUrl(update.connectorURI);
+    report.transport.connector_uri = update.connectorURI;
     report.transport.connector_uri_sha256 = fingerprintString(
       update.connectorURI,
     );
@@ -384,70 +322,6 @@ function getRuntimePlatform(inWorldApp: boolean): IDKitDebugRuntimePlatform {
     return "world_app_android";
   }
   return "unknown";
-}
-
-function shouldRedactKey(key: string): boolean {
-  return sensitiveKeyPatterns.some((pattern) => pattern.test(key));
-}
-
-function redactDebugValue(value: unknown, key = ""): unknown {
-  if (shouldRedactKey(key)) {
-    return makeRedactedValue(value);
-  }
-
-  if (value instanceof Uint8Array) {
-    return {
-      type: "Uint8Array",
-      length: value.byteLength,
-      sha256: fingerprintBytes(value),
-    };
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => redactDebugValue(item));
-  }
-
-  if (value && typeof value === "object") {
-    const object = value as Record<string, unknown>;
-    const entries = Object.entries(object).map(([childKey, childValue]) => [
-      childKey,
-      redactDebugValue(childValue, childKey),
-    ]);
-    return Object.fromEntries(entries);
-  }
-
-  return value;
-}
-
-function makeRedactedValue(value: unknown): IDKitDebugRedactedValue {
-  const valueString = stableStringify(value);
-  return {
-    redacted: true,
-    reason: "sensitive",
-    sha256: fingerprintString(valueString),
-    length: valueString.length,
-  };
-}
-
-function redactUrl(value: string | undefined): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  try {
-    const url = new URL(value);
-    for (const key of Array.from(url.searchParams.keys())) {
-      if (sensitiveQueryParams.has(key.toLowerCase())) {
-        url.searchParams.set(key, REDACTED);
-      }
-    }
-    if (url.hash) {
-      url.hash = REDACTED;
-    }
-    return url.toString();
-  } catch {
-    return value;
-  }
 }
 
 function getUrlHost(value: string | undefined): string | undefined {
