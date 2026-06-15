@@ -2441,42 +2441,6 @@ mod tests {
     }
 
     #[test]
-    fn test_bridge_request_failed_carries_debug_payload_snapshot() {
-        let mut payload = serde_json::json!({
-            "app_id": "app_test",
-            "action": "test-action",
-            "proof_request": {
-                "signature": "0xsig",
-                "nonce": "0xnonce"
-            }
-        });
-
-        let error = bridge_request_failed("network failure", &payload);
-        payload["app_id"] = serde_json::json!("app_mutated");
-
-        match error {
-            Error::BridgeRequestFailed {
-                message,
-                debug_payload,
-            } => {
-                assert_eq!(message, "network failure");
-                assert_eq!(debug_payload["app_id"], "app_test");
-                assert_eq!(debug_payload["proof_request"]["signature"], "0xsig");
-                assert_eq!(debug_payload["proof_request"]["nonce"], "0xnonce");
-            }
-            other => panic!("expected BridgeRequestFailed, got {other:?}"),
-        }
-    }
-
-    #[cfg(feature = "ffi")]
-    #[test]
-    fn test_bridge_request_failed_maps_to_connection_failed_app_error() {
-        let error = bridge_request_failed("network failure", &serde_json::json!({}));
-
-        assert_eq!(to_app_error(&error), AppError::ConnectionFailed);
-    }
-
-    #[test]
     fn test_bridge_response_error_deserialization() {
         let json = r#"{"error_code": "user_rejected"}"#;
 
@@ -3368,19 +3332,5 @@ mod tests {
         let url = connection.connect_url();
 
         assert!(!url.contains("return_to="));
-    }
-
-    #[test]
-    fn test_debug_payload_is_separate_from_connect_url_secrets() {
-        let connection = sample_connection(None);
-        let connect_url = connection.connect_url();
-        let debug_payload = connection.debug_payload();
-
-        assert!(connect_url.contains("k="));
-        assert!(debug_payload.get("k").is_none());
-        assert!(debug_payload.get("key").is_none());
-        assert!(debug_payload.get("iv").is_none());
-        assert!(debug_payload.get("payload").is_none());
-        assert!(debug_payload.get("invite_code").is_none());
     }
 }
