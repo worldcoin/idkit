@@ -4,9 +4,30 @@ Kotlin SDK for World ID verification, backed by the Rust core via UniFFI.
 
 ## Installation
 
-The Kotlin package is published to GitHub Packages as `com.worldcoin:idkit`.
+Releases are published to Maven Central as `com.worldcoin:idkit`.
 
-GitHub Packages requires authentication for Maven downloads, even for public packages.
+```kotlin
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+    }
+}
+```
+
+Then add the dependency:
+
+```kotlin
+implementation("com.worldcoin:idkit:<version>")
+```
+
+> Note: `com.worldcoin:idkit-kotlin` (3.1.0 and earlier) is the superseded predecessor
+> from the archived [idkit-kotlin](https://github.com/worldcoin/idkit-kotlin) repo.
+> Use `com.worldcoin:idkit` going forward.
+
+### Dev builds
+
+Development builds (versions like `X.Y.Z-dev.<sha>`) are published only to GitHub
+Packages, which requires authentication for Maven downloads even on public packages.
 Create a token with `read:packages` and expose it through environment variables.
 
 ```kotlin
@@ -22,12 +43,6 @@ dependencyResolutionManagement {
         }
     }
 }
-```
-
-Then add the dependency:
-
-```kotlin
-implementation("com.worldcoin:idkit:<version>")
 ```
 
 ## Local setup
