@@ -312,6 +312,37 @@ jobs:
         working-directory: kotlin/
         run: gradle bindings:test
 
+      # Publishes to ~/.m2 (no credentials, no signing) and checks the artifact set
+      # Maven Central validates on release: AAR + sources jar + javadoc jar + POM
+      # with required metadata, plus native libraries bundled for every ABI.
+      - name: Verify publishing configuration
+        working-directory: kotlin/
+        run: |
+          gradle bindings:publishToMavenLocal
+          VERSION=$(grep '^version=' gradle.properties | cut -d= -f2 | tr -d '[:space:]')
+          DIR="$HOME/.m2/repository/com/worldcoin/idkit/$VERSION"
+          echo "Published files:"
+          ls -la "$DIR"
+          for f in "idkit-$VERSION.aar" "idkit-$VERSION-sources.jar" "idkit-$VERSION-javadoc.jar" "idkit-$VERSION.pom"; do
+            if [ ! -f "$DIR/$f" ]; then
+              echo "::error::Expected publish artifact missing: $f"
+              exit 1
+            fi
+          done
+          for tag in "<name>" "<description>" "<url>" "<license>" "<developer>" "<scm>"; do
+            if ! grep -q "$tag" "$DIR/idkit-$VERSION.pom"; then
+              echo "::error::POM is missing required element: $tag"
+              exit 1
+            fi
+          done
+          for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+            if ! jar tf "$DIR/idkit-$VERSION.aar" | grep -q "^jni/$abi/libidkit.so$"; then
+              echo "::error::AAR missing native library: jni/$abi/libidkit.so"
+              exit 1
+            fi
+          done
+          echo "Publishing configuration OK"
+
       - name: Build Kotlin sample app
         working-directory: kotlin/Examples/IDKitSampleApp
         run: ./gradlew :app:assembleDebug
