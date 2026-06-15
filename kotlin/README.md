@@ -4,8 +4,7 @@ Kotlin SDK for World ID verification, backed by the Rust core via UniFFI.
 
 ## Installation
 
-The Kotlin package is published to GitHub Packages as `com.worldcoin:idkit`.
-The same publication is also prepared for `mavenLocal()` and Maven Central. Maven Central upload is available as an explicit local opt-in, but it is intentionally not wired into GitHub release workflows until the required secrets are available there and the workflow has been tested end to end.
+The Kotlin SDK is published to Maven Central as `com.worldcoin:idkit` — add `mavenCentral()` to your repositories and depend on it with no authentication. Release builds are also published to GitHub Packages; dev builds (`X.Y.Z-dev.<sha>`) are published there only.
 
 GitHub Packages requires authentication for Maven downloads, even for public packages.
 Create a token with `read:packages` and expose it through environment variables.
@@ -215,7 +214,7 @@ gradle -p kotlin bindings:test
 
 ## Publishing
 
-The existing Kotlin release workflow publishes to GitHub Packages. That path is still active and uses GitHub's package credentials:
+On production releases the Kotlin release workflow publishes to both Maven Central and GitHub Packages. The GitHub Packages path uses GitHub's package credentials and can also be run locally:
 
 ```bash
 ./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin :bindings:publish

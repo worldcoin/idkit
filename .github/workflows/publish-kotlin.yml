@@ -250,7 +250,7 @@ jobs:
           retention-days: 1
 
   publish:
-    name: Publish to GitHub Packages
+    name: Publish
     runs-on: ubuntu-latest
     needs: [prepare, build-host, build-android]
     environment: ${{ needs.prepare.outputs.environment }}
@@ -323,6 +323,26 @@ jobs:
           arguments: -p kotlin bindings:assembleRelease
         env:
           PKG_VERSION: ${{ needs.prepare.outputs.version }}
+
+      # Production only. The -Pidkit.publish.mavenCentral=true flag is what registers
+      # the Maven Central repository and signing tasks; without it (every dev release)
+      # the step below publishes to GitHub Packages alone. Runs before GitHub Packages
+      # so a Central validation failure aborts the release before anything is published
+      # (Central releases are immutable; GitHub Packages versions are recoverable).
+      # USER_MANAGED for the first release — confirm the deployment in the Central
+      # Portal UI. TODO: switch to publishAndReleaseToMavenCentral once validated once.
+      - name: Publish to Maven Central
+        if: needs.prepare.outputs.environment == 'production'
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: 8.9
+          arguments: -p kotlin bindings:publishToMavenCentral -Pidkit.publish.mavenCentral=true
+        env:
+          PKG_VERSION: ${{ needs.prepare.outputs.version }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MAVEN_SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MAVEN_SIGNING_KEY_PASSWORD }}
 
       - name: Publish to GitHub Packages
         uses: gradle/gradle-build-action@v3
