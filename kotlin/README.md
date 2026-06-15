@@ -209,12 +209,11 @@ If Gradle is available locally:
 
 ```bash
 gradle -p kotlin bindings:test
-./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin :bindings:publishToMavenLocal
 ```
 
 ## Publishing
 
-On production releases the Kotlin release workflow publishes to both Maven Central and GitHub Packages. The GitHub Packages path uses GitHub's package credentials and can also be run locally:
+On production releases the Kotlin release workflow publishes to GitHub Packages and uploads a signed artifact to Maven Central (the first release awaits manual confirmation in the Central Portal before going live — see below). The GitHub Packages path uses GitHub's package credentials and can also be run locally:
 
 ```bash
 ./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin :bindings:publish
@@ -222,11 +221,7 @@ On production releases the Kotlin release workflow publishes to both Maven Centr
 
 Without `-Pidkit.publish.mavenCentral=true`, this does not configure Maven Central upload or signing tasks.
 
-For local integration testing, publish the same artifact to the local Maven repository:
-
-```bash
-./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin :bindings:publishToMavenLocal
-```
+For local integration testing, publish to the local Maven repository with `:bindings:publishToMavenLocal` as described under [Installation](#installation).
 
 To publish to Maven Central from a local machine that already has credentials, keep the secrets in `~/.gradle/gradle.properties`:
 
