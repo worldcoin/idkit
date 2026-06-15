@@ -324,13 +324,18 @@ jobs:
         env:
           PKG_VERSION: ${{ needs.prepare.outputs.version }}
 
-      # Production only. The -Pidkit.publish.mavenCentral=true flag is what registers
-      # the Maven Central repository and signing tasks; without it (every dev release)
-      # the step below publishes to GitHub Packages alone. Runs before GitHub Packages
-      # so a Central validation failure aborts the release before anything is published
-      # (Central releases are immutable; GitHub Packages versions are recoverable).
-      # USER_MANAGED for the first release — confirm the deployment in the Central
-      # Portal UI. TODO: switch to publishAndReleaseToMavenCentral once validated once.
+      # Production only. The -Pidkit.publish.mavenCentral=true flag registers the
+      # Maven Central repository and signing tasks; without it (every dev release) the
+      # step below publishes to GitHub Packages alone.
+      #
+      # Runs before GitHub Packages so a build/signing/upload failure (which fails the
+      # Gradle task) aborts before anything is published. Note: this task only uploads
+      # the deployment — Central Portal validation is asynchronous and is NOT awaited
+      # here, so a validation failure surfaces later in the Portal, not as a failed job.
+      # USER_MANAGED leaves the deployment awaiting a manual Publish in the Portal UI,
+      # so that review is the real gate on what reaches Maven Central. (Switching to
+      # publishAndReleaseToMavenCentral only changes server-side auto-release; it also
+      # returns right after upload and does not wait for validation in CI.)
       - name: Publish to Maven Central
         if: needs.prepare.outputs.environment == 'production'
         uses: gradle/gradle-build-action@v3
