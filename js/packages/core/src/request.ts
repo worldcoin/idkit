@@ -92,6 +92,7 @@ export interface IDKitRequest {
 async function pollUntilCompletionLoop(
   pollOnce: () => Promise<Status>,
   options?: WaitOptions,
+  onLoopExit?: (result: IDKitCompletionResult) => void,
 ): Promise<IDKitCompletionResult> {
   const pollInterval = options?.pollInterval ?? 1000;
   const timeout = options?.timeout ?? 900_000; // 15 minutes default
@@ -99,11 +100,21 @@ async function pollUntilCompletionLoop(
 
   while (true) {
     if (options?.signal?.aborted) {
-      return { success: false, error: IDKitErrorCodes.Cancelled };
+      const result: IDKitCompletionResult = {
+        success: false,
+        error: IDKitErrorCodes.Cancelled,
+      };
+      onLoopExit?.(result);
+      return result;
     }
 
     if (Date.now() - startTime > timeout) {
-      return { success: false, error: IDKitErrorCodes.Timeout };
+      const result: IDKitCompletionResult = {
+        success: false,
+        error: IDKitErrorCodes.Timeout,
+      };
+      onLoopExit?.(result);
+      return result;
     }
 
     const status = await pollOnce();
@@ -181,6 +192,21 @@ function updateDebugReportFromStatus(
   });
 }
 
+function updateDebugReportFromLoopExit(
+  report: IDKitDebugReport | undefined,
+  result: IDKitCompletionResult,
+): void {
+  if (result.success === true) {
+    return;
+  }
+
+  updateDebugReport(report, {
+    status:
+      result.error === IDKitErrorCodes.Cancelled ? "cancelled" : "timeout",
+    errorCode: result.error,
+  });
+}
+
 function attachBridgeCreationDebugReport(
   error: unknown,
   config: BuilderConfig,
@@ -255,7 +281,11 @@ class IDKitRequestImpl implements IDKitRequest {
   }
 
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult> {
-    return pollUntilCompletionLoop(() => this.pollOnce(), options);
+    return pollUntilCompletionLoop(
+      () => this.pollOnce(),
+      options,
+      (result) => updateDebugReportFromLoopExit(this.debugReport, result),
+    );
   }
 
   getDebugReport(): IDKitDebugReport | undefined {
@@ -348,7 +378,11 @@ class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
   }
 
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult> {
-    return pollUntilCompletionLoop(() => this.pollOnce(), options);
+    return pollUntilCompletionLoop(
+      () => this.pollOnce(),
+      options,
+      (result) => updateDebugReportFromLoopExit(this.debugReport, result),
+    );
   }
 
   getDebugReport(): IDKitDebugReport | undefined {
