@@ -23,6 +23,15 @@ import {
   createNativeRequest,
   type BuilderConfig,
 } from "./transports/native";
+import {
+  attachDebugReportToError,
+  cloneDebugReport,
+  createIDKitDebugReport,
+  updateDebugReport,
+  type IDKitDebugReport,
+  type IDKitDebugRequestMode,
+  type IDKitDebugTransportKind,
+} from "./lib/debug";
 
 /** Options for pollUntilCompletion() */
 export interface WaitOptions {
@@ -70,6 +79,8 @@ export interface IDKitRequest {
   pollOnce(): Promise<Status>;
   /** Poll continuously until completion or timeout */
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult>;
+  /** Safe, shareable report for debugging this request when debug mode is enabled */
+  getDebugReport(): IDKitDebugReport | undefined;
 }
 
 /**
@@ -112,6 +123,88 @@ async function pollUntilCompletionLoop(
   }
 }
 
+function requestModeFromConfig(config: BuilderConfig): IDKitDebugRequestMode {
+  if (config.type === "createSession") return "create_session";
+  if (config.type === "proveSession") return "prove_session";
+  return "request";
+}
+
+function getWasmDebugPayload(wasmRequest: unknown): unknown {
+  const candidate = wasmRequest as { debugPayload?: () => unknown };
+  if (typeof candidate.debugPayload !== "function") {
+    return undefined;
+  }
+
+  try {
+    return candidate.debugPayload();
+  } catch {
+    return undefined;
+  }
+}
+
+function getErrorDebugPayload(error: unknown): unknown {
+  if (
+    (typeof error !== "object" && typeof error !== "function") ||
+    error === null
+  ) {
+    return undefined;
+  }
+
+  return (error as { debugPayload?: unknown }).debugPayload;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+function updateDebugReportFromStatus(
+  report: IDKitDebugReport | undefined,
+  status: Status,
+): void {
+  if (status.type === "confirmed") {
+    updateDebugReport(report, {
+      status: "success",
+      responseReceivedAt: new Date().toISOString(),
+    });
+    return;
+  }
+
+  if (status.type === "failed") {
+    updateDebugReport(report, {
+      status: "error",
+      responseReceivedAt: new Date().toISOString(),
+      errorCode: status.error,
+    });
+    return;
+  }
+
+  updateDebugReport(report, {
+    status: status.type,
+  });
+}
+
+function attachBridgeCreationDebugReport(
+  error: unknown,
+  config: BuilderConfig,
+  mode: IDKitDebugRequestMode,
+  transportKind: IDKitDebugTransportKind,
+): never {
+  const report = createIDKitDebugReport({
+    mode,
+    transportKind,
+    config,
+    payload: getErrorDebugPayload(error),
+  });
+  updateDebugReport(report, {
+    status: "error",
+    errorMessage: getErrorMessage(error),
+  });
+  throw attachDebugReportToError(error, report);
+}
+
 /**
  * Internal request implementation (bridge/WASM path)
  */
@@ -119,11 +212,29 @@ class IDKitRequestImpl implements IDKitRequest {
   private wasmRequest: WasmModule.IDKitRequest;
   private _connectorURI: string;
   private _requestId: string;
+  private debugReport?: IDKitDebugReport;
 
-  constructor(wasmRequest: WasmModule.IDKitRequest) {
+  constructor(
+    wasmRequest: WasmModule.IDKitRequest,
+    config: BuilderConfig,
+    mode: IDKitDebugRequestMode,
+    transportKind: IDKitDebugTransportKind,
+  ) {
     this.wasmRequest = wasmRequest;
     this._connectorURI = wasmRequest.connectUrl();
     this._requestId = wasmRequest.requestId();
+    this.debugReport = createIDKitDebugReport({
+      mode,
+      transportKind,
+      config,
+      payload: getWasmDebugPayload(wasmRequest),
+      requestId: this._requestId,
+      connectorURI: this._connectorURI,
+    });
+    updateDebugReport(this.debugReport, {
+      status: "sent",
+      sentToTransportAt: new Date().toISOString(),
+    });
   }
 
   get connectorURI(): string {
@@ -135,11 +246,25 @@ class IDKitRequestImpl implements IDKitRequest {
   }
 
   async pollOnce(): Promise<Status> {
-    return (await this.wasmRequest.pollForStatus()) as Status;
+    try {
+      const status = (await this.wasmRequest.pollForStatus()) as Status;
+      updateDebugReportFromStatus(this.debugReport, status);
+      return status;
+    } catch (error) {
+      updateDebugReport(this.debugReport, {
+        status: "error",
+        errorMessage: getErrorMessage(error),
+      });
+      throw attachDebugReportToError(error, this.debugReport);
+    }
   }
 
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult> {
     return pollUntilCompletionLoop(() => this.pollOnce(), options);
+  }
+
+  getDebugReport(): IDKitDebugReport | undefined {
+    return cloneDebugReport(this.debugReport);
   }
 }
 
@@ -163,6 +288,8 @@ export interface IDKitInviteCodeRequest {
   pollOnce(): Promise<Status>;
   /** Poll continuously until completion or timeout */
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult>;
+  /** Safe, shareable report for debugging this request when debug mode is enabled */
+  getDebugReport(): IDKitDebugReport | undefined;
 }
 
 /**
@@ -175,12 +302,28 @@ class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
   private _connectorURI: string;
   private _expiresAt: number;
   private _requestId: string;
+  private debugReport?: IDKitDebugReport;
 
-  constructor(wasmRequest: WasmModule.IDKitInviteCodeRequest) {
+  constructor(
+    wasmRequest: WasmModule.IDKitInviteCodeRequest,
+    config: BuilderConfig,
+  ) {
     this.wasmRequest = wasmRequest;
     this._connectorURI = wasmRequest.connectUrl();
     this._expiresAt = wasmRequest.expiresAt();
     this._requestId = wasmRequest.requestId();
+    this.debugReport = createIDKitDebugReport({
+      mode: "invite_code_request",
+      transportKind: "invite_code_bridge",
+      config,
+      payload: getWasmDebugPayload(wasmRequest),
+      requestId: this._requestId,
+      connectorURI: this._connectorURI,
+    });
+    updateDebugReport(this.debugReport, {
+      status: "sent",
+      sentToTransportAt: new Date().toISOString(),
+    });
   }
 
   get connectorURI(): string {
@@ -196,11 +339,25 @@ class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
   }
 
   async pollOnce(): Promise<Status> {
-    return (await this.wasmRequest.pollForStatus()) as Status;
+    try {
+      const status = (await this.wasmRequest.pollForStatus()) as Status;
+      updateDebugReportFromStatus(this.debugReport, status);
+      return status;
+    } catch (error) {
+      updateDebugReport(this.debugReport, {
+        status: "error",
+        errorMessage: getErrorMessage(error),
+      });
+      throw attachDebugReportToError(error, this.debugReport);
+    }
   }
 
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult> {
     return pollUntilCompletionLoop(() => this.pollOnce(), options);
+  }
+
+  getDebugReport(): IDKitDebugReport | undefined {
+    return cloneDebugReport(this.debugReport);
   }
 }
 
@@ -617,10 +774,24 @@ class IDKitBuilder {
 
     // Bridge path — WASM
     const wasmBuilder = createWasmBuilderFromConfig(this.config);
-    const wasmRequest = (await wasmBuilder.constraints(
-      constraints,
-    )) as unknown as WasmModule.IDKitRequest;
-    return new IDKitRequestImpl(wasmRequest);
+    try {
+      const wasmRequest = (await wasmBuilder.constraints(
+        constraints,
+      )) as unknown as WasmModule.IDKitRequest;
+      return new IDKitRequestImpl(
+        wasmRequest,
+        this.config,
+        requestModeFromConfig(this.config),
+        "bridge",
+      );
+    } catch (error) {
+      attachBridgeCreationDebugReport(
+        error,
+        this.config,
+        requestModeFromConfig(this.config),
+        "bridge",
+      );
+    }
   }
 
   /**
@@ -696,10 +867,24 @@ class IDKitBuilder {
 
     // Bridge path — WASM
     const wasmBuilder = createWasmBuilderFromConfig(this.config);
-    const wasmRequest = (await wasmBuilder.preset(
-      preset,
-    )) as unknown as WasmModule.IDKitRequest;
-    return new IDKitRequestImpl(wasmRequest);
+    try {
+      const wasmRequest = (await wasmBuilder.preset(
+        preset,
+      )) as unknown as WasmModule.IDKitRequest;
+      return new IDKitRequestImpl(
+        wasmRequest,
+        this.config,
+        requestModeFromConfig(this.config),
+        "bridge",
+      );
+    } catch (error) {
+      attachBridgeCreationDebugReport(
+        error,
+        this.config,
+        requestModeFromConfig(this.config),
+        "bridge",
+      );
+    }
   }
 }
 
@@ -737,10 +922,19 @@ class IDKitInviteCodeBuilder {
     await initIDKit();
 
     const wasmBuilder = createWasmBuilderFromConfig(this.config);
-    const wasmRequest = (await wasmBuilder.constraintsWithInviteCode(
-      constraints,
-    )) as unknown as WasmModule.IDKitInviteCodeRequest;
-    return new IDKitInviteCodeRequestImpl(wasmRequest);
+    try {
+      const wasmRequest = (await wasmBuilder.constraintsWithInviteCode(
+        constraints,
+      )) as unknown as WasmModule.IDKitInviteCodeRequest;
+      return new IDKitInviteCodeRequestImpl(wasmRequest, this.config);
+    } catch (error) {
+      attachBridgeCreationDebugReport(
+        error,
+        this.config,
+        "invite_code_request",
+        "invite_code_bridge",
+      );
+    }
   }
 
   /**
@@ -762,10 +956,19 @@ class IDKitInviteCodeBuilder {
     await initIDKit();
 
     const wasmBuilder = createWasmBuilderFromConfig(this.config);
-    const wasmRequest = (await wasmBuilder.presetWithInviteCode(
-      preset,
-    )) as unknown as WasmModule.IDKitInviteCodeRequest;
-    return new IDKitInviteCodeRequestImpl(wasmRequest);
+    try {
+      const wasmRequest = (await wasmBuilder.presetWithInviteCode(
+        preset,
+      )) as unknown as WasmModule.IDKitInviteCodeRequest;
+      return new IDKitInviteCodeRequestImpl(wasmRequest, this.config);
+    } catch (error) {
+      attachBridgeCreationDebugReport(
+        error,
+        this.config,
+        "invite_code_request",
+        "invite_code_bridge",
+      );
+    }
   }
 }
 

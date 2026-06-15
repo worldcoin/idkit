@@ -75,7 +75,13 @@ export type { IDKitErrorCode } from "./types/result";
 // Utilities
 export { isReactNative, isWeb, isNode } from "./lib/platform";
 export { isInWorldApp } from "./transports/native";
-export { isDebug, setDebug } from "./lib/debug";
+export {
+  isDebug,
+  setDebug,
+  setDebugReportHandler,
+  type IDKitDebugReport,
+  type IDKitDebugReportHandler,
+} from "./lib/debug";
 
 // Session utilities
 export { getSessionCommitment } from "./session";

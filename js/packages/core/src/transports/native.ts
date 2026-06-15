@@ -25,7 +25,15 @@ import type { IDKitResult } from "../types/result";
 import { IDKitErrorCodes } from "../types/result";
 import type { IDKitResultV3, IntegrityBundle } from "../lib/wasm";
 import { WasmModule } from "../lib/wasm";
-import { isDebug } from "../lib/debug";
+import {
+  cloneDebugReport,
+  createIDKitDebugReport,
+  emitDebugReport,
+  isDebug,
+  updateDebugReport,
+  type IDKitDebugReport,
+  type IDKitDebugRequestMode,
+} from "../lib/debug";
 
 const MINIAPP_VERIFY_ACTION = "miniapp-verify-action";
 
@@ -85,6 +93,49 @@ export interface BuilderConfig {
   environment?: string;
 }
 
+function requestModeFromConfig(config: BuilderConfig): IDKitDebugRequestMode {
+  if (config.type === "createSession") return "create_session";
+  if (config.type === "proveSession") return "prove_session";
+  return "request";
+}
+
+function getNativePlatform(): "ios" | "android" | "unknown" {
+  const w = window as any;
+  if (w.webkit?.messageHandlers?.minikit) return "ios";
+  if (w.Android) return "android";
+  return "unknown";
+}
+
+function nativeSendLogDetails(
+  report: IDKitDebugReport | undefined,
+  requestId: string,
+  version: 1 | 2,
+) {
+  return {
+    command: "verify",
+    version,
+    requestId,
+    payload_sha256: report?.request.payload_before_transport_sha256,
+    payload_size_bytes: report?.request.payload_before_transport_size_bytes,
+  };
+}
+
+function nativeResponseLogDetails(payload: unknown) {
+  const p = payload as Record<string, any>;
+  return {
+    status: p?.status,
+    error_code: p?.error_code,
+    protocol_version: p?.protocol_version,
+    has_proof_response: p?.proof_response != null,
+    proof_response_count: Array.isArray(p?.proof_response?.responses)
+      ? p.proof_response.responses.length
+      : undefined,
+    verification_count: Array.isArray(p?.verifications)
+      ? p.verifications.length
+      : undefined,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Native IDKit request
 // ─────────────────────────────────────────────────────────────────────────────
@@ -119,14 +170,26 @@ export function createNativeRequest(
       console.warn(
         "[IDKit] Native: request already in flight, reusing active request",
       );
+    emitDebugReport(_activeNativeRequest.getDebugReport());
     return _activeNativeRequest;
   }
+  const debugReport = createIDKitDebugReport({
+    mode: requestModeFromConfig(config),
+    transportKind: "native",
+    config,
+    payload: wasmPayload,
+    signalHashes,
+    legacySignalHash,
+    nativeCommandVersion: version,
+    nativePlatform: getNativePlatform(),
+  });
   const request = new NativeIDKitRequest(
     wasmPayload,
     config,
     signalHashes,
     legacySignalHash,
     version,
+    debugReport,
   );
   _activeNativeRequest = request;
   return request;
@@ -141,6 +204,7 @@ class NativeIDKitRequest implements IDKitRequest {
   private resolveFn: ((result: IDKitCompletionResult) => void) | null = null;
   private messageHandler: ((event: MessageEvent) => void) | null = null;
   private miniKitHandler: ((payload: any) => void) | null = null;
+  private debugReport?: IDKitDebugReport;
 
   constructor(
     wasmPayload: unknown,
@@ -148,9 +212,13 @@ class NativeIDKitRequest implements IDKitRequest {
     signalHashes: Record<string, string> = {},
     legacySignalHash: string,
     version: 1 | 2 = 2,
+    debugReport?: IDKitDebugReport,
   ) {
     this.requestId =
       crypto.randomUUID?.() ?? `native-${Date.now()}-${++_requestCounter}`;
+    this.debugReport = updateDebugReport(debugReport, {
+      requestId: this.requestId,
+    });
 
     // Never rejects — all outcomes (success, error, cancel, timeout) resolve.
     this.resultPromise = new Promise<IDKitCompletionResult>((resolve) => {
@@ -159,8 +227,15 @@ class NativeIDKitRequest implements IDKitRequest {
       const handleIncomingPayload = (responsePayload: any) => {
         if (this.completionResult) return;
 
+        updateDebugReport(this.debugReport, {
+          responseReceivedAt: new Date().toISOString(),
+        });
+
         if (isDebug())
-          console.debug("[IDKit] Native: received response", responsePayload);
+          console.debug(
+            "[IDKit] Native: received response",
+            nativeResponseLogDetails(responsePayload),
+          );
 
         if (responsePayload?.status === "error") {
           if (isDebug())
@@ -251,16 +326,24 @@ class NativeIDKitRequest implements IDKitRequest {
           if (isDebug())
             console.debug(
               `[IDKit] Native: sending verify command (version=${version}, platform=ios)`,
-              sendPayload,
+              nativeSendLogDetails(this.debugReport, this.requestId, version),
             );
           w.webkit.messageHandlers.minikit.postMessage(sendPayload);
+          updateDebugReport(this.debugReport, {
+            status: "sent",
+            sentToTransportAt: new Date().toISOString(),
+          });
         } else if (w.Android) {
           if (isDebug())
             console.debug(
               `[IDKit] Native: sending verify command (version=${version}, platform=android)`,
-              sendPayload,
+              nativeSendLogDetails(this.debugReport, this.requestId, version),
             );
           w.Android.postMessage(JSON.stringify(sendPayload));
+          updateDebugReport(this.debugReport, {
+            status: "sent",
+            sentToTransportAt: new Date().toISOString(),
+          });
         } else {
           if (isDebug())
             console.warn(
@@ -290,11 +373,27 @@ class NativeIDKitRequest implements IDKitRequest {
         result.success === true ? "success" : `error=${result.error}`,
       );
     this.completionResult = result;
+    const status =
+      result.success === true
+        ? "success"
+        : result.error === IDKitErrorCodes.Cancelled
+          ? "cancelled"
+          : result.error === IDKitErrorCodes.Timeout
+            ? "timeout"
+            : "error";
+    updateDebugReport(this.debugReport, {
+      status,
+      errorCode: result.success === true ? undefined : result.error,
+    });
     this.cleanup();
     this.resolveFn?.(result);
     if (_activeNativeRequest === this) {
       _activeNativeRequest = null;
     }
+  }
+
+  getDebugReport(): IDKitDebugReport | undefined {
+    return cloneDebugReport(this.debugReport);
   }
 
   cancel(): void {

@@ -29,6 +29,23 @@ pub fn init_wasm() {
     });
 }
 
+fn bridge_create_error_to_js(error: crate::Error) -> JsValue {
+    let js_error = js_sys::Error::new(&format!("Failed: {error}"));
+
+    if let crate::Error::BridgeRequestFailed { debug_payload, .. } = &error {
+        let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+        if let Ok(value) = debug_payload.serialize(&serializer) {
+            let _ = js_sys::Reflect::set(
+                js_error.as_ref(),
+                &JsValue::from_str("debugPayload"),
+                &value,
+            );
+        }
+    }
+
+    js_error.into()
+}
+
 /// WASM wrapper for `CredentialRequest`
 #[wasm_bindgen(js_name = CredentialRequestWasm)]
 pub struct CredentialRequestWasm(CredentialRequest);
@@ -1014,7 +1031,7 @@ impl IDKitBuilderWasm {
             let params = config.to_params(Some(constraints))?;
             let connection = crate::bridge::BridgeConnection::create(params)
                 .await
-                .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
+                .map_err(bridge_create_error_to_js)?;
 
             Ok(JsValue::from(IDKitRequest {
                 inner: Rc::new(RefCell::new(Some(connection))),
@@ -1032,7 +1049,7 @@ impl IDKitBuilderWasm {
             let params = config.to_params_from_preset(preset)?;
             let connection = crate::bridge::BridgeConnection::create(params)
                 .await
-                .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
+                .map_err(bridge_create_error_to_js)?;
 
             Ok(JsValue::from(IDKitRequest {
                 inner: Rc::new(RefCell::new(Some(connection))),
@@ -1051,7 +1068,7 @@ impl IDKitBuilderWasm {
             let params = config.to_params(Some(constraints))?;
             let connection = crate::bridge::BridgeConnection::create_for_invite_code(params)
                 .await
-                .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
+                .map_err(bridge_create_error_to_js)?;
 
             Ok(JsValue::from(IDKitInviteCodeRequest {
                 inner: Rc::new(RefCell::new(Some(connection))),
@@ -1070,7 +1087,7 @@ impl IDKitBuilderWasm {
             let params = config.to_params_from_preset(preset)?;
             let connection = crate::bridge::BridgeConnection::create_for_invite_code(params)
                 .await
-                .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
+                .map_err(bridge_create_error_to_js)?;
 
             Ok(JsValue::from(IDKitInviteCodeRequest {
                 inner: Rc::new(RefCell::new(Some(connection))),
@@ -1210,6 +1227,25 @@ impl IDKitRequest {
             .map(|s| s.request_id().to_string())
     }
 
+    /// Returns the pre-encryption payload for safe debug report generation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request has been closed or serialization fails.
+    #[wasm_bindgen(js_name = debugPayload)]
+    pub fn debug_payload(&self) -> Result<JsValue, JsValue> {
+        let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+        self.inner
+            .borrow()
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("Request closed"))
+            .and_then(|s| {
+                s.debug_payload()
+                    .serialize(&serializer)
+                    .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
+            })
+    }
+
     /// Polls the bridge for the current status (non-blocking)
     ///
     /// Returns a status object with type:
@@ -1301,6 +1337,25 @@ impl IDKitInviteCodeRequest {
             .as_ref()
             .ok_or_else(|| JsValue::from_str("Request closed"))
             .map(|s| s.request_id().to_string())
+    }
+
+    /// Returns the pre-encryption payload for safe debug report generation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request has been closed or serialization fails.
+    #[wasm_bindgen(js_name = debugPayload)]
+    pub fn debug_payload(&self) -> Result<JsValue, JsValue> {
+        let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+        self.inner
+            .borrow()
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("Request closed"))
+            .and_then(|s| {
+                s.debug_payload()
+                    .serialize(&serializer)
+                    .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
+            })
     }
 
     /// Polls the bridge for the current status (non-blocking).

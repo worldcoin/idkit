@@ -16,6 +16,13 @@ pub enum Error {
     #[error("Bridge error: {0}")]
     BridgeError(String),
 
+    /// Bridge request creation failed after the pre-encryption payload was built.
+    #[error("Bridge error: {message}")]
+    BridgeRequestFailed {
+        message: String,
+        debug_payload: Box<serde_json::Value>,
+    },
+
     /// JSON serialization/deserialization error
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
@@ -272,7 +279,9 @@ impl From<Error> for IdkitError {
                 details: err.to_string(),
             },
             Error::InvalidProof(message) => Self::InvalidProof { details: message },
-            Error::BridgeError(message) => Self::BridgeError { details: message },
+            Error::BridgeError(message) | Error::BridgeRequestFailed { message, .. } => {
+                Self::BridgeError { details: message }
+            }
             Error::AppError(app_err) => Self::AppError {
                 details: app_err.to_string(),
             },

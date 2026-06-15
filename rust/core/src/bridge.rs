@@ -508,6 +508,8 @@ pub struct BridgeConnection {
     /// Cached signal hashes of the request
     /// Used to add the `signal_hash` back to the idkit response for convenience
     cached_signal_hashes: CachedSignalHashes,
+    /// Request payload built by IDKit before bridge encryption/wrapping.
+    debug_payload: serde_json::Value,
     /// Action identifier (only for uniqueness proofs)
     action: Option<String>,
     /// Action description (only if provided in input)
@@ -731,29 +733,43 @@ impl BridgeConnection {
         // Send to bridge
         let client = reqwest::Client::builder()
             .user_agent(format!("idkit-core/{}", env!("CARGO_PKG_VERSION")))
-            .build()?;
+            .build()
+            .map_err(|e| {
+                bridge_request_failed(format!("Bridge client build failed: {e}"), &payload_value)
+            })?;
 
         let response = client
             .post(bridge_url.join("/request")?)
             .json(&body)
             .send()
-            .await?;
+            .await
+            .map_err(|e| {
+                bridge_request_failed(format!("Bridge request failed: {e}"), &payload_value)
+            })?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(Error::BridgeError(format!(
-                "Bridge request failed with status {}: {}",
-                status,
-                if body.is_empty() {
-                    "no error details"
-                } else {
-                    &body
-                }
-            )));
+            return Err(bridge_request_failed(
+                format!(
+                    "Bridge request failed with status {}: {}",
+                    status,
+                    if body.is_empty() {
+                        "no error details"
+                    } else {
+                        &body
+                    }
+                ),
+                &payload_value,
+            ));
         }
 
-        let create_response: BridgeCreateResponse = response.json().await?;
+        let create_response: BridgeCreateResponse = response.json().await.map_err(|e| {
+            bridge_request_failed(
+                format!("Failed to parse bridge response: {e}"),
+                &payload_value,
+            )
+        })?;
 
         // Extract action from kind for result
         let action = match &params.kind {
@@ -772,6 +788,7 @@ impl BridgeConnection {
             app_id,
             client,
             cached_signal_hashes,
+            debug_payload: payload_value,
             action,
             action_description: params.action_description,
             nonce: params.rp_context.nonce.clone(),
@@ -1062,6 +1079,15 @@ impl BridgeConnection {
         &self.request_id
     }
 
+    /// Returns the pre-encryption request payload for safe SDK debug reporting.
+    ///
+    /// This does not include bridge encryption keys, IVs, invite codes, or
+    /// encrypted request/response bodies.
+    #[must_use]
+    pub fn debug_payload(&self) -> &serde_json::Value {
+        &self.debug_payload
+    }
+
     /// Unix-seconds expiry of the unredeemed code, if this connection was
     /// created in invite-code mode.
     #[must_use]
@@ -1075,6 +1101,13 @@ impl BridgeConnection {
 enum CreateCodeError {
     Conflict,
     Other(Error),
+}
+
+fn bridge_request_failed(message: impl Into<String>, debug_payload: &serde_json::Value) -> Error {
+    Error::BridgeRequestFailed {
+        message: message.into(),
+        debug_payload: Box::new(debug_payload.clone()),
+    }
 }
 
 impl From<Error> for CreateCodeError {
@@ -1142,14 +1175,18 @@ async fn try_create_invite_code_request(
     let client = reqwest::Client::builder()
         .user_agent(format!("idkit-core/{}", env!("CARGO_PKG_VERSION")))
         .build()
-        .map_err(Error::from)?;
+        .map_err(|e| {
+            bridge_request_failed(format!("Bridge client build failed: {e}"), &payload_value)
+        })?;
 
     let response = client
         .post(bridge_url.join("/request")?)
         .json(&body)
         .send()
         .await
-        .map_err(|e| Error::BridgeError(format!("Bridge request failed: {e}")))?;
+        .map_err(|e| {
+            bridge_request_failed(format!("Bridge request failed: {e}"), &payload_value)
+        })?;
 
     if response.status() == reqwest::StatusCode::CONFLICT {
         return Err(CreateCodeError::Conflict);
@@ -1157,14 +1194,17 @@ async fn try_create_invite_code_request(
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        return Err(Error::BridgeError(format!(
-            "Bridge /request (code) failed with status {status}: {}",
-            if body.is_empty() {
-                "no error details"
-            } else {
-                &body
-            }
-        ))
+        return Err(bridge_request_failed(
+            format!(
+                "Bridge /request (code) failed with status {status}: {}",
+                if body.is_empty() {
+                    "no error details"
+                } else {
+                    &body
+                }
+            ),
+            &payload_value,
+        )
         .into());
     }
 
@@ -1175,15 +1215,20 @@ async fn try_create_invite_code_request(
     // the World App side and we'd fail in a confusing way much later in the
     // poll loop. Catching the mismatch here surfaces the contract violation
     // at creation time.
-    let echoed: BridgeCreateResponse = response
-        .json()
-        .await
-        .map_err(|e| Error::BridgeError(format!("Failed to parse bridge response: {e}")))?;
+    let echoed: BridgeCreateResponse = response.json().await.map_err(|e| {
+        bridge_request_failed(
+            format!("Failed to parse bridge response: {e}"),
+            &payload_value,
+        )
+    })?;
     if echoed.request_id != request_id {
-        return Err(Error::BridgeError(format!(
-            "Bridge echoed mismatched request_id (sent {request_id}, got {})",
-            echoed.request_id
-        ))
+        return Err(bridge_request_failed(
+            format!(
+                "Bridge echoed mismatched request_id (sent {request_id}, got {})",
+                echoed.request_id
+            ),
+            &payload_value,
+        )
         .into());
     }
 
@@ -1210,6 +1255,7 @@ async fn try_create_invite_code_request(
         app_id: params.app_id.as_str().to_string(),
         client,
         cached_signal_hashes,
+        debug_payload: payload_value,
         action,
         action_description: params.action_description.clone(),
         nonce: params.rp_context.nonce.clone(),
@@ -1727,7 +1773,7 @@ impl From<Status> for StatusWrapper {
 fn to_app_error(error: &Error) -> AppError {
     match error {
         Error::InvalidConfiguration(_) => AppError::MalformedRequest,
-        Error::BridgeError(_) => AppError::ConnectionFailed,
+        Error::BridgeError(_) | Error::BridgeRequestFailed { .. } => AppError::ConnectionFailed,
         Error::Json(_) => AppError::UnexpectedResponse,
         Error::Crypto(_) => AppError::UnexpectedResponse,
         Error::Base64(_) => AppError::UnexpectedResponse,
@@ -1748,7 +1794,10 @@ fn to_app_error(error: &Error) -> AppError {
 #[cfg(feature = "ffi")]
 fn is_networking_error(error: &Error) -> bool {
     match error {
-        Error::Timeout | Error::ConnectionFailed | Error::BridgeError(_) => true,
+        Error::Timeout
+        | Error::ConnectionFailed
+        | Error::BridgeError(_)
+        | Error::BridgeRequestFailed { .. } => true,
         #[cfg(any(feature = "bridge", feature = "bridge-wasm"))]
         Error::Http(err) => err.is_timeout() || err.is_request(),
         _ => false,
@@ -2389,6 +2438,42 @@ mod tests {
             .unwrap();
 
         assert_eq!(status, Status::Failed(AppError::InvalidRpSignature));
+    }
+
+    #[test]
+    fn test_bridge_request_failed_carries_debug_payload_snapshot() {
+        let mut payload = serde_json::json!({
+            "app_id": "app_test",
+            "action": "test-action",
+            "proof_request": {
+                "signature": "0xsig",
+                "nonce": "0xnonce"
+            }
+        });
+
+        let error = bridge_request_failed("network failure", &payload);
+        payload["app_id"] = serde_json::json!("app_mutated");
+
+        match error {
+            Error::BridgeRequestFailed {
+                message,
+                debug_payload,
+            } => {
+                assert_eq!(message, "network failure");
+                assert_eq!(debug_payload["app_id"], "app_test");
+                assert_eq!(debug_payload["proof_request"]["signature"], "0xsig");
+                assert_eq!(debug_payload["proof_request"]["nonce"], "0xnonce");
+            }
+            other => panic!("expected BridgeRequestFailed, got {other:?}"),
+        }
+    }
+
+    #[cfg(feature = "ffi")]
+    #[test]
+    fn test_bridge_request_failed_maps_to_connection_failed_app_error() {
+        let error = bridge_request_failed("network failure", &serde_json::json!({}));
+
+        assert_eq!(to_app_error(&error), AppError::ConnectionFailed);
     }
 
     #[test]
@@ -3256,6 +3341,7 @@ mod tests {
                 signal_hashes: std::collections::HashMap::new(),
                 legacy_signal_hash: String::new(),
             },
+            debug_payload: serde_json::json!({"app_id": "app_test"}),
             action: Some("test-action".to_string()),
             action_description: None,
             nonce: "0x01".to_string(),
@@ -3282,5 +3368,19 @@ mod tests {
         let url = connection.connect_url();
 
         assert!(!url.contains("return_to="));
+    }
+
+    #[test]
+    fn test_debug_payload_is_separate_from_connect_url_secrets() {
+        let connection = sample_connection(None);
+        let connect_url = connection.connect_url();
+        let debug_payload = connection.debug_payload();
+
+        assert!(connect_url.contains("k="));
+        assert!(debug_payload.get("k").is_none());
+        assert!(debug_payload.get("key").is_none());
+        assert!(debug_payload.get("iv").is_none());
+        assert!(debug_payload.get("payload").is_none());
+        assert!(debug_payload.get("invite_code").is_none());
     }
 }
