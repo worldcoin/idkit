@@ -93,43 +93,6 @@ export interface BuilderConfig {
   environment?: string;
 }
 
-function getNativePlatform(): "ios" | "android" | "unknown" {
-  const w = window as any;
-  if (w.webkit?.messageHandlers?.minikit) return "ios";
-  if (w.Android) return "android";
-  return "unknown";
-}
-
-function nativeSendLogDetails(
-  report: IDKitDebugReport | undefined,
-  requestId: string,
-  version: 1 | 2,
-) {
-  return {
-    command: "verify",
-    version,
-    requestId,
-    payload_sha256: report?.request.payload_before_transport_sha256,
-    payload_size_bytes: report?.request.payload_before_transport_size_bytes,
-  };
-}
-
-function nativeResponseLogDetails(payload: unknown) {
-  const p = payload as Record<string, any>;
-  return {
-    status: p?.status,
-    error_code: p?.error_code,
-    protocol_version: p?.protocol_version,
-    has_proof_response: p?.proof_response != null,
-    proof_response_count: Array.isArray(p?.proof_response?.responses)
-      ? p.proof_response.responses.length
-      : undefined,
-    verification_count: Array.isArray(p?.verifications)
-      ? p.verifications.length
-      : undefined,
-  };
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Native IDKit request
 // ─────────────────────────────────────────────────────────────────────────────
@@ -169,13 +132,9 @@ export function createNativeRequest(
   }
   const debugReport = createIDKitDebugReport({
     mode: requestModeFromConfig(config),
-    transportKind: "native",
+    transport: "mini_app",
     config,
     payload: wasmPayload,
-    signalHashes,
-    legacySignalHash,
-    nativeCommandVersion: version,
-    nativePlatform: getNativePlatform(),
   });
   const request = new NativeIDKitRequest(
     wasmPayload,
@@ -223,13 +182,15 @@ class NativeIDKitRequest implements IDKitRequest {
 
         updateDebugReport(this.debugReport, {
           responseReceivedAt: new Date().toISOString(),
+          responsePayload,
         });
 
         if (isDebug())
-          console.debug(
-            "[IDKit] Native: received response",
-            nativeResponseLogDetails(responsePayload),
-          );
+          console.debug("[IDKit] Native: received response", {
+            status: responsePayload?.status,
+            error_code: responsePayload?.error_code,
+            protocol_version: responsePayload?.protocol_version,
+          });
 
         if (responsePayload?.status === "error") {
           if (isDebug())
@@ -320,7 +281,7 @@ class NativeIDKitRequest implements IDKitRequest {
           if (isDebug())
             console.debug(
               `[IDKit] Native: sending verify command (version=${version}, platform=ios)`,
-              nativeSendLogDetails(this.debugReport, this.requestId, version),
+              { command: "verify", version, requestId: this.requestId },
             );
           w.webkit.messageHandlers.minikit.postMessage(sendPayload);
           updateDebugReport(this.debugReport, {
@@ -331,7 +292,7 @@ class NativeIDKitRequest implements IDKitRequest {
           if (isDebug())
             console.debug(
               `[IDKit] Native: sending verify command (version=${version}, platform=android)`,
-              nativeSendLogDetails(this.debugReport, this.requestId, version),
+              { command: "verify", version, requestId: this.requestId },
             );
           w.Android.postMessage(JSON.stringify(sendPayload));
           updateDebugReport(this.debugReport, {
@@ -387,6 +348,7 @@ class NativeIDKitRequest implements IDKitRequest {
   }
 
   getDebugReport(): IDKitDebugReport | undefined {
+    if (!isDebug()) return undefined;
     return cloneDebugReport(this.debugReport);
   }
 

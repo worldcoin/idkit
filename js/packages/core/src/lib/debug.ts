@@ -1,9 +1,14 @@
-import { sha256 } from "@noble/hashes/sha2";
-import { bytesToHex } from "@noble/hashes/utils";
 import packageJson from "../../package.json";
 
 let _debug = false;
+let _debugReportHandler: IDKitDebugReportHandler | null = null;
 
+export type IDKitDebugTransport = "bridge" | "mini_app";
+export type IDKitDebugRequestMode =
+  | "request"
+  | "invite_code_request"
+  | "create_session"
+  | "prove_session";
 export type IDKitDebugReportStatus =
   | "created"
   | "sent"
@@ -14,36 +19,13 @@ export type IDKitDebugReportStatus =
   | "cancelled"
   | "timeout";
 
-export type IDKitDebugTransportKind =
-  | "bridge"
-  | "invite_code_bridge"
-  | "native";
-
-export type IDKitDebugRequestMode =
-  | "request"
-  | "invite_code_request"
-  | "create_session"
-  | "prove_session";
-
-export type IDKitDebugRuntimePlatform =
-  | "web"
-  | "world_app_ios"
-  | "world_app_android"
-  | "unknown";
-
 export type IDKitDebugReport = {
-  schema_version: 1;
-  created_at: string;
-  sdk: {
-    package_name: string;
-    package_version: string;
-  };
-  runtime: {
-    platform: IDKitDebugRuntimePlatform;
-    in_world_app: boolean;
-    user_agent?: string;
-  };
-  request: {
+  version: 1;
+  package_version: string;
+  transport: IDKitDebugTransport;
+  status: string;
+  timestamps: Record<string, unknown>;
+  request?: {
     mode: IDKitDebugRequestMode;
     app_id?: string;
     action?: string;
@@ -51,36 +33,16 @@ export type IDKitDebugReport = {
     return_to?: string;
     allow_legacy_proofs?: boolean;
     require_user_presence?: boolean;
-    payload_before_transport?: unknown;
-    payload_before_transport_sha256?: string;
-    payload_before_transport_size_bytes?: number;
-    signal_hashes?: Record<string, string>;
-    legacy_signal_hash?: string;
   };
-  transport: {
-    kind: IDKitDebugTransportKind;
-    bridge_url?: string;
-    bridge_host?: string;
-    request_id?: string;
-    connector_uri?: string;
-    connector_uri_sha256?: string;
-    native_command_version?: 1 | 2;
-    native_platform?: "ios" | "android" | "unknown";
-  };
-  lifecycle: {
-    created_request_at?: string;
-    sent_to_transport_at?: string;
-    response_received_at?: string;
-    updated_at: string;
-    status: IDKitDebugReportStatus;
-    error_code?: string;
-    error_message?: string;
-  };
+  request_id?: string;
+  connector_uri?: string;
+  request_payload?: object;
+  response_payload?: object;
+  mini_app?: Record<string, unknown>;
+  error?: Record<string, unknown>;
 };
 
 export type IDKitDebugReportHandler = (report: IDKitDebugReport) => void;
-
-let _debugReportHandler: IDKitDebugReportHandler | null = null;
 
 export function isDebug(): boolean {
   if (_debug) return true;
@@ -98,155 +60,17 @@ export function setDebugReportHandler(
 }
 
 export function emitDebugReport(report: IDKitDebugReport | undefined): void {
-  if (!report || !isDebug() || !_debugReportHandler) {
-    return;
+  if (report && isDebug() && _debugReportHandler) {
+    _debugReportHandler(cloneDebugReport(report)!);
   }
-
-  _debugReportHandler(cloneDebugReport(report)!);
 }
 
 export function cloneDebugReport(
   report: IDKitDebugReport | undefined,
 ): IDKitDebugReport | undefined {
-  if (!report) {
-    return undefined;
-  }
+  if (!report) return undefined;
 
   return cloneValue(report) as IDKitDebugReport;
-}
-
-export function requestModeFromConfig(config: {
-  type: "request" | "createSession" | "proveSession";
-}): IDKitDebugRequestMode {
-  if (config.type === "createSession") return "create_session";
-  if (config.type === "proveSession") return "prove_session";
-  return "request";
-}
-
-export function createIDKitDebugReport(options: {
-  mode: IDKitDebugRequestMode;
-  transportKind: IDKitDebugTransportKind;
-  config: {
-    app_id?: string;
-    action?: string;
-    environment?: string;
-    return_to?: string;
-    allow_legacy_proofs?: boolean;
-    require_user_presence?: boolean;
-    bridge_url?: string;
-  };
-  payload?: unknown;
-  signalHashes?: Record<string, string>;
-  legacySignalHash?: string;
-  requestId?: string;
-  connectorURI?: string;
-  nativeCommandVersion?: 1 | 2;
-  nativePlatform?: "ios" | "android" | "unknown";
-}): IDKitDebugReport | undefined {
-  if (!isDebug()) {
-    return undefined;
-  }
-
-  const now = new Date().toISOString();
-  const normalizedPayload =
-    options.payload === undefined
-      ? undefined
-      : normalizeForJson(options.payload);
-  const payloadJson =
-    normalizedPayload === undefined
-      ? undefined
-      : (JSON.stringify(normalizedPayload) ?? "undefined");
-
-  return {
-    schema_version: 1,
-    created_at: now,
-    sdk: {
-      package_name: packageJson.name,
-      package_version: packageJson.version,
-    },
-    runtime: getRuntimeDebugInfo(),
-    request: {
-      mode: options.mode,
-      app_id: options.config.app_id,
-      action: options.config.action,
-      environment: options.config.environment ?? "production",
-      return_to: options.config.return_to,
-      allow_legacy_proofs: options.config.allow_legacy_proofs,
-      require_user_presence: options.config.require_user_presence,
-      payload_before_transport: normalizedPayload,
-      payload_before_transport_sha256:
-        payloadJson === undefined ? undefined : fingerprintString(payloadJson),
-      payload_before_transport_size_bytes:
-        payloadJson === undefined
-          ? undefined
-          : new TextEncoder().encode(payloadJson).byteLength,
-      signal_hashes: options.signalHashes,
-      legacy_signal_hash: options.legacySignalHash,
-    },
-    transport: {
-      kind: options.transportKind,
-      bridge_url: options.config.bridge_url,
-      bridge_host: getUrlHost(options.config.bridge_url),
-      request_id: options.requestId,
-      connector_uri: options.connectorURI,
-      connector_uri_sha256: options.connectorURI
-        ? fingerprintString(options.connectorURI)
-        : undefined,
-      native_command_version: options.nativeCommandVersion,
-      native_platform: options.nativePlatform,
-    },
-    lifecycle: {
-      created_request_at: now,
-      updated_at: now,
-      status: "created",
-    },
-  };
-}
-
-export function updateDebugReport(
-  report: IDKitDebugReport | undefined,
-  update: {
-    status?: IDKitDebugReportStatus;
-    requestId?: string;
-    connectorURI?: string;
-    sentToTransportAt?: string;
-    responseReceivedAt?: string;
-    errorCode?: string;
-    errorMessage?: string;
-  },
-): IDKitDebugReport | undefined {
-  if (!report) {
-    return undefined;
-  }
-
-  if (update.requestId) {
-    report.transport.request_id = update.requestId;
-  }
-  if (update.connectorURI) {
-    report.transport.connector_uri = update.connectorURI;
-    report.transport.connector_uri_sha256 = fingerprintString(
-      update.connectorURI,
-    );
-  }
-
-  report.lifecycle.updated_at = new Date().toISOString();
-  report.lifecycle.status = update.status ?? report.lifecycle.status;
-
-  if (update.sentToTransportAt) {
-    report.lifecycle.sent_to_transport_at = update.sentToTransportAt;
-  }
-  if (update.responseReceivedAt) {
-    report.lifecycle.response_received_at = update.responseReceivedAt;
-  }
-  if (update.errorCode) {
-    report.lifecycle.error_code = update.errorCode;
-  }
-  if (update.errorMessage) {
-    report.lifecycle.error_message = update.errorMessage;
-  }
-
-  emitDebugReport(report);
-  return report;
 }
 
 export function attachDebugReportToError<T extends unknown>(
@@ -261,8 +85,6 @@ export function attachDebugReportToError<T extends unknown>(
     return error;
   }
 
-  deleteRawDebugPayload(error);
-
   Object.defineProperty(error, "debugReport", {
     configurable: true,
     enumerable: false,
@@ -272,82 +94,120 @@ export function attachDebugReportToError<T extends unknown>(
   return error;
 }
 
-function deleteRawDebugPayload(error: object): void {
-  if (!("debugPayload" in error)) {
-    return;
-  }
-
-  try {
-    delete (error as { debugPayload?: unknown }).debugPayload;
-    return;
-  } catch {
-    // Fall through to the non-enumerable overwrite below.
-  }
-
-  try {
-    Object.defineProperty(error, "debugPayload", {
-      configurable: true,
-      enumerable: false,
-      value: undefined,
-    });
-  } catch {
-    // Best effort: never let debug-report attachment fail because cleanup did.
-  }
+export function requestModeFromConfig(config: {
+  type: "request" | "createSession" | "proveSession";
+}): IDKitDebugRequestMode {
+  if (config.type === "createSession") return "create_session";
+  if (config.type === "proveSession") return "prove_session";
+  return "request";
 }
 
-function getRuntimeDebugInfo(): IDKitDebugReport["runtime"] {
-  const userAgent =
-    typeof navigator !== "undefined" ? navigator.userAgent : undefined;
+export function createIDKitDebugReport(options: {
+  mode: IDKitDebugRequestMode;
+  transport: IDKitDebugTransport;
+  config: {
+    app_id?: string;
+    action?: string;
+    environment?: string;
+    return_to?: string;
+    allow_legacy_proofs?: boolean;
+    require_user_presence?: boolean;
+  };
+  payload?: unknown;
+  requestId?: string;
+  connectorURI?: string;
+}): IDKitDebugReport | undefined {
+  if (!isDebug()) return undefined;
+
+  const now = new Date().toISOString();
+  const report: IDKitDebugReport = {
+    version: 1,
+    package_version: packageJson.version,
+    transport: options.transport,
+    status: "created",
+    timestamps: { created_at: now, updated_at: now },
+    request: compact({
+      mode: options.mode,
+      app_id: options.config.app_id,
+      action: options.config.action,
+      environment: options.config.environment ?? "production",
+      return_to: options.config.return_to,
+      allow_legacy_proofs: options.config.allow_legacy_proofs,
+      require_user_presence: options.config.require_user_presence,
+    }),
+  };
+
+  const miniApp = getMiniAppDebugInfo();
+  if (miniApp) report.mini_app = miniApp;
+
+  if (options.payload && typeof options.payload === "object") {
+    report.request_payload = options.payload;
+  }
+  if (options.requestId) report.request_id = options.requestId;
+  if (options.connectorURI) report.connector_uri = options.connectorURI;
+  return report;
+}
+
+export function updateDebugReport(
+  report: IDKitDebugReport | undefined,
+  update: {
+    status?: IDKitDebugReportStatus;
+    requestId?: string;
+    connectorURI?: string;
+    sentToTransportAt?: string;
+    responseReceivedAt?: string;
+    responsePayload?: unknown;
+    errorCode?: string;
+    errorMessage?: string;
+  },
+): IDKitDebugReport | undefined {
+  if (!report) return undefined;
+
+  if (update.requestId) report.request_id = update.requestId;
+  if (update.connectorURI) report.connector_uri = update.connectorURI;
+  if (update.status) report.status = update.status;
+  if (update.sentToTransportAt) {
+    report.timestamps.sent_to_transport_at = update.sentToTransportAt;
+  }
+  if (update.responseReceivedAt) {
+    report.timestamps.response_received_at = update.responseReceivedAt;
+  }
+  if (update.responsePayload !== undefined) {
+    if (update.responsePayload && typeof update.responsePayload === "object") {
+      report.response_payload = update.responsePayload;
+    }
+  }
+  if (update.errorCode !== undefined || update.errorMessage !== undefined) {
+    report.error = {
+      code: update.errorCode ?? report.error?.code,
+      message: update.errorMessage ?? report.error?.message,
+    };
+  }
+
+  report.timestamps.updated_at = new Date().toISOString();
+  emitDebugReport(report);
+  return report;
+}
+
+function compact<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, child]) => child !== undefined),
+  ) as T;
+}
+
+function getMiniAppDebugInfo(): Record<string, unknown> | undefined {
   const worldApp =
     typeof window !== "undefined" ? (window as any).WorldApp : undefined;
-  const isWorldApp = Boolean(worldApp);
+  if (!worldApp || typeof worldApp !== "object") return undefined;
 
-  return {
-    platform: getRuntimePlatform(isWorldApp),
-    in_world_app: isWorldApp,
-    user_agent: userAgent,
-  };
-}
-
-function getRuntimePlatform(inWorldApp: boolean): IDKitDebugRuntimePlatform {
-  if (!inWorldApp) {
-    return typeof window === "undefined" ? "unknown" : "web";
-  }
-
-  const w = window as any;
-  if (w.webkit?.messageHandlers?.minikit) {
-    return "world_app_ios";
-  }
-  if (w.Android) {
-    return "world_app_android";
-  }
-  return "unknown";
-}
-
-function getUrlHost(value: string | undefined): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  try {
-    return new URL(value).host;
-  } catch {
-    return undefined;
-  }
-}
-
-function fingerprintString(value: string): string {
-  return `sha256:${fingerprintBytes(new TextEncoder().encode(value))}`;
-}
-
-function fingerprintBytes(value: Uint8Array): string {
-  return bytesToHex(sha256(value));
+  return compact({
+    world_app_version: worldApp.world_app_version,
+    platform: worldApp.device_os,
+  });
 }
 
 function normalizeForJson(value: unknown): unknown {
-  if (typeof value === "bigint") {
-    return value.toString();
-  }
+  if (typeof value === "bigint") return value.toString();
 
   if (value instanceof Uint8Array) {
     return {
@@ -361,9 +221,8 @@ function normalizeForJson(value: unknown): unknown {
   }
 
   if (value && typeof value === "object") {
-    const object = value as Record<string, unknown>;
     return Object.fromEntries(
-      Object.entries(object).map(([key, child]) => [
+      Object.entries(value as Record<string, unknown>).map(([key, child]) => [
         key,
         normalizeForJson(child),
       ]),
@@ -374,9 +233,13 @@ function normalizeForJson(value: unknown): unknown {
 }
 
 function cloneValue(value: unknown): unknown {
-  if (typeof structuredClone === "function") {
-    return structuredClone(value);
+  try {
+    if (typeof structuredClone === "function") {
+      return structuredClone(value);
+    }
+  } catch {
+    // Fall through to JSON clone below.
   }
 
-  return JSON.parse(JSON.stringify(normalizeForJson(value)) ?? "undefined");
+  return JSON.parse(JSON.stringify(normalizeForJson(value)) ?? "null");
 }

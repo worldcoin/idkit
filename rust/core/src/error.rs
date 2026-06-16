@@ -16,13 +16,6 @@ pub enum Error {
     #[error("Bridge error: {0}")]
     BridgeError(String),
 
-    /// Bridge request creation failed after the pre-encryption payload was built.
-    #[error("Bridge error: {message}")]
-    BridgeRequestFailed {
-        message: String,
-        debug_payload: Box<serde_json::Value>,
-    },
-
     /// JSON serialization/deserialization error
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
@@ -280,9 +273,6 @@ impl From<Error> for IdkitError {
             },
             Error::InvalidProof(message) => Self::InvalidProof { details: message },
             Error::BridgeError(message) => Self::BridgeError { details: message },
-            // FFI/mobile does not use JS debug reports, so the raw debug payload is intentionally
-            // dropped when crossing this error boundary.
-            Error::BridgeRequestFailed { message, .. } => Self::BridgeError { details: message },
             Error::AppError(app_err) => Self::AppError {
                 details: app_err.to_string(),
             },

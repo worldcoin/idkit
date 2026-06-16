@@ -23,6 +23,7 @@ use crate::crypto::CryptoKey;
 use std::str::FromStr;
 #[cfg(feature = "ffi")]
 use std::sync::Arc;
+use std::sync::Mutex;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Environment
@@ -511,6 +512,7 @@ pub struct BridgeConnection {
     /// Request payload built by `IDKit` before bridge encryption/wrapping.
     /// Stored unconditionally because Rust does not know whether JS debug mode is enabled.
     debug_payload: serde_json::Value,
+    debug_response_payload: Mutex<Option<serde_json::Value>>,
     /// Action identifier (only for uniqueness proofs)
     action: Option<String>,
     /// Action description (only if provided in input)
@@ -735,42 +737,37 @@ impl BridgeConnection {
         let client = reqwest::Client::builder()
             .user_agent(format!("idkit-core/{}", env!("CARGO_PKG_VERSION")))
             .build()
-            .map_err(|e| {
-                bridge_request_failed(format!("Bridge client build failed: {e}"), &payload_value)
-            })?;
+            .map_err(|e| bridge_request_failed(format!("Bridge client build failed: {e}")))?;
 
         let response = client
             .post(bridge_url.join("/request")?)
             .json(&body)
             .send()
             .await
-            .map_err(|e| {
-                bridge_request_failed(format!("Bridge request failed: {e}"), &payload_value)
-            })?;
+            .map_err(|e| bridge_request_failed(format!("Bridge request failed: {e}")))?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(bridge_request_failed(
-                format!(
-                    "Bridge request failed with status {}: {}",
-                    status,
-                    if body.is_empty() {
-                        "no error details"
-                    } else {
-                        &body
-                    }
-                ),
-                &payload_value,
-            ));
+            return Err(bridge_request_failed(format!(
+                "Bridge request failed with status {}: {}",
+                status,
+                if body.is_empty() {
+                    "no error details"
+                } else {
+                    &body
+                }
+            )));
         }
 
-        let create_response: BridgeCreateResponse = response.json().await.map_err(|e| {
-            bridge_request_failed(
-                format!("Failed to parse bridge response: {e}"),
-                &payload_value,
-            )
-        })?;
+        let create_response_payload: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| bridge_request_failed(format!("Failed to parse bridge response: {e}")))?;
+        let create_response: BridgeCreateResponse =
+            serde_json::from_value(create_response_payload.clone()).map_err(|e| {
+                bridge_request_failed(format!("Failed to parse bridge response: {e}"))
+            })?;
 
         // Extract action from kind for result
         let action = match &params.kind {
@@ -790,6 +787,9 @@ impl BridgeConnection {
             client,
             cached_signal_hashes,
             debug_payload: payload_value,
+            debug_response_payload: Mutex::new(Some(serde_json::json!({
+                "create": create_response_payload
+            }))),
             action,
             action_description: params.action_description,
             nonce: params.rp_context.nonce.clone(),
@@ -936,7 +936,9 @@ impl BridgeConnection {
                 #[cfg(not(feature = "native-crypto"))]
                 let plaintext = decrypt(&self.key_bytes, &iv, &ciphertext)?;
 
-                let bridge_response: BridgeResponse = serde_json::from_slice(&plaintext)?;
+                let response_payload: serde_json::Value = serde_json::from_slice(&plaintext)?;
+                self.set_debug_poll_response_payload(response_payload.clone());
+                let bridge_response: BridgeResponse = serde_json::from_value(response_payload)?;
 
                 match bridge_response {
                     BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
@@ -1089,6 +1091,25 @@ impl BridgeConnection {
         &self.debug_payload
     }
 
+    #[must_use]
+    pub fn debug_response_payload(&self) -> Option<serde_json::Value> {
+        self.debug_response_payload
+            .lock()
+            .ok()
+            .and_then(|payload| payload.clone())
+    }
+
+    fn set_debug_poll_response_payload(&self, payload: serde_json::Value) {
+        if let Ok(mut debug_response_payload) = self.debug_response_payload.lock() {
+            let mut response_object = debug_response_payload
+                .take()
+                .and_then(|payload| payload.as_object().cloned())
+                .unwrap_or_default();
+            response_object.insert("poll".to_string(), payload);
+            *debug_response_payload = Some(serde_json::Value::Object(response_object));
+        }
+    }
+
     /// Unix-seconds expiry of the unredeemed code, if this connection was
     /// created in invite-code mode.
     #[must_use]
@@ -1104,11 +1125,8 @@ enum CreateCodeError {
     Other(Error),
 }
 
-fn bridge_request_failed(message: impl Into<String>, debug_payload: &serde_json::Value) -> Error {
-    Error::BridgeRequestFailed {
-        message: message.into(),
-        debug_payload: Box::new(debug_payload.clone()),
-    }
+fn bridge_request_failed(message: impl Into<String>) -> Error {
+    Error::BridgeError(message.into())
 }
 
 impl From<Error> for CreateCodeError {
@@ -1176,18 +1194,14 @@ async fn try_create_invite_code_request(
     let client = reqwest::Client::builder()
         .user_agent(format!("idkit-core/{}", env!("CARGO_PKG_VERSION")))
         .build()
-        .map_err(|e| {
-            bridge_request_failed(format!("Bridge client build failed: {e}"), &payload_value)
-        })?;
+        .map_err(|e| bridge_request_failed(format!("Bridge client build failed: {e}")))?;
 
     let response = client
         .post(bridge_url.join("/request")?)
         .json(&body)
         .send()
         .await
-        .map_err(|e| {
-            bridge_request_failed(format!("Bridge request failed: {e}"), &payload_value)
-        })?;
+        .map_err(|e| bridge_request_failed(format!("Bridge request failed: {e}")))?;
 
     if response.status() == reqwest::StatusCode::CONFLICT {
         return Err(CreateCodeError::Conflict);
@@ -1195,17 +1209,14 @@ async fn try_create_invite_code_request(
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        return Err(bridge_request_failed(
-            format!(
-                "Bridge /request (code) failed with status {status}: {}",
-                if body.is_empty() {
-                    "no error details"
-                } else {
-                    &body
-                }
-            ),
-            &payload_value,
-        )
+        return Err(bridge_request_failed(format!(
+            "Bridge /request (code) failed with status {status}: {}",
+            if body.is_empty() {
+                "no error details"
+            } else {
+                &body
+            }
+        ))
         .into());
     }
 
@@ -1216,20 +1227,17 @@ async fn try_create_invite_code_request(
     // the World App side and we'd fail in a confusing way much later in the
     // poll loop. Catching the mismatch here surfaces the contract violation
     // at creation time.
-    let echoed: BridgeCreateResponse = response.json().await.map_err(|e| {
-        bridge_request_failed(
-            format!("Failed to parse bridge response: {e}"),
-            &payload_value,
-        )
-    })?;
+    let echoed_payload: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| bridge_request_failed(format!("Failed to parse bridge response: {e}")))?;
+    let echoed: BridgeCreateResponse = serde_json::from_value(echoed_payload.clone())
+        .map_err(|e| bridge_request_failed(format!("Failed to parse bridge response: {e}")))?;
     if echoed.request_id != request_id {
-        return Err(bridge_request_failed(
-            format!(
-                "Bridge echoed mismatched request_id (sent {request_id}, got {})",
-                echoed.request_id
-            ),
-            &payload_value,
-        )
+        return Err(bridge_request_failed(format!(
+            "Bridge echoed mismatched request_id (sent {request_id}, got {})",
+            echoed.request_id
+        ))
         .into());
     }
 
@@ -1257,6 +1265,7 @@ async fn try_create_invite_code_request(
         client,
         cached_signal_hashes,
         debug_payload: payload_value,
+        debug_response_payload: Mutex::new(Some(serde_json::json!({ "create": echoed_payload }))),
         action,
         action_description: params.action_description.clone(),
         nonce: params.rp_context.nonce.clone(),
@@ -1774,7 +1783,7 @@ impl From<Status> for StatusWrapper {
 fn to_app_error(error: &Error) -> AppError {
     match error {
         Error::InvalidConfiguration(_) => AppError::MalformedRequest,
-        Error::BridgeError(_) | Error::BridgeRequestFailed { .. } => AppError::ConnectionFailed,
+        Error::BridgeError(_) => AppError::ConnectionFailed,
         Error::Json(_) => AppError::UnexpectedResponse,
         Error::Crypto(_) => AppError::UnexpectedResponse,
         Error::Base64(_) => AppError::UnexpectedResponse,
@@ -1795,10 +1804,7 @@ fn to_app_error(error: &Error) -> AppError {
 #[cfg(feature = "ffi")]
 fn is_networking_error(error: &Error) -> bool {
     match error {
-        Error::Timeout
-        | Error::ConnectionFailed
-        | Error::BridgeError(_)
-        | Error::BridgeRequestFailed { .. } => true,
+        Error::Timeout | Error::ConnectionFailed | Error::BridgeError(_) => true,
         #[cfg(any(feature = "bridge", feature = "bridge-wasm"))]
         Error::Http(err) => err.is_timeout() || err.is_request(),
         _ => false,
@@ -3307,6 +3313,7 @@ mod tests {
                 legacy_signal_hash: String::new(),
             },
             debug_payload: serde_json::json!({"app_id": "app_test"}),
+            debug_response_payload: Mutex::new(None),
             action: Some("test-action".to_string()),
             action_description: None,
             nonce: "0x01".to_string(),
