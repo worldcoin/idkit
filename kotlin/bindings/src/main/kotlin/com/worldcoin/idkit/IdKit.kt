@@ -182,8 +182,14 @@ class IDKitBuilder internal constructor(
     fun constraints(constraints: uniffi.idkit_core.ConstraintNode): IDKitRequest =
         IDKitRequest(inner.constraints(constraints))
 
+    fun bridgeDebugPayloadJson(constraints: uniffi.idkit_core.ConstraintNode): String =
+        inner.bridgeDebugPayloadJson(constraints)
+
     fun preset(preset: Preset): IDKitRequest =
         IDKitRequest(inner.preset(preset))
+
+    fun bridgeDebugPayloadJsonFromPreset(preset: Preset): String =
+        inner.bridgeDebugPayloadJsonFromPreset(preset)
 }
 
 class IDKitRequest internal constructor(

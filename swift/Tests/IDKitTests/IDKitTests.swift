@@ -79,6 +79,64 @@ func idkitEntrypoints() throws {
     #expect(Bool(true))
 }
 
+@Test("bridge debug payload JSON exposes identity check contract fields")
+func bridgeDebugPayloadJSONIdentityCheck() throws {
+    let builder = IDKit.request(
+        config: IDKitRequestConfig(
+            appId: "app_staging_1234567890abcdef",
+            action: "test-action",
+            rpContext: try sampleRpContext(),
+            actionDescription: "Identity check",
+            bridgeUrl: nil,
+            allowLegacyProofs: false,
+            requireUserPresence: true,
+            overrideConnectBaseUrl: nil,
+            returnTo: "idkitsample://callback",
+            environment: .staging,
+            connectUrlMode: nil
+        )
+    )
+
+    let payloadJSON = try builder.bridgeDebugPayloadJSON(
+        from: identityCheck(
+            attributes: [
+                .minimumAge(21),
+                .nationality("JPN")
+            ]
+        )
+    )
+    let payload = try #require(
+        try JSONSerialization.jsonObject(with: Data(payloadJSON.utf8)) as? [String: Any]
+    )
+
+    #expect(payload["app_id"] as? String == "app_staging_1234567890abcdef")
+    #expect(payload["action"] as? String == "test-action")
+    #expect(payload["action_description"] as? String == "Identity check")
+    #expect(payload["verification_level"] as? String == "document")
+    #expect(payload["require_user_presence"] as? Bool == true)
+    #expect(payload["allow_legacy_proofs"] as? Bool == true)
+    #expect(payload["return_to_url"] as? String == "idkitsample://callback")
+    #expect(payload["environment"] as? String == "staging")
+    #expect(payload["timestamp"] == nil)
+
+    let attributes = try #require(payload["identity_attributes"] as? [[String: Any]])
+    #expect(attributes.count == 2)
+    #expect(attributes[0]["type"] as? String == "minimum_age")
+    #expect(attributes[0]["value"] as? Int == 21)
+    #expect(attributes[1]["type"] as? String == "nationality")
+    #expect(attributes[1]["value"] as? String == "JPN")
+
+    let proofRequest = try #require(payload["proof_request"] as? [String: Any])
+    #expect(proofRequest["proof_type"] as? String == "uniqueness")
+    #expect(proofRequest["rp_id"] as? String == "rp_1234567890abcdef")
+    #expect(proofRequest["created_at"] as? Int == 1_700_000_000)
+    #expect(proofRequest["expires_at"] as? Int == 1_700_003_600)
+    #expect(proofRequest["id"] is String)
+
+    let proofRequests = try #require(proofRequest["proof_requests"] as? [[String: Any]])
+    #expect(proofRequests.map { $0["identifier"] as? String } == ["passport", "mnc"])
+}
+
 @Test("Status mapping covers all canonical variants")
 func statusMapping() {
     let result = sampleResult()

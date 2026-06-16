@@ -148,6 +148,11 @@ public final class IDKitBuilder {
         return try IDKitRequest(inner: request)
     }
 
+    /// Builds the plaintext bridge payload JSON without creating a bridge request.
+    public func bridgeDebugPayloadJSON(_ constraints: ConstraintNode) throws -> String {
+        try inner.bridgeDebugPayloadJson(constraints: constraints)
+    }
+
     // TODO: Re-enable when World ID 4.0 is live
     // public func constraintsWithInviteCode(_ constraints: ConstraintNode) throws -> IDKitInviteCodeRequest {
     //     let request = try inner.constraintsWithInviteCode(constraints: constraints)
@@ -157,6 +162,11 @@ public final class IDKitBuilder {
     public func preset(_ preset: Preset) throws -> IDKitRequest {
         let request = try inner.preset(preset: preset)
         return try IDKitRequest(inner: request)
+    }
+
+    /// Builds the plaintext bridge payload JSON for a preset without creating a bridge request.
+    public func bridgeDebugPayloadJSON(from preset: Preset) throws -> String {
+        try inner.bridgeDebugPayloadJsonFromPreset(preset: preset)
     }
 
     /// Builds the request in invite-code mode.

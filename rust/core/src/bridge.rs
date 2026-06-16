@@ -1511,6 +1511,16 @@ impl IDKitConfig {
     }
 }
 
+#[cfg(feature = "ffi")]
+fn bridge_payload_json(
+    params: &BridgeConnectionParams,
+) -> std::result::Result<String, crate::error::IdkitError> {
+    let payload = build_request_payload(params, false).map_err(crate::error::IdkitError::from)?;
+    serde_json::to_string(&payload).map_err(|err| crate::error::IdkitError::JsonError {
+        details: err.to_string(),
+    })
+}
+
 /// Unified builder for creating `IDKit` requests and sessions
 #[cfg(feature = "ffi")]
 #[derive(uniffi::Object)]
@@ -1576,6 +1586,21 @@ impl IDKitBuilder {
         }))
     }
 
+    /// Builds the plaintext bridge payload JSON for the given constraints without
+    /// creating a bridge request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if constraints are invalid or payload construction fails.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn bridge_debug_payload_json(
+        &self,
+        constraints: Arc<ConstraintNode>,
+    ) -> std::result::Result<String, crate::error::IdkitError> {
+        let params = self.config.to_params((*constraints).clone())?;
+        bridge_payload_json(&params)
+    }
+
     /// Creates a `BridgeConnection` from a preset (works for all request types)
     ///
     /// Presets provide a simplified way to create requests with predefined
@@ -1605,6 +1630,21 @@ impl IDKitBuilder {
             inner,
             connect_url_mode: self.config.connect_url_mode(),
         }))
+    }
+
+    /// Builds the plaintext bridge payload JSON for the given preset without
+    /// creating a bridge request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the preset is invalid or payload construction fails.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn bridge_debug_payload_json_from_preset(
+        &self,
+        preset: Preset,
+    ) -> std::result::Result<String, crate::error::IdkitError> {
+        let params = self.config.to_params_from_preset(preset)?;
+        bridge_payload_json(&params)
     }
 
     /// Creates an invite-code mode `BridgeConnection` with the given constraints (WDP-73).
