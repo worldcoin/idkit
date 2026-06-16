@@ -914,6 +914,9 @@ impl BridgeConnection {
             .await?;
 
         if !response.status().is_success() {
+            self.set_debug_poll_response_payload(serde_json::json!({
+                "http_status": response.status().as_u16(),
+            }));
             return Ok(Status::Failed(AppError::ConnectionFailed));
         }
 

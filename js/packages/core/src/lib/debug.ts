@@ -4,11 +4,6 @@ let _debug = false;
 let _debugReportHandler: IDKitDebugReportHandler | null = null;
 
 export type IDKitDebugTransport = "bridge" | "mini_app";
-export type IDKitDebugRequestMode =
-  | "request"
-  | "invite_code_request"
-  | "create_session"
-  | "prove_session";
 export type IDKitDebugReportStatus =
   | "created"
   | "sent"
@@ -25,15 +20,6 @@ export type IDKitDebugReport = {
   transport: IDKitDebugTransport;
   status: string;
   timestamps: Record<string, unknown>;
-  request?: {
-    mode: IDKitDebugRequestMode;
-    app_id?: string;
-    action?: string;
-    environment?: string;
-    return_to?: string;
-    allow_legacy_proofs?: boolean;
-    require_user_presence?: boolean;
-  };
   request_id?: string;
   connector_uri?: string;
   request_payload?: object;
@@ -94,25 +80,8 @@ export function attachDebugReportToError<T extends unknown>(
   return error;
 }
 
-export function requestModeFromConfig(config: {
-  type: "request" | "createSession" | "proveSession";
-}): IDKitDebugRequestMode {
-  if (config.type === "createSession") return "create_session";
-  if (config.type === "proveSession") return "prove_session";
-  return "request";
-}
-
 export function createIDKitDebugReport(options: {
-  mode: IDKitDebugRequestMode;
   transport: IDKitDebugTransport;
-  config: {
-    app_id?: string;
-    action?: string;
-    environment?: string;
-    return_to?: string;
-    allow_legacy_proofs?: boolean;
-    require_user_presence?: boolean;
-  };
   payload?: unknown;
   requestId?: string;
   connectorURI?: string;
@@ -126,15 +95,6 @@ export function createIDKitDebugReport(options: {
     transport: options.transport,
     status: "created",
     timestamps: { created_at: now, updated_at: now },
-    request: compact({
-      mode: options.mode,
-      app_id: options.config.app_id,
-      action: options.config.action,
-      environment: options.config.environment ?? "production",
-      return_to: options.config.return_to,
-      allow_legacy_proofs: options.config.allow_legacy_proofs,
-      require_user_presence: options.config.require_user_presence,
-    }),
   };
 
   const miniApp = getMiniAppDebugInfo();

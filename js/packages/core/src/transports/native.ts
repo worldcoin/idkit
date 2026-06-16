@@ -30,7 +30,6 @@ import {
   createIDKitDebugReport,
   emitDebugReport,
   isDebug,
-  requestModeFromConfig,
   updateDebugReport,
   type IDKitDebugReport,
 } from "../lib/debug";
@@ -131,9 +130,7 @@ export function createNativeRequest(
     return _activeNativeRequest;
   }
   const debugReport = createIDKitDebugReport({
-    mode: requestModeFromConfig(config),
     transport: "mini_app",
-    config,
     payload: wasmPayload,
   });
   const request = new NativeIDKitRequest(
