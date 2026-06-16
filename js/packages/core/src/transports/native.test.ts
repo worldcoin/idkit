@@ -3,6 +3,7 @@ import { IDKitErrorCodes } from "../types/result";
 import type { BuilderConfig } from "./native";
 import { createNativeRequest, getWorldAppVerifyVersion } from "./native";
 import { hashSignal } from "../lib/hashing";
+import { setDebug } from "../lib/debug";
 
 const baseConfig: BuilderConfig = {
   type: "request",
@@ -27,6 +28,7 @@ describe("native transport request lifecycle", () => {
     listeners = [];
     miniKitHandlers = {};
     activeRequest = null;
+    setDebug(false);
 
     (globalThis as any).window = {
       addEventListener: vi.fn(
@@ -56,9 +58,64 @@ describe("native transport request lifecycle", () => {
 
   afterEach(() => {
     activeRequest?.cancel?.();
+    setDebug(false);
     vi.useRealTimers();
     vi.restoreAllMocks();
     delete (globalThis as any).window;
+  });
+
+  it("returns undefined debug reports when debug mode is disabled", () => {
+    const req = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
+    activeRequest = req;
+
+    expect(req.getDebugReport()).toBeUndefined();
+  });
+
+  it("builds native debug snapshots from current request data", async () => {
+    setDebug(true);
+    vi.spyOn(console, "debug").mockImplementation(() => {});
+    (globalThis as any).window.WorldApp = {
+      world_app_version: "2026.6.16",
+      device_os: "ios",
+    };
+
+    const requestPayload = { payload: 1 };
+    const req = createNativeRequest(requestPayload, baseConfig, {}, "");
+    activeRequest = req;
+
+    const initialReport = req.getDebugReport();
+    expect(initialReport).toMatchObject({
+      package_version: expect.any(String),
+      transport: "mini_app",
+      timestamps: { generated_at: expect.any(String) },
+      request_id: expect.any(String),
+      request_payload: requestPayload,
+      mini_app: {
+        world_app_version: "2026.6.16",
+        platform: "ios",
+      },
+    });
+    expect(initialReport?.response_payload).toBeUndefined();
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+    const responsePayload = {
+      status: "success",
+      protocol_version: "3.0",
+      verification_level: "orb",
+      signal_hash: "0xabc",
+      proof: "0x01",
+      merkle_root: "0x02",
+      nullifier_hash: "0x03",
+    };
+    miniKitHandlers["miniapp-verify-action"]?.(responsePayload);
+
+    await expect(completionPromise).resolves.toMatchObject({
+      success: true,
+    });
+    expect(req.getDebugReport()).toMatchObject({
+      request_payload: requestPayload,
+      response_payload: responsePayload,
+    });
   });
 
   it("reuses the in-flight native request instead of cancelling it", async () => {

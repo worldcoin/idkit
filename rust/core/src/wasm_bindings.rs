@@ -29,17 +29,6 @@ pub fn init_wasm() {
     });
 }
 
-fn bridge_create_error_to_js(error: crate::Error) -> JsValue {
-    let js_error = js_sys::Error::new(&format!("Failed: {error}"));
-    if let crate::Error::BridgeRequestFailed { status, body } = &error {
-        let payload = serde_json::json!({ "create": { "http_status": status, "body": body } });
-        if let Ok(value) = json_to_js(&payload) {
-            let _ = js_sys::Reflect::set(&js_error, &"debugResponsePayload".into(), &value);
-        }
-    }
-    js_error.into()
-}
-
 /// WASM wrapper for `CredentialRequest`
 #[wasm_bindgen(js_name = CredentialRequestWasm)]
 pub struct CredentialRequestWasm(CredentialRequest);
@@ -767,14 +756,6 @@ fn json_to_js<T: Serialize>(payload: T) -> Result<JsValue, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
 }
 
-fn bridge_debug_payload_to_js(
-    params: &crate::bridge::BridgeConnectionParams,
-) -> Result<JsValue, JsValue> {
-    crate::bridge::build_request_payload(params, false)
-        .map_err(|e| JsValue::from_str(&format!("Failed to build bridge debug payload: {e}")))
-        .and_then(json_to_js)
-}
-
 fn debug_payload_to_js(
     inner: &Rc<RefCell<Option<crate::BridgeConnection>>>,
 ) -> Result<JsValue, JsValue> {
@@ -782,18 +763,7 @@ fn debug_payload_to_js(
         .borrow()
         .as_ref()
         .ok_or_else(|| JsValue::from_str("Request closed"))
-        .and_then(|s| json_to_js(s.debug_payload()))
-}
-
-fn debug_response_payload_to_js(
-    inner: &Rc<RefCell<Option<crate::BridgeConnection>>>,
-) -> Result<JsValue, JsValue> {
-    inner
-        .borrow()
-        .as_ref()
-        .ok_or_else(|| JsValue::from_str("Request closed"))?
-        .debug_response_payload()
-        .map_or(Ok(JsValue::UNDEFINED), json_to_js)
+        .and_then(|s| json_to_js(s.request_payload()))
 }
 
 /// Unified builder for creating `IDKit` requests and sessions (WASM)
@@ -890,35 +860,6 @@ impl IDKitBuilderWasm {
                 environment,
             },
         }
-    }
-
-    /// Returns the bridge debug request payload for constraints.
-    ///
-    /// # Errors
-    /// Returns an error if input parsing or payload construction fails.
-    #[wasm_bindgen(js_name = bridgeDebugPayload)]
-    pub fn bridge_debug_payload(&self, constraints_json: JsValue) -> Result<JsValue, JsValue> {
-        let constraints: ConstraintNode = serde_wasm_bindgen::from_value(constraints_json)
-            .map_err(|e| JsValue::from_str(&format!("Invalid constraints: {e}")))?;
-
-        let params = self.config.to_params(Some(constraints))?;
-        bridge_debug_payload_to_js(&params)
-    }
-
-    /// Returns the bridge debug request payload for a preset.
-    ///
-    /// # Errors
-    /// Returns an error if input parsing or payload construction fails.
-    #[wasm_bindgen(js_name = bridgeDebugPayloadFromPreset)]
-    pub fn bridge_debug_payload_from_preset(
-        &self,
-        preset_json: JsValue,
-    ) -> Result<JsValue, JsValue> {
-        let preset: Preset = serde_wasm_bindgen::from_value(preset_json)
-            .map_err(|e| JsValue::from_str(&format!("Invalid preset: {e}")))?;
-
-        let params = self.config.to_params_from_preset(preset)?;
-        bridge_debug_payload_to_js(&params)
     }
 
     /// Builds the native payload for constraints (synchronous, no bridge connection).
@@ -1090,7 +1031,7 @@ impl IDKitBuilderWasm {
             let params = config.to_params(Some(constraints))?;
             let connection = crate::bridge::BridgeConnection::create(params)
                 .await
-                .map_err(bridge_create_error_to_js)?;
+                .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
 
             Ok(JsValue::from(IDKitRequest {
                 inner: Rc::new(RefCell::new(Some(connection))),
@@ -1108,7 +1049,7 @@ impl IDKitBuilderWasm {
             let params = config.to_params_from_preset(preset)?;
             let connection = crate::bridge::BridgeConnection::create(params)
                 .await
-                .map_err(bridge_create_error_to_js)?;
+                .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
 
             Ok(JsValue::from(IDKitRequest {
                 inner: Rc::new(RefCell::new(Some(connection))),
@@ -1127,7 +1068,7 @@ impl IDKitBuilderWasm {
             let params = config.to_params(Some(constraints))?;
             let connection = crate::bridge::BridgeConnection::create_for_invite_code(params)
                 .await
-                .map_err(bridge_create_error_to_js)?;
+                .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
 
             Ok(JsValue::from(IDKitInviteCodeRequest {
                 inner: Rc::new(RefCell::new(Some(connection))),
@@ -1146,7 +1087,7 @@ impl IDKitBuilderWasm {
             let params = config.to_params_from_preset(preset)?;
             let connection = crate::bridge::BridgeConnection::create_for_invite_code(params)
                 .await
-                .map_err(bridge_create_error_to_js)?;
+                .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
 
             Ok(JsValue::from(IDKitInviteCodeRequest {
                 inner: Rc::new(RefCell::new(Some(connection))),
@@ -1286,7 +1227,7 @@ impl IDKitRequest {
             .map(|s| s.request_id().to_string())
     }
 
-    /// Returns the pre-encryption payload for debug report generation.
+    /// Returns the pre-encryption request payload for debug report generation.
     ///
     /// # Errors
     ///
@@ -1294,15 +1235,6 @@ impl IDKitRequest {
     #[wasm_bindgen(js_name = debugPayload)]
     pub fn debug_payload(&self) -> Result<JsValue, JsValue> {
         debug_payload_to_js(&self.inner)
-    }
-
-    /// Returns captured bridge response payloads.
-    ///
-    /// # Errors
-    /// Returns an error if the request has been closed.
-    #[wasm_bindgen(js_name = debugResponsePayload)]
-    pub fn debug_response_payload(&self) -> Result<JsValue, JsValue> {
-        debug_response_payload_to_js(&self.inner)
     }
 
     /// Polls the bridge for the current status (non-blocking)
@@ -1398,7 +1330,7 @@ impl IDKitInviteCodeRequest {
             .map(|s| s.request_id().to_string())
     }
 
-    /// Returns the pre-encryption payload for debug report generation.
+    /// Returns the pre-encryption request payload for debug report generation.
     ///
     /// # Errors
     ///
@@ -1406,15 +1338,6 @@ impl IDKitInviteCodeRequest {
     #[wasm_bindgen(js_name = debugPayload)]
     pub fn debug_payload(&self) -> Result<JsValue, JsValue> {
         debug_payload_to_js(&self.inner)
-    }
-
-    /// Returns captured bridge response payloads.
-    ///
-    /// # Errors
-    /// Returns an error if the request has been closed.
-    #[wasm_bindgen(js_name = debugResponsePayload)]
-    pub fn debug_response_payload(&self) -> Result<JsValue, JsValue> {
-        debug_response_payload_to_js(&self.inner)
     }
 
     /// Polls the bridge for the current status (non-blocking).

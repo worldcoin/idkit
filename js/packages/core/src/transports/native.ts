@@ -26,11 +26,8 @@ import { IDKitErrorCodes } from "../types/result";
 import type { IDKitResultV3, IntegrityBundle } from "../lib/wasm";
 import { WasmModule } from "../lib/wasm";
 import {
-  cloneDebugReport,
   createIDKitDebugReport,
-  emitDebugReport,
   isDebug,
-  updateDebugReport,
   type IDKitDebugReport,
 } from "../lib/debug";
 
@@ -126,20 +123,14 @@ export function createNativeRequest(
       console.warn(
         "[IDKit] Native: request already in flight, reusing active request",
       );
-    emitDebugReport(_activeNativeRequest.getDebugReport());
     return _activeNativeRequest;
   }
-  const debugReport = createIDKitDebugReport({
-    transport: "mini_app",
-    payload: wasmPayload,
-  });
   const request = new NativeIDKitRequest(
     wasmPayload,
     config,
     signalHashes,
     legacySignalHash,
     version,
-    debugReport,
   );
   _activeNativeRequest = request;
   return request;
@@ -154,21 +145,17 @@ class NativeIDKitRequest implements IDKitRequest {
   private resolveFn: ((result: IDKitCompletionResult) => void) | null = null;
   private messageHandler: ((event: MessageEvent) => void) | null = null;
   private miniKitHandler: ((payload: any) => void) | null = null;
-  private debugReport?: IDKitDebugReport;
+  private responsePayload?: unknown;
 
   constructor(
-    wasmPayload: unknown,
+    private readonly wasmPayload: unknown,
     config: BuilderConfig,
     signalHashes: Record<string, string> = {},
     legacySignalHash: string,
     version: 1 | 2 = 2,
-    debugReport?: IDKitDebugReport,
   ) {
     this.requestId =
       crypto.randomUUID?.() ?? `native-${Date.now()}-${++_requestCounter}`;
-    this.debugReport = updateDebugReport(debugReport, {
-      requestId: this.requestId,
-    });
 
     // Never rejects — all outcomes (success, error, cancel, timeout) resolve.
     this.resultPromise = new Promise<IDKitCompletionResult>((resolve) => {
@@ -177,10 +164,7 @@ class NativeIDKitRequest implements IDKitRequest {
       const handleIncomingPayload = (responsePayload: any) => {
         if (this.completionResult) return;
 
-        updateDebugReport(this.debugReport, {
-          responseReceivedAt: new Date().toISOString(),
-          responsePayload,
-        });
+        this.responsePayload = responsePayload;
 
         if (isDebug())
           console.debug("[IDKit] Native: received response", responsePayload);
@@ -277,10 +261,6 @@ class NativeIDKitRequest implements IDKitRequest {
               sendPayload,
             );
           w.webkit.messageHandlers.minikit.postMessage(sendPayload);
-          updateDebugReport(this.debugReport, {
-            status: "sent",
-            sentToTransportAt: new Date().toISOString(),
-          });
         } else if (w.Android) {
           if (isDebug())
             console.debug(
@@ -288,10 +268,6 @@ class NativeIDKitRequest implements IDKitRequest {
               sendPayload,
             );
           w.Android.postMessage(JSON.stringify(sendPayload));
-          updateDebugReport(this.debugReport, {
-            status: "sent",
-            sentToTransportAt: new Date().toISOString(),
-          });
         } else {
           if (isDebug())
             console.warn(
@@ -321,18 +297,6 @@ class NativeIDKitRequest implements IDKitRequest {
         result.success === true ? "success" : `error=${result.error}`,
       );
     this.completionResult = result;
-    const status =
-      result.success === true
-        ? "success"
-        : result.error === IDKitErrorCodes.Cancelled
-          ? "cancelled"
-          : result.error === IDKitErrorCodes.Timeout
-            ? "timeout"
-            : "error";
-    updateDebugReport(this.debugReport, {
-      status,
-      errorCode: result.success === true ? undefined : result.error,
-    });
     this.cleanup();
     this.resolveFn?.(result);
     if (_activeNativeRequest === this) {
@@ -341,8 +305,12 @@ class NativeIDKitRequest implements IDKitRequest {
   }
 
   getDebugReport(): IDKitDebugReport | undefined {
-    if (!isDebug()) return undefined;
-    return cloneDebugReport(this.debugReport);
+    return createIDKitDebugReport({
+      transport: "mini_app",
+      requestPayload: this.wasmPayload,
+      responsePayload: this.responsePayload,
+      requestId: this.requestId,
+    });
   }
 
   cancel(): void {

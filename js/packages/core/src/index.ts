@@ -78,9 +78,8 @@ export { isInWorldApp } from "./transports/native";
 export {
   isDebug,
   setDebug,
-  setDebugReportHandler,
   type IDKitDebugReport,
-  type IDKitDebugReportHandler,
+  type IDKitDebugTransport,
 } from "./lib/debug";
 
 // Session utilities

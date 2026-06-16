@@ -23,7 +23,6 @@ use crate::crypto::CryptoKey;
 use std::str::FromStr;
 #[cfg(feature = "ffi")]
 use std::sync::Arc;
-use std::sync::Mutex;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Environment
@@ -510,9 +509,8 @@ pub struct BridgeConnection {
     /// Used to add the `signal_hash` back to the idkit response for convenience
     cached_signal_hashes: CachedSignalHashes,
     /// Request payload built by `IDKit` before bridge encryption/wrapping.
-    /// Stored unconditionally because Rust does not know whether JS debug mode is enabled.
-    debug_payload: serde_json::Value,
-    debug_response_payload: Mutex<Option<serde_json::Value>>,
+    #[allow(dead_code)]
+    request_payload: serde_json::Value,
     /// Action identifier (only for uniqueness proofs)
     action: Option<String>,
     /// Action description (only if provided in input)
@@ -710,8 +708,8 @@ impl BridgeConnection {
 
         // Build the payload using the shared function (borrows params).
         // Bridge path does not need the timestamp field.
-        let payload_value = build_request_payload(&params, false)?;
-        let payload_json = serde_json::to_vec(&payload_value)?;
+        let request_payload = build_request_payload(&params, false)?;
+        let payload_json = serde_json::to_vec(&request_payload)?;
 
         // Compute signal hashes before partial moves
         let cached_signal_hashes = CachedSignalHashes::compute(&params);
@@ -736,30 +734,29 @@ impl BridgeConnection {
         // Send to bridge
         let client = reqwest::Client::builder()
             .user_agent(format!("idkit-core/{}", env!("CARGO_PKG_VERSION")))
-            .build()
-            .map_err(|e| bridge_request_failed(format!("Bridge client build failed: {e}")))?;
+            .build()?;
 
         let response = client
             .post(bridge_url.join("/request")?)
             .json(&body)
             .send()
-            .await
-            .map_err(|e| bridge_request_failed(format!("Bridge request failed: {e}")))?;
+            .await?;
 
         if !response.status().is_success() {
-            let status = response.status().as_u16();
+            let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(Error::BridgeRequestFailed { status, body });
+            return Err(Error::BridgeError(format!(
+                "Bridge request failed with status {}: {}",
+                status,
+                if body.is_empty() {
+                    "no error details"
+                } else {
+                    &body
+                },
+            )));
         }
 
-        let create_response_payload: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| bridge_request_failed(format!("Failed to parse bridge response: {e}")))?;
-        let create_response: BridgeCreateResponse =
-            serde_json::from_value(create_response_payload.clone()).map_err(|e| {
-                bridge_request_failed(format!("Failed to parse bridge response: {e}"))
-            })?;
+        let create_response: BridgeCreateResponse = response.json().await?;
 
         // Extract action from kind for result
         let action = match &params.kind {
@@ -778,10 +775,7 @@ impl BridgeConnection {
             app_id,
             client,
             cached_signal_hashes,
-            debug_payload: payload_value,
-            debug_response_payload: Mutex::new(Some(serde_json::json!({
-                "create": create_response_payload
-            }))),
+            request_payload,
             action,
             action_description: params.action_description,
             nonce: params.rp_context.nonce.clone(),
@@ -906,9 +900,6 @@ impl BridgeConnection {
             .await?;
 
         if !response.status().is_success() {
-            self.set_debug_poll_response_payload(serde_json::json!({
-                "http_status": response.status().as_u16(),
-            }));
             return Ok(Status::Failed(AppError::ConnectionFailed));
         }
 
@@ -931,9 +922,7 @@ impl BridgeConnection {
                 #[cfg(not(feature = "native-crypto"))]
                 let plaintext = decrypt(&self.key_bytes, &iv, &ciphertext)?;
 
-                let response_payload: serde_json::Value = serde_json::from_slice(&plaintext)?;
-                self.set_debug_poll_response_payload(response_payload.clone());
-                let bridge_response: BridgeResponse = serde_json::from_value(response_payload)?;
+                let bridge_response: BridgeResponse = serde_json::from_slice(&plaintext)?;
 
                 match bridge_response {
                     BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
@@ -1079,30 +1068,14 @@ impl BridgeConnection {
 
     /// Returns the pre-encryption request payload for SDK debug reporting.
     ///
-    /// This does not include bridge encryption keys, IVs, invite codes, or
-    /// encrypted request/response bodies.
+    /// This includes the request fields sent to World App before bridge
+    /// encryption/wrapping, including RP context fields such as nonce and
+    /// signature. It does not include bridge encryption keys, IVs, invite codes,
+    /// or encrypted request/response bodies.
+    #[allow(dead_code)]
     #[must_use]
-    pub fn debug_payload(&self) -> &serde_json::Value {
-        &self.debug_payload
-    }
-
-    #[must_use]
-    pub fn debug_response_payload(&self) -> Option<serde_json::Value> {
-        self.debug_response_payload
-            .lock()
-            .ok()
-            .and_then(|payload| payload.clone())
-    }
-
-    fn set_debug_poll_response_payload(&self, payload: serde_json::Value) {
-        if let Ok(mut debug_response_payload) = self.debug_response_payload.lock() {
-            let mut response_object = debug_response_payload
-                .take()
-                .and_then(|payload| payload.as_object().cloned())
-                .unwrap_or_default();
-            response_object.insert("poll".to_string(), payload);
-            *debug_response_payload = Some(serde_json::Value::Object(response_object));
-        }
+    pub(crate) fn request_payload(&self) -> &serde_json::Value {
+        &self.request_payload
     }
 
     /// Unix-seconds expiry of the unredeemed code, if this connection was
@@ -1118,10 +1091,6 @@ impl BridgeConnection {
 enum CreateCodeError {
     Conflict,
     Other(Error),
-}
-
-fn bridge_request_failed(message: impl Into<String>) -> Error {
-    Error::BridgeError(message.into())
 }
 
 impl From<Error> for CreateCodeError {
@@ -1174,8 +1143,8 @@ async fn try_create_invite_code_request(
     // there's nothing to gain from determinism.
     let nonce_bytes = generate_nonce()?;
 
-    let payload_value = build_request_payload(params, false)?;
-    let payload_json = serde_json::to_vec(&payload_value).map_err(Error::from)?;
+    let request_payload = build_request_payload(params, false)?;
+    let payload_json = serde_json::to_vec(&request_payload).map_err(Error::from)?;
     let encrypted = encrypt(&key_bytes, &nonce_bytes, &payload_json)?;
 
     let body = CreateRequestBody {
@@ -1189,22 +1158,30 @@ async fn try_create_invite_code_request(
     let client = reqwest::Client::builder()
         .user_agent(format!("idkit-core/{}", env!("CARGO_PKG_VERSION")))
         .build()
-        .map_err(|e| bridge_request_failed(format!("Bridge client build failed: {e}")))?;
+        .map_err(Error::from)?;
 
     let response = client
         .post(bridge_url.join("/request")?)
         .json(&body)
         .send()
         .await
-        .map_err(|e| bridge_request_failed(format!("Bridge request failed: {e}")))?;
+        .map_err(|e| Error::BridgeError(format!("Bridge request failed: {e}")))?;
 
     if response.status() == reqwest::StatusCode::CONFLICT {
         return Err(CreateCodeError::Conflict);
     }
     if !response.status().is_success() {
-        let status = response.status().as_u16();
+        let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        return Err(Error::BridgeRequestFailed { status, body }.into());
+        return Err(Error::BridgeError(format!(
+            "Bridge /request (code) failed with status {status}: {}",
+            if body.is_empty() {
+                "no error details"
+            } else {
+                &body
+            },
+        ))
+        .into());
     }
 
     // Validate that the bridge stored the request under the id we sent.
@@ -1214,14 +1191,12 @@ async fn try_create_invite_code_request(
     // the World App side and we'd fail in a confusing way much later in the
     // poll loop. Catching the mismatch here surfaces the contract violation
     // at creation time.
-    let echoed_payload: serde_json::Value = response
+    let echoed: BridgeCreateResponse = response
         .json()
         .await
-        .map_err(|e| bridge_request_failed(format!("Failed to parse bridge response: {e}")))?;
-    let echoed: BridgeCreateResponse = serde_json::from_value(echoed_payload.clone())
-        .map_err(|e| bridge_request_failed(format!("Failed to parse bridge response: {e}")))?;
+        .map_err(|e| Error::BridgeError(format!("Failed to parse bridge response: {e}")))?;
     if echoed.request_id != request_id {
-        return Err(bridge_request_failed(format!(
+        return Err(Error::BridgeError(format!(
             "Bridge echoed mismatched request_id (sent {request_id}, got {})",
             echoed.request_id
         ))
@@ -1251,8 +1226,7 @@ async fn try_create_invite_code_request(
         app_id: params.app_id.as_str().to_string(),
         client,
         cached_signal_hashes,
-        debug_payload: payload_value,
-        debug_response_payload: Mutex::new(Some(serde_json::json!({ "create": echoed_payload }))),
+        request_payload,
         action,
         action_description: params.action_description.clone(),
         nonce: params.rp_context.nonce.clone(),
@@ -1771,7 +1745,6 @@ fn to_app_error(error: &Error) -> AppError {
     match error {
         Error::InvalidConfiguration(_) => AppError::MalformedRequest,
         Error::BridgeError(_) => AppError::ConnectionFailed,
-        Error::BridgeRequestFailed { .. } => AppError::ConnectionFailed,
         Error::Json(_) => AppError::UnexpectedResponse,
         Error::Crypto(_) => AppError::UnexpectedResponse,
         Error::Base64(_) => AppError::UnexpectedResponse,
@@ -3300,8 +3273,7 @@ mod tests {
                 signal_hashes: std::collections::HashMap::new(),
                 legacy_signal_hash: String::new(),
             },
-            debug_payload: serde_json::json!({"app_id": "app_test"}),
-            debug_response_payload: Mutex::new(None),
+            request_payload: serde_json::json!({"app_id": "app_test"}),
             action: Some("test-action".to_string()),
             action_description: None,
             nonce: "0x01".to_string(),

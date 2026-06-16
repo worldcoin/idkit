@@ -16,10 +16,6 @@ pub enum Error {
     #[error("Bridge error: {0}")]
     BridgeError(String),
 
-    /// Bridge rejected the create request with an HTTP status
-    #[error("Bridge request failed with status {status}: {body}")]
-    BridgeRequestFailed { status: u16, body: String },
-
     /// JSON serialization/deserialization error
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
@@ -277,9 +273,6 @@ impl From<Error> for IdkitError {
             },
             Error::InvalidProof(message) => Self::InvalidProof { details: message },
             Error::BridgeError(message) => Self::BridgeError { details: message },
-            Error::BridgeRequestFailed { status, body } => Self::BridgeError {
-                details: format!("Bridge request failed with status {status}: {body}"),
-            },
             Error::AppError(app_err) => Self::AppError {
                 details: app_err.to_string(),
             },

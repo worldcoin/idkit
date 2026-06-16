@@ -3,7 +3,7 @@
  * These tests verify that the WASM integration and core APIs are functional
  */
 
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
 import {
   IDKit,
   CredentialRequest,
@@ -19,7 +19,10 @@ import {
   IDKitErrorCodes,
   signRequest,
   hashSignal,
+  setDebug,
+  type IDKitDebugTransport,
 } from "../index";
+import { createIDKitDebugReport } from "../lib/debug";
 import { initIDKit, WasmModule } from "../lib/wasm";
 
 const TEST_SESSION_ID = `session_${"11".repeat(64)}` as const;
@@ -289,6 +292,82 @@ describe("IDKitRequest API", () => {
       { type: "minimum_age", value: 21 },
       { type: "nationality", value: "JPN" },
     ]);
+  });
+});
+
+describe("Debug reports", () => {
+  afterEach(() => {
+    setDebug(false);
+    delete (globalThis as any).window;
+  });
+
+  it("does not build reports when debug mode is disabled", () => {
+    setDebug(false);
+
+    expect(
+      createIDKitDebugReport({
+        transport: "bridge",
+        requestPayload: { proof_request: { id: "req_1" } },
+      }),
+    ).toBeUndefined();
+  });
+
+  it("builds a bridge snapshot from the provided request data", () => {
+    setDebug(true);
+
+    const payload = { proof_request: { id: "req_1" } };
+
+    const report = createIDKitDebugReport({
+      transport: "bridge",
+      requestPayload: payload,
+      requestId: "req_1",
+      connectorURI: "https://world.org/verify?t=wld&i=req_1",
+    });
+
+    expect(report).toMatchObject({
+      package_version: expect.any(String),
+      transport: "bridge",
+      timestamps: { generated_at: expect.any(String) },
+      request_id: "req_1",
+      connector_uri: "https://world.org/verify?t=wld&i=req_1",
+      request_payload: payload,
+    });
+    expect(report).not.toHaveProperty("response_payload");
+  });
+
+  it("only includes Mini App metadata on Mini App reports", () => {
+    setDebug(true);
+    (globalThis as any).window = {
+      WorldApp: {
+        world_app_version: "2026.6.16",
+        device_os: "ios",
+      },
+    };
+
+    expect(
+      createIDKitDebugReport({
+        transport: "bridge",
+        requestPayload: { proof_request: { id: "req_1" } },
+      }),
+    ).not.toHaveProperty("mini_app");
+
+    expect(
+      createIDKitDebugReport({
+        transport: "mini_app",
+        requestPayload: { command: "verify" },
+      }),
+    ).toMatchObject({
+      mini_app: {
+        world_app_version: "2026.6.16",
+        platform: "ios",
+      },
+    });
+  });
+
+  it("exports debug transport type from the package entrypoint", () => {
+    const transport: IDKitDebugTransport = "bridge";
+
+    expect(transport).toBe("bridge");
   });
 });
 
