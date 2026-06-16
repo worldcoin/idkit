@@ -747,17 +747,9 @@ impl BridgeConnection {
             .map_err(|e| bridge_request_failed(format!("Bridge request failed: {e}")))?;
 
         if !response.status().is_success() {
-            let status = response.status();
+            let status = response.status().as_u16();
             let body = response.text().await.unwrap_or_default();
-            return Err(bridge_request_failed(format!(
-                "Bridge request failed with status {}: {}",
-                status,
-                if body.is_empty() {
-                    "no error details"
-                } else {
-                    &body
-                }
-            )));
+            return Err(Error::BridgeRequestFailed { status, body });
         }
 
         let create_response_payload: serde_json::Value = response
@@ -1787,6 +1779,7 @@ fn to_app_error(error: &Error) -> AppError {
     match error {
         Error::InvalidConfiguration(_) => AppError::MalformedRequest,
         Error::BridgeError(_) => AppError::ConnectionFailed,
+        Error::BridgeRequestFailed { .. } => AppError::ConnectionFailed,
         Error::Json(_) => AppError::UnexpectedResponse,
         Error::Crypto(_) => AppError::UnexpectedResponse,
         Error::Base64(_) => AppError::UnexpectedResponse,

@@ -188,6 +188,15 @@ function getErrorMessage(error: unknown): string {
   return String(error);
 }
 
+// Bridge creation failures carry their structured response (HTTP status + body)
+// as a `debugResponsePayload` property set at the WASM boundary. Lift it as-is so
+// the bridge-specific shape stays defined in Rust rather than reconstructed here.
+function getDebugResponsePayload(error: unknown): object | undefined {
+  const payload = (error as { debugResponsePayload?: unknown })
+    ?.debugResponsePayload;
+  return payload && typeof payload === "object" ? payload : undefined;
+}
+
 function updateDebugReportFromStatus(
   report: IDKitDebugReport | undefined,
   status: Status,
@@ -252,6 +261,7 @@ function emitBridgeCreationDebugReport(
   updateDebugReport(report, {
     status: "error",
     errorMessage: getErrorMessage(error),
+    responsePayload: getDebugResponsePayload(error),
   });
   throw attachDebugReportToError(error, report);
 }

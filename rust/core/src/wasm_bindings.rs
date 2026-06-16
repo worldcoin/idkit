@@ -31,6 +31,12 @@ pub fn init_wasm() {
 
 fn bridge_create_error_to_js(error: crate::Error) -> JsValue {
     let js_error = js_sys::Error::new(&format!("Failed: {error}"));
+    if let crate::Error::BridgeRequestFailed { status, body } = &error {
+        let payload = serde_json::json!({ "create": { "http_status": status, "body": body } });
+        if let Ok(value) = json_to_js(&payload) {
+            let _ = js_sys::Reflect::set(&js_error, &"debugResponsePayload".into(), &value);
+        }
+    }
     js_error.into()
 }
 
