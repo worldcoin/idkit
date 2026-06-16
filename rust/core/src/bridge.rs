@@ -1202,17 +1202,9 @@ async fn try_create_invite_code_request(
         return Err(CreateCodeError::Conflict);
     }
     if !response.status().is_success() {
-        let status = response.status();
+        let status = response.status().as_u16();
         let body = response.text().await.unwrap_or_default();
-        return Err(bridge_request_failed(format!(
-            "Bridge /request (code) failed with status {status}: {}",
-            if body.is_empty() {
-                "no error details"
-            } else {
-                &body
-            }
-        ))
-        .into());
+        return Err(Error::BridgeRequestFailed { status, body }.into());
     }
 
     // Validate that the bridge stored the request under the id we sent.
