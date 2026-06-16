@@ -183,11 +183,7 @@ class NativeIDKitRequest implements IDKitRequest {
         });
 
         if (isDebug())
-          console.debug("[IDKit] Native: received response", {
-            status: responsePayload?.status,
-            error_code: responsePayload?.error_code,
-            protocol_version: responsePayload?.protocol_version,
-          });
+          console.debug("[IDKit] Native: received response", responsePayload);
 
         if (responsePayload?.status === "error") {
           if (isDebug())
@@ -278,7 +274,7 @@ class NativeIDKitRequest implements IDKitRequest {
           if (isDebug())
             console.debug(
               `[IDKit] Native: sending verify command (version=${version}, platform=ios)`,
-              { command: "verify", version, requestId: this.requestId },
+              sendPayload,
             );
           w.webkit.messageHandlers.minikit.postMessage(sendPayload);
           updateDebugReport(this.debugReport, {
@@ -289,7 +285,7 @@ class NativeIDKitRequest implements IDKitRequest {
           if (isDebug())
             console.debug(
               `[IDKit] Native: sending verify command (version=${version}, platform=android)`,
-              { command: "verify", version, requestId: this.requestId },
+              sendPayload,
             );
           w.Android.postMessage(JSON.stringify(sendPayload));
           updateDebugReport(this.debugReport, {
