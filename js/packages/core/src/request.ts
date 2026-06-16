@@ -141,12 +141,14 @@ function createBridgeDebugReport(
   wasmRequest: BridgeDebugPayloadSource,
   requestId: string,
   connectorURI: string,
+  responsePayload?: Status,
 ): IDKitDebugReport | undefined {
   if (!isDebug()) return undefined;
 
   return createIDKitDebugReport({
     transport: "bridge",
     requestPayload: readBridgeDebugPayload(wasmRequest),
+    responsePayload,
     requestId,
     connectorURI,
   });
@@ -157,6 +159,7 @@ function createBridgeDebugReport(
  */
 class IDKitRequestImpl implements IDKitRequest {
   private wasmRequest: WasmModule.IDKitRequest;
+  private latestResponsePayload?: Status;
   readonly connectorURI: string;
   readonly requestId: string;
 
@@ -167,7 +170,9 @@ class IDKitRequestImpl implements IDKitRequest {
   }
 
   async pollOnce(): Promise<Status> {
-    return (await this.wasmRequest.pollForStatus()) as Status;
+    const status = (await this.wasmRequest.pollForStatus()) as Status;
+    this.latestResponsePayload = status;
+    return status;
   }
 
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult> {
@@ -179,6 +184,7 @@ class IDKitRequestImpl implements IDKitRequest {
       this.wasmRequest,
       this.requestId,
       this.connectorURI,
+      this.latestResponsePayload,
     );
   }
 }
@@ -214,6 +220,7 @@ export interface IDKitInviteCodeRequest {
  */
 class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
   private wasmRequest: WasmModule.IDKitInviteCodeRequest;
+  private latestResponsePayload?: Status;
   readonly connectorURI: string;
   readonly expiresAt: number;
   readonly requestId: string;
@@ -226,7 +233,9 @@ class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
   }
 
   async pollOnce(): Promise<Status> {
-    return (await this.wasmRequest.pollForStatus()) as Status;
+    const status = (await this.wasmRequest.pollForStatus()) as Status;
+    this.latestResponsePayload = status;
+    return status;
   }
 
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult> {
@@ -238,6 +247,7 @@ class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
       this.wasmRequest,
       this.requestId,
       this.connectorURI,
+      this.latestResponsePayload,
     );
   }
 }

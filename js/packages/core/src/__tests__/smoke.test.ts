@@ -316,10 +316,15 @@ describe("Debug reports", () => {
     setDebug(true);
 
     const payload = { proof_request: { id: "req_1" } };
+    const response = {
+      type: "confirmed",
+      result: { protocol_version: "4.0", verification_level: "Orb" },
+    };
 
     const report = createIDKitDebugReport({
       transport: "bridge",
       requestPayload: payload,
+      responsePayload: response,
       requestId: "req_1",
       connectorURI: "https://world.org/verify?t=wld&i=req_1",
     });
@@ -331,8 +336,8 @@ describe("Debug reports", () => {
       request_id: "req_1",
       connector_uri: "https://world.org/verify?t=wld&i=req_1",
       request_payload: payload,
+      response_payload: response,
     });
-    expect(report).not.toHaveProperty("response_payload");
   });
 
   it("only includes Mini App metadata on Mini App reports", () => {
