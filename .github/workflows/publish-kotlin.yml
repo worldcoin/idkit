@@ -359,7 +359,7 @@ jobs:
         run: |
           TOKEN=$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')
           URL="https://central.sonatype.com/api/v1/publisher/deployments/download/com/worldcoin/idkit/${PKG_VERSION}/idkit-${PKG_VERSION}.pom"
-          for i in $(seq 1 40); do
+          for i in $(seq 1 120); do
             # `|| echo 000` keeps a transient curl transport error (DNS/connection/
             # timeout) from tripping the runner's `set -e` and aborting the release;
             # 000 is not 200, so the loop simply retries.
@@ -368,10 +368,10 @@ jobs:
               echo "Maven Central deployment for $PKG_VERSION validated."
               exit 0
             fi
-            echo "Not validated yet (HTTP $CODE); attempt $i/40, retrying in 15s..."
+            echo "Not validated yet (HTTP $CODE); attempt $i/120, retrying in 15s..."
             sleep 15
           done
-          echo "::error::Maven Central deployment for $PKG_VERSION did not validate within ~10 minutes; skipping GitHub Packages. Check the Central Portal."
+          echo "::error::Maven Central deployment for $PKG_VERSION did not validate within ~30 minutes; skipping GitHub Packages. Check the Central Portal."
           exit 1
 
       - name: Publish to GitHub Packages
