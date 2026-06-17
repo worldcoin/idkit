@@ -134,7 +134,7 @@ func bridgeDebugPayloadIdentityCheck() throws {
     #expect(proofRequest.expiresAt == 1_700_003_600)
     #expect(proofRequest.id.isEmpty == false)
 
-    #expect(proofRequest.proofRequests.map(\.identifier) == ["passport", "mnc"])
+    #expect(proofRequest.credentialIdentifiers == ["passport", "mnc"])
 }
 
 @Test("Status mapping covers all canonical variants")

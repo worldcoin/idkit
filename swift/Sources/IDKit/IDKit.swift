@@ -678,3 +678,17 @@ public extension Signal {
         self.asString()
     }
 }
+
+public extension BridgeDebugProofRequest {
+    /// Credential identifiers from `proofRequests` (e.g. `["passport", "mnc"]`).
+    var credentialIdentifiers: [String] {
+        proofRequests.map(\.identifier)
+    }
+}
+
+public extension BridgeDebugPayload {
+    /// Credential identifiers when a v4 `proofRequest` is present; empty otherwise.
+    var credentialIdentifiers: [String] {
+        proofRequest?.credentialIdentifiers ?? []
+    }
+}
