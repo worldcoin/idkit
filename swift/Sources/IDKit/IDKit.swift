@@ -133,6 +133,22 @@ public enum IDKit {
     public static func hashSignal(_ signal: Data) -> String {
         hashSignalFfi(signal: Signal.fromBytes(bytes: signal))
     }
+
+    /// Builds the plaintext bridge payload JSON for a preset without creating a bridge request.
+    public static func bridgeDebugPayloadJSON(
+        for config: IDKitRequestConfig,
+        preset: Preset
+    ) throws -> String {
+        try request(config: config).bridgeDebugPayloadJSON(from: preset)
+    }
+
+    /// Builds the plaintext bridge payload JSON for constraints without creating a bridge request.
+    public static func bridgeDebugPayloadJSON(
+        for config: IDKitRequestConfig,
+        constraints: ConstraintNode
+    ) throws -> String {
+        try request(config: config).bridgeDebugPayloadJSON(constraints)
+    }
 }
 
 /// Builder wrapper that returns canonical `IDKitRequest` values.

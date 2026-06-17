@@ -43,9 +43,8 @@ private func sampleRpContext() throws -> RpContext {
     )
 }
 
-@Test("IDKit entrypoints expose canonical builders")
-func idkitEntrypoints() throws {
-    let requestConfig = IDKitRequestConfig(
+private func sampleRequestConfig() throws -> IDKitRequestConfig {
+    return IDKitRequestConfig(
         appId: "app_staging_1234567890abcdef",
         action: "login",
         rpContext: try sampleRpContext(),
@@ -57,7 +56,13 @@ func idkitEntrypoints() throws {
         returnTo: nil,
         environment: nil,
         connectUrlMode: nil
+
     )
+}
+
+@Test("IDKit entrypoints expose canonical builders")
+func idkitEntrypoints() throws {
+    let requestConfig = sampleRequestConfig()
 
     // TODO: Re-enable when World ID 4.0 is live
     // let sessionConfig = IDKitSessionConfig(
@@ -81,24 +86,23 @@ func idkitEntrypoints() throws {
 
 @Test("bridge debug payload JSON exposes identity check contract fields")
 func bridgeDebugPayloadJSONIdentityCheck() throws {
-    let builder = IDKit.request(
-        config: IDKitRequestConfig(
-            appId: "app_staging_1234567890abcdef",
-            action: "test-action",
-            rpContext: try sampleRpContext(),
-            actionDescription: "Identity check",
-            bridgeUrl: nil,
-            allowLegacyProofs: false,
-            requireUserPresence: true,
-            overrideConnectBaseUrl: nil,
-            returnTo: "idkitsample://callback",
-            environment: .staging,
-            connectUrlMode: nil
-        )
+    let requestConfig = IDKitRequestConfig(
+        appId: "app_staging_1234567890abcdef",
+        action: "test-action",
+        rpContext: try sampleRpContext(),
+        actionDescription: "Identity check",
+        bridgeUrl: nil,
+        allowLegacyProofs: false,
+        requireUserPresence: true,
+        overrideConnectBaseUrl: nil,
+        returnTo: "idkitsample://callback",
+        environment: .staging,
+        connectUrlMode: nil
     )
 
-    let payloadJSON = try builder.bridgeDebugPayloadJSON(
-        from: identityCheck(
+    let payloadJSON = try IDKit.bridgeDebugPayloadJSON(
+        for: requestConfig,
+        preset: identityCheck(
             attributes: [
                 .minimumAge(21),
                 .nationality("JPN")
