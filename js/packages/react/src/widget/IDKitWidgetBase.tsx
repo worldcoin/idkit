@@ -5,7 +5,7 @@ import {
   useState,
   type ReactElement,
 } from "react";
-import { IDKitErrorCodes } from "@worldcoin/idkit-core";
+import { IDKitErrorCodes, type IDKitDebugReport } from "@worldcoin/idkit-core";
 import type { IDKitHookResult } from "../types";
 import { IDKitModal } from "./IDKitModal";
 import { WorldIDState } from "../components/States/WorldIDState";
@@ -41,7 +41,10 @@ export type IDKitWidgetBaseProps<TResult> = {
   onOpenChange: (open: boolean) => void;
   handleVerify?: (result: TResult) => MaybePromise<void>;
   onSuccess: (result: TResult) => MaybePromise<void>;
-  onError?: (errorCode: IDKitErrorCodes) => MaybePromise<void>;
+  onError?: (
+    errorCode: IDKitErrorCodes,
+    debugReport?: IDKitDebugReport,
+  ) => MaybePromise<void>;
   autoClose?: boolean;
   language?: SupportedLanguage;
   showSimulatorCallout: boolean;
@@ -133,6 +136,7 @@ export function IDKitWidgetBase<TResult>({
   const effectiveErrorCode =
     flow.errorCode ??
     (hostVerifyResult === "failed" ? IDKitErrorCodes.FailedByHostApp : null);
+  const effectiveDebugReport = flow.errorCode ? flow.debugReport : undefined;
 
   useEffect(() => {
     if (!isSuccess || !flow.result || flow.result === lastResultRef.current) {
@@ -154,10 +158,13 @@ export function IDKitWidgetBase<TResult>({
     }
 
     lastErrorCodeRef.current = effectiveErrorCode;
-    void Promise.resolve(onError?.(effectiveErrorCode)).catch(() => {
+    const errorResult = effectiveDebugReport
+      ? onError?.(effectiveErrorCode, effectiveDebugReport)
+      : onError?.(effectiveErrorCode);
+    void Promise.resolve(errorResult).catch(() => {
       // Swallow host callback errors to keep widget flow stable.
     });
-  }, [effectiveErrorCode, onError]);
+  }, [effectiveErrorCode, effectiveDebugReport, onError]);
 
   // In World App context there's no UI to render HostAppVerificationState,
   // so invoke handleVerify programmatically when the proof arrives.

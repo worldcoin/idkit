@@ -20,9 +20,9 @@ use world_id_primitives::{
 #[cfg(feature = "native-crypto")]
 use crate::crypto::CryptoKey;
 
-use std::str::FromStr;
 #[cfg(feature = "ffi")]
 use std::sync::Arc;
+use std::{str::FromStr, sync::Mutex};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Environment
@@ -180,6 +180,50 @@ struct BridgePollResponse {
 
     /// Encrypted response (only present when status is "completed")
     response: Option<EncryptedPayload>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+pub struct BridgeResponseDebugSnapshot {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bridge_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completed_response_present: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decrypted_response_raw: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+impl BridgeResponseDebugSnapshot {
+    fn for_status(status: impl Into<String>) -> Self {
+        Self {
+            bridge_status: Some(status.into()),
+            ..Self::default()
+        }
+    }
+}
+
+fn app_error_debug_code(error: AppError) -> String {
+    serde_json::to_value(error)
+        .ok()
+        .and_then(|value| value.as_str().map(ToOwned::to_owned))
+        .unwrap_or_else(|| error.to_string())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BridgeDebugReportTimestamps {
+    pub generated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct BridgeDebugReport {
+    pub transport: &'static str,
+    pub timestamps: BridgeDebugReportTimestamps,
+    pub request_id: String,
+    pub connector_uri: String,
+    pub request_payload: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_payload: Option<BridgeResponseDebugSnapshot>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -522,6 +566,10 @@ pub struct BridgeConnection {
     environment: Environment,
     /// Whether a successful response must prove user presence was completed.
     require_user_presence: bool,
+    /// Decrypted request payload used to create this bridge request.
+    request_payload: serde_json::Value,
+    /// Latest bridge response observation captured during polling.
+    latest_response_debug: Mutex<Option<BridgeResponseDebugSnapshot>>,
     // ─── Invite-code mode (WDP-73) — None for the legacy URL/QR path ────────
     /// Canonical 6-char Crockford Base32 invite code shown to the user.
     pub(crate) invite_code: Option<String>,
@@ -779,6 +827,8 @@ impl BridgeConnection {
             return_to: params.return_to,
             environment: params.environment.unwrap_or_default(),
             require_user_presence: params.require_user_presence,
+            request_payload: payload_value,
+            latest_response_debug: Mutex::new(None),
             invite_code: None,
             code_expires_at: None,
         })
@@ -873,6 +923,34 @@ impl BridgeConnection {
         )
     }
 
+    fn store_response_debug(&self, snapshot: BridgeResponseDebugSnapshot) {
+        let mut latest = self
+            .latest_response_debug
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *latest = Some(snapshot);
+    }
+
+    #[must_use]
+    pub fn get_debug_report(&self) -> BridgeDebugReport {
+        let response_payload = self
+            .latest_response_debug
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+
+        BridgeDebugReport {
+            transport: "bridge",
+            timestamps: BridgeDebugReportTimestamps {
+                generated_at: current_timestamp_rfc3339(),
+            },
+            request_id: self.request_id.clone(),
+            connector_uri: self.connect_url(),
+            request_payload: self.request_payload.clone(),
+            response_payload,
+        }
+    }
+
     /// Polls the bridge for the current status (non-blocking)
     ///
     /// `GET /response/:id` is unauthenticated for both URL/QR and invite-code
@@ -896,52 +974,132 @@ impl BridgeConnection {
             .await?;
 
         if !response.status().is_success() {
+            self.store_response_debug(BridgeResponseDebugSnapshot {
+                error: Some(app_error_debug_code(AppError::ConnectionFailed)),
+                ..BridgeResponseDebugSnapshot::default()
+            });
             return Ok(Status::Failed(AppError::ConnectionFailed));
         }
 
-        let poll_response: BridgePollResponse = response.json().await?;
+        let poll_response: BridgePollResponse = match response.json().await {
+            Ok(response) => response,
+            Err(err) => {
+                self.store_response_debug(BridgeResponseDebugSnapshot {
+                    error: Some(err.to_string()),
+                    ..BridgeResponseDebugSnapshot::default()
+                });
+                return Err(err.into());
+            }
+        };
 
         match poll_response.status.as_str() {
-            "initialized" => Ok(Status::WaitingForConnection),
-            "retrieved" => Ok(Status::AwaitingConfirmation),
+            "initialized" => {
+                self.store_response_debug(BridgeResponseDebugSnapshot::for_status("initialized"));
+                Ok(Status::WaitingForConnection)
+            }
+            "retrieved" => {
+                self.store_response_debug(BridgeResponseDebugSnapshot::for_status("retrieved"));
+                Ok(Status::AwaitingConfirmation)
+            }
             "completed" => {
-                let encrypted = poll_response.response.ok_or(Error::UnexpectedResponse)?;
+                let mut debug = BridgeResponseDebugSnapshot::for_status("completed");
+                let Some(encrypted) = poll_response.response else {
+                    debug.completed_response_present = Some(false);
+                    debug.error = Some(Error::UnexpectedResponse.to_string());
+                    self.store_response_debug(debug);
+                    return Err(Error::UnexpectedResponse);
+                };
+                debug.completed_response_present = Some(true);
 
-                let iv = base64_decode(&encrypted.iv)?;
-                let ciphertext = base64_decode(&encrypted.payload)?;
+                let iv = match base64_decode(&encrypted.iv) {
+                    Ok(iv) => iv,
+                    Err(err) => {
+                        debug.error = Some(err.to_string());
+                        self.store_response_debug(debug);
+                        return Err(err);
+                    }
+                };
+                let ciphertext = match base64_decode(&encrypted.payload) {
+                    Ok(ciphertext) => ciphertext,
+                    Err(err) => {
+                        debug.error = Some(err.to_string());
+                        self.store_response_debug(debug);
+                        return Err(err);
+                    }
+                };
 
                 // Both paths use the IV from the encrypted response (not stored nonce)
                 // because the authenticator encrypts with its own nonce
                 #[cfg(feature = "native-crypto")]
-                let plaintext = decrypt(&self.key.key, &iv, &ciphertext)?;
+                let plaintext = match decrypt(&self.key.key, &iv, &ciphertext) {
+                    Ok(plaintext) => plaintext,
+                    Err(err) => {
+                        debug.error = Some(err.to_string());
+                        self.store_response_debug(debug);
+                        return Err(err);
+                    }
+                };
 
                 #[cfg(not(feature = "native-crypto"))]
-                let plaintext = decrypt(&self.key_bytes, &iv, &ciphertext)?;
+                let plaintext = match decrypt(&self.key_bytes, &iv, &ciphertext) {
+                    Ok(plaintext) => plaintext,
+                    Err(err) => {
+                        debug.error = Some(err.to_string());
+                        self.store_response_debug(debug);
+                        return Err(err);
+                    }
+                };
 
-                let bridge_response: BridgeResponse = serde_json::from_slice(&plaintext)?;
+                debug.decrypted_response_raw =
+                    Some(String::from_utf8_lossy(&plaintext).into_owned());
+
+                let bridge_response: BridgeResponse = match serde_json::from_slice(&plaintext) {
+                    Ok(response) => response,
+                    Err(err) => {
+                        debug.error = Some(err.to_string());
+                        self.store_response_debug(debug);
+                        return Err(err.into());
+                    }
+                };
 
                 match bridge_response {
-                    BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
+                    BridgeResponse::Error { error_code } => {
+                        debug.error = Some(app_error_debug_code(error_code));
+                        self.store_response_debug(debug);
+                        Ok(Status::Failed(error_code))
+                    }
                     BridgeResponse::ResponseV2(response) => {
                         let user_presence_completed = response.user_presence_completed;
-                        self.handle_bridge_v2_response(
+                        let status = self.handle_bridge_v2_response(
                             response.into_proof_response(),
                             None,
                             None,
                             user_presence_completed,
-                        )
+                        );
+                        if let Ok(Status::Failed(error)) = &status {
+                            debug.error = Some(app_error_debug_code(*error));
+                        }
+                        self.store_response_debug(debug);
+                        status
                     }
                     BridgeResponse::ResponseV2_1 {
                         proof_response,
                         identity_attested,
                         user_presence_completed,
                         integrity_bundle,
-                    } => self.handle_bridge_v2_response(
-                        proof_response,
-                        identity_attested,
-                        integrity_bundle,
-                        user_presence_completed,
-                    ),
+                    } => {
+                        let status = self.handle_bridge_v2_response(
+                            proof_response,
+                            identity_attested,
+                            integrity_bundle,
+                            user_presence_completed,
+                        );
+                        if let Ok(Status::Failed(error)) = &status {
+                            debug.error = Some(app_error_debug_code(*error));
+                        }
+                        self.store_response_debug(debug);
+                        status
+                    }
                     BridgeResponse::MultiLegacyResponse {
                         legacy_responses,
                         user_presence_completed,
@@ -952,6 +1110,10 @@ impl BridgeConnection {
                             self.require_user_presence,
                             user_presence_completed,
                         ) {
+                            if let Status::Failed(error) = &status {
+                                debug.error = Some(app_error_debug_code(*error));
+                            }
+                            self.store_response_debug(debug);
                             return Ok(status);
                         }
                         let responses: Vec<ResponseItem> = legacy_responses
@@ -978,6 +1140,7 @@ impl BridgeConnection {
                         result.identity_attested = identity_attested;
                         result.integrity_bundle = integrity_bundle;
 
+                        self.store_response_debug(debug);
                         Ok(Status::Confirmed(result))
                     }
                     BridgeResponse::ResponseV1 {
@@ -990,6 +1153,10 @@ impl BridgeConnection {
                             self.require_user_presence,
                             user_presence_completed,
                         ) {
+                            if let Status::Failed(error) = &status {
+                                debug.error = Some(app_error_debug_code(*error));
+                            }
+                            self.store_response_debug(debug);
                             return Ok(status);
                         }
 
@@ -1009,11 +1176,17 @@ impl BridgeConnection {
                         result.identity_attested = identity_attested;
                         result.integrity_bundle = integrity_bundle;
 
+                        self.store_response_debug(debug);
                         Ok(Status::Confirmed(result))
                     }
                 }
             }
-            _ => Err(Error::UnexpectedResponse),
+            _ => {
+                let mut debug = BridgeResponseDebugSnapshot::for_status(poll_response.status);
+                debug.error = Some(Error::UnexpectedResponse.to_string());
+                self.store_response_debug(debug);
+                Err(Error::UnexpectedResponse)
+            }
         }
     }
 
@@ -1104,6 +1277,21 @@ fn current_unix_seconds() -> Result<u64> {
             .map(|d| d.as_secs())
             .map_err(|_| Error::BridgeError("system time before UNIX epoch".into()))
     }
+}
+
+fn current_timestamp_rfc3339() -> String {
+    let Ok(seconds) = current_unix_seconds() else {
+        return "1970-01-01T00:00:00Z".to_string();
+    };
+    let Ok(seconds) = i64::try_from(seconds) else {
+        return "1970-01-01T00:00:00Z".to_string();
+    };
+    let Ok(datetime) = time::OffsetDateTime::from_unix_timestamp(seconds) else {
+        return "1970-01-01T00:00:00Z".to_string();
+    };
+    datetime
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string())
 }
 
 #[allow(dead_code)]
@@ -1217,6 +1405,8 @@ async fn try_create_invite_code_request(
         return_to: params.return_to.clone(),
         environment: params.environment.unwrap_or_default(),
         require_user_presence: params.require_user_presence,
+        request_payload: payload_value,
+        latest_response_debug: Mutex::new(None),
         invite_code: Some(code),
         code_expires_at: Some(code_expires_at),
     })
@@ -1887,7 +2077,10 @@ impl IDKitInviteCodeRequest {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use std::{
+        io::{Read, Write},
+        str::FromStr,
+    };
 
     use super::*;
     use crate::types::{CredentialRequest, CredentialType, IntegritySignatureFormat, Signal};
@@ -3248,7 +3441,7 @@ mod tests {
             bridge_url: BridgeUrl::default(),
             #[cfg(feature = "native-crypto")]
             key: crate::crypto::CryptoKey::new([0; 32], [0; 12]),
-            key_bytes: vec![1, 2, 3, 4],
+            key_bytes: vec![0; 32],
             request_id: "64e0ec6b-b4ca-47cc-8f70-504a95189e26".to_string(),
             app_id: "app_test".to_string(),
             client: reqwest::Client::new(),
@@ -3263,9 +3456,40 @@ mod tests {
             return_to,
             environment: Environment::Production,
             require_user_presence: false,
+            request_payload: serde_json::json!({
+                "app_id": "app_test",
+                "action": "test-action",
+            }),
+            latest_response_debug: Mutex::new(None),
             invite_code: None,
             code_expires_at: None,
         }
+    }
+
+    fn serve_bridge_response(body: String) -> BridgeUrl {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request_buffer = [0; 1024];
+            let _ = stream.read(&mut request_buffer);
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+                body.len(),
+                body
+            )
+            .unwrap();
+        });
+
+        let app_id = AppId::new("app_staging_test").unwrap();
+        BridgeUrl::new(format!("http://{addr}"), &app_id).unwrap()
+    }
+
+    fn poll_once(connection: &BridgeConnection) -> Result<Status> {
+        tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(connection.poll_for_status())
     }
 
     #[test]
@@ -3282,5 +3506,97 @@ mod tests {
         let url = connection.connect_url();
 
         assert!(!url.contains("return_to="));
+    }
+
+    #[test]
+    fn test_debug_report_includes_request_snapshot_after_create() {
+        let connection = sample_connection(None);
+        let report = connection.get_debug_report();
+
+        assert_eq!(report.request_id, "64e0ec6b-b4ca-47cc-8f70-504a95189e26");
+        assert_eq!(report.transport, "bridge");
+        assert!(report
+            .connector_uri
+            .contains("64e0ec6b-b4ca-47cc-8f70-504a95189e26"));
+        assert_eq!(report.request_payload["app_id"], "app_test");
+        assert_eq!(report.request_payload["action"], "test-action");
+        assert!(!report.timestamps.generated_at.is_empty());
+        assert_eq!(report.response_payload, None);
+    }
+
+    #[test]
+    fn test_initialized_poll_updates_debug_snapshot() {
+        let mut connection = sample_connection(None);
+        connection.bridge_url = serve_bridge_response(r#"{"status":"initialized"}"#.to_string());
+
+        let status = poll_once(&connection).unwrap();
+        assert_eq!(status, Status::WaitingForConnection);
+
+        let response_payload = connection.get_debug_report().response_payload.unwrap();
+        assert_eq!(
+            response_payload.bridge_status.as_deref(),
+            Some("initialized")
+        );
+        assert_eq!(response_payload.error, None);
+    }
+
+    #[test]
+    fn test_retrieved_poll_updates_debug_snapshot() {
+        let mut connection = sample_connection(None);
+        connection.bridge_url = serve_bridge_response(r#"{"status":"retrieved"}"#.to_string());
+
+        let status = poll_once(&connection).unwrap();
+        assert_eq!(status, Status::AwaitingConfirmation);
+
+        let response_payload = connection.get_debug_report().response_payload.unwrap();
+        assert_eq!(response_payload.bridge_status.as_deref(), Some("retrieved"));
+        assert_eq!(response_payload.error, None);
+    }
+
+    #[test]
+    fn test_completed_without_response_records_debug_snapshot() {
+        let mut connection = sample_connection(None);
+        connection.bridge_url = serve_bridge_response(r#"{"status":"completed"}"#.to_string());
+
+        assert!(matches!(
+            poll_once(&connection),
+            Err(Error::UnexpectedResponse)
+        ));
+
+        let response_payload = connection.get_debug_report().response_payload.unwrap();
+        assert_eq!(response_payload.bridge_status.as_deref(), Some("completed"));
+        assert_eq!(response_payload.completed_response_present, Some(false));
+        assert_eq!(
+            response_payload.error.as_deref(),
+            Some("Unexpected response from bridge")
+        );
+    }
+
+    #[test]
+    fn test_malformed_decrypted_response_records_raw_payload_and_error() {
+        let mut connection = sample_connection(None);
+        let iv = [7_u8; 12];
+        let plaintext = b"{not json";
+        let encrypted = encrypt(&[0; 32], &iv, plaintext).unwrap();
+        let body = serde_json::json!({
+            "status": "completed",
+            "response": {
+                "iv": base64_encode(&iv),
+                "payload": base64_encode(&encrypted),
+            }
+        })
+        .to_string();
+        connection.bridge_url = serve_bridge_response(body);
+
+        assert!(matches!(poll_once(&connection), Err(Error::Json(_))));
+
+        let response_payload = connection.get_debug_report().response_payload.unwrap();
+        assert_eq!(response_payload.bridge_status.as_deref(), Some("completed"));
+        assert_eq!(response_payload.completed_response_present, Some(true));
+        assert_eq!(
+            response_payload.decrypted_response_raw.as_deref(),
+            Some("{not json")
+        );
+        assert!(response_payload.error.is_some());
     }
 }

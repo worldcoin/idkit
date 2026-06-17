@@ -10,13 +10,16 @@ import type {
 } from "./types/config";
 import type {
   IDKitResult,
+  IDKitDebugReport,
   ConstraintNode,
   CredentialType,
   CredentialRequestType,
 } from "./types/result";
 import { IDKitErrorCodes } from "./types/result";
+import packageJson from "../package.json";
 import type { NativePayloadResult } from "./lib/wasm";
 import { WasmModule, initIDKit } from "./lib/wasm";
+import { isDebug } from "./lib/debug";
 import {
   isInWorldApp,
   getWorldAppVerifyVersion,
@@ -48,9 +51,14 @@ export interface Status {
 /** Result from pollUntilCompletion() — discriminated union, never throws */
 export type IDKitCompletionResult =
   | { success: true; result: IDKitResult }
-  | { success: false; error: IDKitErrorCodes };
+  | {
+      success: false;
+      error: IDKitErrorCodes;
+      debugReport?: IDKitDebugReport;
+    };
 
 const SESSION_ID_PATTERN = /^session_[0-9a-fA-F]{128}$/;
+type RustBridgeDebugReport = Omit<IDKitDebugReport, "package_version">;
 
 // Re-export RpContext for convenience
 export type { RpContext };
@@ -79,6 +87,7 @@ export interface IDKitRequest {
  */
 async function pollUntilCompletionLoop(
   pollOnce: () => Promise<Status>,
+  getDebugReport: () => IDKitDebugReport | undefined,
   options?: WaitOptions,
 ): Promise<IDKitCompletionResult> {
   const pollInterval = options?.pollInterval ?? 1000;
@@ -87,11 +96,11 @@ async function pollUntilCompletionLoop(
 
   while (true) {
     if (options?.signal?.aborted) {
-      return { success: false, error: IDKitErrorCodes.Cancelled };
+      return failedCompletion(IDKitErrorCodes.Cancelled, getDebugReport);
     }
 
     if (Date.now() - startTime > timeout) {
-      return { success: false, error: IDKitErrorCodes.Timeout };
+      return failedCompletion(IDKitErrorCodes.Timeout, getDebugReport);
     }
 
     const status = await pollOnce();
@@ -101,15 +110,47 @@ async function pollUntilCompletionLoop(
     }
 
     if (status.type === "failed") {
-      return {
-        success: false,
-        error:
-          (status.error as IDKitErrorCodes) ?? IDKitErrorCodes.GenericError,
-      };
+      return failedCompletion(
+        (status.error as IDKitErrorCodes) ?? IDKitErrorCodes.GenericError,
+        getDebugReport,
+      );
     }
 
     await new Promise((resolve) => setTimeout(resolve, pollInterval));
   }
+}
+
+function failedCompletion(
+  error: IDKitErrorCodes,
+  getDebugReport: () => IDKitDebugReport | undefined,
+): IDKitCompletionResult {
+  const debugReport = getDebugReport();
+  return debugReport
+    ? { success: false, error, debugReport }
+    : { success: false, error };
+}
+
+function withPackageVersion(report: RustBridgeDebugReport): IDKitDebugReport {
+  return {
+    ...report,
+    package_version: packageJson.version,
+  };
+}
+
+type WasmDebugReportSource = {
+  getDebugReport(): RustBridgeDebugReport;
+};
+
+function getBridgeDebugReport(
+  wasmRequest: unknown,
+): IDKitDebugReport | undefined {
+  if (!isDebug()) {
+    return undefined;
+  }
+
+  return withPackageVersion(
+    (wasmRequest as WasmDebugReportSource).getDebugReport(),
+  );
 }
 
 /**
@@ -139,7 +180,15 @@ class IDKitRequestImpl implements IDKitRequest {
   }
 
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult> {
-    return pollUntilCompletionLoop(() => this.pollOnce(), options);
+    return pollUntilCompletionLoop(
+      () => this.pollOnce(),
+      () => this.getDebugReport(),
+      options,
+    );
+  }
+
+  private getDebugReport(): IDKitDebugReport | undefined {
+    return getBridgeDebugReport(this.wasmRequest);
   }
 }
 
@@ -200,7 +249,15 @@ class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
   }
 
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult> {
-    return pollUntilCompletionLoop(() => this.pollOnce(), options);
+    return pollUntilCompletionLoop(
+      () => this.pollOnce(),
+      () => this.getDebugReport(),
+      options,
+    );
+  }
+
+  private getDebugReport(): IDKitDebugReport | undefined {
+    return getBridgeDebugReport(this.wasmRequest);
   }
 }
 

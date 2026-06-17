@@ -94,6 +94,13 @@ describe("native transport request lifecycle", () => {
     }
   });
 
+  it("does not expose a native debug report stub", () => {
+    const req = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
+    activeRequest = req;
+
+    expect("getDebugReport" in req).toBe(false);
+  });
+
   it("resolves from MiniKit event channel", async () => {
     const req = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
     activeRequest = req;

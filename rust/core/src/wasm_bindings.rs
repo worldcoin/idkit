@@ -1230,6 +1230,22 @@ impl IDKitRequest {
             status_to_js_value(&status)
         })
     }
+
+    /// Returns the latest debug report snapshot for this request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request has been closed or serialization fails.
+    #[wasm_bindgen(js_name = getDebugReport)]
+    pub fn get_debug_report(&self) -> Result<JsValue, JsValue> {
+        let report = self
+            .inner
+            .borrow()
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("Request closed"))?
+            .get_debug_report();
+        debug_report_to_js_value(&report)
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1321,6 +1337,22 @@ impl IDKitInviteCodeRequest {
             status_to_js_value(&status)
         })
     }
+
+    /// Returns the latest debug report snapshot for this invite-code request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request has been closed or serialization fails.
+    #[wasm_bindgen(js_name = getDebugReport)]
+    pub fn get_debug_report(&self) -> Result<JsValue, JsValue> {
+        let report = self
+            .inner
+            .borrow()
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("Request closed"))?
+            .get_debug_report();
+        debug_report_to_js_value(&report)
+    }
 }
 
 /// Polls a `BridgeConnection` while taking it out of the `Rc<RefCell<Option<…>>>`
@@ -1367,6 +1399,13 @@ fn status_to_js_value(status: &crate::Status) -> Result<JsValue, JsValue> {
     };
 
     result.map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
+}
+
+fn debug_report_to_js_value(report: &crate::bridge::BridgeDebugReport) -> Result<JsValue, JsValue> {
+    let ser = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+    report
+        .serialize(&ser)
+        .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
 }
 
 // TypeScript type definitions

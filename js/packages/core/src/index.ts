@@ -60,6 +60,7 @@ export type {
   // Session proof response types
   ResponseItemSession,
   IDKitResultSession,
+  IDKitDebugReport,
   // Status (includes both action and session confirmed)
   Status,
   // Shared types

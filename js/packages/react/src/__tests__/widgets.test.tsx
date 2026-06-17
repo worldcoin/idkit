@@ -201,6 +201,62 @@ describe("widgets", () => {
     expect(onSuccess).not.toHaveBeenCalled();
   });
 
+  it("request widget passes debugReport to onError when available", async () => {
+    const debugReport = {
+      package_version: "4.1.8",
+      transport: "bridge",
+      timestamps: { generated_at: "2026-06-17T00:00:00Z" },
+      request_id: "request-id",
+    };
+    const flow = createFlow({
+      isError: true,
+      errorCode: IDKitErrorCodes.ConnectionFailed,
+      debugReport,
+    });
+    useIDKitRequestMock.mockReturnValue(flow);
+
+    const onError = vi.fn();
+
+    render(<IDKitRequestWidget {...createRequestProps({ onError })} />);
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(
+        IDKitErrorCodes.ConnectionFailed,
+        debugReport,
+      );
+    });
+  });
+
+  it("invite-code widget passes debugReport to onError when available", async () => {
+    const debugReport = {
+      package_version: "4.1.8",
+      transport: "bridge",
+      timestamps: { generated_at: "2026-06-17T00:00:00Z" },
+      request_id: "request-id",
+    };
+    const flow = createFlow({
+      isError: true,
+      errorCode: IDKitErrorCodes.ConnectionFailed,
+      debugReport,
+    });
+    useIDKitInviteCodeRequestMock.mockReturnValue(flow);
+
+    const onError = vi.fn();
+
+    render(
+      <IDKitInviteCodeRequestWidget
+        {...createInviteCodeRequestProps({ onError })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(
+        IDKitErrorCodes.ConnectionFailed,
+        debugReport,
+      );
+    });
+  });
+
   it("request widget shows already verified state for replayed nullifiers", async () => {
     const flow = createFlow({
       isError: true,

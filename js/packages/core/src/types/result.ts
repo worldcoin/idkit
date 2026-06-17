@@ -24,6 +24,17 @@ export type {
   CredentialRequestType,
 } from "../lib/wasm";
 
+export type IDKitDebugReport = {
+  package_version: string;
+  transport: "bridge" | "mini_app";
+  timestamps: { generated_at: string };
+  request_id?: string;
+  connector_uri?: string;
+  request_payload?: object;
+  response_payload?: object;
+  mini_app?: Record<string, unknown>;
+};
+
 /**
  * IDKit error codes enum — runtime values for matching against errors.
  * Values mirror Rust's AppError enum (snake_case via serde rename_all).

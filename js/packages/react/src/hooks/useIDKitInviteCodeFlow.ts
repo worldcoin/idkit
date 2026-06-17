@@ -3,6 +3,7 @@ import {
   IDKitErrorCodes,
   isInWorldApp as isInWorldAppCheck,
   isDebug,
+  type IDKitDebugReport,
   type IDKitInviteCodeRequest,
 } from "@worldcoin/idkit-core";
 import type { FlowConfig, IDKitInviteCodeHookResult } from "../types";
@@ -11,6 +12,10 @@ import {
   createInitialInviteCodeHookState,
   type InviteCodeHookState,
 } from "./inviteCodeCommon";
+
+type DebugReportSource = {
+  getDebugReport?: () => IDKitDebugReport | undefined;
+};
 
 export function useIDKitInviteCodeFlow<TResult>(
   createFlowHandle: () => Promise<IDKitInviteCodeRequest>,
@@ -52,6 +57,7 @@ export function useIDKitInviteCodeFlow<TResult>(
         codeExpiresAt: null,
         result: null,
         errorCode: null,
+        debugReport: undefined,
       };
     });
   }, []);
@@ -64,9 +70,20 @@ export function useIDKitInviteCodeFlow<TResult>(
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const setFailed = (errorCode: IDKitErrorCodes) => {
+    const readDebugReport = (
+      request: DebugReportSource | null,
+    ): IDKitDebugReport | undefined => request?.getDebugReport?.();
+
+    const setFailed = (
+      errorCode: IDKitErrorCodes,
+      debugReport?: IDKitDebugReport,
+    ) => {
       setState((prev) => {
-        if (prev.status === "failed" && prev.errorCode === errorCode) {
+        if (
+          prev.status === "failed" &&
+          prev.errorCode === errorCode &&
+          prev.debugReport === debugReport
+        ) {
           return prev;
         }
 
@@ -74,15 +91,17 @@ export function useIDKitInviteCodeFlow<TResult>(
           ...prev,
           status: "failed",
           errorCode,
+          debugReport,
         };
       });
     };
 
     void (async () => {
+      let request: IDKitInviteCodeRequest | null = null;
       try {
         if (isDebug())
           console.debug("[IDKit] Creating invite-code flow handle…");
-        const request = await createFlowHandleRef.current();
+        request = await createFlowHandleRef.current();
         ensureNotAborted(controller.signal);
         if (isDebug())
           console.debug("[IDKit] Invite-code flow created", {
@@ -111,7 +130,7 @@ export function useIDKitInviteCodeFlow<TResult>(
           ensureNotAborted(controller.signal);
 
           if (Date.now() - startedAt > timeout) {
-            setFailed(IDKitErrorCodes.Timeout);
+            setFailed(IDKitErrorCodes.Timeout, readDebugReport(request));
             return;
           }
 
@@ -121,7 +140,10 @@ export function useIDKitInviteCodeFlow<TResult>(
           if (nextStatus.type === "confirmed") {
             const confirmedResult = nextStatus.result;
             if (!confirmedResult) {
-              setFailed(IDKitErrorCodes.UnexpectedResponse);
+              setFailed(
+                IDKitErrorCodes.UnexpectedResponse,
+                readDebugReport(request),
+              );
               return;
             }
 
@@ -130,6 +152,7 @@ export function useIDKitInviteCodeFlow<TResult>(
               status: "confirmed",
               result: confirmedResult as TResult,
               errorCode: null,
+              debugReport: undefined,
             }));
             return;
           }
@@ -140,7 +163,10 @@ export function useIDKitInviteCodeFlow<TResult>(
                 "[IDKit] Invite-code poll returned failed",
                 nextStatus,
               );
-            setFailed(nextStatus.error ?? IDKitErrorCodes.GenericError);
+            setFailed(
+              nextStatus.error ?? IDKitErrorCodes.GenericError,
+              readDebugReport(request),
+            );
             return;
           }
 
@@ -160,7 +186,7 @@ export function useIDKitInviteCodeFlow<TResult>(
         }
 
         if (isDebug()) console.error("[IDKit] Invite-code flow error:", error);
-        setFailed(toErrorCode(error));
+        setFailed(toErrorCode(error), readDebugReport(request));
       }
     })();
 
@@ -183,6 +209,7 @@ export function useIDKitInviteCodeFlow<TResult>(
     codeExpiresAt: state.codeExpiresAt,
     result: state.result,
     errorCode: state.errorCode,
+    debugReport: state.debugReport,
     isOpen: state.isOpen,
     isInWorldApp,
   };

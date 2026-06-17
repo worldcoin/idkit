@@ -1,4 +1,4 @@
-import type { IDKitErrorCodes } from "@worldcoin/idkit-core";
+import type { IDKitDebugReport, IDKitErrorCodes } from "@worldcoin/idkit-core";
 
 type IDKitHookStatus =
   | "idle"
@@ -14,6 +14,7 @@ export type InviteCodeHookState<TResult> = {
   codeExpiresAt: number | null;
   result: TResult | null;
   errorCode: IDKitErrorCodes | null;
+  debugReport?: IDKitDebugReport;
 };
 
 export function createInitialInviteCodeHookState<
@@ -26,5 +27,6 @@ export function createInitialInviteCodeHookState<
     codeExpiresAt: null,
     result: null,
     errorCode: null,
+    debugReport: undefined,
   };
 }

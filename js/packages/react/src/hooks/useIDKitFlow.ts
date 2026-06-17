@@ -3,6 +3,7 @@ import {
   IDKitErrorCodes,
   isInWorldApp as isInWorldAppCheck,
   isDebug,
+  type IDKitDebugReport,
   type IDKitRequest,
 } from "@worldcoin/idkit-core";
 import type { FlowConfig, IDKitHookResult } from "../types";
@@ -13,6 +14,10 @@ import {
   toErrorCode,
   type HookState,
 } from "./common";
+
+type DebugReportSource = {
+  getDebugReport?: () => IDKitDebugReport | undefined;
+};
 
 export function useIDKitFlow<TResult>(
   createFlowHandle: () => Promise<IDKitRequest>,
@@ -53,6 +58,7 @@ export function useIDKitFlow<TResult>(
         connectorURI: null,
         result: null,
         errorCode: null,
+        debugReport: undefined,
       };
     });
   }, []);
@@ -65,9 +71,20 @@ export function useIDKitFlow<TResult>(
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const setFailed = (errorCode: IDKitErrorCodes) => {
+    const readDebugReport = (
+      request: DebugReportSource | null,
+    ): IDKitDebugReport | undefined => request?.getDebugReport?.();
+
+    const setFailed = (
+      errorCode: IDKitErrorCodes,
+      debugReport?: IDKitDebugReport,
+    ) => {
       setState((prev) => {
-        if (prev.status === "failed" && prev.errorCode === errorCode) {
+        if (
+          prev.status === "failed" &&
+          prev.errorCode === errorCode &&
+          prev.debugReport === debugReport
+        ) {
           return prev;
         }
 
@@ -75,14 +92,16 @@ export function useIDKitFlow<TResult>(
           ...prev,
           status: "failed",
           errorCode,
+          debugReport,
         };
       });
     };
 
     void (async () => {
+      let request: IDKitRequest | null = null;
       try {
         if (isDebug()) console.debug("[IDKit] Creating flow handle…");
-        const request = await createFlowHandleRef.current();
+        request = await createFlowHandleRef.current();
         ensureNotAborted(controller.signal);
         if (isDebug())
           console.debug("[IDKit] Flow created", {
@@ -106,7 +125,7 @@ export function useIDKitFlow<TResult>(
           ensureNotAborted(controller.signal);
 
           if (Date.now() - startedAt > timeout) {
-            setFailed(IDKitErrorCodes.Timeout);
+            setFailed(IDKitErrorCodes.Timeout, readDebugReport(request));
             return;
           }
 
@@ -116,7 +135,10 @@ export function useIDKitFlow<TResult>(
           if (nextStatus.type === "confirmed") {
             const confirmedResult = nextStatus.result;
             if (!confirmedResult) {
-              setFailed(IDKitErrorCodes.UnexpectedResponse);
+              setFailed(
+                IDKitErrorCodes.UnexpectedResponse,
+                readDebugReport(request),
+              );
               return;
             }
 
@@ -125,6 +147,7 @@ export function useIDKitFlow<TResult>(
               status: "confirmed",
               result: confirmedResult as TResult,
               errorCode: null,
+              debugReport: undefined,
             }));
             return;
           }
@@ -132,7 +155,10 @@ export function useIDKitFlow<TResult>(
           if (nextStatus.type === "failed") {
             if (isDebug())
               console.warn("[IDKit] Poll returned failed", nextStatus);
-            setFailed(nextStatus.error ?? IDKitErrorCodes.GenericError);
+            setFailed(
+              nextStatus.error ?? IDKitErrorCodes.GenericError,
+              readDebugReport(request),
+            );
             return;
           }
 
@@ -152,7 +178,7 @@ export function useIDKitFlow<TResult>(
         }
 
         if (isDebug()) console.error("[IDKit] Flow error:", error);
-        setFailed(toErrorCode(error));
+        setFailed(toErrorCode(error), readDebugReport(request));
       }
     })();
 
@@ -174,6 +200,7 @@ export function useIDKitFlow<TResult>(
     connectorURI: state.connectorURI,
     result: state.result,
     errorCode: state.errorCode,
+    debugReport: state.debugReport,
     isOpen: state.isOpen,
     isInWorldApp,
   };
