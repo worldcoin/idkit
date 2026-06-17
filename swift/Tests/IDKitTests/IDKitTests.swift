@@ -62,7 +62,7 @@ private func sampleRequestConfig() throws -> IDKitRequestConfig {
 
 @Test("IDKit entrypoints expose canonical builders")
 func idkitEntrypoints() throws {
-    let requestConfig = sampleRequestConfig()
+    let requestConfig = try sampleRequestConfig()
 
     // TODO: Re-enable when World ID 4.0 is live
     // let sessionConfig = IDKitSessionConfig(
@@ -84,8 +84,8 @@ func idkitEntrypoints() throws {
     #expect(Bool(true))
 }
 
-@Test("bridge debug payload JSON exposes identity check contract fields")
-func bridgeDebugPayloadJSONIdentityCheck() throws {
+@Test("bridge debug payload exposes identity check contract fields")
+func bridgeDebugPayloadIdentityCheck() throws {
     let requestConfig = IDKitRequestConfig(
         appId: "app_staging_1234567890abcdef",
         action: "test-action",
@@ -100,7 +100,7 @@ func bridgeDebugPayloadJSONIdentityCheck() throws {
         connectUrlMode: nil
     )
 
-    let payloadJSON = try IDKit.bridgeDebugPayloadJSON(
+    let payload = try IDKit.bridgeDebugPayload(
         for: requestConfig,
         preset: identityCheck(
             attributes: [
@@ -109,36 +109,32 @@ func bridgeDebugPayloadJSONIdentityCheck() throws {
             ]
         )
     )
-    let payload = try #require(
-        try JSONSerialization.jsonObject(with: Data(payloadJSON.utf8)) as? [String: Any]
-    )
 
-    #expect(payload["app_id"] as? String == "app_staging_1234567890abcdef")
-    #expect(payload["action"] as? String == "test-action")
-    #expect(payload["action_description"] as? String == "Identity check")
-    #expect(payload["verification_level"] as? String == "document")
-    #expect(payload["require_user_presence"] as? Bool == true)
-    #expect(payload["allow_legacy_proofs"] as? Bool == true)
-    #expect(payload["return_to_url"] as? String == "idkitsample://callback")
-    #expect(payload["environment"] as? String == "staging")
-    #expect(payload["timestamp"] == nil)
+    #expect(payload.appId == "app_staging_1234567890abcdef")
+    #expect(payload.action == "test-action")
+    #expect(payload.actionDescription == "Identity check")
+    #expect(payload.verificationLevel == .document)
+    #expect(payload.requireUserPresence == true)
+    #expect(payload.allowLegacyProofs == true)
+    #expect(payload.returnToUrl == "idkitsample://callback")
+    #expect(payload.environment == .staging)
+    #expect(payload.timestamp == nil)
 
-    let attributes = try #require(payload["identity_attributes"] as? [[String: Any]])
+    let attributes = try #require(payload.identityAttributes)
     #expect(attributes.count == 2)
-    #expect(attributes[0]["type"] as? String == "minimum_age")
-    #expect(attributes[0]["value"] as? Int == 21)
-    #expect(attributes[1]["type"] as? String == "nationality")
-    #expect(attributes[1]["value"] as? String == "JPN")
+    #expect(attributes[0].attributeType == "minimum_age")
+    #expect(attributes[0].valueInt == 21)
+    #expect(attributes[1].attributeType == "nationality")
+    #expect(attributes[1].valueString == "JPN")
 
-    let proofRequest = try #require(payload["proof_request"] as? [String: Any])
-    #expect(proofRequest["proof_type"] as? String == "uniqueness")
-    #expect(proofRequest["rp_id"] as? String == "rp_1234567890abcdef")
-    #expect(proofRequest["created_at"] as? Int == 1_700_000_000)
-    #expect(proofRequest["expires_at"] as? Int == 1_700_003_600)
-    #expect(proofRequest["id"] is String)
+    let proofRequest = try #require(payload.proofRequest)
+    #expect(proofRequest.proofType == "uniqueness")
+    #expect(proofRequest.rpId == "rp_1234567890abcdef")
+    #expect(proofRequest.createdAt == 1_700_000_000)
+    #expect(proofRequest.expiresAt == 1_700_003_600)
+    #expect(proofRequest.id.isEmpty == false)
 
-    let proofRequests = try #require(proofRequest["proof_requests"] as? [[String: Any]])
-    #expect(proofRequests.map { $0["identifier"] as? String } == ["passport", "mnc"])
+    #expect(proofRequest.proofRequests.map(\.identifier) == ["passport", "mnc"])
 }
 
 @Test("Status mapping covers all canonical variants")

@@ -1226,6 +1226,260 @@ async fn try_create_invite_code_request(
 // UniFFI bindings
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Plaintext bridge request payload exposed for SDK debug/contract inspection.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct BridgeDebugPayload {
+    pub app_id: String,
+    pub action: Option<String>,
+    pub action_description: Option<String>,
+    pub signal: String,
+    pub verification_level: VerificationLevel,
+    pub timestamp: Option<String>,
+    pub proof_request: Option<BridgeDebugProofRequest>,
+    pub identity_attributes: Option<Vec<BridgeDebugIdentityAttribute>>,
+    pub allow_legacy_proofs: bool,
+    pub require_user_presence: bool,
+    pub environment: Environment,
+    pub return_to_url: Option<String>,
+}
+
+/// Protocol-level proof request embedded in [`BridgeDebugPayload`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct BridgeDebugProofRequest {
+    pub id: String,
+    pub proof_type: String,
+    pub rp_id: String,
+    pub created_at: u64,
+    pub expires_at: u64,
+    pub proof_requests: Vec<BridgeDebugCredentialRequest>,
+    /// JSON serialization of the protocol constraint expression, when present.
+    pub constraints_json: Option<String>,
+}
+
+/// Credential request item inside [`BridgeDebugProofRequest::proof_requests`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct BridgeDebugCredentialRequest {
+    pub identifier: String,
+    pub issuer_schema_id: Option<u64>,
+}
+
+/// Identity attribute filter in [`BridgeDebugPayload::identity_attributes`].
+///
+/// Wire JSON uses a single `value` field that may be an integer or string.
+/// UniFFI exposes that polymorphism as optional `value_int` / `value_string`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct BridgeDebugIdentityAttribute {
+    pub attribute_type: String,
+    pub value_int: Option<u32>,
+    pub value_string: Option<String>,
+}
+
+fn json_field_error(field: &str, details: impl std::fmt::Display) -> crate::error::Error {
+    crate::error::Error::InvalidConfiguration(format!(
+        "invalid bridge debug payload field `{field}`: {details}"
+    ))
+}
+
+fn parse_bridge_debug_identity_attribute(
+    value: &serde_json::Value,
+) -> crate::Result<BridgeDebugIdentityAttribute> {
+    let obj = value
+        .as_object()
+        .ok_or_else(|| json_field_error("identity_attributes", "expected object"))?;
+    let attribute_type = obj
+        .get("type")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| json_field_error("identity_attributes.type", "expected string"))?
+        .to_string();
+    let raw_value = obj
+        .get("value")
+        .ok_or_else(|| json_field_error("identity_attributes.value", "expected value"))?;
+    let (value_int, value_string) = match raw_value {
+        serde_json::Value::Number(number) => (
+            number
+                .as_u64()
+                .and_then(|v| u32::try_from(v).ok())
+                .map(|v| v),
+            None,
+        ),
+        serde_json::Value::String(text) => (None, Some(text.clone())),
+        _ => {
+            return Err(json_field_error(
+                "identity_attributes.value",
+                "expected number or string",
+            ));
+        }
+    };
+    Ok(BridgeDebugIdentityAttribute {
+        attribute_type,
+        value_int,
+        value_string,
+    })
+}
+
+fn parse_bridge_debug_credential_request(
+    value: &serde_json::Value,
+) -> crate::Result<BridgeDebugCredentialRequest> {
+    let obj = value
+        .as_object()
+        .ok_or_else(|| json_field_error("proof_requests", "expected object"))?;
+    let identifier = obj
+        .get("identifier")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| json_field_error("proof_requests.identifier", "expected string"))?
+        .to_string();
+    let issuer_schema_id = obj
+        .get("issuer_schema_id")
+        .and_then(serde_json::Value::as_u64);
+    Ok(BridgeDebugCredentialRequest {
+        identifier,
+        issuer_schema_id,
+    })
+}
+
+fn parse_bridge_debug_proof_request(
+    value: &serde_json::Value,
+) -> crate::Result<BridgeDebugProofRequest> {
+    let obj = value
+        .as_object()
+        .ok_or_else(|| json_field_error("proof_request", "expected object"))?;
+    let id = obj
+        .get("id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| json_field_error("proof_request.id", "expected string"))?
+        .to_string();
+    let proof_type = obj
+        .get("proof_type")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| json_field_error("proof_request.proof_type", "expected string"))?
+        .to_string();
+    let rp_id = obj
+        .get("rp_id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| json_field_error("proof_request.rp_id", "expected string"))?
+        .to_string();
+    let created_at = obj
+        .get("created_at")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| json_field_error("proof_request.created_at", "expected integer"))?;
+    let expires_at = obj
+        .get("expires_at")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| json_field_error("proof_request.expires_at", "expected integer"))?;
+    let proof_requests = obj
+        .get("proof_requests")
+        .map(|items| -> crate::Result<Vec<BridgeDebugCredentialRequest>> {
+            let array = items
+                .as_array()
+                .ok_or_else(|| json_field_error("proof_request.proof_requests", "expected array"))?;
+            array
+                .iter()
+                .map(parse_bridge_debug_credential_request)
+                .collect()
+        })
+        .transpose()?
+        .unwrap_or_default();
+    let constraints_json = obj
+        .get("constraints")
+        .map(serde_json::to_string)
+        .transpose()
+        .map_err(|err| json_field_error("proof_request.constraints", err))?;
+    Ok(BridgeDebugProofRequest {
+        id,
+        proof_type,
+        rp_id,
+        created_at,
+        expires_at,
+        proof_requests,
+        constraints_json,
+    })
+}
+
+fn parse_bridge_debug_payload(value: serde_json::Value) -> crate::Result<BridgeDebugPayload> {
+    let obj = value
+        .as_object()
+        .ok_or_else(|| json_field_error("payload", "expected object"))?;
+    let app_id = obj
+        .get("app_id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| json_field_error("app_id", "expected string"))?
+        .to_string();
+    let action = obj.get("action").and_then(|value| match value {
+        serde_json::Value::String(text) => Some(text.clone()),
+        serde_json::Value::Null => None,
+        _ => None,
+    });
+    let action_description = obj
+        .get("action_description")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
+    let signal = obj
+        .get("signal")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| json_field_error("signal", "expected string"))?
+        .to_string();
+    let verification_level = obj
+        .get("verification_level")
+        .ok_or_else(|| json_field_error("verification_level", "expected value"))?;
+    let verification_level = serde_json::from_value::<VerificationLevel>(verification_level.clone())
+        .map_err(|err| json_field_error("verification_level", err))?;
+    let timestamp = obj
+        .get("timestamp")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
+    let proof_request = obj
+        .get("proof_request")
+        .map(parse_bridge_debug_proof_request)
+        .transpose()?;
+    let identity_attributes = obj
+        .get("identity_attributes")
+        .map(|items| -> crate::Result<Vec<BridgeDebugIdentityAttribute>> {
+            let array = items.as_array().ok_or_else(|| {
+                json_field_error("identity_attributes", "expected array")
+            })?;
+            array
+                .iter()
+                .map(parse_bridge_debug_identity_attribute)
+                .collect()
+        })
+        .transpose()?;
+    let allow_legacy_proofs = obj
+        .get("allow_legacy_proofs")
+        .and_then(serde_json::Value::as_bool)
+        .ok_or_else(|| json_field_error("allow_legacy_proofs", "expected boolean"))?;
+    let require_user_presence = obj
+        .get("require_user_presence")
+        .and_then(serde_json::Value::as_bool)
+        .ok_or_else(|| json_field_error("require_user_presence", "expected boolean"))?;
+    let environment = obj
+        .get("environment")
+        .ok_or_else(|| json_field_error("environment", "expected value"))?;
+    let environment = serde_json::from_value::<Environment>(environment.clone())
+        .map_err(|err| json_field_error("environment", err))?;
+    let return_to_url = obj
+        .get("return_to_url")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
+    Ok(BridgeDebugPayload {
+        app_id,
+        action,
+        action_description,
+        signal,
+        verification_level,
+        timestamp,
+        proof_request,
+        identity_attributes,
+        allow_legacy_proofs,
+        require_user_presence,
+        environment,
+        return_to_url,
+    })
+}
+
 /// Configuration for `request()`
 #[cfg(feature = "ffi")]
 #[derive(Clone, uniffi::Record)]
@@ -1521,6 +1775,14 @@ fn bridge_payload_json(
     })
 }
 
+#[cfg(feature = "ffi")]
+fn bridge_debug_payload_from_params(
+    params: &BridgeConnectionParams,
+) -> std::result::Result<BridgeDebugPayload, crate::error::IdkitError> {
+    let payload = build_request_payload(params, false).map_err(crate::error::IdkitError::from)?;
+    parse_bridge_debug_payload(payload).map_err(Into::into)
+}
+
 /// Unified builder for creating `IDKit` requests and sessions
 #[cfg(feature = "ffi")]
 #[derive(uniffi::Object)]
@@ -1601,6 +1863,21 @@ impl IDKitBuilder {
         bridge_payload_json(&params)
     }
 
+    /// Builds the plaintext bridge payload for the given constraints without
+    /// creating a bridge request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if constraints are invalid or payload construction fails.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn bridge_debug_payload(
+        &self,
+        constraints: Arc<ConstraintNode>,
+    ) -> std::result::Result<BridgeDebugPayload, crate::error::IdkitError> {
+        let params = self.config.to_params((*constraints).clone())?;
+        bridge_debug_payload_from_params(&params)
+    }
+
     /// Creates a `BridgeConnection` from a preset (works for all request types)
     ///
     /// Presets provide a simplified way to create requests with predefined
@@ -1645,6 +1922,21 @@ impl IDKitBuilder {
     ) -> std::result::Result<String, crate::error::IdkitError> {
         let params = self.config.to_params_from_preset(preset)?;
         bridge_payload_json(&params)
+    }
+
+    /// Builds the plaintext bridge payload for the given preset without
+    /// creating a bridge request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the preset is invalid or payload construction fails.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn bridge_debug_payload_from_preset(
+        &self,
+        preset: Preset,
+    ) -> std::result::Result<BridgeDebugPayload, crate::error::IdkitError> {
+        let params = self.config.to_params_from_preset(preset)?;
+        bridge_debug_payload_from_params(&params)
     }
 
     /// Creates an invite-code mode `BridgeConnection` with the given constraints (WDP-73).
@@ -2183,6 +2475,81 @@ mod tests {
             ])
         );
         assert!(payload.get("proof_request").is_some());
+    }
+
+    #[test]
+    fn test_parse_bridge_debug_payload_identity_check() {
+        let app_id = AppId::new("app_staging_1234567890abcdef").unwrap();
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &("0x".to_string() + &"00".repeat(64) + "1b"),
+        )
+        .unwrap();
+        let constraints = ConstraintNode::any(vec![
+            ConstraintNode::item(CredentialRequest::new(CredentialType::Passport, None)),
+            ConstraintNode::item(CredentialRequest::new(CredentialType::Mnc, None)),
+        ]);
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::Uniqueness {
+                action: "test-action".to_string(),
+            },
+            constraints: Some(constraints),
+            rp_context,
+            action_description: Some("Identity check".to_string()),
+            legacy_verification_level: VerificationLevel::Document,
+            legacy_signal: String::new(),
+            bridge_url: None,
+            allow_legacy_proofs: true,
+            require_user_presence: true,
+            override_connect_base_url: None,
+            return_to: Some("idkitsample://callback".to_string()),
+            environment: Some(Environment::Staging),
+            identity_attributes: Some(vec![
+                IdentityAttribute::MinimumAge(21),
+                IdentityAttribute::Nationality("JPN".to_string()),
+            ]),
+        };
+
+        let payload_value = build_request_payload(&params, false).unwrap();
+        let payload = parse_bridge_debug_payload(payload_value).unwrap();
+
+        assert_eq!(payload.app_id, "app_staging_1234567890abcdef");
+        assert_eq!(payload.action.as_deref(), Some("test-action"));
+        assert_eq!(payload.action_description.as_deref(), Some("Identity check"));
+        assert_eq!(payload.verification_level, VerificationLevel::Document);
+        assert!(payload.timestamp.is_none());
+        assert!(payload.allow_legacy_proofs);
+        assert!(payload.require_user_presence);
+        assert_eq!(payload.environment, Environment::Staging);
+        assert_eq!(payload.return_to_url.as_deref(), Some("idkitsample://callback"));
+
+        let attributes = payload.identity_attributes.unwrap();
+        assert_eq!(attributes.len(), 2);
+        assert_eq!(attributes[0].attribute_type, "minimum_age");
+        assert_eq!(attributes[0].value_int, Some(21));
+        assert!(attributes[0].value_string.is_none());
+        assert_eq!(attributes[1].attribute_type, "nationality");
+        assert_eq!(attributes[1].value_string.as_deref(), Some("JPN"));
+
+        let proof_request = payload.proof_request.unwrap();
+        assert_eq!(proof_request.proof_type, "uniqueness");
+        assert_eq!(proof_request.rp_id, "rp_1234567890abcdef");
+        assert_eq!(proof_request.created_at, 1_700_000_000);
+        assert_eq!(proof_request.expires_at, 1_700_003_600);
+        assert!(!proof_request.id.is_empty());
+        assert_eq!(
+            proof_request
+                .proof_requests
+                .iter()
+                .map(|item| item.identifier.as_str())
+                .collect::<Vec<_>>(),
+            vec!["passport", "mnc"]
+        );
     }
 
     #[test]

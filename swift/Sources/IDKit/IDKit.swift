@@ -142,12 +142,28 @@ public enum IDKit {
         try request(config: config).bridgeDebugPayloadJSON(from: preset)
     }
 
+    /// Builds the plaintext bridge payload for a preset without creating a bridge request.
+    public static func bridgeDebugPayload(
+        for config: IDKitRequestConfig,
+        preset: Preset
+    ) throws -> BridgeDebugPayload {
+        try request(config: config).bridgeDebugPayload(from: preset)
+    }
+
     /// Builds the plaintext bridge payload JSON for constraints without creating a bridge request.
     public static func bridgeDebugPayloadJSON(
         for config: IDKitRequestConfig,
         constraints: ConstraintNode
     ) throws -> String {
         try request(config: config).bridgeDebugPayloadJSON(constraints)
+    }
+
+    /// Builds the plaintext bridge payload for constraints without creating a bridge request.
+    public static func bridgeDebugPayload(
+        for config: IDKitRequestConfig,
+        constraints: ConstraintNode
+    ) throws -> BridgeDebugPayload {
+        try request(config: config).bridgeDebugPayload(constraints)
     }
 }
 
@@ -169,6 +185,11 @@ public final class IDKitBuilder {
         try inner.bridgeDebugPayloadJson(constraints: constraints)
     }
 
+    /// Builds the plaintext bridge payload without creating a bridge request.
+    public func bridgeDebugPayload(_ constraints: ConstraintNode) throws -> BridgeDebugPayload {
+        try inner.bridgeDebugPayload(constraints: constraints)
+    }
+
     // TODO: Re-enable when World ID 4.0 is live
     // public func constraintsWithInviteCode(_ constraints: ConstraintNode) throws -> IDKitInviteCodeRequest {
     //     let request = try inner.constraintsWithInviteCode(constraints: constraints)
@@ -183,6 +204,11 @@ public final class IDKitBuilder {
     /// Builds the plaintext bridge payload JSON for a preset without creating a bridge request.
     public func bridgeDebugPayloadJSON(from preset: Preset) throws -> String {
         try inner.bridgeDebugPayloadJsonFromPreset(preset: preset)
+    }
+
+    /// Builds the plaintext bridge payload for a preset without creating a bridge request.
+    public func bridgeDebugPayload(from preset: Preset) throws -> BridgeDebugPayload {
+        try inner.bridgeDebugPayloadFromPreset(preset: preset)
     }
 
     /// Builds the request in invite-code mode.
