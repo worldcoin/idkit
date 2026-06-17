@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactElement } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactElement,
+} from "react";
 import {
   CredentialRequest,
   IDKitErrorCodes,
@@ -1101,6 +1107,22 @@ export function ArenaClient(): ReactElement {
     setActiveRun(null);
   };
 
+  const handleWidgetOpenChange = useCallback(
+    (open: boolean) => {
+      setWidgetOpen(open);
+      if (open || !activeRun) {
+        return;
+      }
+
+      setCaseResult(activeRun.caseId, {
+        status: "idle",
+        message: "Not run",
+      });
+      setActiveRun(null);
+    },
+    [activeRun],
+  );
+
   if (!APP_ID || !RP_ID) {
     return (
       <>
@@ -1279,7 +1301,7 @@ export function ArenaClient(): ReactElement {
       {activeRun && activeFlowConfig && (
         <IDKitRequestWidget
           open={widgetOpen}
-          onOpenChange={setWidgetOpen}
+          onOpenChange={handleWidgetOpenChange}
           app_id={APP_ID}
           action={activeRun.action}
           rp_context={activeRun.rpContext}
