@@ -3,6 +3,8 @@ import { IDKitErrorCodes } from "../types/result";
 import type { BuilderConfig } from "./native";
 import { createNativeRequest, getWorldAppVerifyVersion } from "./native";
 import { hashSignal } from "../lib/hashing";
+import { setDebug } from "../lib/debug";
+import { isIDKitDebugReportSource } from "../request";
 
 const baseConfig: BuilderConfig = {
   type: "request",
@@ -55,6 +57,7 @@ describe("native transport request lifecycle", () => {
   });
 
   afterEach(() => {
+    setDebug(false);
     activeRequest?.cancel?.();
     vi.useRealTimers();
     vi.restoreAllMocks();
@@ -92,13 +95,6 @@ describe("native transport request lifecycle", () => {
     if (completion.success) {
       expect(completion.result.responses[0]?.signal_hash).toBe("0xabc");
     }
-  });
-
-  it("does not expose a native debug report stub", () => {
-    const req = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
-    activeRequest = req;
-
-    expect("getDebugReport" in req).toBe(false);
   });
 
   it("resolves from MiniKit event channel", async () => {
@@ -456,6 +452,50 @@ describe("native transport request lifecycle", () => {
     const sent = JSON.parse(postMessageFn.mock.calls[0][0]);
     expect(sent.version).toBe(1);
     expect(sent.command).toBe("verify");
+  });
+
+  it("attaches debugReport on native failure when debug mode is on", async () => {
+    setDebug(true);
+    const req = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
+    activeRequest = req;
+    expect(isIDKitDebugReportSource(req)).toBe(true);
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "error",
+      error_code: IDKitErrorCodes.ConnectionFailed,
+    });
+
+    const completion = await completionPromise;
+    expect(completion.success).toBe(false);
+    if (completion.success) {
+      return;
+    }
+
+    expect(completion.error).toBe(IDKitErrorCodes.ConnectionFailed);
+    expect(completion.debugReport).toMatchObject({
+      transport: "mini_app",
+      package_version: "4.1.8",
+      request_payload: {
+        flow_type: "request",
+        app_id: "app_staging_test",
+        action: "test-action",
+        payload_keys: ["payload"],
+      },
+      mini_app: {
+        verify_version: 2,
+        platform: "android",
+        send_channel: "Android.postMessage",
+        minikit_subscribed: true,
+        response_channel: "minikit",
+        response_status: "error",
+        error_code: IDKitErrorCodes.ConnectionFailed,
+        response_format: "unknown",
+      },
+    });
+    expect(completion.debugReport?.request_id).toBe(req.requestId);
+    expect(completion.debugReport?.timestamps.generated_at).toBeTruthy();
   });
 });
 

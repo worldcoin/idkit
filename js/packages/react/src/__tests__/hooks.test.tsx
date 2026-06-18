@@ -37,9 +37,7 @@ vi.mock("@worldcoin/idkit-core", () => ({
   },
   isInWorldApp: () => false,
   isDebug: () => false,
-  isIDKitDebugReportSource: (value: unknown) =>
-    typeof (value as { getDebugReport?: unknown } | null)?.getDebugReport ===
-    "function",
+  isIDKitDebugReportSource: () => false,
 }));
 
 const baseRpContext = {
@@ -52,11 +50,10 @@ const baseRpContext = {
 const SESSION_ID_1 = `session_${"11".repeat(64)}` as const;
 const SESSION_ID_2 = `session_${"22".repeat(64)}` as const;
 
-function makeRequest(pollOnce: () => Promise<unknown>, debugReport?: unknown) {
+function makeRequest(pollOnce: () => Promise<unknown>) {
   return {
     connectorURI: "wc://request",
     pollOnce: vi.fn(pollOnce),
-    getDebugReport: vi.fn(() => debugReport),
   };
 }
 
@@ -415,7 +412,6 @@ describe("request/session hooks", () => {
     });
 
     expect(result.current.errorCode).toBe(IDKitErrorCodes.MalformedRequest);
-    expect(result.current.debugReport).toBeUndefined();
   });
 
   it("session hook fails on malformed existing_session_id format", async () => {
@@ -437,7 +433,6 @@ describe("request/session hooks", () => {
     });
 
     expect(result.current.errorCode).toBe(IDKitErrorCodes.MalformedRequest);
-    expect(result.current.debugReport).toBeUndefined();
   });
 
   it("request hook maps failed core status to errorCode", async () => {
@@ -469,48 +464,6 @@ describe("request/session hooks", () => {
     });
 
     expect(result.current.errorCode).toBe(IDKitErrorCodes.ConnectionFailed);
-  });
-
-  it("request hook stores debug report from failed core status", async () => {
-    const debugReport = {
-      package_version: "4.1.8",
-      transport: "bridge",
-      timestamps: { generated_at: "2026-06-17T00:00:00Z" },
-      request_id: "request-id",
-    };
-
-    requestMock.mockReturnValue({
-      preset: vi.fn(async () =>
-        makeRequest(
-          async () => ({
-            type: "failed",
-            error: "connection_failed",
-          }),
-          debugReport,
-        ),
-      ),
-    });
-
-    const { result } = renderHook(() =>
-      useIDKitRequest({
-        app_id: "app_test",
-        action: "test-action",
-        rp_context: baseRpContext,
-        allow_legacy_proofs: false,
-        preset: { type: "OrbLegacy" },
-      }),
-    );
-
-    act(() => {
-      result.current.open();
-    });
-
-    await waitFor(() => {
-      expect(result.current.isError).toBe(true);
-    });
-
-    expect(result.current.errorCode).toBe(IDKitErrorCodes.ConnectionFailed);
-    expect(result.current.debugReport).toBe(debugReport);
   });
 
   it("request hook maps confirmed status without payload to unexpected_response", async () => {

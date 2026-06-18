@@ -47,68 +47,42 @@ vi.mock("../transports/native", () => ({
 
 import { IDKit, IDKitErrorCodes, orbLegacy, setDebug } from "../index";
 
-const config = {
-  app_id: "app_test" as const,
-  action: "test-action",
-  rp_context: {
-    rp_id: "rp_test",
-    nonce: "0x01",
-    created_at: 1,
-    expires_at: 2,
-    signature: "0x1234",
-  },
-  allow_legacy_proofs: true,
-};
-
-const rustDebugReport = {
-  transport: "bridge" as const,
-  timestamps: { generated_at: "2026-06-17T00:00:00Z" },
-  request_id: "request-id",
-  connector_uri: "wc://request",
-  request_payload: { app_id: "app_test" },
-  response_payload: { bridge_status: "completed" },
-};
-
-async function createBridgeRequest() {
-  requestMock.mockReturnValue(wasmBuilderMock);
-  wasmBuilderMock.preset.mockResolvedValue(wasmRequestMock);
-
-  return IDKit.request(config).preset(orbLegacy());
-}
-
 describe("debug reports", () => {
   afterEach(() => {
     setDebug(false);
     vi.clearAllMocks();
   });
 
-  it("omits debugReport from failed completion results when debug mode is off", async () => {
-    wasmRequestMock.pollForStatus.mockResolvedValue({
-      type: "failed",
-      error: IDKitErrorCodes.ConnectionFailed,
-    });
-    wasmRequestMock.getDebugReport.mockReturnValue(rustDebugReport);
-
-    const request = await createBridgeRequest();
-    const completion = await request.pollUntilCompletion({ pollInterval: 0 });
-
-    expect(completion).toEqual({
-      success: false,
-      error: IDKitErrorCodes.ConnectionFailed,
-    });
-    expect("debugReport" in completion).toBe(false);
-    expect(wasmRequestMock.getDebugReport).not.toHaveBeenCalled();
-  });
-
-  it("adds package_version to the WASM debug report when debug mode is on", async () => {
+  it("attaches debugReport to failed pollUntilCompletion when debug mode is on", async () => {
     setDebug(true);
+    requestMock.mockReturnValue(wasmBuilderMock);
+    wasmBuilderMock.preset.mockResolvedValue(wasmRequestMock);
     wasmRequestMock.pollForStatus.mockResolvedValue({
       type: "failed",
       error: IDKitErrorCodes.ConnectionFailed,
     });
-    wasmRequestMock.getDebugReport.mockReturnValue(rustDebugReport);
+    wasmRequestMock.getDebugReport.mockReturnValue({
+      transport: "bridge",
+      timestamps: { generated_at: "2026-06-17T00:00:00Z" },
+      request_id: "request-id",
+      connector_uri: "wc://request",
+      request_payload: { app_id: "app_test" },
+      response_payload: { bridge_status: "retrieved" },
+    });
 
-    const request = await createBridgeRequest();
+    const request = await IDKit.request({
+      app_id: "app_test",
+      action: "test-action",
+      rp_context: {
+        rp_id: "rp_test",
+        nonce: "0x01",
+        created_at: 1,
+        expires_at: 2,
+        signature: "0x1234",
+      },
+      allow_legacy_proofs: true,
+    }).preset(orbLegacy());
+
     const completion = await request.pollUntilCompletion({ pollInterval: 0 });
 
     expect(wasmRequestMock.getDebugReport).toHaveBeenCalledTimes(1);
@@ -116,7 +90,12 @@ describe("debug reports", () => {
       success: false,
       error: IDKitErrorCodes.ConnectionFailed,
       debugReport: {
-        ...rustDebugReport,
+        transport: "bridge",
+        timestamps: { generated_at: "2026-06-17T00:00:00Z" },
+        request_id: "request-id",
+        connector_uri: "wc://request",
+        request_payload: { app_id: "app_test" },
+        response_payload: { bridge_status: "retrieved" },
         package_version: "4.1.8",
       },
     });

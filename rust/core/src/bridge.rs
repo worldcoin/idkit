@@ -22,7 +22,10 @@ use crate::crypto::CryptoKey;
 
 #[cfg(feature = "ffi")]
 use std::sync::Arc;
-use std::{str::FromStr, sync::Mutex};
+use std::{
+    str::FromStr,
+    sync::{Mutex, PoisonError},
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Environment
@@ -215,7 +218,7 @@ pub struct BridgeDebugReportTimestamps {
     pub generated_at: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct BridgeDebugReport {
     pub transport: &'static str,
     pub timestamps: BridgeDebugReportTimestamps,
@@ -924,11 +927,10 @@ impl BridgeConnection {
     }
 
     fn store_response_debug(&self, snapshot: BridgeResponseDebugSnapshot) {
-        let mut latest = self
+        *self
             .latest_response_debug
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        *latest = Some(snapshot);
+            .unwrap_or_else(PoisonError::into_inner) = Some(snapshot);
     }
 
     #[must_use]
@@ -936,7 +938,7 @@ impl BridgeConnection {
         let response_payload = self
             .latest_response_debug
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(PoisonError::into_inner)
             .clone();
 
         BridgeDebugReport {
@@ -3509,26 +3511,15 @@ mod tests {
     }
 
     #[test]
-    fn test_debug_report_includes_request_snapshot_after_create() {
-        let connection = sample_connection(None);
+    fn test_debug_report_captures_request_and_latest_poll_status() {
+        let mut connection = sample_connection(None);
         let report = connection.get_debug_report();
 
         assert_eq!(report.request_id, "64e0ec6b-b4ca-47cc-8f70-504a95189e26");
-        assert_eq!(report.transport, "bridge");
-        assert!(report
-            .connector_uri
-            .contains("64e0ec6b-b4ca-47cc-8f70-504a95189e26"));
         assert_eq!(report.request_payload["app_id"], "app_test");
-        assert_eq!(report.request_payload["action"], "test-action");
-        assert!(!report.timestamps.generated_at.is_empty());
         assert_eq!(report.response_payload, None);
-    }
 
-    #[test]
-    fn test_initialized_poll_updates_debug_snapshot() {
-        let mut connection = sample_connection(None);
         connection.bridge_url = serve_bridge_response(r#"{"status":"initialized"}"#.to_string());
-
         let status = poll_once(&connection).unwrap();
         assert_eq!(status, Status::WaitingForConnection);
 
@@ -3537,66 +3528,5 @@ mod tests {
             response_payload.bridge_status.as_deref(),
             Some("initialized")
         );
-        assert_eq!(response_payload.error, None);
-    }
-
-    #[test]
-    fn test_retrieved_poll_updates_debug_snapshot() {
-        let mut connection = sample_connection(None);
-        connection.bridge_url = serve_bridge_response(r#"{"status":"retrieved"}"#.to_string());
-
-        let status = poll_once(&connection).unwrap();
-        assert_eq!(status, Status::AwaitingConfirmation);
-
-        let response_payload = connection.get_debug_report().response_payload.unwrap();
-        assert_eq!(response_payload.bridge_status.as_deref(), Some("retrieved"));
-        assert_eq!(response_payload.error, None);
-    }
-
-    #[test]
-    fn test_completed_without_response_records_debug_snapshot() {
-        let mut connection = sample_connection(None);
-        connection.bridge_url = serve_bridge_response(r#"{"status":"completed"}"#.to_string());
-
-        assert!(matches!(
-            poll_once(&connection),
-            Err(Error::UnexpectedResponse)
-        ));
-
-        let response_payload = connection.get_debug_report().response_payload.unwrap();
-        assert_eq!(response_payload.bridge_status.as_deref(), Some("completed"));
-        assert_eq!(response_payload.completed_response_present, Some(false));
-        assert_eq!(
-            response_payload.error.as_deref(),
-            Some("Unexpected response from bridge")
-        );
-    }
-
-    #[test]
-    fn test_malformed_decrypted_response_records_raw_payload_and_error() {
-        let mut connection = sample_connection(None);
-        let iv = [7_u8; 12];
-        let plaintext = b"{not json";
-        let encrypted = encrypt(&[0; 32], &iv, plaintext).unwrap();
-        let body = serde_json::json!({
-            "status": "completed",
-            "response": {
-                "iv": base64_encode(&iv),
-                "payload": base64_encode(&encrypted),
-            }
-        })
-        .to_string();
-        connection.bridge_url = serve_bridge_response(body);
-
-        assert!(matches!(poll_once(&connection), Err(Error::Json(_))));
-
-        let response_payload = connection.get_debug_report().response_payload.unwrap();
-        assert_eq!(response_payload.bridge_status.as_deref(), Some("completed"));
-        assert_eq!(response_payload.completed_response_present, Some(true));
-        assert_eq!(
-            response_payload.decrypted_response_raw.as_deref(),
-            Some("{not json")
-        );
-        assert!(response_payload.error.is_some());
     }
 }

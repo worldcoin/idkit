@@ -16,10 +16,13 @@ import type {
   CredentialRequestType,
 } from "./types/result";
 import { IDKitErrorCodes } from "./types/result";
-import packageJson from "../package.json";
 import type { NativePayloadResult } from "./lib/wasm";
 import { WasmModule, initIDKit } from "./lib/wasm";
 import { isDebug } from "./lib/debug";
+import {
+  type DebugReportWithoutVersion,
+  withPackageVersion,
+} from "./lib/debugReport";
 import {
   isInWorldApp,
   getWorldAppVerifyVersion,
@@ -58,7 +61,7 @@ export type IDKitCompletionResult =
     };
 
 const SESSION_ID_PATTERN = /^session_[0-9a-fA-F]{128}$/;
-type RustBridgeDebugReport = Omit<IDKitDebugReport, "package_version">;
+type RustBridgeDebugReport = DebugReportWithoutVersion;
 
 // Re-export RpContext for convenience
 export type { RpContext };
@@ -81,9 +84,9 @@ export interface IDKitRequest {
 }
 
 /**
- * Internal bridge debug-report provider.
+ * Internal debug-report provider for bridge and native transports.
  *
- * This is intentionally not part of {@link IDKitRequest}; only bridge-backed
+ * This is intentionally not part of {@link IDKitRequest}; only transport-backed
  * request objects implement it.
  */
 export interface IDKitDebugReportSource {
@@ -145,13 +148,6 @@ function failedCompletion(
   return debugReport
     ? { success: false, error, debugReport }
     : { success: false, error };
-}
-
-function withPackageVersion(report: RustBridgeDebugReport): IDKitDebugReport {
-  return {
-    ...report,
-    package_version: packageJson.version,
-  };
 }
 
 type WasmDebugReportSource = {
