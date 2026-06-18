@@ -2,12 +2,6 @@ package com.worldcoin.idkit
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.boolean
-import kotlinx.serialization.json.int
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -24,6 +18,7 @@ import uniffi.idkit_core.Preset
 import uniffi.idkit_core.ResponseItem
 import uniffi.idkit_core.RpContext
 import uniffi.idkit_core.StatusWrapper
+import uniffi.idkit_core.VerificationLevel
 
 class IDKitTests {
     private fun sampleResult(
@@ -89,7 +84,7 @@ class IDKitTests {
     }
 
     @Test
-    fun `bridge debug payload JSON exposes identity check contract fields`() {
+    fun `bridge debug payload exposes identity check contract fields`() {
         val builder = IDKit.request(
             IDKitRequestConfig(
                 appId = "app_staging_1234567890abcdef",
@@ -106,46 +101,45 @@ class IDKitTests {
             ),
         )
 
-        val payload = Json.parseToJsonElement(
-            builder.bridgeDebugPayloadJsonFromPreset(
-                identityCheck(
-                    attributes = listOf(
-                        IdentityAttribute.MinimumAge(21u),
-                        IdentityAttribute.Nationality("JPN"),
-                    ),
-                ),
+        val preset = identityCheck(
+            attributes = listOf(
+                IdentityAttribute.MinimumAge(21u),
+                IdentityAttribute.Nationality("JPN"),
             ),
-        ).jsonObject
-
-        assertEquals("app_staging_1234567890abcdef", payload["app_id"]?.jsonPrimitive?.content)
-        assertEquals("test-action", payload["action"]?.jsonPrimitive?.content)
-        assertEquals("Identity check", payload["action_description"]?.jsonPrimitive?.content)
-        assertEquals("document", payload["verification_level"]?.jsonPrimitive?.content)
-        assertEquals(true, payload["require_user_presence"]?.jsonPrimitive?.boolean)
-        assertEquals(true, payload["allow_legacy_proofs"]?.jsonPrimitive?.boolean)
-        assertEquals("idkitsample://callback", payload["return_to_url"]?.jsonPrimitive?.content)
-        assertEquals("staging", payload["environment"]?.jsonPrimitive?.content)
-        assertNull(payload["timestamp"])
-
-        val attributes = payload["identity_attributes"]!!.jsonArray
-        assertEquals(2, attributes.size)
-        assertEquals("minimum_age", attributes[0].jsonObject["type"]?.jsonPrimitive?.content)
-        assertEquals(21, attributes[0].jsonObject["value"]?.jsonPrimitive?.int)
-        assertEquals("nationality", attributes[1].jsonObject["type"]?.jsonPrimitive?.content)
-        assertEquals("JPN", attributes[1].jsonObject["value"]?.jsonPrimitive?.content)
-
-        val proofRequest = payload["proof_request"]!!.jsonObject
-        assertEquals("uniqueness", proofRequest["proof_type"]?.jsonPrimitive?.content)
-        assertEquals("rp_1234567890abcdef", proofRequest["rp_id"]?.jsonPrimitive?.content)
-        assertEquals(1_700_000_000, proofRequest["created_at"]?.jsonPrimitive?.int)
-        assertEquals(1_700_003_600, proofRequest["expires_at"]?.jsonPrimitive?.int)
-        assertTrue(proofRequest["id"]?.jsonPrimitive?.content?.isNotEmpty() == true)
-
-        val proofRequests = proofRequest["proof_requests"]!!.jsonArray
-        assertEquals(
-            listOf("passport", "mnc"),
-            proofRequests.map { it.jsonObject["identifier"]?.jsonPrimitive?.content },
         )
+        val spec = IDKitBuilder.DebugSpecification.Preset(preset)
+
+        val payload = builder.bridgeDebugPayload(spec)
+
+        val wireJSON = builder.bridgeDebugPayloadJSON(spec)
+        assertTrue(wireJSON.contains(payload.appId))
+        assertTrue(wireJSON.contains("minimum_age"))
+        assertTrue(wireJSON.contains("passport"))
+
+        assertEquals("app_staging_1234567890abcdef", payload.appId)
+        assertEquals("test-action", payload.action)
+        assertEquals("Identity check", payload.actionDescription)
+        assertEquals(VerificationLevel.DOCUMENT, payload.verificationLevel)
+        assertEquals(true, payload.requireUserPresence)
+        assertEquals(true, payload.allowLegacyProofs)
+        assertEquals("idkitsample://callback", payload.returnToUrl)
+        assertEquals(Environment.STAGING, payload.environment)
+        assertNull(payload.timestamp)
+
+        val attributes = payload.identityAttributes!!
+        assertEquals(2, attributes.size)
+        assertEquals("minimum_age", attributes[0].attributeType)
+        assertEquals(21u, attributes[0].valueInt)
+        assertEquals("nationality", attributes[1].attributeType)
+        assertEquals("JPN", attributes[1].valueString)
+
+        val proofRequest = payload.proofRequest!!
+        assertEquals("uniqueness", proofRequest.proofType)
+        assertEquals("rp_1234567890abcdef", proofRequest.rpId)
+        assertEquals(1_700_000_000u, proofRequest.createdAt)
+        assertEquals(1_700_003_600u, proofRequest.expiresAt)
+        assertTrue(proofRequest.id.isNotEmpty())
+        assertEquals(listOf("passport", "mnc"), proofRequest.credentialIdentifiers)
     }
 
     @Test

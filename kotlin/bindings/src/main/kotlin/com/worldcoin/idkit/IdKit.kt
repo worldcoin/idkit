@@ -37,6 +37,9 @@ typealias DocumentType = uniffi.idkit_core.DocumentType
 typealias IdentityAttribute = uniffi.idkit_core.IdentityAttribute
 typealias ConnectUrlMode = uniffi.idkit_core.ConnectUrlMode
 
+internal typealias BridgeDebugPayload = uniffi.idkit_core.BridgeDebugPayload
+internal typealias BridgeDebugProofRequest = uniffi.idkit_core.BridgeDebugProofRequest
+
 data class IDKitRequestConfig(
     val appId: String,
     val action: String,
@@ -179,17 +182,30 @@ data class IDKitPollOptions(
 class IDKitBuilder internal constructor(
     private val inner: IdKitBuilder,
 ) {
+    /** Selects preset vs custom constraints for unstable bridge payload inspection. */
+    sealed interface DebugSpecification {
+        data class Preset(val preset: Preset) : DebugSpecification
+        data class Constraints(val constraints: uniffi.idkit_core.ConstraintNode) : DebugSpecification
+    }
+
     fun constraints(constraints: uniffi.idkit_core.ConstraintNode): IDKitRequest =
         IDKitRequest(inner.constraints(constraints))
-
-    fun bridgeDebugPayloadJson(constraints: uniffi.idkit_core.ConstraintNode): String =
-        inner.bridgeDebugPayloadJson(constraints)
 
     fun preset(preset: Preset): IDKitRequest =
         IDKitRequest(inner.preset(preset))
 
-    fun bridgeDebugPayloadJsonFromPreset(preset: Preset): String =
-        inner.bridgeDebugPayloadJsonFromPreset(preset)
+    // Debug (internal — bindings module tests only; do not use in production)
+    internal fun bridgeDebugPayload(specification: DebugSpecification): BridgeDebugPayload =
+        when (specification) {
+            is DebugSpecification.Preset -> inner.bridgeDebugPayloadFromPreset(specification.preset)
+            is DebugSpecification.Constraints -> inner.bridgeDebugPayload(specification.constraints)
+        }
+
+    internal fun bridgeDebugPayloadJSON(specification: DebugSpecification): String =
+        when (specification) {
+            is DebugSpecification.Preset -> inner.bridgeDebugPayloadJsonFromPreset(specification.preset)
+            is DebugSpecification.Constraints -> inner.bridgeDebugPayloadJson(specification.constraints)
+        }
 }
 
 class IDKitRequest internal constructor(
@@ -403,3 +419,9 @@ fun idkitResultToJson(result: IDKitResult): String = nativeIdkitResultToJson(res
 fun idkitResultFromJson(json: String): IDKitResult = nativeIdkitResultFromJson(json)
 
 fun hashSignal(signal: Signal): String = hashSignalFfi(signal)
+
+internal val BridgeDebugProofRequest.credentialIdentifiers: List<String>
+    get() = proofRequests.map { it.identifier }
+
+internal val BridgeDebugPayload.credentialIdentifiers: List<String>
+    get() = proofRequest?.credentialIdentifiers.orEmpty()
