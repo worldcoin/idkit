@@ -1468,20 +1468,12 @@ impl From<ProtocolConstraintExpr<'_>> for ConstraintNodeWrapper {
             ProtocolConstraintExpr::All { all } => Self {
                 kind: ConstraintKindWrapper::All,
                 identifier: None,
-                children: all
-                    .into_iter()
-                    .map(Self::from)
-                    .map(Arc::new)
-                    .collect(),
+                children: all.into_iter().map(Self::from).map(Arc::new).collect(),
             },
             ProtocolConstraintExpr::Any { any } => Self {
                 kind: ConstraintKindWrapper::Any,
                 identifier: None,
-                children: any
-                    .into_iter()
-                    .map(Self::from)
-                    .map(Arc::new)
-                    .collect(),
+                children: any.into_iter().map(Self::from).map(Arc::new).collect(),
             },
             ProtocolConstraintExpr::Enumerate { enumerate } => Self {
                 kind: ConstraintKindWrapper::Enumerate,
