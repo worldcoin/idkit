@@ -114,14 +114,8 @@ func bridgeRequestPayloadIdentityCheck() throws {
 
     let attributes = try #require(payload.identityAttributes)
     #expect(attributes == [
-        IdentityAttributeWrapper(
-            attributeType: "minimum_age",
-            value: .integer(value: 21)
-        ),
-        IdentityAttributeWrapper(
-            attributeType: "nationality",
-            value: .text(value: "JPN")
-        ),
+        .minimumAge(21),
+        .nationality("JPN"),
     ])
 
     let proofRequest = try #require(payload.proofRequest)

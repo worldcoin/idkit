@@ -23,8 +23,6 @@ import uniffi.idkit_core.ConstraintKindWrapper
 import uniffi.idkit_core.ConstraintNode
 import uniffi.idkit_core.CredentialRequest
 import uniffi.idkit_core.CredentialType
-import uniffi.idkit_core.IdentityAttributeWrapper
-import uniffi.idkit_core.IdentityAttributeValueWrapper
 
 class IDKitTests {
     private fun sampleResult(
@@ -127,14 +125,8 @@ class IDKitTests {
         val attributes = payload.identityAttributes!!
         assertEquals(
             listOf(
-                IdentityAttributeWrapper(
-                    attributeType = "minimum_age",
-                    value = IdentityAttributeValueWrapper.Integer(value = 21u),
-                ),
-                IdentityAttributeWrapper(
-                    attributeType = "nationality",
-                    value = IdentityAttributeValueWrapper.Text(value = "JPN"),
-                ),
+                IdentityAttribute.MinimumAge(21u),
+                IdentityAttribute.Nationality("JPN"),
             ),
             attributes,
         )

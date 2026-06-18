@@ -6,8 +6,8 @@ use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
     types::{
-        AppId, BridgeResponseV1, BridgeUrl, DocumentType, IDKitResult, IdentityAttribute,
-        IntegrityBundle, ResponseItem, RpContext, VerificationLevel,
+        AppId, BridgeResponseV1, BridgeUrl, IDKitResult, IdentityAttribute, IntegrityBundle,
+        ResponseItem, RpContext, VerificationLevel,
     },
     ConstraintNode, Signal,
 };
@@ -1254,7 +1254,9 @@ pub struct BridgeRequestPayloadWrapper {
     pub verification_level: VerificationLevel,
     pub timestamp: Option<String>,
     pub proof_request: Option<ProofRequestWrapper>,
-    pub identity_attributes: Option<Vec<IdentityAttributeWrapper>>,
+    /// Identity-attribute predicates, reusing the same native [`IdentityAttribute`]
+    /// enum developers configure for presets like `identity_check`.
+    pub identity_attributes: Option<Vec<IdentityAttribute>>,
     pub allow_legacy_proofs: bool,
     pub require_user_presence: bool,
     pub environment: Environment,
@@ -1298,23 +1300,6 @@ pub struct CredentialRequestWrapper {
     pub genesis_issued_at_min: Option<u64>,
     /// Minimum credential expiration required for the proof, when constrained.
     pub expires_at_min: Option<u64>,
-}
-
-/// FFI projection of an identity-attribute predicate in the bridge payload.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
-pub struct IdentityAttributeWrapper {
-    pub attribute_type: String,
-    pub value: IdentityAttributeValueWrapper,
-}
-
-/// Typed identity-attribute values that avoid dynamic JSON values in `UniFFI`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
-pub enum IdentityAttributeValueWrapper {
-    Integer { value: u32 },
-    Text { value: String },
-    DocumentType { value: DocumentType },
 }
 
 /// Constraint tree branch kind exposed to mobile SDKs.
@@ -1407,43 +1392,6 @@ fn required_wire_u8(wire: &serde_json::Value, field_name: &str) -> Result<u8> {
     u8::try_from(number).map_err(|_| {
         Error::InvalidConfiguration(format!("proof_request.{field_name} is out of range"))
     })
-}
-
-impl TryFrom<IdentityAttribute> for IdentityAttributeWrapper {
-    type Error = Error;
-
-    fn try_from(attribute: IdentityAttribute) -> Result<Self> {
-        let wrapper = match attribute {
-            IdentityAttribute::DocumentType(value) => Self {
-                attribute_type: "document_type".to_string(),
-                value: IdentityAttributeValueWrapper::DocumentType { value },
-            },
-            IdentityAttribute::DocumentNumber(value) => Self {
-                attribute_type: "document_number".to_string(),
-                value: IdentityAttributeValueWrapper::Text { value },
-            },
-            IdentityAttribute::IssuingCountry(value) => Self {
-                attribute_type: "issuing_country".to_string(),
-                value: IdentityAttributeValueWrapper::Text { value },
-            },
-            IdentityAttribute::FullName(value) => Self {
-                attribute_type: "full_name".to_string(),
-                value: IdentityAttributeValueWrapper::Text { value },
-            },
-            IdentityAttribute::MinimumAge(value) => Self {
-                attribute_type: "minimum_age".to_string(),
-                value: IdentityAttributeValueWrapper::Integer {
-                    value: u32::from(value),
-                },
-            },
-            IdentityAttribute::Nationality(value) => Self {
-                attribute_type: "nationality".to_string(),
-                value: IdentityAttributeValueWrapper::Text { value },
-            },
-        };
-
-        Ok(wrapper)
-    }
 }
 
 impl TryFrom<RequestItem> for CredentialRequestWrapper {
@@ -1548,15 +1496,7 @@ impl TryFrom<BridgeRequestPayload> for BridgeRequestPayloadWrapper {
                 .proof_request
                 .map(ProofRequestWrapper::try_from)
                 .transpose()?,
-            identity_attributes: payload
-                .identity_attributes
-                .map(|attributes| {
-                    attributes
-                        .into_iter()
-                        .map(IdentityAttributeWrapper::try_from)
-                        .collect::<Result<Vec<_>>>()
-                })
-                .transpose()?,
+            identity_attributes: payload.identity_attributes,
             allow_legacy_proofs: payload.allow_legacy_proofs,
             require_user_presence: payload.require_user_presence,
             environment: payload.environment,
@@ -2626,16 +2566,8 @@ mod tests {
         assert_eq!(
             attributes,
             vec![
-                IdentityAttributeWrapper {
-                    attribute_type: "minimum_age".to_string(),
-                    value: IdentityAttributeValueWrapper::Integer { value: 21 },
-                },
-                IdentityAttributeWrapper {
-                    attribute_type: "nationality".to_string(),
-                    value: IdentityAttributeValueWrapper::Text {
-                        value: "JPN".to_string(),
-                    },
-                },
+                IdentityAttribute::MinimumAge(21),
+                IdentityAttribute::Nationality("JPN".to_string()),
             ]
         );
 
