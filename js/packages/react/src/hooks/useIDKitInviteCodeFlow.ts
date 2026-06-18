@@ -77,11 +77,7 @@ export function useIDKitInviteCodeFlow<TResult>(
       debugReport?: IDKitDebugReport,
     ) => {
       setState((prev) => {
-        if (
-          prev.status === "failed" &&
-          prev.errorCode === errorCode &&
-          prev.debugReport === debugReport
-        ) {
+        if (prev.status === "failed" && prev.errorCode === errorCode) {
           return prev;
         }
 

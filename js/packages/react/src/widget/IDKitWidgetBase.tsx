@@ -164,7 +164,7 @@ export function IDKitWidgetBase<TResult>({
     void Promise.resolve(errorResult).catch(() => {
       // Swallow host callback errors to keep widget flow stable.
     });
-  }, [effectiveErrorCode, effectiveDebugReport, onError]);
+  }, [effectiveErrorCode, onError]);
 
   // In World App context there's no UI to render HostAppVerificationState,
   // so invoke handleVerify programmatically when the proof arrives.
