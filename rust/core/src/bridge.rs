@@ -186,14 +186,9 @@ struct BridgePollResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct BridgeDebugReportTimestamps {
-    pub generated_at: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct BridgeDebugReport {
     pub transport: &'static str,
-    pub timestamps: BridgeDebugReportTimestamps,
+    pub generated_at: String,
     pub request_id: String,
     pub request_payload: serde_json::Value,
     /// Decrypted plaintext bridge response payload, captured only once the
@@ -917,9 +912,7 @@ impl BridgeConnection {
 
         BridgeDebugReport {
             transport: "bridge",
-            timestamps: BridgeDebugReportTimestamps {
-                generated_at: current_timestamp_rfc3339(),
-            },
+            generated_at: current_timestamp_rfc3339(),
             request_id: self.request_id.clone(),
             request_payload: self.request_payload.clone(),
             response_payload,

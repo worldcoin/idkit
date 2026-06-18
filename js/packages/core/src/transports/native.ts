@@ -352,7 +352,7 @@ class NativeIDKitRequest implements IDKitRequest {
   getDebugReport(): IDKitDebugReport | undefined {
     return buildDebugReport({
       transport: "mini_app",
-      timestamps: { generated_at: new Date().toISOString() },
+      generated_at: new Date().toISOString(),
       request_id: this.requestId,
       request_payload: asDebugObject(this.requestPayload),
       response_payload: asDebugObject(this.responsePayload),

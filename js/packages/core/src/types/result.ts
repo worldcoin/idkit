@@ -34,9 +34,11 @@ export type MiniAppDebugInfo = {
 };
 
 export type IDKitDebugReport = {
+  /** Schema version of this debug report (distinct from the SDK `package_version`). Currently always 1. */
+  version: 1;
   package_version: string;
   transport: "bridge" | "mini_app";
-  timestamps: { generated_at: string };
+  generated_at: string;
   request_id?: string;
   request_payload?: object;
   /**

@@ -475,6 +475,7 @@ describe("native transport request lifecycle", () => {
     // The report is fetched on demand from the request handle.
     const debugReport = req.getDebugReport();
     expect(debugReport).toMatchObject({
+      version: 1,
       transport: "mini_app",
       package_version: "4.1.8",
       request_payload: { payload: 1 },
@@ -491,7 +492,7 @@ describe("native transport request lifecycle", () => {
       },
     });
     expect(debugReport?.request_id).toBe(req.requestId);
-    expect(debugReport?.timestamps.generated_at).toBeTruthy();
+    expect(debugReport?.generated_at).toBeTruthy();
   });
 });
 

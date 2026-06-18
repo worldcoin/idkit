@@ -53,7 +53,7 @@ describe("debug reports", () => {
     vi.clearAllMocks();
   });
 
-  it("attaches debugReport to failed pollUntilCompletion when debug mode is on", async () => {
+  it("exposes a debugReport via getDebugReport() when debug mode is on", async () => {
     setDebug(true);
     requestMock.mockReturnValue(wasmBuilderMock);
     wasmBuilderMock.preset.mockResolvedValue(wasmRequestMock);
@@ -63,9 +63,8 @@ describe("debug reports", () => {
     });
     wasmRequestMock.getDebugReport.mockReturnValue({
       transport: "bridge",
-      timestamps: { generated_at: "2026-06-17T00:00:00Z" },
+      generated_at: "2026-06-17T00:00:00Z",
       request_id: "request-id",
-      connector_uri: "wc://request",
       request_payload: { app_id: "app_test" },
       response_payload: { bridge_status: "retrieved" },
     });
@@ -85,19 +84,22 @@ describe("debug reports", () => {
 
     const completion = await request.pollUntilCompletion({ pollInterval: 0 });
 
-    expect(wasmRequestMock.getDebugReport).toHaveBeenCalledTimes(1);
+    // The completion result no longer carries the debug report.
     expect(completion).toEqual({
       success: false,
       error: IDKitErrorCodes.ConnectionFailed,
-      debugReport: {
-        transport: "bridge",
-        timestamps: { generated_at: "2026-06-17T00:00:00Z" },
-        request_id: "request-id",
-        connector_uri: "wc://request",
-        request_payload: { app_id: "app_test" },
-        response_payload: { bridge_status: "retrieved" },
-        package_version: "4.1.8",
-      },
     });
+
+    // The report is fetched on demand from the request handle.
+    expect(request.getDebugReport()).toEqual({
+      version: 1,
+      transport: "bridge",
+      generated_at: "2026-06-17T00:00:00Z",
+      request_id: "request-id",
+      request_payload: { app_id: "app_test" },
+      response_payload: { bridge_status: "retrieved" },
+      package_version: "4.1.8",
+    });
+    expect(wasmRequestMock.getDebugReport).toHaveBeenCalledTimes(1);
   });
 });

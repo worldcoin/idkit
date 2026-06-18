@@ -2,13 +2,17 @@ import packageJson from "../../package.json";
 import type { IDKitDebugReport } from "../types/result";
 import { isDebug } from "./debug";
 
-export type DebugReportWithoutVersion = Omit<IDKitDebugReport, "package_version">;
+export type DebugReportWithoutVersion = Omit<
+  IDKitDebugReport,
+  "version" | "package_version"
+>;
 
 export function withPackageVersion(
   report: DebugReportWithoutVersion,
 ): IDKitDebugReport {
   return {
     ...report,
+    version: 1,
     package_version: packageJson.version,
   };
 }
