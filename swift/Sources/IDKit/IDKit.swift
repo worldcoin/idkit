@@ -168,6 +168,37 @@ public final class IDKitBuilder {
         let request = try inner.presetWithInviteCode(preset: preset)
         return try IDKitInviteCodeRequest(inner: request)
     }
+
+    
+    // MARK: - Debug (internal — `@testable import IDKit` in tests)
+    // Disclaimer: We are exposing this to allow for debugging of the bridge payload. Do not use this in production.
+    
+    /// Selects preset vs custom constraints for unstable bridge payload inspection.
+    enum DebugSpecification {
+        case preset(Preset)
+        case constraints(ConstraintNode)
+    }
+
+    /// Projects the internal bridge builder into ``BridgeDebugPayload`` without
+    /// creating a network connection.
+    func _bridgeDebugPayload(_ specification: DebugSpecification) throws -> BridgeDebugPayload {
+        switch specification {
+        case let .preset(preset):
+            try inner.bridgeDebugPayloadFromPreset(preset: preset)
+        case let .constraints(constraints):
+            try inner.bridgeDebugPayload(constraints: constraints)
+        }
+    }
+
+    /// Returns wire JSON from the internal bridge builder without creating a network connection.
+    func _bridgeDebugPayloadJSON(_ specification: DebugSpecification) throws -> String {
+        switch specification {
+        case let .preset(preset):
+            try inner.bridgeDebugPayloadJsonFromPreset(preset: preset)
+        case let .constraints(constraints):
+            try inner.bridgeDebugPayloadJson(constraints: constraints)
+        }
+    }
 }
 
 /// One-shot polling status returned by `IDKitRequest.pollStatusOnce()`.
@@ -627,46 +658,16 @@ public extension Signal {
     }
 }
 
-public extension BridgeDebugProofRequest {
+extension BridgeDebugProofRequest {
     /// Credential identifiers from `proofRequests` (e.g. `["passport", "mnc"]`).
     var credentialIdentifiers: [String] {
         proofRequests.map(\.identifier)
     }
 }
 
-public extension BridgeDebugPayload {
+extension BridgeDebugPayload {
     /// Credential identifiers when a v4 `proofRequest` is present; empty otherwise.
     var credentialIdentifiers: [String] {
         proofRequest?.credentialIdentifiers ?? []
-    }
-}
-
-public extension IDKitBuilder {
-    /// Selects preset vs custom constraints for unstable bridge payload inspection.
-    enum DebugSpecification {
-        case preset(Preset)
-        case constraints(ConstraintNode)
-    }
-
-    /// Projects the internal bridge builder into ``BridgeDebugPayload`` without
-    /// creating a network connection. Unstable — for tests and debugging only.
-    func _bridgeDebugPayload(_ specification: DebugSpecification) throws -> BridgeDebugPayload {
-        switch specification {
-        case let .preset(preset):
-            try inner.bridgeDebugPayloadFromPreset(preset: preset)
-        case let .constraints(constraints):
-            try inner.bridgeDebugPayload(constraints: constraints)
-        }
-    }
-
-    /// Returns wire JSON from the internal bridge builder without creating a
-    /// network connection. Unstable — for tests and debugging only.
-    func _bridgeDebugPayloadJSON(_ specification: DebugSpecification) throws -> String {
-        switch specification {
-        case let .preset(preset):
-            try inner.bridgeDebugPayloadJsonFromPreset(preset: preset)
-        case let .constraints(constraints):
-            try inner.bridgeDebugPayloadJson(constraints: constraints)
-        }
     }
 }

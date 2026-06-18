@@ -108,12 +108,12 @@ func bridgeDebugPayloadIdentityCheck() throws {
     )
 
     let builder = IDKit.request(config: requestConfig)
-    let specification = IDKitBuilder.DebugSpecification.preset(preset)
+    let spec: IDKitBuilder.DebugSpecification = .preset(preset)
 
-    let payload = try builder._bridgeDebugPayload(specification)
+    let payload = try builder._bridgeDebugPayload(spec)
 
     // Typed debug projection should stay consistent with the wire JSON builder.
-    let wireJSON = try builder._bridgeDebugPayloadJSON(specification)
+    let wireJSON = try builder._bridgeDebugPayloadJSON(spec)
     #expect(wireJSON.contains(payload.appId))
     #expect(wireJSON.contains("minimum_age"))
     #expect(wireJSON.contains("passport"))
