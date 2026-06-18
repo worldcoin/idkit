@@ -185,48 +185,17 @@ struct BridgePollResponse {
     response: Option<EncryptedPayload>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
-pub struct BridgeResponseDebugSnapshot {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub bridge_status: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub completed_response_present: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub decrypted_response_raw: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
-}
-
-impl BridgeResponseDebugSnapshot {
-    fn for_status(status: impl Into<String>) -> Self {
-        Self {
-            bridge_status: Some(status.into()),
-            ..Self::default()
-        }
-    }
-}
-
-fn app_error_debug_code(error: AppError) -> String {
-    serde_json::to_value(error)
-        .ok()
-        .and_then(|value| value.as_str().map(ToOwned::to_owned))
-        .unwrap_or_else(|| error.to_string())
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct BridgeDebugReportTimestamps {
-    pub generated_at: String,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct BridgeDebugReport {
     pub transport: &'static str,
-    pub timestamps: BridgeDebugReportTimestamps,
+    pub generated_at: String,
     pub request_id: String,
-    pub connector_uri: String,
     pub request_payload: serde_json::Value,
+    /// Decrypted plaintext bridge response payload, captured only once the
+    /// poll reaches `completed` and the response is successfully decoded and
+    /// decrypted.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_payload: Option<BridgeResponseDebugSnapshot>,
+    pub response_payload: Option<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -571,8 +540,8 @@ pub struct BridgeConnection {
     require_user_presence: bool,
     /// Decrypted request payload used to create this bridge request.
     request_payload: serde_json::Value,
-    /// Latest bridge response observation captured during polling.
-    latest_response_debug: Mutex<Option<BridgeResponseDebugSnapshot>>,
+    /// Latest decrypted bridge response payload captured during polling.
+    latest_bridge_payload: Mutex<Option<String>>,
     // ─── Invite-code mode (WDP-73) — None for the legacy URL/QR path ────────
     /// Canonical 6-char Crockford Base32 invite code shown to the user.
     pub(crate) invite_code: Option<String>,
@@ -831,7 +800,7 @@ impl BridgeConnection {
             environment: params.environment.unwrap_or_default(),
             require_user_presence: params.require_user_presence,
             request_payload: payload_value,
-            latest_response_debug: Mutex::new(None),
+            latest_bridge_payload: Mutex::new(None),
             invite_code: None,
             code_expires_at: None,
         })
@@ -926,28 +895,25 @@ impl BridgeConnection {
         )
     }
 
-    fn store_response_debug(&self, snapshot: BridgeResponseDebugSnapshot) {
+    fn store_bridge_payload(&self, payload: String) {
         *self
-            .latest_response_debug
+            .latest_bridge_payload
             .lock()
-            .unwrap_or_else(PoisonError::into_inner) = Some(snapshot);
+            .unwrap_or_else(PoisonError::into_inner) = Some(payload);
     }
 
     #[must_use]
     pub fn get_debug_report(&self) -> BridgeDebugReport {
         let response_payload = self
-            .latest_response_debug
+            .latest_bridge_payload
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone();
 
         BridgeDebugReport {
             transport: "bridge",
-            timestamps: BridgeDebugReportTimestamps {
-                generated_at: current_timestamp_rfc3339(),
-            },
+            generated_at: current_timestamp_rfc3339(),
             request_id: self.request_id.clone(),
-            connector_uri: self.connect_url(),
             request_payload: self.request_payload.clone(),
             response_payload,
         }
@@ -976,132 +942,58 @@ impl BridgeConnection {
             .await?;
 
         if !response.status().is_success() {
-            self.store_response_debug(BridgeResponseDebugSnapshot {
-                error: Some(app_error_debug_code(AppError::ConnectionFailed)),
-                ..BridgeResponseDebugSnapshot::default()
-            });
             return Ok(Status::Failed(AppError::ConnectionFailed));
         }
 
-        let poll_response: BridgePollResponse = match response.json().await {
-            Ok(response) => response,
-            Err(err) => {
-                self.store_response_debug(BridgeResponseDebugSnapshot {
-                    error: Some(err.to_string()),
-                    ..BridgeResponseDebugSnapshot::default()
-                });
-                return Err(err.into());
-            }
-        };
+        let poll_response: BridgePollResponse = response.json().await?;
 
         match poll_response.status.as_str() {
-            "initialized" => {
-                self.store_response_debug(BridgeResponseDebugSnapshot::for_status("initialized"));
-                Ok(Status::WaitingForConnection)
-            }
-            "retrieved" => {
-                self.store_response_debug(BridgeResponseDebugSnapshot::for_status("retrieved"));
-                Ok(Status::AwaitingConfirmation)
-            }
+            "initialized" => Ok(Status::WaitingForConnection),
+            "retrieved" => Ok(Status::AwaitingConfirmation),
             "completed" => {
-                let mut debug = BridgeResponseDebugSnapshot::for_status("completed");
                 let Some(encrypted) = poll_response.response else {
-                    debug.completed_response_present = Some(false);
-                    debug.error = Some(Error::UnexpectedResponse.to_string());
-                    self.store_response_debug(debug);
                     return Err(Error::UnexpectedResponse);
                 };
-                debug.completed_response_present = Some(true);
 
-                let iv = match base64_decode(&encrypted.iv) {
-                    Ok(iv) => iv,
-                    Err(err) => {
-                        debug.error = Some(err.to_string());
-                        self.store_response_debug(debug);
-                        return Err(err);
-                    }
-                };
-                let ciphertext = match base64_decode(&encrypted.payload) {
-                    Ok(ciphertext) => ciphertext,
-                    Err(err) => {
-                        debug.error = Some(err.to_string());
-                        self.store_response_debug(debug);
-                        return Err(err);
-                    }
-                };
+                let iv = base64_decode(&encrypted.iv)?;
+                let ciphertext = base64_decode(&encrypted.payload)?;
 
                 // Both paths use the IV from the encrypted response (not stored nonce)
                 // because the authenticator encrypts with its own nonce
                 #[cfg(feature = "native-crypto")]
-                let plaintext = match decrypt(&self.key.key, &iv, &ciphertext) {
-                    Ok(plaintext) => plaintext,
-                    Err(err) => {
-                        debug.error = Some(err.to_string());
-                        self.store_response_debug(debug);
-                        return Err(err);
-                    }
-                };
+                let plaintext = decrypt(&self.key.key, &iv, &ciphertext)?;
 
                 #[cfg(not(feature = "native-crypto"))]
-                let plaintext = match decrypt(&self.key_bytes, &iv, &ciphertext) {
-                    Ok(plaintext) => plaintext,
-                    Err(err) => {
-                        debug.error = Some(err.to_string());
-                        self.store_response_debug(debug);
-                        return Err(err);
-                    }
-                };
+                let plaintext = decrypt(&self.key_bytes, &iv, &ciphertext)?;
 
-                debug.decrypted_response_raw =
-                    Some(String::from_utf8_lossy(&plaintext).into_owned());
+                // Capture the decrypted plaintext for debugging only once the
+                // response is both decoded and decrypted successfully.
+                self.store_bridge_payload(String::from_utf8_lossy(&plaintext).into_owned());
 
-                let bridge_response: BridgeResponse = match serde_json::from_slice(&plaintext) {
-                    Ok(response) => response,
-                    Err(err) => {
-                        debug.error = Some(err.to_string());
-                        self.store_response_debug(debug);
-                        return Err(err.into());
-                    }
-                };
+                let bridge_response: BridgeResponse = serde_json::from_slice(&plaintext)?;
 
                 match bridge_response {
-                    BridgeResponse::Error { error_code } => {
-                        debug.error = Some(app_error_debug_code(error_code));
-                        self.store_response_debug(debug);
-                        Ok(Status::Failed(error_code))
-                    }
+                    BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
                     BridgeResponse::ResponseV2(response) => {
                         let user_presence_completed = response.user_presence_completed;
-                        let status = self.handle_bridge_v2_response(
+                        self.handle_bridge_v2_response(
                             response.into_proof_response(),
                             None,
                             None,
                             user_presence_completed,
-                        );
-                        if let Ok(Status::Failed(error)) = &status {
-                            debug.error = Some(app_error_debug_code(*error));
-                        }
-                        self.store_response_debug(debug);
-                        status
+                        )
                     }
                     BridgeResponse::ResponseV2_1 {
                         proof_response,
                         identity_attested,
                         user_presence_completed,
                         integrity_bundle,
-                    } => {
-                        let status = self.handle_bridge_v2_response(
-                            proof_response,
-                            identity_attested,
-                            integrity_bundle,
-                            user_presence_completed,
-                        );
-                        if let Ok(Status::Failed(error)) = &status {
-                            debug.error = Some(app_error_debug_code(*error));
-                        }
-                        self.store_response_debug(debug);
-                        status
-                    }
+                    } => self.handle_bridge_v2_response(
+                        proof_response,
+                        identity_attested,
+                        integrity_bundle,
+                        user_presence_completed,
+                    ),
                     BridgeResponse::MultiLegacyResponse {
                         legacy_responses,
                         user_presence_completed,
@@ -1112,10 +1004,6 @@ impl BridgeConnection {
                             self.require_user_presence,
                             user_presence_completed,
                         ) {
-                            if let Status::Failed(error) = &status {
-                                debug.error = Some(app_error_debug_code(*error));
-                            }
-                            self.store_response_debug(debug);
                             return Ok(status);
                         }
                         let responses: Vec<ResponseItem> = legacy_responses
@@ -1142,7 +1030,6 @@ impl BridgeConnection {
                         result.identity_attested = identity_attested;
                         result.integrity_bundle = integrity_bundle;
 
-                        self.store_response_debug(debug);
                         Ok(Status::Confirmed(result))
                     }
                     BridgeResponse::ResponseV1 {
@@ -1155,10 +1042,6 @@ impl BridgeConnection {
                             self.require_user_presence,
                             user_presence_completed,
                         ) {
-                            if let Status::Failed(error) = &status {
-                                debug.error = Some(app_error_debug_code(*error));
-                            }
-                            self.store_response_debug(debug);
                             return Ok(status);
                         }
 
@@ -1178,17 +1061,11 @@ impl BridgeConnection {
                         result.identity_attested = identity_attested;
                         result.integrity_bundle = integrity_bundle;
 
-                        self.store_response_debug(debug);
                         Ok(Status::Confirmed(result))
                     }
                 }
             }
-            _ => {
-                let mut debug = BridgeResponseDebugSnapshot::for_status(poll_response.status);
-                debug.error = Some(Error::UnexpectedResponse.to_string());
-                self.store_response_debug(debug);
-                Err(Error::UnexpectedResponse)
-            }
+            _ => Err(Error::UnexpectedResponse),
         }
     }
 
@@ -1408,7 +1285,7 @@ async fn try_create_invite_code_request(
         environment: params.environment.unwrap_or_default(),
         require_user_presence: params.require_user_presence,
         request_payload: payload_value,
-        latest_response_debug: Mutex::new(None),
+        latest_bridge_payload: Mutex::new(None),
         invite_code: Some(code),
         code_expires_at: Some(code_expires_at),
     })
@@ -3462,7 +3339,7 @@ mod tests {
                 "app_id": "app_test",
                 "action": "test-action",
             }),
-            latest_response_debug: Mutex::new(None),
+            latest_bridge_payload: Mutex::new(None),
             invite_code: None,
             code_expires_at: None,
         }
@@ -3511,7 +3388,7 @@ mod tests {
     }
 
     #[test]
-    fn test_debug_report_captures_request_and_latest_poll_status() {
+    fn test_debug_report_omits_response_payload_until_completed() {
         let mut connection = sample_connection(None);
         let report = connection.get_debug_report();
 
@@ -3519,14 +3396,12 @@ mod tests {
         assert_eq!(report.request_payload["app_id"], "app_test");
         assert_eq!(report.response_payload, None);
 
+        // Non-completed statuses don't carry a decrypted payload, so the report
+        // leaves `response_payload` empty.
         connection.bridge_url = serve_bridge_response(r#"{"status":"initialized"}"#.to_string());
         let status = poll_once(&connection).unwrap();
         assert_eq!(status, Status::WaitingForConnection);
 
-        let response_payload = connection.get_debug_report().response_payload.unwrap();
-        assert_eq!(
-            response_payload.bridge_status.as_deref(),
-            Some("initialized")
-        );
+        assert_eq!(connection.get_debug_report().response_payload, None);
     }
 }

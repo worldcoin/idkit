@@ -3,7 +3,6 @@ import {
   IDKitErrorCodes,
   isInWorldApp as isInWorldAppCheck,
   isDebug,
-  isIDKitDebugReportSource,
   type IDKitDebugReport,
   type IDKitInviteCodeRequest,
 } from "@worldcoin/idkit-core";
@@ -26,6 +25,8 @@ export function useIDKitInviteCodeFlow<TResult>(
   const [runId, setRunId] = useState(0);
   // Mutable handle so event handlers (reset) can cancel the active polling loop.
   const abortRef = useRef<AbortController | null>(null);
+  // Live request handle so getDebugReport() can read the latest report on demand.
+  const requestRef = useRef<IDKitInviteCodeRequest | null>(null);
   // Refs keep the effect stable (deps: [state.isOpen]) while always reading the latest values.
   const createFlowHandleRef = useRef(createFlowHandle);
   const configRef = useRef(config);
@@ -37,9 +38,15 @@ export function useIDKitInviteCodeFlow<TResult>(
   const reset = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
+    requestRef.current = null;
     setState(createInitialInviteCodeHookState);
     setRunId((id) => id + 1);
   }, []);
+
+  const getDebugReport = useCallback(
+    (): IDKitDebugReport | undefined => requestRef.current?.getDebugReport(),
+    [],
+  );
 
   const open = useCallback(() => {
     setState((prev) => {
@@ -54,7 +61,6 @@ export function useIDKitInviteCodeFlow<TResult>(
         codeExpiresAt: null,
         result: null,
         errorCode: null,
-        debugReport: undefined,
       };
     });
   }, []);
@@ -67,15 +73,7 @@ export function useIDKitInviteCodeFlow<TResult>(
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const readDebugReport = (
-      request: IDKitInviteCodeRequest | null,
-    ): IDKitDebugReport | undefined =>
-      isIDKitDebugReportSource(request) ? request.getDebugReport() : undefined;
-
-    const setFailed = (
-      errorCode: IDKitErrorCodes,
-      debugReport?: IDKitDebugReport,
-    ) => {
+    const setFailed = (errorCode: IDKitErrorCodes) => {
       setState((prev) => {
         if (prev.status === "failed" && prev.errorCode === errorCode) {
           return prev;
@@ -85,17 +83,16 @@ export function useIDKitInviteCodeFlow<TResult>(
           ...prev,
           status: "failed",
           errorCode,
-          debugReport,
         };
       });
     };
 
     void (async () => {
-      let request: IDKitInviteCodeRequest | null = null;
       try {
         if (isDebug())
           console.debug("[IDKit] Creating invite-code flow handle…");
-        request = await createFlowHandleRef.current();
+        const request = await createFlowHandleRef.current();
+        requestRef.current = request;
         ensureNotAborted(controller.signal);
         if (isDebug())
           console.debug("[IDKit] Invite-code flow created", {
@@ -124,7 +121,7 @@ export function useIDKitInviteCodeFlow<TResult>(
           ensureNotAborted(controller.signal);
 
           if (Date.now() - startedAt > timeout) {
-            setFailed(IDKitErrorCodes.Timeout, readDebugReport(request));
+            setFailed(IDKitErrorCodes.Timeout);
             return;
           }
 
@@ -134,10 +131,7 @@ export function useIDKitInviteCodeFlow<TResult>(
           if (nextStatus.type === "confirmed") {
             const confirmedResult = nextStatus.result;
             if (!confirmedResult) {
-              setFailed(
-                IDKitErrorCodes.UnexpectedResponse,
-                readDebugReport(request),
-              );
+              setFailed(IDKitErrorCodes.UnexpectedResponse);
               return;
             }
 
@@ -146,7 +140,6 @@ export function useIDKitInviteCodeFlow<TResult>(
               status: "confirmed",
               result: confirmedResult as TResult,
               errorCode: null,
-              debugReport: undefined,
             }));
             return;
           }
@@ -157,10 +150,7 @@ export function useIDKitInviteCodeFlow<TResult>(
                 "[IDKit] Invite-code poll returned failed",
                 nextStatus,
               );
-            setFailed(
-              nextStatus.error ?? IDKitErrorCodes.GenericError,
-              readDebugReport(request),
-            );
+            setFailed(nextStatus.error ?? IDKitErrorCodes.GenericError);
             return;
           }
 
@@ -180,7 +170,7 @@ export function useIDKitInviteCodeFlow<TResult>(
         }
 
         if (isDebug()) console.error("[IDKit] Invite-code flow error:", error);
-        setFailed(toErrorCode(error), readDebugReport(request));
+        setFailed(toErrorCode(error));
       }
     })();
 
@@ -203,7 +193,7 @@ export function useIDKitInviteCodeFlow<TResult>(
     codeExpiresAt: state.codeExpiresAt,
     result: state.result,
     errorCode: state.errorCode,
-    debugReport: state.debugReport,
+    getDebugReport,
     isOpen: state.isOpen,
     isInWorldApp,
   };

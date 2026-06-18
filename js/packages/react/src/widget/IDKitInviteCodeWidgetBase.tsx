@@ -134,7 +134,6 @@ export function IDKitInviteCodeWidgetBase<TResult>({
   const effectiveErrorCode =
     flow.errorCode ??
     (hostVerifyResult === "failed" ? IDKitErrorCodes.FailedByHostApp : null);
-  const effectiveDebugReport = flow.errorCode ? flow.debugReport : undefined;
 
   useEffect(() => {
     if (!isSuccess || !flow.result || flow.result === lastResultRef.current) {
@@ -156,13 +155,15 @@ export function IDKitInviteCodeWidgetBase<TResult>({
     }
 
     lastErrorCodeRef.current = effectiveErrorCode;
-    const errorResult = effectiveDebugReport
-      ? onError?.(effectiveErrorCode, effectiveDebugReport)
+    // Only flow/bridge errors carry a debug report; host-app verify failures don't.
+    const debugReport = flow.errorCode ? flow.getDebugReport() : undefined;
+    const errorResult = debugReport
+      ? onError?.(effectiveErrorCode, debugReport)
       : onError?.(effectiveErrorCode);
     void Promise.resolve(errorResult).catch(() => {
       // Swallow host callback errors to keep widget flow stable.
     });
-  }, [effectiveErrorCode, effectiveDebugReport, onError]);
+  }, [effectiveErrorCode, flow, onError]);
 
   // In World App context there's no UI to render HostAppVerificationState,
   // so invoke handleVerify programmatically when the proof arrives.

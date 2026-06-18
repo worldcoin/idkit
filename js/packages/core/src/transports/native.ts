@@ -21,12 +21,15 @@ import type {
   WaitOptions,
   Status,
 } from "../request";
-import type { IDKitResult, IDKitDebugReport } from "../types/result";
+import type {
+  IDKitResult,
+  IDKitDebugReport,
+  MiniAppDebugInfo,
+} from "../types/result";
 import { IDKitErrorCodes } from "../types/result";
 import type { IDKitResultV3, IntegrityBundle } from "../lib/wasm";
 import { WasmModule } from "../lib/wasm";
-import { isDebug } from "../lib/debug";
-import { buildDebugReport } from "../lib/debugReport";
+import { isDebug, buildDebugReport } from "../lib/debug";
 
 const MINIAPP_VERIFY_ACTION = "miniapp-verify-action";
 
@@ -41,14 +44,6 @@ function toNativeErrorCode(error: unknown): IDKitErrorCodes {
     ? (code as IDKitErrorCodes)
     : IDKitErrorCodes.GenericError;
 }
-
-type NativeMiniAppDebug = {
-  verify_version?: 1 | 2;
-  platform?: "ios" | "android" | "none";
-  send_channel?: "webkit.minikit" | "Android.postMessage" | "none";
-  minikit_subscribed?: boolean;
-  response_channel?: "window.message" | "minikit";
-};
 
 function asDebugObject(value: unknown): object | undefined {
   if (value === undefined) {
@@ -74,7 +69,7 @@ function detectNativePlatform(): "ios" | "android" | "none" {
   return "none";
 }
 
-function detectSendChannel(): NativeMiniAppDebug["send_channel"] {
+function detectSendChannel(): MiniAppDebugInfo["send_channel"] {
   const platform = detectNativePlatform();
   if (platform === "ios") {
     return "webkit.minikit";
@@ -187,7 +182,7 @@ class NativeIDKitRequest implements IDKitRequest {
   private miniKitHandler: ((payload: any) => void) | null = null;
   private readonly requestPayload: unknown;
   private responsePayload: unknown;
-  private debugState: NativeMiniAppDebug;
+  private debugState: MiniAppDebugInfo;
 
   constructor(
     wasmPayload: unknown,
@@ -212,7 +207,7 @@ class NativeIDKitRequest implements IDKitRequest {
 
       const recordResponse = (
         responsePayload: unknown,
-        responseChannel: NativeMiniAppDebug["response_channel"],
+        responseChannel: MiniAppDebugInfo["response_channel"],
       ) => {
         this.debugState.response_channel = responseChannel;
         this.responsePayload = responsePayload;
@@ -220,7 +215,7 @@ class NativeIDKitRequest implements IDKitRequest {
 
       const handleIncomingPayload = (
         responsePayload: any,
-        responseChannel: NativeMiniAppDebug["response_channel"],
+        responseChannel: MiniAppDebugInfo["response_channel"],
       ) => {
         if (this.completionResult) return;
 
@@ -353,40 +348,31 @@ class NativeIDKitRequest implements IDKitRequest {
     });
   }
 
-  getDebugReport(): IDKitDebugReport | undefined {
+  getDebugReport(): IDKitDebugReport {
     return buildDebugReport({
       transport: "mini_app",
-      timestamps: { generated_at: new Date().toISOString() },
+      generated_at: new Date().toISOString(),
       request_id: this.requestId,
       request_payload: asDebugObject(this.requestPayload),
       response_payload: asDebugObject(this.responsePayload),
-      mini_app: { ...this.debugState },
+      mini_app: this.debugState,
     });
   }
 
   // Single entry point for finishing the request. Idempotent — first caller wins.
   private complete(result: IDKitCompletionResult): void {
     if (this.completionResult) return;
-    const finalResult =
-      result.success === false ? this.attachDebugReport(result) : result;
     if (isDebug())
       console.debug(
         "[IDKit] Native: request completed",
-        finalResult.success === true ? "success" : `error=${finalResult.error}`,
+        result.success === true ? "success" : `error=${result.error}`,
       );
-    this.completionResult = finalResult;
+    this.completionResult = result;
     this.cleanup();
-    this.resolveFn?.(finalResult);
+    this.resolveFn?.(result);
     if (_activeNativeRequest === this) {
       _activeNativeRequest = null;
     }
-  }
-
-  private attachDebugReport(
-    result: Extract<IDKitCompletionResult, { success: false }>,
-  ): IDKitCompletionResult {
-    const debugReport = this.getDebugReport();
-    return debugReport ? { ...result, debugReport } : result;
   }
 
   cancel(): void {

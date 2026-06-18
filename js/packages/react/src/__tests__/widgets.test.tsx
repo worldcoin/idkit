@@ -70,6 +70,7 @@ function createFlow<TResult>(overrides: Partial<Record<string, unknown>> = {}) {
     connectorURI: null,
     result: null as TResult | null,
     errorCode: null as IDKitErrorCodes | null,
+    getDebugReport: vi.fn(() => undefined),
     ...overrides,
   };
 }
