@@ -3,6 +3,7 @@ import {
   IDKitErrorCodes,
   isInWorldApp as isInWorldAppCheck,
   isDebug,
+  isIDKitDebugReportSource,
   type IDKitDebugReport,
   type IDKitInviteCodeRequest,
 } from "@worldcoin/idkit-core";
@@ -12,10 +13,6 @@ import {
   createInitialInviteCodeHookState,
   type InviteCodeHookState,
 } from "./inviteCodeCommon";
-
-type DebugReportSource = {
-  getDebugReport?: () => IDKitDebugReport | undefined;
-};
 
 export function useIDKitInviteCodeFlow<TResult>(
   createFlowHandle: () => Promise<IDKitInviteCodeRequest>,
@@ -71,8 +68,9 @@ export function useIDKitInviteCodeFlow<TResult>(
     abortRef.current = controller;
 
     const readDebugReport = (
-      request: DebugReportSource | null,
-    ): IDKitDebugReport | undefined => request?.getDebugReport?.();
+      request: IDKitInviteCodeRequest | null,
+    ): IDKitDebugReport | undefined =>
+      isIDKitDebugReportSource(request) ? request.getDebugReport() : undefined;
 
     const setFailed = (
       errorCode: IDKitErrorCodes,

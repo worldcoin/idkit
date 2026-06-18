@@ -37,6 +37,9 @@ vi.mock("@worldcoin/idkit-core", () => ({
   },
   isInWorldApp: () => false,
   isDebug: () => false,
+  isIDKitDebugReportSource: (value: unknown) =>
+    typeof (value as { getDebugReport?: unknown } | null)?.getDebugReport ===
+    "function",
 }));
 
 const baseRpContext = {

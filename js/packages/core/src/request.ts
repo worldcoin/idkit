@@ -81,6 +81,23 @@ export interface IDKitRequest {
 }
 
 /**
+ * Internal bridge debug-report provider.
+ *
+ * This is intentionally not part of {@link IDKitRequest}; only bridge-backed
+ * request objects implement it.
+ */
+export interface IDKitDebugReportSource {
+  getDebugReport(): IDKitDebugReport | undefined;
+}
+
+export function isIDKitDebugReportSource(
+  value: unknown,
+): value is IDKitDebugReportSource {
+  const candidate = value as Partial<IDKitDebugReportSource> | null | undefined;
+  return typeof candidate?.getDebugReport === "function";
+}
+
+/**
  * Shared poll loop. Used by both URL-mode and invite-code-mode request impls;
  * the loop body is identical between the two paths because the bridge
  * `Status` shape is mode-agnostic.
@@ -156,7 +173,7 @@ function getBridgeDebugReport(
 /**
  * Internal request implementation (bridge/WASM path)
  */
-class IDKitRequestImpl implements IDKitRequest {
+class IDKitRequestImpl implements IDKitRequest, IDKitDebugReportSource {
   private wasmRequest: WasmModule.IDKitRequest;
   private _connectorURI: string;
   private _requestId: string;
@@ -187,7 +204,7 @@ class IDKitRequestImpl implements IDKitRequest {
     );
   }
 
-  private getDebugReport(): IDKitDebugReport | undefined {
+  getDebugReport(): IDKitDebugReport | undefined {
     return getBridgeDebugReport(this.wasmRequest);
   }
 }
@@ -219,7 +236,9 @@ export interface IDKitInviteCodeRequest {
  * has no in-app native postMessage path by design; the user is on a different
  * device than World App).
  */
-class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
+class IDKitInviteCodeRequestImpl
+  implements IDKitInviteCodeRequest, IDKitDebugReportSource
+{
   private wasmRequest: WasmModule.IDKitInviteCodeRequest;
   private _connectorURI: string;
   private _expiresAt: number;
@@ -256,7 +275,7 @@ class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
     );
   }
 
-  private getDebugReport(): IDKitDebugReport | undefined {
+  getDebugReport(): IDKitDebugReport | undefined {
     return getBridgeDebugReport(this.wasmRequest);
   }
 }
