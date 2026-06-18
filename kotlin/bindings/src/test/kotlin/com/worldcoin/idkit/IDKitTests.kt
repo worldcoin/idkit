@@ -85,20 +85,18 @@ class IDKitTests {
 
     @Test
     fun `bridge debug payload exposes identity check contract fields`() {
-        val builder = IDKit.request(
-            IDKitRequestConfig(
-                appId = "app_staging_1234567890abcdef",
-                action = "test-action",
-                rpContext = sampleRpContext(),
-                actionDescription = "Identity check",
-                bridgeUrl = null,
-                allowLegacyProofs = false,
-                requireUserPresence = true,
-                overrideConnectBaseUrl = null,
-                returnTo = "idkitsample://callback",
-                environment = Environment.STAGING,
-                connectUrlMode = null,
-            ),
+        val config = IDKitRequestConfig(
+            appId = "app_staging_1234567890abcdef",
+            action = "test-action",
+            rpContext = sampleRpContext(),
+            actionDescription = "Identity check",
+            bridgeUrl = null,
+            allowLegacyProofs = false,
+            requireUserPresence = true,
+            overrideConnectBaseUrl = null,
+            returnTo = "idkitsample://callback",
+            environment = Environment.STAGING,
+            connectUrlMode = null,
         )
 
         val preset = identityCheck(
@@ -107,14 +105,8 @@ class IDKitTests {
                 IdentityAttribute.Nationality("JPN"),
             ),
         )
-        val spec = IDKitBuilder.DebugSpecification.FromPreset(preset)
 
-        val payload = builder.bridgeRequestPayload(spec)
-
-        val wireJSON = builder.bridgeRequestPayloadJSON(spec)
-        assertTrue(wireJSON.contains(payload.appId))
-        assertTrue(wireJSON.contains("minimum_age"))
-        assertTrue(wireJSON.contains("passport"))
+        val payload = IDKit.createBridgePayloadFromPresets(config, preset)
 
         assertEquals("app_staging_1234567890abcdef", payload.appId)
         assertEquals("test-action", payload.action)

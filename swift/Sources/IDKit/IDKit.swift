@@ -2,6 +2,13 @@ import Foundation
 
 public typealias IDKitResult = IdKitResult
 
+/// Typed projection of the bridge request payload, exposed for building test fixtures.
+public typealias BridgeRequestPayload = BridgeRequestPayloadWrapper
+/// Protocol-level proof request inside a ``BridgeRequestPayload``.
+public typealias ProofRequest = ProofRequestWrapper
+/// A per-credential request line item inside a ``ProofRequest``.
+public typealias CredentialRequestItem = CredentialRequestWrapper
+
 /// Configuration for uniqueness proof requests.
 public struct IDKitRequestConfig {
     public let appId: String
@@ -113,6 +120,24 @@ public enum IDKit {
         IDKitBuilder(inner: IdKitBuilder.fromRequest(config: config.native))
     }
 
+    /// Builds the bridge request payload from a preset without opening a network
+    /// connection. Intended for building test fixtures.
+    public static func createBridgePayloadFromPresets(
+        config: IDKitRequestConfig, preset: Preset
+    ) throws -> BridgeRequestPayload {
+        try IdKitBuilder.fromRequest(config: config.native)
+            .bridgeRequestPayloadFromPreset(preset: preset)
+    }
+
+    /// Builds the bridge request payload from custom constraints without opening a
+    /// network connection. Intended for building test fixtures.
+    public static func createBridgePayloadFromConstraints(
+        config: IDKitRequestConfig, constraints: ConstraintNode
+    ) throws -> BridgeRequestPayload {
+        try IdKitBuilder.fromRequest(config: config.native)
+            .bridgeRequestPayload(constraints: constraints)
+    }
+
     // TODO: Re-enable when World ID 4.0 is live
     // /// Creates a builder for creating a new session.
     // public static func createSession(config: IDKitSessionConfig) -> IDKitBuilder {
@@ -167,37 +192,6 @@ public final class IDKitBuilder {
     public func presetWithInviteCode(_ preset: Preset) throws -> IDKitInviteCodeRequest {
         let request = try inner.presetWithInviteCode(preset: preset)
         return try IDKitInviteCodeRequest(inner: request)
-    }
-
-    
-    // MARK: - Debug (internal — `@testable import IDKit` in tests)
-    // Disclaimer: We are exposing this to allow for debugging of the bridge payload. Do not use this in production.
-    
-    /// Selects preset vs custom constraints for unstable bridge payload inspection.
-    enum DebugSpecification {
-        case preset(Preset)
-        case constraints(ConstraintNode)
-    }
-
-    /// Projects the internal bridge builder into ``BridgeRequestPayloadWrapper`` without
-    /// creating a network connection.
-    func _bridgeRequestPayload(_ specification: DebugSpecification) throws -> BridgeRequestPayloadWrapper {
-        switch specification {
-        case let .preset(preset):
-            try inner.bridgeRequestPayloadFromPreset(preset: preset)
-        case let .constraints(constraints):
-            try inner.bridgeRequestPayload(constraints: constraints)
-        }
-    }
-
-    /// Returns wire JSON from the internal bridge builder without creating a network connection.
-    func _bridgeRequestPayloadJSON(_ specification: DebugSpecification) throws -> String {
-        switch specification {
-        case let .preset(preset):
-            try inner.bridgeRequestPayloadJsonFromPreset(preset: preset)
-        case let .constraints(constraints):
-            try inner.bridgeRequestPayloadJson(constraints: constraints)
-        }
     }
 }
 
@@ -658,16 +652,16 @@ public extension Signal {
     }
 }
 
-extension ProofRequestWrapper {
+extension ProofRequest {
     /// Credential identifiers from `proofRequests` (e.g. `["passport", "mnc"]`).
-    var credentialIdentifiers: [String] {
+    public var credentialIdentifiers: [String] {
         proofRequests.map(\.identifier)
     }
 }
 
-extension BridgeRequestPayloadWrapper {
+extension BridgeRequestPayload {
     /// Credential identifiers when a v4 `proofRequest` is present; empty otherwise.
-    var credentialIdentifiers: [String] {
+    public var credentialIdentifiers: [String] {
         proofRequest?.credentialIdentifiers ?? []
     }
 }

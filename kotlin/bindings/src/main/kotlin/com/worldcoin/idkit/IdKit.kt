@@ -37,8 +37,12 @@ typealias DocumentType = uniffi.idkit_core.DocumentType
 typealias IdentityAttribute = uniffi.idkit_core.IdentityAttribute
 typealias ConnectUrlMode = uniffi.idkit_core.ConnectUrlMode
 
-internal typealias BridgeRequestPayloadWrapper = uniffi.idkit_core.BridgeRequestPayloadWrapper
-internal typealias ProofRequestWrapper = uniffi.idkit_core.ProofRequestWrapper
+/** Typed projection of the bridge request payload, exposed for building test fixtures. */
+typealias BridgeRequestPayload = uniffi.idkit_core.BridgeRequestPayloadWrapper
+/** Protocol-level proof request inside a [BridgeRequestPayload]. */
+typealias ProofRequest = uniffi.idkit_core.ProofRequestWrapper
+/** A per-credential request line item inside a [ProofRequest]. */
+typealias CredentialRequestItem = uniffi.idkit_core.CredentialRequestWrapper
 
 data class IDKitRequestConfig(
     val appId: String,
@@ -182,30 +186,11 @@ data class IDKitPollOptions(
 class IDKitBuilder internal constructor(
     private val inner: IdKitBuilder,
 ) {
-    /** Selects preset vs custom constraints for unstable bridge payload inspection. */
-    sealed interface DebugSpecification {
-        data class FromPreset(val preset: Preset) : DebugSpecification
-        data class FromConstraints(val constraints: uniffi.idkit_core.ConstraintNode) : DebugSpecification
-    }
-
     fun constraints(constraints: uniffi.idkit_core.ConstraintNode): IDKitRequest =
         IDKitRequest(inner.constraints(constraints))
 
     fun preset(preset: Preset): IDKitRequest =
         IDKitRequest(inner.preset(preset))
-
-    // Debug (internal — bindings module tests only; do not use in production)
-    internal fun bridgeRequestPayload(specification: DebugSpecification): BridgeRequestPayloadWrapper =
-        when (specification) {
-            is DebugSpecification.FromPreset -> inner.bridgeRequestPayloadFromPreset(specification.preset)
-            is DebugSpecification.FromConstraints -> inner.bridgeRequestPayload(specification.constraints)
-        }
-
-    internal fun bridgeRequestPayloadJSON(specification: DebugSpecification): String =
-        when (specification) {
-            is DebugSpecification.FromPreset -> inner.bridgeRequestPayloadJsonFromPreset(specification.preset)
-            is DebugSpecification.FromConstraints -> inner.bridgeRequestPayloadJson(specification.constraints)
-        }
 }
 
 class IDKitRequest internal constructor(
@@ -279,6 +264,26 @@ object IDKit {
         require(config.action.isNotBlank()) { "action is required" }
         return IDKitBuilder(nativeRequest(config.toNative()))
     }
+
+    /**
+     * Builds the bridge request payload from a preset without opening a network
+     * connection. Intended for building test fixtures.
+     */
+    fun createBridgePayloadFromPresets(
+        config: IDKitRequestConfig,
+        preset: Preset,
+    ): BridgeRequestPayload =
+        nativeRequest(config.toNative()).bridgeRequestPayloadFromPreset(preset)
+
+    /**
+     * Builds the bridge request payload from custom constraints without opening a
+     * network connection. Intended for building test fixtures.
+     */
+    fun createBridgePayloadFromConstraints(
+        config: IDKitRequestConfig,
+        constraints: uniffi.idkit_core.ConstraintNode,
+    ): BridgeRequestPayload =
+        nativeRequest(config.toNative()).bridgeRequestPayload(constraints)
 
     // TODO: Re-enable when World ID 4.0 is live
     // fun createSession(config: IDKitSessionConfig): IDKitBuilder {
@@ -420,8 +425,8 @@ fun idkitResultFromJson(json: String): IDKitResult = nativeIdkitResultFromJson(j
 
 fun hashSignal(signal: Signal): String = hashSignalFfi(signal)
 
-internal val ProofRequestWrapper.credentialIdentifiers: List<String>
+val ProofRequest.credentialIdentifiers: List<String>
     get() = proofRequests.map { it.identifier }
 
-internal val BridgeRequestPayloadWrapper.credentialIdentifiers: List<String>
+val BridgeRequestPayload.credentialIdentifiers: List<String>
     get() = proofRequest?.credentialIdentifiers.orEmpty()
