@@ -536,12 +536,11 @@ pub struct BridgeConnection {
 ///
 /// # Errors
 ///
-/// Returns an error if constraints are invalid, the signature/nonce format is
-/// wrong, or serialization fails.
-pub fn build_request_payload(
+/// Returns an error if constraints are invalid or the signature/nonce format is wrong.
+fn build_request_payload(
     params: &BridgeConnectionParams,
     native: bool,
-) -> Result<serde_json::Value> {
+) -> Result<BridgeRequestPayload> {
     if let Some(ref constraints) = params.constraints {
         constraints.validate()?;
     }
@@ -632,6 +631,14 @@ pub fn build_request_payload(
         return_to: params.return_to.clone(),
     };
 
+    Ok(payload)
+}
+
+pub fn build_request_payload_json(
+    params: &BridgeConnectionParams,
+    native: bool,
+) -> Result<serde_json::Value> {
+    let payload = build_request_payload(params, native)?;
     serde_json::to_value(&payload).map_err(Into::into)
 }
 
@@ -1278,206 +1285,105 @@ pub struct BridgeDebugIdentityAttribute {
     pub value_string: Option<String>,
 }
 
-fn json_field_error(field: &str, details: impl std::fmt::Display) -> crate::error::Error {
-    crate::error::Error::InvalidConfiguration(format!(
-        "invalid bridge debug payload field `{field}`: {details}"
-    ))
+fn proof_type_wire_name(proof_type: ProofType) -> &'static str {
+    match proof_type {
+        ProofType::Uniqueness => "uniqueness",
+        ProofType::CreateSession => "create_session",
+        ProofType::Session => "session",
+    }
 }
 
-fn parse_bridge_debug_identity_attribute(
-    value: &serde_json::Value,
-) -> crate::Result<BridgeDebugIdentityAttribute> {
-    let obj = value
-        .as_object()
-        .ok_or_else(|| json_field_error("identity_attributes", "expected object"))?;
-    let attribute_type = obj
-        .get("type")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| json_field_error("identity_attributes.type", "expected string"))?
-        .to_string();
-    let raw_value = obj
-        .get("value")
-        .ok_or_else(|| json_field_error("identity_attributes.value", "expected value"))?;
-    let (value_int, value_string) = match raw_value {
-        serde_json::Value::Number(number) => (
-            number
-                .as_u64()
-                .and_then(|v| u32::try_from(v).ok())
-                .map(|v| v),
-            None,
-        ),
-        serde_json::Value::String(text) => (None, Some(text.clone())),
-        _ => {
-            return Err(json_field_error(
-                "identity_attributes.value",
-                "expected number or string",
-            ));
-        }
-    };
-    Ok(BridgeDebugIdentityAttribute {
-        attribute_type,
-        value_int,
-        value_string,
-    })
+fn identity_attribute_to_debug(attribute: &IdentityAttribute) -> BridgeDebugIdentityAttribute {
+    match attribute {
+        IdentityAttribute::DocumentType(document_type) => BridgeDebugIdentityAttribute {
+            attribute_type: "document_type".to_string(),
+            value_int: None,
+            value_string: serde_json::to_value(document_type)
+                .ok()
+                .and_then(|value| value.as_str().map(str::to_string)),
+        },
+        IdentityAttribute::DocumentNumber(value) => BridgeDebugIdentityAttribute {
+            attribute_type: "document_number".to_string(),
+            value_int: None,
+            value_string: Some(value.clone()),
+        },
+        IdentityAttribute::IssuingCountry(value) => BridgeDebugIdentityAttribute {
+            attribute_type: "issuing_country".to_string(),
+            value_int: None,
+            value_string: Some(value.clone()),
+        },
+        IdentityAttribute::FullName(value) => BridgeDebugIdentityAttribute {
+            attribute_type: "full_name".to_string(),
+            value_int: None,
+            value_string: Some(value.clone()),
+        },
+        IdentityAttribute::MinimumAge(value) => BridgeDebugIdentityAttribute {
+            attribute_type: "minimum_age".to_string(),
+            value_int: Some(u32::from(*value)),
+            value_string: None,
+        },
+        IdentityAttribute::Nationality(value) => BridgeDebugIdentityAttribute {
+            attribute_type: "nationality".to_string(),
+            value_int: None,
+            value_string: Some(value.clone()),
+        },
+    }
 }
 
-fn parse_bridge_debug_credential_request(
-    value: &serde_json::Value,
-) -> crate::Result<BridgeDebugCredentialRequest> {
-    let obj = value
-        .as_object()
-        .ok_or_else(|| json_field_error("proof_requests", "expected object"))?;
-    let identifier = obj
-        .get("identifier")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| json_field_error("proof_requests.identifier", "expected string"))?
-        .to_string();
-    let issuer_schema_id = obj
-        .get("issuer_schema_id")
-        .and_then(serde_json::Value::as_u64);
-    Ok(BridgeDebugCredentialRequest {
-        identifier,
-        issuer_schema_id,
-    })
-}
-
-fn parse_bridge_debug_proof_request(
-    value: &serde_json::Value,
-) -> crate::Result<BridgeDebugProofRequest> {
-    let obj = value
-        .as_object()
-        .ok_or_else(|| json_field_error("proof_request", "expected object"))?;
-    let id = obj
-        .get("id")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| json_field_error("proof_request.id", "expected string"))?
-        .to_string();
-    let proof_type = obj
-        .get("proof_type")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| json_field_error("proof_request.proof_type", "expected string"))?
-        .to_string();
-    let rp_id = obj
-        .get("rp_id")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| json_field_error("proof_request.rp_id", "expected string"))?
-        .to_string();
-    let created_at = obj
-        .get("created_at")
-        .and_then(serde_json::Value::as_u64)
-        .ok_or_else(|| json_field_error("proof_request.created_at", "expected integer"))?;
-    let expires_at = obj
-        .get("expires_at")
-        .and_then(serde_json::Value::as_u64)
-        .ok_or_else(|| json_field_error("proof_request.expires_at", "expected integer"))?;
-    let proof_requests = obj
-        .get("proof_requests")
-        .map(|items| -> crate::Result<Vec<BridgeDebugCredentialRequest>> {
-            let array = items
-                .as_array()
-                .ok_or_else(|| json_field_error("proof_request.proof_requests", "expected array"))?;
-            array
-                .iter()
-                .map(parse_bridge_debug_credential_request)
-                .collect()
-        })
-        .transpose()?
-        .unwrap_or_default();
-    let constraints_json = obj
-        .get("constraints")
+fn proof_request_to_debug(proof_request: &ProofRequest) -> Result<BridgeDebugProofRequest> {
+    let constraints_json = proof_request
+        .constraints
+        .as_ref()
         .map(serde_json::to_string)
         .transpose()
-        .map_err(|err| json_field_error("proof_request.constraints", err))?;
+        .map_err(|err| {
+            Error::InvalidConfiguration(format!("failed to serialize constraints: {err}"))
+        })?;
+
     Ok(BridgeDebugProofRequest {
-        id,
-        proof_type,
-        rp_id,
-        created_at,
-        expires_at,
-        proof_requests,
+        id: proof_request.id.clone(),
+        proof_type: proof_type_wire_name(proof_request.proof_type).to_string(),
+        rp_id: proof_request.rp_id.to_string(),
+        created_at: proof_request.created_at,
+        expires_at: proof_request.expires_at,
+        proof_requests: proof_request
+            .requests
+            .iter()
+            .map(|item| BridgeDebugCredentialRequest {
+                identifier: item.identifier.clone(),
+                issuer_schema_id: Some(item.issuer_schema_id),
+            })
+            .collect(),
         constraints_json,
     })
 }
 
-fn parse_bridge_debug_payload(value: serde_json::Value) -> crate::Result<BridgeDebugPayload> {
-    let obj = value
-        .as_object()
-        .ok_or_else(|| json_field_error("payload", "expected object"))?;
-    let app_id = obj
-        .get("app_id")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| json_field_error("app_id", "expected string"))?
-        .to_string();
-    let action = obj.get("action").and_then(|value| match value {
-        serde_json::Value::String(text) => Some(text.clone()),
-        serde_json::Value::Null => None,
-        _ => None,
-    });
-    let action_description = obj
-        .get("action_description")
-        .and_then(serde_json::Value::as_str)
-        .map(str::to_string);
-    let signal = obj
-        .get("signal")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| json_field_error("signal", "expected string"))?
-        .to_string();
-    let verification_level = obj
-        .get("verification_level")
-        .ok_or_else(|| json_field_error("verification_level", "expected value"))?;
-    let verification_level = serde_json::from_value::<VerificationLevel>(verification_level.clone())
-        .map_err(|err| json_field_error("verification_level", err))?;
-    let timestamp = obj
-        .get("timestamp")
-        .and_then(serde_json::Value::as_str)
-        .map(str::to_string);
-    let proof_request = obj
-        .get("proof_request")
-        .map(parse_bridge_debug_proof_request)
-        .transpose()?;
-    let identity_attributes = obj
-        .get("identity_attributes")
-        .map(|items| -> crate::Result<Vec<BridgeDebugIdentityAttribute>> {
-            let array = items.as_array().ok_or_else(|| {
-                json_field_error("identity_attributes", "expected array")
-            })?;
-            array
-                .iter()
-                .map(parse_bridge_debug_identity_attribute)
-                .collect()
-        })
-        .transpose()?;
-    let allow_legacy_proofs = obj
-        .get("allow_legacy_proofs")
-        .and_then(serde_json::Value::as_bool)
-        .ok_or_else(|| json_field_error("allow_legacy_proofs", "expected boolean"))?;
-    let require_user_presence = obj
-        .get("require_user_presence")
-        .and_then(serde_json::Value::as_bool)
-        .ok_or_else(|| json_field_error("require_user_presence", "expected boolean"))?;
-    let environment = obj
-        .get("environment")
-        .ok_or_else(|| json_field_error("environment", "expected value"))?;
-    let environment = serde_json::from_value::<Environment>(environment.clone())
-        .map_err(|err| json_field_error("environment", err))?;
-    let return_to_url = obj
-        .get("return_to_url")
-        .and_then(serde_json::Value::as_str)
-        .map(str::to_string);
+fn bridge_request_payload_to_debug(payload: BridgeRequestPayload) -> Result<BridgeDebugPayload> {
     Ok(BridgeDebugPayload {
-        app_id,
-        action,
-        action_description,
-        signal,
-        verification_level,
-        timestamp,
-        proof_request,
-        identity_attributes,
-        allow_legacy_proofs,
-        require_user_presence,
-        environment,
-        return_to_url,
+        app_id: payload.app_id,
+        action: payload.action,
+        action_description: payload.action_description,
+        signal: payload.signal,
+        verification_level: payload.verification_level,
+        timestamp: payload.timestamp,
+        proof_request: payload
+            .proof_request
+            .as_ref()
+            .map(proof_request_to_debug)
+            .transpose()?,
+        identity_attributes: payload
+            .identity_attributes
+            .map(|attributes| attributes.iter().map(identity_attribute_to_debug).collect()),
+        allow_legacy_proofs: payload.allow_legacy_proofs,
+        require_user_presence: payload.require_user_presence,
+        environment: payload.environment,
+        return_to_url: payload.return_to,
     })
+}
+
+#[cfg(feature = "ffi")]
+fn build_bridge_debug_payload(params: &BridgeConnectionParams) -> Result<BridgeDebugPayload> {
+    bridge_request_payload_to_debug(build_request_payload(params, false)?)
 }
 
 /// Configuration for `request()`
@@ -1774,15 +1680,6 @@ fn bridge_payload_json(
         details: err.to_string(),
     })
 }
-
-#[cfg(feature = "ffi")]
-fn bridge_debug_payload_from_params(
-    params: &BridgeConnectionParams,
-) -> std::result::Result<BridgeDebugPayload, crate::error::IdkitError> {
-    let payload = build_request_payload(params, false).map_err(crate::error::IdkitError::from)?;
-    parse_bridge_debug_payload(payload).map_err(Into::into)
-}
-
 /// Unified builder for creating `IDKit` requests and sessions
 #[cfg(feature = "ffi")]
 #[derive(uniffi::Object)]
@@ -1875,7 +1772,7 @@ impl IDKitBuilder {
         constraints: Arc<ConstraintNode>,
     ) -> std::result::Result<BridgeDebugPayload, crate::error::IdkitError> {
         let params = self.config.to_params((*constraints).clone())?;
-        bridge_debug_payload_from_params(&params)
+        build_bridge_debug_payload(&params).map_err(Into::into)
     }
 
     /// Creates a `BridgeConnection` from a preset (works for all request types)
@@ -1936,7 +1833,7 @@ impl IDKitBuilder {
         preset: Preset,
     ) -> std::result::Result<BridgeDebugPayload, crate::error::IdkitError> {
         let params = self.config.to_params_from_preset(preset)?;
-        bridge_debug_payload_from_params(&params)
+        build_bridge_debug_payload(&params).map_err(Into::into)
     }
 
     /// Creates an invite-code mode `BridgeConnection` with the given constraints (WDP-73).
@@ -2224,6 +2121,10 @@ mod tests {
     use super::*;
     use crate::types::{CredentialRequest, CredentialType, IntegritySignatureFormat, Signal};
 
+    fn payload_json(params: &BridgeConnectionParams, native: bool) -> serde_json::Value {
+        build_request_payload_json(params, native).unwrap()
+    }
+
     #[test]
     fn test_bridge_request_payload_serialization() {
         let item = CredentialRequest::new(
@@ -2328,7 +2229,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
         let proof_request = payload.get("proof_request").unwrap();
         assert_eq!(payload["action"], serde_json::json!("test-action"));
         assert_eq!(proof_request["proof_type"], serde_json::json!("uniqueness"));
@@ -2379,7 +2280,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
         let proof_request = payload.get("proof_request").unwrap();
         assert_eq!(payload["action"], serde_json::json!(""));
         assert_eq!(
@@ -2419,7 +2320,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let prove_payload = build_request_payload(&prove_params, false).unwrap();
+        let prove_payload = payload_json(&prove_params, false);
         assert_eq!(prove_payload["action"], serde_json::json!(""));
         assert_eq!(
             prove_payload["proof_request"]["proof_type"],
@@ -2465,7 +2366,7 @@ mod tests {
             ]),
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
 
         assert_eq!(
             payload["identity_attributes"],
@@ -2478,7 +2379,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_bridge_debug_payload_identity_check() {
+    fn test_build_bridge_debug_payload_identity_check() {
         let app_id = AppId::new("app_staging_1234567890abcdef").unwrap();
         let rp_context = RpContext::new(
             "rp_1234567890abcdef",
@@ -2515,18 +2416,25 @@ mod tests {
             ]),
         };
 
-        let payload_value = build_request_payload(&params, false).unwrap();
-        let payload = parse_bridge_debug_payload(payload_value).unwrap();
+        let payload =
+            bridge_request_payload_to_debug(build_request_payload(&params, false).unwrap())
+                .unwrap();
 
         assert_eq!(payload.app_id, "app_staging_1234567890abcdef");
         assert_eq!(payload.action.as_deref(), Some("test-action"));
-        assert_eq!(payload.action_description.as_deref(), Some("Identity check"));
+        assert_eq!(
+            payload.action_description.as_deref(),
+            Some("Identity check")
+        );
         assert_eq!(payload.verification_level, VerificationLevel::Document);
         assert!(payload.timestamp.is_none());
         assert!(payload.allow_legacy_proofs);
         assert!(payload.require_user_presence);
         assert_eq!(payload.environment, Environment::Staging);
-        assert_eq!(payload.return_to_url.as_deref(), Some("idkitsample://callback"));
+        assert_eq!(
+            payload.return_to_url.as_deref(),
+            Some("idkitsample://callback")
+        );
 
         let attributes = payload.identity_attributes.unwrap();
         assert_eq!(attributes.len(), 2);
@@ -3216,7 +3124,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
         assert_eq!(payload["verification_level"], serde_json::json!("face"));
     }
 
@@ -3258,7 +3166,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
         assert_eq!(payload["verification_level"], serde_json::json!("device"));
     }
 
@@ -3299,7 +3207,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
         assert_eq!(payload["verification_level"], serde_json::json!("orb"));
         assert_eq!(payload["allow_legacy_proofs"], serde_json::json!(true));
         assert_eq!(
@@ -3345,7 +3253,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
         assert_eq!(payload["verification_level"], serde_json::json!("document"));
         assert_eq!(payload["allow_legacy_proofs"], serde_json::json!(true));
         assert_eq!(
@@ -3461,12 +3369,12 @@ mod tests {
         };
 
         // native=true includes timestamp
-        let payload = build_request_payload(&params, true).unwrap();
+        let payload = payload_json(&params, true);
         assert_eq!(payload["timestamp"], "2023-11-14T22:13:20Z");
         assert_eq!(payload["require_user_presence"], serde_json::json!(false));
 
         // native=false omits timestamp
-        let payload_bridge = build_request_payload(&params, false).unwrap();
+        let payload_bridge = payload_json(&params, false);
         assert!(payload_bridge.get("timestamp").is_none());
         assert_eq!(
             payload_bridge["require_user_presence"],
@@ -3512,13 +3420,13 @@ mod tests {
             identity_attributes: None,
         };
 
-        let bridge_payload = build_request_payload(&params, false).unwrap();
+        let bridge_payload = payload_json(&params, false);
         assert_eq!(
             bridge_payload["require_user_presence"],
             serde_json::json!(true)
         );
 
-        let native_payload = build_request_payload(&params, true).unwrap();
+        let native_payload = payload_json(&params, true);
         assert_eq!(
             native_payload["require_user_presence"],
             serde_json::json!(true)
@@ -3557,7 +3465,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
         assert_eq!(payload["return_to_url"], "idkitsample://callback");
         assert!(payload.get("return_to").is_none());
     }
@@ -3594,7 +3502,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
         assert!(payload.get("return_to_url").is_none());
     }
 
@@ -3640,10 +3548,10 @@ mod tests {
         let cached = CachedSignalHashes::compute(&params);
         assert_eq!(cached.legacy_signal_hash, expected);
 
-        let bridge_payload = build_request_payload(&params, false).unwrap();
+        let bridge_payload = payload_json(&params, false);
         assert_eq!(bridge_payload["signal"], expected);
 
-        let native_payload = build_request_payload(&params, true).unwrap();
+        let native_payload = payload_json(&params, true);
         assert_eq!(native_payload["signal"], expected);
 
         let native_v1_payload = build_native_v1_payload(&params).unwrap();
