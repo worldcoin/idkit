@@ -85,7 +85,7 @@ func idkitEntrypoints() throws {
 }
 
 @Test("bridge debug payload exposes identity check contract fields")
-func bridgeDebugPayloadIdentityCheck() throws {
+func bridgeRequestPayloadIdentityCheck() throws {
     let requestConfig = IDKitRequestConfig(
         appId: "app_staging_1234567890abcdef",
         action: "test-action",
@@ -110,10 +110,10 @@ func bridgeDebugPayloadIdentityCheck() throws {
     let builder = IDKit.request(config: requestConfig)
     let spec: IDKitBuilder.DebugSpecification = .preset(preset)
 
-    let payload = try builder._bridgeDebugPayload(spec)
+    let payload = try builder._bridgeRequestPayload(spec)
 
-    // Typed debug projection should stay consistent with the wire JSON builder.
-    let wireJSON = try builder._bridgeDebugPayloadJSON(spec)
+    // Typed projection should stay consistent with the wire JSON builder.
+    let wireJSON = try builder._bridgeRequestPayloadJSON(spec)
     #expect(wireJSON.contains(payload.appId))
     #expect(wireJSON.contains("minimum_age"))
     #expect(wireJSON.contains("passport"))
@@ -129,11 +129,7 @@ func bridgeDebugPayloadIdentityCheck() throws {
     #expect(payload.timestamp == nil)
 
     let attributes = try #require(payload.identityAttributes)
-    #expect(attributes.count == 2)
-    #expect(attributes[0].attributeType == "minimum_age")
-    #expect(attributes[0].valueInt == 21)
-    #expect(attributes[1].attributeType == "nationality")
-    #expect(attributes[1].valueString == "JPN")
+    #expect(attributes == [.minimumAge(21), .nationality("JPN")])
 
     let proofRequest = try #require(payload.proofRequest)
     #expect(proofRequest.proofType == "uniqueness")

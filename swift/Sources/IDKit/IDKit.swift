@@ -179,24 +179,24 @@ public final class IDKitBuilder {
         case constraints(ConstraintNode)
     }
 
-    /// Projects the internal bridge builder into ``BridgeDebugPayload`` without
+    /// Projects the internal bridge builder into ``BridgeRequestPayloadWrapper`` without
     /// creating a network connection.
-    func _bridgeDebugPayload(_ specification: DebugSpecification) throws -> BridgeDebugPayload {
+    func _bridgeRequestPayload(_ specification: DebugSpecification) throws -> BridgeRequestPayloadWrapper {
         switch specification {
         case let .preset(preset):
-            try inner.bridgeDebugPayloadFromPreset(preset: preset)
+            try inner.bridgeRequestPayloadFromPreset(preset: preset)
         case let .constraints(constraints):
-            try inner.bridgeDebugPayload(constraints: constraints)
+            try inner.bridgeRequestPayload(constraints: constraints)
         }
     }
 
     /// Returns wire JSON from the internal bridge builder without creating a network connection.
-    func _bridgeDebugPayloadJSON(_ specification: DebugSpecification) throws -> String {
+    func _bridgeRequestPayloadJSON(_ specification: DebugSpecification) throws -> String {
         switch specification {
         case let .preset(preset):
-            try inner.bridgeDebugPayloadJsonFromPreset(preset: preset)
+            try inner.bridgeRequestPayloadJsonFromPreset(preset: preset)
         case let .constraints(constraints):
-            try inner.bridgeDebugPayloadJson(constraints: constraints)
+            try inner.bridgeRequestPayloadJson(constraints: constraints)
         }
     }
 }
@@ -658,14 +658,14 @@ public extension Signal {
     }
 }
 
-extension BridgeDebugProofRequest {
+extension ProofRequestWrapper {
     /// Credential identifiers from `proofRequests` (e.g. `["passport", "mnc"]`).
     var credentialIdentifiers: [String] {
         proofRequests.map(\.identifier)
     }
 }
 
-extension BridgeDebugPayload {
+extension BridgeRequestPayloadWrapper {
     /// Credential identifiers when a v4 `proofRequest` is present; empty otherwise.
     var credentialIdentifiers: [String] {
         proofRequest?.credentialIdentifiers ?? []

@@ -13,7 +13,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use world_id_primitives::{
-    FieldElement, OprfKeyId, ProofRequest, ProofResponse, ProofType, RequestVersion,
+    FieldElement, OprfKeyId, ProofRequest, ProofResponse, ProofType, RequestItem, RequestVersion,
     ResponseItem as ProtocolResponseItem, SessionId,
 };
 
@@ -1238,56 +1238,62 @@ async fn try_create_invite_code_request(
 // UniFFI bindings
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Plaintext bridge request payload exposed for SDK debug/contract inspection.
+/// FFI projection of the plaintext bridge request payload, exposed for SDK
+/// debug/contract inspection and fixture authoring.
+///
+/// This is a strongly-typed view of the private wire type [`BridgeRequestPayload`].
+/// It re-declares the payload's fields as FFI-compatible types because a
+/// `uniffi::Record` cannot reference the foreign `ProofRequest` or
+/// `serde_json::Value` directly. Construct it via [`TryFrom<BridgeRequestPayload>`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
-pub struct BridgeDebugPayload {
+pub struct BridgeRequestPayloadWrapper {
     pub app_id: String,
     pub action: Option<String>,
     pub action_description: Option<String>,
     pub signal: String,
     pub verification_level: VerificationLevel,
     pub timestamp: Option<String>,
-    pub proof_request: Option<BridgeDebugProofRequest>,
-    pub identity_attributes: Option<Vec<BridgeDebugIdentityAttribute>>,
+    pub proof_request: Option<ProofRequestWrapper>,
+    pub identity_attributes: Option<Vec<IdentityAttribute>>,
     pub allow_legacy_proofs: bool,
     pub require_user_presence: bool,
     pub environment: Environment,
     pub return_to_url: Option<String>,
 }
 
-/// Protocol-level proof request embedded in [`BridgeDebugPayload`].
+/// FFI projection of the protocol-level proof request embedded in
+/// [`BridgeRequestPayloadWrapper`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
-pub struct BridgeDebugProofRequest {
+pub struct ProofRequestWrapper {
     pub id: String,
     pub proof_type: String,
     pub rp_id: String,
     pub created_at: u64,
     pub expires_at: u64,
-    pub proof_requests: Vec<BridgeDebugCredentialRequest>,
+    pub proof_requests: Vec<CredentialRequestWrapper>,
     /// JSON serialization of the protocol constraint expression, when present.
     pub constraints_json: Option<String>,
 }
 
-/// Credential request item inside [`BridgeDebugProofRequest::proof_requests`].
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
-pub struct BridgeDebugCredentialRequest {
-    pub identifier: String,
-    pub issuer_schema_id: Option<u64>,
-}
-
-/// Identity attribute filter in [`BridgeDebugPayload::identity_attributes`].
+/// FFI projection of a credential request item inside
+/// [`ProofRequestWrapper::proof_requests`].
 ///
-/// Wire JSON uses a single `value` field that may be an integer or string.
-/// `UniFFI` exposes that polymorphism as optional `value_int` / `value_string`.
+/// Maps the protocol `RequestItem` 1:1.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
-pub struct BridgeDebugIdentityAttribute {
-    pub attribute_type: String,
-    pub value_int: Option<u32>,
-    pub value_string: Option<String>,
+pub struct CredentialRequestWrapper {
+    /// RP-defined identifier matched against constraints and responses (e.g. `passport`).
+    pub identifier: String,
+    /// Credential schema + issuer pair from the `CredentialSchemaIssuerRegistry`.
+    pub issuer_schema_id: u64,
+    /// Raw signal bytes bound into the proof, when present.
+    pub signal: Option<Vec<u8>>,
+    /// Minimum `genesis_issued_at` the credential must meet, when constrained.
+    pub genesis_issued_at_min: Option<u64>,
+    /// Minimum credential expiration required for the proof, when constrained.
+    pub expires_at_min: Option<u64>,
 }
 
 fn proof_type_wire_name(proof_type: ProofType) -> &'static str {
@@ -1298,97 +1304,77 @@ fn proof_type_wire_name(proof_type: ProofType) -> &'static str {
     }
 }
 
-fn identity_attribute_to_debug(attribute: &IdentityAttribute) -> BridgeDebugIdentityAttribute {
-    match attribute {
-        IdentityAttribute::DocumentType(document_type) => BridgeDebugIdentityAttribute {
-            attribute_type: "document_type".to_string(),
-            value_int: None,
-            value_string: serde_json::to_value(document_type)
-                .ok()
-                .and_then(|value| value.as_str().map(str::to_string)),
-        },
-        IdentityAttribute::DocumentNumber(value) => BridgeDebugIdentityAttribute {
-            attribute_type: "document_number".to_string(),
-            value_int: None,
-            value_string: Some(value.clone()),
-        },
-        IdentityAttribute::IssuingCountry(value) => BridgeDebugIdentityAttribute {
-            attribute_type: "issuing_country".to_string(),
-            value_int: None,
-            value_string: Some(value.clone()),
-        },
-        IdentityAttribute::FullName(value) => BridgeDebugIdentityAttribute {
-            attribute_type: "full_name".to_string(),
-            value_int: None,
-            value_string: Some(value.clone()),
-        },
-        IdentityAttribute::MinimumAge(value) => BridgeDebugIdentityAttribute {
-            attribute_type: "minimum_age".to_string(),
-            value_int: Some(u32::from(*value)),
-            value_string: None,
-        },
-        IdentityAttribute::Nationality(value) => BridgeDebugIdentityAttribute {
-            attribute_type: "nationality".to_string(),
-            value_int: None,
-            value_string: Some(value.clone()),
-        },
+impl From<&RequestItem> for CredentialRequestWrapper {
+    fn from(item: &RequestItem) -> Self {
+        Self {
+            identifier: item.identifier.clone(),
+            issuer_schema_id: item.issuer_schema_id,
+            signal: item.signal.clone(),
+            genesis_issued_at_min: item.genesis_issued_at_min,
+            expires_at_min: item.expires_at_min,
+        }
     }
 }
 
-fn proof_request_to_debug(proof_request: &ProofRequest) -> Result<BridgeDebugProofRequest> {
-    let constraints_json = proof_request
-        .constraints
-        .as_ref()
-        .map(serde_json::to_string)
-        .transpose()
-        .map_err(|err| {
-            Error::InvalidConfiguration(format!("failed to serialize constraints: {err}"))
-        })?;
+impl TryFrom<&ProofRequest> for ProofRequestWrapper {
+    type Error = Error;
 
-    Ok(BridgeDebugProofRequest {
-        id: proof_request.id.clone(),
-        proof_type: proof_type_wire_name(proof_request.proof_type).to_string(),
-        rp_id: proof_request.rp_id.to_string(),
-        created_at: proof_request.created_at,
-        expires_at: proof_request.expires_at,
-        proof_requests: proof_request
-            .requests
-            .iter()
-            .map(|item| BridgeDebugCredentialRequest {
-                identifier: item.identifier.clone(),
-                issuer_schema_id: Some(item.issuer_schema_id),
-            })
-            .collect(),
-        constraints_json,
-    })
+    fn try_from(proof_request: &ProofRequest) -> Result<Self> {
+        let constraints_json = proof_request
+            .constraints
+            .as_ref()
+            .map(serde_json::to_string)
+            .transpose()
+            .map_err(|err| {
+                Error::InvalidConfiguration(format!("failed to serialize constraints: {err}"))
+            })?;
+
+        Ok(Self {
+            id: proof_request.id.clone(),
+            proof_type: proof_type_wire_name(proof_request.proof_type).to_string(),
+            rp_id: proof_request.rp_id.to_string(),
+            created_at: proof_request.created_at,
+            expires_at: proof_request.expires_at,
+            proof_requests: proof_request
+                .requests
+                .iter()
+                .map(CredentialRequestWrapper::from)
+                .collect(),
+            constraints_json,
+        })
+    }
 }
 
-fn bridge_request_payload_to_debug(payload: BridgeRequestPayload) -> Result<BridgeDebugPayload> {
-    Ok(BridgeDebugPayload {
-        app_id: payload.app_id,
-        action: payload.action,
-        action_description: payload.action_description,
-        signal: payload.signal,
-        verification_level: payload.verification_level,
-        timestamp: payload.timestamp,
-        proof_request: payload
-            .proof_request
-            .as_ref()
-            .map(proof_request_to_debug)
-            .transpose()?,
-        identity_attributes: payload
-            .identity_attributes
-            .map(|attributes| attributes.iter().map(identity_attribute_to_debug).collect()),
-        allow_legacy_proofs: payload.allow_legacy_proofs,
-        require_user_presence: payload.require_user_presence,
-        environment: payload.environment,
-        return_to_url: payload.return_to,
-    })
+impl TryFrom<BridgeRequestPayload> for BridgeRequestPayloadWrapper {
+    type Error = Error;
+
+    fn try_from(payload: BridgeRequestPayload) -> Result<Self> {
+        Ok(Self {
+            app_id: payload.app_id,
+            action: payload.action,
+            action_description: payload.action_description,
+            signal: payload.signal,
+            verification_level: payload.verification_level,
+            timestamp: payload.timestamp,
+            proof_request: payload
+                .proof_request
+                .as_ref()
+                .map(ProofRequestWrapper::try_from)
+                .transpose()?,
+            identity_attributes: payload.identity_attributes,
+            allow_legacy_proofs: payload.allow_legacy_proofs,
+            require_user_presence: payload.require_user_presence,
+            environment: payload.environment,
+            return_to_url: payload.return_to,
+        })
+    }
 }
 
 #[cfg(feature = "ffi")]
-fn build_bridge_debug_payload(params: &BridgeConnectionParams) -> Result<BridgeDebugPayload> {
-    bridge_request_payload_to_debug(build_request_payload(params, false)?)
+fn build_request_payload_wrapper(
+    params: &BridgeConnectionParams,
+) -> Result<BridgeRequestPayloadWrapper> {
+    BridgeRequestPayloadWrapper::try_from(build_request_payload(params, false)?)
 }
 
 /// Configuration for `request()`
@@ -1757,7 +1743,7 @@ impl IDKitBuilder {
     ///
     /// Returns an error if constraints are invalid or payload construction fails.
     #[allow(clippy::needless_pass_by_value)]
-    pub fn bridge_debug_payload_json(
+    pub fn bridge_request_payload_json(
         &self,
         constraints: Arc<ConstraintNode>,
     ) -> std::result::Result<String, crate::error::IdkitError> {
@@ -1772,12 +1758,12 @@ impl IDKitBuilder {
     ///
     /// Returns an error if constraints are invalid or payload construction fails.
     #[allow(clippy::needless_pass_by_value)]
-    pub fn bridge_debug_payload(
+    pub fn bridge_request_payload(
         &self,
         constraints: Arc<ConstraintNode>,
-    ) -> std::result::Result<BridgeDebugPayload, crate::error::IdkitError> {
+    ) -> std::result::Result<BridgeRequestPayloadWrapper, crate::error::IdkitError> {
         let params = self.config.to_params((*constraints).clone())?;
-        build_bridge_debug_payload(&params).map_err(Into::into)
+        build_request_payload_wrapper(&params).map_err(Into::into)
     }
 
     /// Creates a `BridgeConnection` from a preset (works for all request types)
@@ -1818,7 +1804,7 @@ impl IDKitBuilder {
     ///
     /// Returns an error if the preset is invalid or payload construction fails.
     #[allow(clippy::needless_pass_by_value)]
-    pub fn bridge_debug_payload_json_from_preset(
+    pub fn bridge_request_payload_json_from_preset(
         &self,
         preset: Preset,
     ) -> std::result::Result<String, crate::error::IdkitError> {
@@ -1833,12 +1819,12 @@ impl IDKitBuilder {
     ///
     /// Returns an error if the preset is invalid or payload construction fails.
     #[allow(clippy::needless_pass_by_value)]
-    pub fn bridge_debug_payload_from_preset(
+    pub fn bridge_request_payload_from_preset(
         &self,
         preset: Preset,
-    ) -> std::result::Result<BridgeDebugPayload, crate::error::IdkitError> {
+    ) -> std::result::Result<BridgeRequestPayloadWrapper, crate::error::IdkitError> {
         let params = self.config.to_params_from_preset(preset)?;
-        build_bridge_debug_payload(&params).map_err(Into::into)
+        build_request_payload_wrapper(&params).map_err(Into::into)
     }
 
     /// Creates an invite-code mode `BridgeConnection` with the given constraints (WDP-73).
@@ -2384,7 +2370,7 @@ mod tests {
     }
 
     #[test]
-    fn test_build_bridge_debug_payload_identity_check() {
+    fn test_build_bridge_request_payload_wrapper_identity_check() {
         let app_id = AppId::new("app_staging_1234567890abcdef").unwrap();
         let rp_context = RpContext::new(
             "rp_1234567890abcdef",
@@ -2421,9 +2407,10 @@ mod tests {
             ]),
         };
 
-        let payload =
-            bridge_request_payload_to_debug(build_request_payload(&params, false).unwrap())
-                .unwrap();
+        let payload = BridgeRequestPayloadWrapper::try_from(
+            build_request_payload(&params, false).unwrap(),
+        )
+        .unwrap();
 
         assert_eq!(payload.app_id, "app_staging_1234567890abcdef");
         assert_eq!(payload.action.as_deref(), Some("test-action"));
@@ -2442,12 +2429,13 @@ mod tests {
         );
 
         let attributes = payload.identity_attributes.unwrap();
-        assert_eq!(attributes.len(), 2);
-        assert_eq!(attributes[0].attribute_type, "minimum_age");
-        assert_eq!(attributes[0].value_int, Some(21));
-        assert!(attributes[0].value_string.is_none());
-        assert_eq!(attributes[1].attribute_type, "nationality");
-        assert_eq!(attributes[1].value_string.as_deref(), Some("JPN"));
+        assert_eq!(
+            attributes,
+            vec![
+                IdentityAttribute::MinimumAge(21),
+                IdentityAttribute::Nationality("JPN".to_string()),
+            ]
+        );
 
         let proof_request = payload.proof_request.unwrap();
         assert_eq!(proof_request.proof_type, "uniqueness");

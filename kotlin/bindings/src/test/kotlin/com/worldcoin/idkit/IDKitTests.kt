@@ -109,9 +109,9 @@ class IDKitTests {
         )
         val spec = IDKitBuilder.DebugSpecification.FromPreset(preset)
 
-        val payload = builder.bridgeDebugPayload(spec)
+        val payload = builder.bridgeRequestPayload(spec)
 
-        val wireJSON = builder.bridgeDebugPayloadJSON(spec)
+        val wireJSON = builder.bridgeRequestPayloadJSON(spec)
         assertTrue(wireJSON.contains(payload.appId))
         assertTrue(wireJSON.contains("minimum_age"))
         assertTrue(wireJSON.contains("passport"))
@@ -127,11 +127,13 @@ class IDKitTests {
         assertNull(payload.timestamp)
 
         val attributes = payload.identityAttributes!!
-        assertEquals(2, attributes.size)
-        assertEquals("minimum_age", attributes[0].attributeType)
-        assertEquals(21u, attributes[0].valueInt)
-        assertEquals("nationality", attributes[1].attributeType)
-        assertEquals("JPN", attributes[1].valueString)
+        assertEquals(
+            listOf(
+                IdentityAttribute.MinimumAge(21u),
+                IdentityAttribute.Nationality("JPN"),
+            ),
+            attributes,
+        )
 
         val proofRequest = payload.proofRequest!!
         assertEquals("uniqueness", proofRequest.proofType)
