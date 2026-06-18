@@ -453,8 +453,8 @@ describe("native transport request lifecycle", () => {
     expect(sent.command).toBe("verify");
   });
 
-  it("exposes a debugReport via getDebugReport() on native failure when debug mode is on", async () => {
-    setDebug(true);
+  it("exposes a debugReport via getDebugReport() on native failure regardless of debug mode", async () => {
+    setDebug(false);
     const req = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
     activeRequest = req;
 

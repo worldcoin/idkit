@@ -18,11 +18,10 @@ import type {
 import { IDKitErrorCodes } from "./types/result";
 import type { NativePayloadResult } from "./lib/wasm";
 import { WasmModule, initIDKit } from "./lib/wasm";
-import { isDebug } from "./lib/debug";
 import {
   type DebugReportWithoutVersion,
-  withPackageVersion,
-} from "./lib/debugReport";
+  buildDebugReport,
+} from "./lib/debug";
 import {
   isInWorldApp,
   getWorldAppVerifyVersion,
@@ -77,8 +76,8 @@ export interface IDKitRequest {
   pollOnce(): Promise<Status>;
   /** Poll continuously until completion or timeout */
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult>;
-  /** Debug report for the latest request state (undefined unless debug mode is on) */
-  getDebugReport(): IDKitDebugReport | undefined;
+  /** Debug report for the latest request state. Always available, independent of debug mode. */
+  getDebugReport(): IDKitDebugReport;
 }
 
 /**
@@ -125,14 +124,8 @@ type WasmDebugReportSource = {
   getDebugReport(): RustBridgeDebugReport;
 };
 
-function getBridgeDebugReport(
-  wasmRequest: unknown,
-): IDKitDebugReport | undefined {
-  if (!isDebug()) {
-    return undefined;
-  }
-
-  return withPackageVersion(
+function getBridgeDebugReport(wasmRequest: unknown): IDKitDebugReport {
+  return buildDebugReport(
     (wasmRequest as WasmDebugReportSource).getDebugReport(),
   );
 }
@@ -167,7 +160,7 @@ class IDKitRequestImpl implements IDKitRequest {
     return pollUntilCompletionLoop(() => this.pollOnce(), options);
   }
 
-  getDebugReport(): IDKitDebugReport | undefined {
+  getDebugReport(): IDKitDebugReport {
     return getBridgeDebugReport(this.wasmRequest);
   }
 }
@@ -192,8 +185,8 @@ export interface IDKitInviteCodeRequest {
   pollOnce(): Promise<Status>;
   /** Poll continuously until completion or timeout */
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult>;
-  /** Debug report for the latest request state (undefined unless debug mode is on) */
-  getDebugReport(): IDKitDebugReport | undefined;
+  /** Debug report for the latest request state. Always available, independent of debug mode. */
+  getDebugReport(): IDKitDebugReport;
 }
 
 /**
@@ -234,7 +227,7 @@ class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
     return pollUntilCompletionLoop(() => this.pollOnce(), options);
   }
 
-  getDebugReport(): IDKitDebugReport | undefined {
+  getDebugReport(): IDKitDebugReport {
     return getBridgeDebugReport(this.wasmRequest);
   }
 }

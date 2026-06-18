@@ -29,8 +29,7 @@ import type {
 import { IDKitErrorCodes } from "../types/result";
 import type { IDKitResultV3, IntegrityBundle } from "../lib/wasm";
 import { WasmModule } from "../lib/wasm";
-import { isDebug } from "../lib/debug";
-import { buildDebugReport } from "../lib/debugReport";
+import { isDebug, buildDebugReport } from "../lib/debug";
 
 const MINIAPP_VERIFY_ACTION = "miniapp-verify-action";
 
@@ -349,7 +348,7 @@ class NativeIDKitRequest implements IDKitRequest {
     });
   }
 
-  getDebugReport(): IDKitDebugReport | undefined {
+  getDebugReport(): IDKitDebugReport {
     return buildDebugReport({
       transport: "mini_app",
       generated_at: new Date().toISOString(),

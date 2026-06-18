@@ -53,8 +53,8 @@ describe("debug reports", () => {
     vi.clearAllMocks();
   });
 
-  it("exposes a debugReport via getDebugReport() when debug mode is on", async () => {
-    setDebug(true);
+  it("exposes a debugReport via getDebugReport() regardless of debug mode", async () => {
+    setDebug(false);
     requestMock.mockReturnValue(wasmBuilderMock);
     wasmBuilderMock.preset.mockResolvedValue(wasmRequestMock);
     wasmRequestMock.pollForStatus.mockResolvedValue({
