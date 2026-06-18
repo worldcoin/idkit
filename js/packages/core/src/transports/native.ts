@@ -48,75 +48,16 @@ type NativeMiniAppDebug = {
   send_channel?: "webkit.minikit" | "Android.postMessage" | "none";
   minikit_subscribed?: boolean;
   response_channel?: "window.message" | "minikit";
-  response_status?: "error" | "ok" | "mapping_failed";
-  error_code?: string;
-  response_format?: "proof_response" | "verifications" | "legacy_v3" | "unknown";
-  mapping_error?: string;
-  integrity_bundle_present?: boolean;
 };
 
-function summarizeRequestPayload(
-  config: BuilderConfig,
-  wasmPayload: unknown,
-): Record<string, unknown> {
-  const summary: Record<string, unknown> = {
-    flow_type: config.type,
-    app_id: config.app_id,
-  };
-
-  if (config.action) {
-    summary.action = config.action;
+function asDebugObject(value: unknown): object | undefined {
+  if (value === undefined) {
+    return undefined;
   }
-  if (config.session_id) {
-    summary.session_id = `${config.session_id.slice(0, 16)}...`;
+  if (typeof value === "object" && value !== null) {
+    return value as object;
   }
-  if (typeof wasmPayload === "object" && wasmPayload !== null) {
-    summary.payload_keys = Object.keys(wasmPayload as object);
-  }
-
-  return summary;
-}
-
-function summarizeNativeResponse(payload: unknown): NativeMiniAppDebug {
-  const p = payload as Record<string, unknown>;
-
-  if (p?.status === "error") {
-    return {
-      response_status: "error",
-      error_code: String(p.error_code ?? IDKitErrorCodes.GenericError),
-      response_format: "unknown",
-    };
-  }
-
-  if (p?.proof_response != null) {
-    return {
-      response_status: "ok",
-      response_format: "proof_response",
-      integrity_bundle_present: p.integrity_bundle != null,
-    };
-  }
-
-  if (Array.isArray(p?.verifications)) {
-    return {
-      response_status: "ok",
-      response_format: "verifications",
-      integrity_bundle_present: p.integrity_bundle != null,
-    };
-  }
-
-  if (typeof p?.verification_level === "string") {
-    return {
-      response_status: "ok",
-      response_format: "legacy_v3",
-      integrity_bundle_present: p.integrity_bundle != null,
-    };
-  }
-
-  return {
-    response_status: "ok",
-    response_format: "unknown",
-    integrity_bundle_present: p?.integrity_bundle != null,
-  };
+  return { value };
 }
 
 function detectNativePlatform(): "ios" | "android" | "none" {
@@ -244,7 +185,8 @@ class NativeIDKitRequest implements IDKitRequest {
   private resolveFn: ((result: IDKitCompletionResult) => void) | null = null;
   private messageHandler: ((event: MessageEvent) => void) | null = null;
   private miniKitHandler: ((payload: any) => void) | null = null;
-  private readonly requestPayloadSummary: Record<string, unknown>;
+  private readonly requestPayload: unknown;
+  private responsePayload: unknown;
   private debugState: NativeMiniAppDebug;
 
   constructor(
@@ -256,7 +198,8 @@ class NativeIDKitRequest implements IDKitRequest {
   ) {
     this.requestId =
       crypto.randomUUID?.() ?? `native-${Date.now()}-${++_requestCounter}`;
-    this.requestPayloadSummary = summarizeRequestPayload(config, wasmPayload);
+    this.requestPayload = wasmPayload;
+    this.responsePayload = undefined;
     this.debugState = {
       verify_version: version,
       platform: detectNativePlatform(),
@@ -272,7 +215,7 @@ class NativeIDKitRequest implements IDKitRequest {
         responseChannel: NativeMiniAppDebug["response_channel"],
       ) => {
         this.debugState.response_channel = responseChannel;
-        Object.assign(this.debugState, summarizeNativeResponse(responsePayload));
+        this.responsePayload = responsePayload;
       };
 
       const handleIncomingPayload = (
@@ -304,8 +247,6 @@ class NativeIDKitRequest implements IDKitRequest {
             getUserPresenceCompleted(responsePayload);
 
           if (config.require_user_presence === true && !userPresenceCompleted) {
-            this.debugState.response_status = "error";
-            this.debugState.error_code = IDKitErrorCodes.UserPresenceFailed;
             this.complete({
               success: false,
               error: IDKitErrorCodes.UserPresenceFailed,
@@ -329,9 +270,6 @@ class NativeIDKitRequest implements IDKitRequest {
         } catch (error) {
           if (isDebug())
             console.warn("[IDKit] Native: failed to map response", error);
-          this.debugState.response_status = "mapping_failed";
-          this.debugState.mapping_error =
-            error instanceof Error ? error.message : String(error);
           this.complete({
             success: false,
             error: toNativeErrorCode(error),
@@ -398,8 +336,7 @@ class NativeIDKitRequest implements IDKitRequest {
             console.warn(
               "[IDKit] Native: no native bridge found (no webkit/Android)",
             );
-          this.debugState.response_status = "error";
-          this.debugState.error_code = IDKitErrorCodes.GenericError;
+          this.responsePayload = { error: IDKitErrorCodes.GenericError };
           this.complete({
             success: false,
             error: IDKitErrorCodes.GenericError,
@@ -407,8 +344,7 @@ class NativeIDKitRequest implements IDKitRequest {
         }
       } catch (err) {
         if (isDebug()) console.warn("[IDKit] Native: postMessage failed", err);
-        this.debugState.response_status = "error";
-        this.debugState.error_code = IDKitErrorCodes.GenericError;
+        this.responsePayload = { error: IDKitErrorCodes.GenericError };
         this.complete({
           success: false,
           error: IDKitErrorCodes.GenericError,
@@ -422,7 +358,8 @@ class NativeIDKitRequest implements IDKitRequest {
       transport: "mini_app",
       timestamps: { generated_at: new Date().toISOString() },
       request_id: this.requestId,
-      request_payload: this.requestPayloadSummary,
+      request_payload: asDebugObject(this.requestPayload),
+      response_payload: asDebugObject(this.responsePayload),
       mini_app: { ...this.debugState },
     });
   }
@@ -435,9 +372,7 @@ class NativeIDKitRequest implements IDKitRequest {
     if (isDebug())
       console.debug(
         "[IDKit] Native: request completed",
-        finalResult.success === true
-          ? "success"
-          : `error=${finalResult.error}`,
+        finalResult.success === true ? "success" : `error=${finalResult.error}`,
       );
     this.completionResult = finalResult;
     this.cleanup();

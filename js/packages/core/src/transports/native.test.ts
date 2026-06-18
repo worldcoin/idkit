@@ -477,11 +477,10 @@ describe("native transport request lifecycle", () => {
     expect(completion.debugReport).toMatchObject({
       transport: "mini_app",
       package_version: "4.1.8",
-      request_payload: {
-        flow_type: "request",
-        app_id: "app_staging_test",
-        action: "test-action",
-        payload_keys: ["payload"],
+      request_payload: { payload: 1 },
+      response_payload: {
+        status: "error",
+        error_code: IDKitErrorCodes.ConnectionFailed,
       },
       mini_app: {
         verify_version: 2,
@@ -489,9 +488,6 @@ describe("native transport request lifecycle", () => {
         send_channel: "Android.postMessage",
         minikit_subscribed: true,
         response_channel: "minikit",
-        response_status: "error",
-        error_code: IDKitErrorCodes.ConnectionFailed,
-        response_format: "unknown",
       },
     });
     expect(completion.debugReport?.request_id).toBe(req.requestId);
