@@ -28,7 +28,8 @@ export type IDKitHookResult<TResult> = {
   connectorURI: string | null;
   result: TResult | null;
   errorCode: IDKitErrorCodes | null;
-  debugReport?: IDKitDebugReport;
+  /** Reads the debug report for the active request, when debug mode is on. */
+  getDebugReport: () => IDKitDebugReport | undefined;
   isOpen: boolean;
   /** Use `isInWorldApp` to determine if the widget is running inside the World App (mini app context). */
   isInWorldApp: boolean;
@@ -47,7 +48,8 @@ export type IDKitInviteCodeHookResult<TResult> = {
   codeExpiresAt: number | null;
   result: TResult | null;
   errorCode: IDKitErrorCodes | null;
-  debugReport?: IDKitDebugReport;
+  /** Reads the debug report for the active request, when debug mode is on. */
+  getDebugReport: () => IDKitDebugReport | undefined;
   isOpen: boolean;
   /** Use `isInWorldApp` to determine if the widget is running inside the World App (mini app context). */
   isInWorldApp: boolean;
