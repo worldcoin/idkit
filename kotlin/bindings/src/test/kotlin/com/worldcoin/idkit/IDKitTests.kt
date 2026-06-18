@@ -107,7 +107,7 @@ class IDKitTests {
                 IdentityAttribute.Nationality("JPN"),
             ),
         )
-        val spec = IDKitBuilder.DebugSpecification.Preset(preset)
+        val spec = IDKitBuilder.DebugSpecification.FromPreset(preset)
 
         val payload = builder.bridgeDebugPayload(spec)
 

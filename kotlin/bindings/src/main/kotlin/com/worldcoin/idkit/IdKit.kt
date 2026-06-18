@@ -184,8 +184,8 @@ class IDKitBuilder internal constructor(
 ) {
     /** Selects preset vs custom constraints for unstable bridge payload inspection. */
     sealed interface DebugSpecification {
-        data class Preset(val preset: Preset) : DebugSpecification
-        data class Constraints(val constraints: uniffi.idkit_core.ConstraintNode) : DebugSpecification
+        data class FromPreset(val preset: Preset) : DebugSpecification
+        data class FromConstraints(val constraints: uniffi.idkit_core.ConstraintNode) : DebugSpecification
     }
 
     fun constraints(constraints: uniffi.idkit_core.ConstraintNode): IDKitRequest =
@@ -197,14 +197,14 @@ class IDKitBuilder internal constructor(
     // Debug (internal — bindings module tests only; do not use in production)
     internal fun bridgeDebugPayload(specification: DebugSpecification): BridgeDebugPayload =
         when (specification) {
-            is DebugSpecification.Preset -> inner.bridgeDebugPayloadFromPreset(specification.preset)
-            is DebugSpecification.Constraints -> inner.bridgeDebugPayload(specification.constraints)
+            is DebugSpecification.FromPreset -> inner.bridgeDebugPayloadFromPreset(specification.preset)
+            is DebugSpecification.FromConstraints -> inner.bridgeDebugPayload(specification.constraints)
         }
 
     internal fun bridgeDebugPayloadJSON(specification: DebugSpecification): String =
         when (specification) {
-            is DebugSpecification.Preset -> inner.bridgeDebugPayloadJsonFromPreset(specification.preset)
-            is DebugSpecification.Constraints -> inner.bridgeDebugPayloadJson(specification.constraints)
+            is DebugSpecification.FromPreset -> inner.bridgeDebugPayloadJsonFromPreset(specification.preset)
+            is DebugSpecification.FromConstraints -> inner.bridgeDebugPayloadJson(specification.constraints)
         }
 }
 
