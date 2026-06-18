@@ -2658,7 +2658,10 @@ mod tests {
         assert_eq!(constraints.kind, ConstraintKindWrapper::Any);
         assert_eq!(constraints.children.len(), 2);
         assert_eq!(constraints.children[0].kind, ConstraintKindWrapper::Type);
-        assert_eq!(constraints.children[0].identifier.as_deref(), Some("passport"));
+        assert_eq!(
+            constraints.children[0].identifier.as_deref(),
+            Some("passport")
+        );
         assert_eq!(constraints.children[1].kind, ConstraintKindWrapper::Type);
         assert_eq!(constraints.children[1].identifier.as_deref(), Some("mnc"));
         assert_eq!(
