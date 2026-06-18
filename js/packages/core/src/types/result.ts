@@ -40,7 +40,11 @@ export type IDKitDebugReport = {
   request_id?: string;
   connector_uri?: string;
   request_payload?: object;
-  response_payload?: object;
+  /**
+   * Bridge transport: decrypted plaintext response payload (string), present
+   * only once the request completes. Native transport: structured debug object.
+   */
+  response_payload?: object | string;
   mini_app?: MiniAppDebugInfo;
 };
 
