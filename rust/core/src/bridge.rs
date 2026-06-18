@@ -1308,7 +1308,7 @@ pub struct IdentityAttributeWrapper {
     pub value: IdentityAttributeValueWrapper,
 }
 
-/// Typed identity-attribute values that avoid dynamic JSON values in UniFFI.
+/// Typed identity-attribute values that avoid dynamic JSON values in `UniFFI`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 pub enum IdentityAttributeValueWrapper {
@@ -1329,14 +1329,14 @@ pub enum ConstraintKindWrapper {
 
 /// Mobile-safe view of a protocol constraint node.
 ///
-/// This is an object rather than a recursive enum because UniFFI clients cannot
+/// This is an object rather than a recursive enum because `UniFFI` clients cannot
 /// consistently represent indirect recursive enums across Swift and Kotlin.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Object))]
 pub struct ConstraintNodeWrapper {
     kind: ConstraintKindWrapper,
     identifier: Option<String>,
-    children: Vec<Arc<ConstraintNodeWrapper>>,
+    children: Vec<Arc<Self>>,
 }
 
 #[cfg(feature = "ffi")]
@@ -1470,7 +1470,7 @@ impl From<ProtocolConstraintExpr<'_>> for ConstraintNodeWrapper {
                 identifier: None,
                 children: all
                     .into_iter()
-                    .map(ConstraintNodeWrapper::from)
+                    .map(Self::from)
                     .map(Arc::new)
                     .collect(),
             },
@@ -1479,7 +1479,7 @@ impl From<ProtocolConstraintExpr<'_>> for ConstraintNodeWrapper {
                 identifier: None,
                 children: any
                     .into_iter()
-                    .map(ConstraintNodeWrapper::from)
+                    .map(Self::from)
                     .map(Arc::new)
                     .collect(),
             },
@@ -1488,7 +1488,7 @@ impl From<ProtocolConstraintExpr<'_>> for ConstraintNodeWrapper {
                 identifier: None,
                 children: enumerate
                     .into_iter()
-                    .map(ConstraintNodeWrapper::from)
+                    .map(Self::from)
                     .map(Arc::new)
                     .collect(),
             },
@@ -1504,7 +1504,7 @@ impl From<ProtocolConstraintNode<'_>> for ConstraintNodeWrapper {
                 identifier: Some(identifier.into_owned()),
                 children: Vec::new(),
             },
-            ProtocolConstraintNode::Expr(expr) => ConstraintNodeWrapper::from(expr),
+            ProtocolConstraintNode::Expr(expr) => Self::from(expr),
         }
     }
 }
