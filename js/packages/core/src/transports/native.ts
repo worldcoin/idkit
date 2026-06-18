@@ -21,7 +21,11 @@ import type {
   WaitOptions,
   Status,
 } from "../request";
-import type { IDKitResult, IDKitDebugReport } from "../types/result";
+import type {
+  IDKitResult,
+  IDKitDebugReport,
+  MiniAppDebugInfo,
+} from "../types/result";
 import { IDKitErrorCodes } from "../types/result";
 import type { IDKitResultV3, IntegrityBundle } from "../lib/wasm";
 import { WasmModule } from "../lib/wasm";
@@ -41,14 +45,6 @@ function toNativeErrorCode(error: unknown): IDKitErrorCodes {
     ? (code as IDKitErrorCodes)
     : IDKitErrorCodes.GenericError;
 }
-
-type NativeMiniAppDebug = {
-  verify_version?: 1 | 2;
-  platform?: "ios" | "android" | "none";
-  send_channel?: "webkit.minikit" | "Android.postMessage" | "none";
-  minikit_subscribed?: boolean;
-  response_channel?: "window.message" | "minikit";
-};
 
 function asDebugObject(value: unknown): object | undefined {
   if (value === undefined) {
@@ -74,7 +70,7 @@ function detectNativePlatform(): "ios" | "android" | "none" {
   return "none";
 }
 
-function detectSendChannel(): NativeMiniAppDebug["send_channel"] {
+function detectSendChannel(): MiniAppDebugInfo["send_channel"] {
   const platform = detectNativePlatform();
   if (platform === "ios") {
     return "webkit.minikit";
@@ -187,7 +183,7 @@ class NativeIDKitRequest implements IDKitRequest {
   private miniKitHandler: ((payload: any) => void) | null = null;
   private readonly requestPayload: unknown;
   private responsePayload: unknown;
-  private debugState: NativeMiniAppDebug;
+  private debugState: MiniAppDebugInfo;
 
   constructor(
     wasmPayload: unknown,
@@ -212,7 +208,7 @@ class NativeIDKitRequest implements IDKitRequest {
 
       const recordResponse = (
         responsePayload: unknown,
-        responseChannel: NativeMiniAppDebug["response_channel"],
+        responseChannel: MiniAppDebugInfo["response_channel"],
       ) => {
         this.debugState.response_channel = responseChannel;
         this.responsePayload = responsePayload;
@@ -220,7 +216,7 @@ class NativeIDKitRequest implements IDKitRequest {
 
       const handleIncomingPayload = (
         responsePayload: any,
-        responseChannel: NativeMiniAppDebug["response_channel"],
+        responseChannel: MiniAppDebugInfo["response_channel"],
       ) => {
         if (this.completionResult) return;
 
@@ -360,7 +356,7 @@ class NativeIDKitRequest implements IDKitRequest {
       request_id: this.requestId,
       request_payload: asDebugObject(this.requestPayload),
       response_payload: asDebugObject(this.responsePayload),
-      mini_app: { ...this.debugState },
+      mini_app: this.debugState,
     });
   }
 

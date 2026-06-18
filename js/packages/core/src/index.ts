@@ -63,6 +63,7 @@ export type {
   ResponseItemSession,
   IDKitResultSession,
   IDKitDebugReport,
+  MiniAppDebugInfo,
   // Status (includes both action and session confirmed)
   Status,
   // Shared types

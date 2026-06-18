@@ -24,6 +24,15 @@ export type {
   CredentialRequestType,
 } from "../lib/wasm";
 
+/** Mini-app (World App native transport) diagnostics. All fields optional — they are filled in as the request progresses. */
+export type MiniAppDebugInfo = {
+  verify_version?: 1 | 2;
+  platform?: "ios" | "android" | "none";
+  send_channel?: "webkit.minikit" | "Android.postMessage" | "none";
+  minikit_subscribed?: boolean;
+  response_channel?: "window.message" | "minikit";
+};
+
 export type IDKitDebugReport = {
   package_version: string;
   transport: "bridge" | "mini_app";
@@ -32,7 +41,7 @@ export type IDKitDebugReport = {
   connector_uri?: string;
   request_payload?: object;
   response_payload?: object;
-  mini_app?: Record<string, unknown>;
+  mini_app?: MiniAppDebugInfo;
 };
 
 /**
