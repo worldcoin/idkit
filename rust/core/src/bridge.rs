@@ -6,13 +6,14 @@ use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
     types::{
-        AppId, BridgeResponseV1, BridgeUrl, IDKitResult, IdentityAttribute, IntegrityBundle,
-        ResponseItem, RpContext, VerificationLevel,
+        AppId, BridgeResponseV1, BridgeUrl, DocumentType, IDKitResult, IdentityAttribute,
+        IntegrityBundle, ResponseItem, RpContext, VerificationLevel,
     },
     ConstraintNode, Signal,
 };
 use serde::{Deserialize, Serialize};
 use world_id_primitives::{
+    ConstraintExpr as ProtocolConstraintExpr, ConstraintNode as ProtocolConstraintNode,
     FieldElement, OprfKeyId, ProofRequest, ProofResponse, ProofType, RequestItem, RequestVersion,
     ResponseItem as ProtocolResponseItem, SessionId,
 };
@@ -20,9 +21,7 @@ use world_id_primitives::{
 #[cfg(feature = "native-crypto")]
 use crate::crypto::CryptoKey;
 
-use std::str::FromStr;
-#[cfg(feature = "ffi")]
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Environment
@@ -1255,7 +1254,7 @@ pub struct BridgeRequestPayloadWrapper {
     pub verification_level: VerificationLevel,
     pub timestamp: Option<String>,
     pub proof_request: Option<ProofRequestWrapper>,
-    pub identity_attributes: Option<Vec<IdentityAttribute>>,
+    pub identity_attributes: Option<Vec<IdentityAttributeWrapper>>,
     pub allow_legacy_proofs: bool,
     pub require_user_presence: bool,
     pub environment: Environment,
@@ -1268,13 +1267,18 @@ pub struct BridgeRequestPayloadWrapper {
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct ProofRequestWrapper {
     pub id: String,
+    pub version: u8,
     pub proof_type: String,
     pub rp_id: String,
+    pub oprf_key_id: String,
+    pub session_id: Option<String>,
+    pub action: Option<String>,
+    pub signature: String,
+    pub nonce: String,
     pub created_at: u64,
     pub expires_at: u64,
     pub proof_requests: Vec<CredentialRequestWrapper>,
-    /// JSON serialization of the protocol constraint expression, when present.
-    pub constraints_json: Option<String>,
+    pub constraints: Option<Arc<ConstraintNodeWrapper>>,
 }
 
 /// FFI projection of a credential request item inside
@@ -1288,12 +1292,70 @@ pub struct CredentialRequestWrapper {
     pub identifier: String,
     /// Credential schema + issuer pair from the `CredentialSchemaIssuerRegistry`.
     pub issuer_schema_id: u64,
-    /// Raw signal bytes bound into the proof, when present.
-    pub signal: Option<Vec<u8>>,
+    /// `0x`-prefixed hex signal bound into the proof, when present.
+    pub signal: Option<String>,
     /// Minimum `genesis_issued_at` the credential must meet, when constrained.
     pub genesis_issued_at_min: Option<u64>,
     /// Minimum credential expiration required for the proof, when constrained.
     pub expires_at_min: Option<u64>,
+}
+
+/// FFI projection of an identity-attribute predicate in the bridge payload.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct IdentityAttributeWrapper {
+    pub attribute_type: String,
+    pub value: IdentityAttributeValueWrapper,
+}
+
+/// Typed identity-attribute values that avoid dynamic JSON values in UniFFI.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
+pub enum IdentityAttributeValueWrapper {
+    Integer { value: u32 },
+    Text { value: String },
+    DocumentType { value: DocumentType },
+}
+
+/// Constraint tree branch kind exposed to mobile SDKs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
+pub enum ConstraintKindWrapper {
+    Type,
+    All,
+    Any,
+    Enumerate,
+}
+
+/// Mobile-safe view of a protocol constraint node.
+///
+/// This is an object rather than a recursive enum because UniFFI clients cannot
+/// consistently represent indirect recursive enums across Swift and Kotlin.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Object))]
+pub struct ConstraintNodeWrapper {
+    kind: ConstraintKindWrapper,
+    identifier: Option<String>,
+    children: Vec<Arc<ConstraintNodeWrapper>>,
+}
+
+#[cfg(feature = "ffi")]
+#[uniffi::export]
+impl ConstraintNodeWrapper {
+    #[must_use]
+    pub fn kind(&self) -> ConstraintKindWrapper {
+        self.kind
+    }
+
+    #[must_use]
+    pub fn identifier(&self) -> Option<String> {
+        self.identifier.clone()
+    }
+
+    #[must_use]
+    pub fn children(&self) -> Vec<Arc<Self>> {
+        self.children.clone()
+    }
 }
 
 fn proof_type_wire_name(proof_type: ProofType) -> &'static str {
@@ -1304,43 +1366,177 @@ fn proof_type_wire_name(proof_type: ProofType) -> &'static str {
     }
 }
 
-impl From<&RequestItem> for CredentialRequestWrapper {
-    fn from(item: &RequestItem) -> Self {
-        Self {
-            identifier: item.identifier.clone(),
+fn proof_request_wire_value(proof_request: &ProofRequest) -> Result<serde_json::Value> {
+    serde_json::to_value(proof_request).map_err(Error::from)
+}
+
+fn scalar_wire_string(value: &serde_json::Value, field_name: &str) -> Result<String> {
+    match value {
+        serde_json::Value::String(value) => Ok(value.clone()),
+        serde_json::Value::Number(value) => Ok(value.to_string()),
+        serde_json::Value::Bool(value) => Ok(value.to_string()),
+        _ => Err(Error::InvalidConfiguration(format!(
+            "proof_request.{field_name} did not serialize as a scalar"
+        ))),
+    }
+}
+
+fn required_wire_scalar(wire: &serde_json::Value, field_name: &str) -> Result<String> {
+    let value = wire.get(field_name).ok_or_else(|| {
+        Error::InvalidConfiguration(format!("proof_request.{field_name} is missing"))
+    })?;
+    scalar_wire_string(value, field_name)
+}
+
+fn optional_wire_scalar(wire: &serde_json::Value, field_name: &str) -> Result<Option<String>> {
+    match wire.get(field_name) {
+        Some(serde_json::Value::Null) | None => Ok(None),
+        Some(value) => scalar_wire_string(value, field_name).map(Some),
+    }
+}
+
+fn required_wire_u8(wire: &serde_json::Value, field_name: &str) -> Result<u8> {
+    let value = wire.get(field_name).ok_or_else(|| {
+        Error::InvalidConfiguration(format!("proof_request.{field_name} is missing"))
+    })?;
+    let number = value.as_u64().ok_or_else(|| {
+        Error::InvalidConfiguration(format!(
+            "proof_request.{field_name} did not serialize as an integer"
+        ))
+    })?;
+    u8::try_from(number).map_err(|_| {
+        Error::InvalidConfiguration(format!("proof_request.{field_name} is out of range"))
+    })
+}
+
+impl TryFrom<IdentityAttribute> for IdentityAttributeWrapper {
+    type Error = Error;
+
+    fn try_from(attribute: IdentityAttribute) -> Result<Self> {
+        let wrapper = match attribute {
+            IdentityAttribute::DocumentType(value) => Self {
+                attribute_type: "document_type".to_string(),
+                value: IdentityAttributeValueWrapper::DocumentType { value },
+            },
+            IdentityAttribute::DocumentNumber(value) => Self {
+                attribute_type: "document_number".to_string(),
+                value: IdentityAttributeValueWrapper::Text { value },
+            },
+            IdentityAttribute::IssuingCountry(value) => Self {
+                attribute_type: "issuing_country".to_string(),
+                value: IdentityAttributeValueWrapper::Text { value },
+            },
+            IdentityAttribute::FullName(value) => Self {
+                attribute_type: "full_name".to_string(),
+                value: IdentityAttributeValueWrapper::Text { value },
+            },
+            IdentityAttribute::MinimumAge(value) => Self {
+                attribute_type: "minimum_age".to_string(),
+                value: IdentityAttributeValueWrapper::Integer {
+                    value: u32::from(value),
+                },
+            },
+            IdentityAttribute::Nationality(value) => Self {
+                attribute_type: "nationality".to_string(),
+                value: IdentityAttributeValueWrapper::Text { value },
+            },
+        };
+
+        Ok(wrapper)
+    }
+}
+
+impl TryFrom<RequestItem> for CredentialRequestWrapper {
+    type Error = Error;
+
+    fn try_from(item: RequestItem) -> Result<Self> {
+        Ok(Self {
+            identifier: item.identifier,
             issuer_schema_id: item.issuer_schema_id,
-            signal: item.signal.clone(),
+            signal: item
+                .signal
+                .map(|signal| format!("0x{}", hex::encode(signal))),
             genesis_issued_at_min: item.genesis_issued_at_min,
             expires_at_min: item.expires_at_min,
+        })
+    }
+}
+
+impl From<ProtocolConstraintExpr<'_>> for ConstraintNodeWrapper {
+    fn from(expr: ProtocolConstraintExpr<'_>) -> Self {
+        match expr {
+            ProtocolConstraintExpr::All { all } => Self {
+                kind: ConstraintKindWrapper::All,
+                identifier: None,
+                children: all
+                    .into_iter()
+                    .map(ConstraintNodeWrapper::from)
+                    .map(Arc::new)
+                    .collect(),
+            },
+            ProtocolConstraintExpr::Any { any } => Self {
+                kind: ConstraintKindWrapper::Any,
+                identifier: None,
+                children: any
+                    .into_iter()
+                    .map(ConstraintNodeWrapper::from)
+                    .map(Arc::new)
+                    .collect(),
+            },
+            ProtocolConstraintExpr::Enumerate { enumerate } => Self {
+                kind: ConstraintKindWrapper::Enumerate,
+                identifier: None,
+                children: enumerate
+                    .into_iter()
+                    .map(ConstraintNodeWrapper::from)
+                    .map(Arc::new)
+                    .collect(),
+            },
         }
     }
 }
 
-impl TryFrom<&ProofRequest> for ProofRequestWrapper {
+impl From<ProtocolConstraintNode<'_>> for ConstraintNodeWrapper {
+    fn from(node: ProtocolConstraintNode<'_>) -> Self {
+        match node {
+            ProtocolConstraintNode::Type(identifier) => Self {
+                kind: ConstraintKindWrapper::Type,
+                identifier: Some(identifier.into_owned()),
+                children: Vec::new(),
+            },
+            ProtocolConstraintNode::Expr(expr) => ConstraintNodeWrapper::from(expr),
+        }
+    }
+}
+
+impl TryFrom<ProofRequest> for ProofRequestWrapper {
     type Error = Error;
 
-    fn try_from(proof_request: &ProofRequest) -> Result<Self> {
-        let constraints_json = proof_request
+    fn try_from(proof_request: ProofRequest) -> Result<Self> {
+        let wire = proof_request_wire_value(&proof_request)?;
+        let constraints = proof_request
             .constraints
-            .as_ref()
-            .map(serde_json::to_string)
-            .transpose()
-            .map_err(|err| {
-                Error::InvalidConfiguration(format!("failed to serialize constraints: {err}"))
-            })?;
+            .map(ConstraintNodeWrapper::from)
+            .map(Arc::new);
 
         Ok(Self {
-            id: proof_request.id.clone(),
+            id: proof_request.id,
+            version: required_wire_u8(&wire, "version")?,
             proof_type: proof_type_wire_name(proof_request.proof_type).to_string(),
             rp_id: proof_request.rp_id.to_string(),
+            oprf_key_id: required_wire_scalar(&wire, "oprf_key_id")?,
+            session_id: optional_wire_scalar(&wire, "session_id")?,
+            action: optional_wire_scalar(&wire, "action")?,
+            signature: required_wire_scalar(&wire, "signature")?,
+            nonce: required_wire_scalar(&wire, "nonce")?,
             created_at: proof_request.created_at,
             expires_at: proof_request.expires_at,
             proof_requests: proof_request
                 .requests
-                .iter()
-                .map(CredentialRequestWrapper::from)
-                .collect(),
-            constraints_json,
+                .into_iter()
+                .map(CredentialRequestWrapper::try_from)
+                .collect::<Result<Vec<_>>>()?,
+            constraints,
         })
     }
 }
@@ -1358,10 +1554,17 @@ impl TryFrom<BridgeRequestPayload> for BridgeRequestPayloadWrapper {
             timestamp: payload.timestamp,
             proof_request: payload
                 .proof_request
-                .as_ref()
                 .map(ProofRequestWrapper::try_from)
                 .transpose()?,
-            identity_attributes: payload.identity_attributes,
+            identity_attributes: payload
+                .identity_attributes
+                .map(|attributes| {
+                    attributes
+                        .into_iter()
+                        .map(IdentityAttributeWrapper::try_from)
+                        .collect::<Result<Vec<_>>>()
+                })
+                .transpose()?,
             allow_legacy_proofs: payload.allow_legacy_proofs,
             require_user_presence: payload.require_user_presence,
             environment: payload.environment,
@@ -2407,10 +2610,9 @@ mod tests {
             ]),
         };
 
-        let payload = BridgeRequestPayloadWrapper::try_from(
-            build_request_payload(&params, false).unwrap(),
-        )
-        .unwrap();
+        let payload =
+            BridgeRequestPayloadWrapper::try_from(build_request_payload(&params, false).unwrap())
+                .unwrap();
 
         assert_eq!(payload.app_id, "app_staging_1234567890abcdef");
         assert_eq!(payload.action.as_deref(), Some("test-action"));
@@ -2432,17 +2634,33 @@ mod tests {
         assert_eq!(
             attributes,
             vec![
-                IdentityAttribute::MinimumAge(21),
-                IdentityAttribute::Nationality("JPN".to_string()),
+                IdentityAttributeWrapper {
+                    attribute_type: "minimum_age".to_string(),
+                    value: IdentityAttributeValueWrapper::Integer { value: 21 },
+                },
+                IdentityAttributeWrapper {
+                    attribute_type: "nationality".to_string(),
+                    value: IdentityAttributeValueWrapper::Text {
+                        value: "JPN".to_string(),
+                    },
+                },
             ]
         );
 
         let proof_request = payload.proof_request.unwrap();
+        assert_eq!(proof_request.version, 1);
         assert_eq!(proof_request.proof_type, "uniqueness");
         assert_eq!(proof_request.rp_id, "rp_1234567890abcdef");
         assert_eq!(proof_request.created_at, 1_700_000_000);
         assert_eq!(proof_request.expires_at, 1_700_003_600);
         assert!(!proof_request.id.is_empty());
+        let constraints = proof_request.constraints.unwrap();
+        assert_eq!(constraints.kind, ConstraintKindWrapper::Any);
+        assert_eq!(constraints.children.len(), 2);
+        assert_eq!(constraints.children[0].kind, ConstraintKindWrapper::Type);
+        assert_eq!(constraints.children[0].identifier.as_deref(), Some("passport"));
+        assert_eq!(constraints.children[1].kind, ConstraintKindWrapper::Type);
+        assert_eq!(constraints.children[1].identifier.as_deref(), Some("mnc"));
         assert_eq!(
             proof_request
                 .proof_requests
