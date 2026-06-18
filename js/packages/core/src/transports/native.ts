@@ -363,26 +363,17 @@ class NativeIDKitRequest implements IDKitRequest {
   // Single entry point for finishing the request. Idempotent — first caller wins.
   private complete(result: IDKitCompletionResult): void {
     if (this.completionResult) return;
-    const finalResult =
-      result.success === false ? this.attachDebugReport(result) : result;
     if (isDebug())
       console.debug(
         "[IDKit] Native: request completed",
-        finalResult.success === true ? "success" : `error=${finalResult.error}`,
+        result.success === true ? "success" : `error=${result.error}`,
       );
-    this.completionResult = finalResult;
+    this.completionResult = result;
     this.cleanup();
-    this.resolveFn?.(finalResult);
+    this.resolveFn?.(result);
     if (_activeNativeRequest === this) {
       _activeNativeRequest = null;
     }
-  }
-
-  private attachDebugReport(
-    result: Extract<IDKitCompletionResult, { success: false }>,
-  ): IDKitCompletionResult {
-    const debugReport = this.getDebugReport();
-    return debugReport ? { ...result, debugReport } : result;
   }
 
   cancel(): void {

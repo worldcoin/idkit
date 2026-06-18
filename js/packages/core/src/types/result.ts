@@ -38,7 +38,6 @@ export type IDKitDebugReport = {
   transport: "bridge" | "mini_app";
   timestamps: { generated_at: string };
   request_id?: string;
-  connector_uri?: string;
   request_payload?: object;
   /**
    * Bridge transport: decrypted plaintext response payload (string), present

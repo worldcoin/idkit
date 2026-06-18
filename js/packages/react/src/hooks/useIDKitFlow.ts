@@ -3,7 +3,6 @@ import {
   IDKitErrorCodes,
   isInWorldApp as isInWorldAppCheck,
   isDebug,
-  isIDKitDebugReportSource,
   type IDKitDebugReport,
   type IDKitRequest,
 } from "@worldcoin/idkit-core";
@@ -47,10 +46,7 @@ export function useIDKitFlow<TResult>(
   }, []);
 
   const getDebugReport = useCallback(
-    (): IDKitDebugReport | undefined =>
-      isIDKitDebugReportSource(requestRef.current)
-        ? requestRef.current.getDebugReport()
-        : undefined,
+    (): IDKitDebugReport | undefined => requestRef.current?.getDebugReport(),
     [],
   );
 

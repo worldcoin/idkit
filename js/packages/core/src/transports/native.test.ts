@@ -4,7 +4,6 @@ import type { BuilderConfig } from "./native";
 import { createNativeRequest, getWorldAppVerifyVersion } from "./native";
 import { hashSignal } from "../lib/hashing";
 import { setDebug } from "../lib/debug";
-import { isIDKitDebugReportSource } from "../request";
 
 const baseConfig: BuilderConfig = {
   type: "request",
@@ -454,11 +453,10 @@ describe("native transport request lifecycle", () => {
     expect(sent.command).toBe("verify");
   });
 
-  it("attaches debugReport on native failure when debug mode is on", async () => {
+  it("exposes a debugReport via getDebugReport() on native failure when debug mode is on", async () => {
     setDebug(true);
     const req = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
     activeRequest = req;
-    expect(isIDKitDebugReportSource(req)).toBe(true);
 
     const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
 
@@ -468,13 +466,15 @@ describe("native transport request lifecycle", () => {
     });
 
     const completion = await completionPromise;
-    expect(completion.success).toBe(false);
-    if (completion.success) {
-      return;
-    }
+    // The completion result no longer carries the debug report.
+    expect(completion).toEqual({
+      success: false,
+      error: IDKitErrorCodes.ConnectionFailed,
+    });
 
-    expect(completion.error).toBe(IDKitErrorCodes.ConnectionFailed);
-    expect(completion.debugReport).toMatchObject({
+    // The report is fetched on demand from the request handle.
+    const debugReport = req.getDebugReport();
+    expect(debugReport).toMatchObject({
       transport: "mini_app",
       package_version: "4.1.8",
       request_payload: { payload: 1 },
@@ -490,8 +490,8 @@ describe("native transport request lifecycle", () => {
         response_channel: "minikit",
       },
     });
-    expect(completion.debugReport?.request_id).toBe(req.requestId);
-    expect(completion.debugReport?.timestamps.generated_at).toBeTruthy();
+    expect(debugReport?.request_id).toBe(req.requestId);
+    expect(debugReport?.timestamps.generated_at).toBeTruthy();
   });
 });
 

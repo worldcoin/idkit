@@ -54,11 +54,7 @@ export interface Status {
 /** Result from pollUntilCompletion() — discriminated union, never throws */
 export type IDKitCompletionResult =
   | { success: true; result: IDKitResult }
-  | {
-      success: false;
-      error: IDKitErrorCodes;
-      debugReport?: IDKitDebugReport;
-    };
+  | { success: false; error: IDKitErrorCodes };
 
 const SESSION_ID_PATTERN = /^session_[0-9a-fA-F]{128}$/;
 type RustBridgeDebugReport = DebugReportWithoutVersion;
@@ -81,23 +77,8 @@ export interface IDKitRequest {
   pollOnce(): Promise<Status>;
   /** Poll continuously until completion or timeout */
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult>;
-}
-
-/**
- * Internal debug-report provider for bridge and native transports.
- *
- * This is intentionally not part of {@link IDKitRequest}; only transport-backed
- * request objects implement it.
- */
-export interface IDKitDebugReportSource {
+  /** Debug report for the latest request state (undefined unless debug mode is on) */
   getDebugReport(): IDKitDebugReport | undefined;
-}
-
-export function isIDKitDebugReportSource(
-  value: unknown,
-): value is IDKitDebugReportSource {
-  const candidate = value as Partial<IDKitDebugReportSource> | null | undefined;
-  return typeof candidate?.getDebugReport === "function";
 }
 
 /**
@@ -107,7 +88,6 @@ export function isIDKitDebugReportSource(
  */
 async function pollUntilCompletionLoop(
   pollOnce: () => Promise<Status>,
-  getDebugReport: () => IDKitDebugReport | undefined,
   options?: WaitOptions,
 ): Promise<IDKitCompletionResult> {
   const pollInterval = options?.pollInterval ?? 1000;
@@ -116,11 +96,11 @@ async function pollUntilCompletionLoop(
 
   while (true) {
     if (options?.signal?.aborted) {
-      return failedCompletion(IDKitErrorCodes.Cancelled, getDebugReport);
+      return { success: false, error: IDKitErrorCodes.Cancelled };
     }
 
     if (Date.now() - startTime > timeout) {
-      return failedCompletion(IDKitErrorCodes.Timeout, getDebugReport);
+      return { success: false, error: IDKitErrorCodes.Timeout };
     }
 
     const status = await pollOnce();
@@ -130,24 +110,15 @@ async function pollUntilCompletionLoop(
     }
 
     if (status.type === "failed") {
-      return failedCompletion(
-        (status.error as IDKitErrorCodes) ?? IDKitErrorCodes.GenericError,
-        getDebugReport,
-      );
+      return {
+        success: false,
+        error:
+          (status.error as IDKitErrorCodes) ?? IDKitErrorCodes.GenericError,
+      };
     }
 
     await new Promise((resolve) => setTimeout(resolve, pollInterval));
   }
-}
-
-function failedCompletion(
-  error: IDKitErrorCodes,
-  getDebugReport: () => IDKitDebugReport | undefined,
-): IDKitCompletionResult {
-  const debugReport = getDebugReport();
-  return debugReport
-    ? { success: false, error, debugReport }
-    : { success: false, error };
 }
 
 type WasmDebugReportSource = {
@@ -169,7 +140,7 @@ function getBridgeDebugReport(
 /**
  * Internal request implementation (bridge/WASM path)
  */
-class IDKitRequestImpl implements IDKitRequest, IDKitDebugReportSource {
+class IDKitRequestImpl implements IDKitRequest {
   private wasmRequest: WasmModule.IDKitRequest;
   private _connectorURI: string;
   private _requestId: string;
@@ -193,11 +164,7 @@ class IDKitRequestImpl implements IDKitRequest, IDKitDebugReportSource {
   }
 
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult> {
-    return pollUntilCompletionLoop(
-      () => this.pollOnce(),
-      () => this.getDebugReport(),
-      options,
-    );
+    return pollUntilCompletionLoop(() => this.pollOnce(), options);
   }
 
   getDebugReport(): IDKitDebugReport | undefined {
@@ -225,6 +192,8 @@ export interface IDKitInviteCodeRequest {
   pollOnce(): Promise<Status>;
   /** Poll continuously until completion or timeout */
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult>;
+  /** Debug report for the latest request state (undefined unless debug mode is on) */
+  getDebugReport(): IDKitDebugReport | undefined;
 }
 
 /**
@@ -232,9 +201,7 @@ export interface IDKitInviteCodeRequest {
  * has no in-app native postMessage path by design; the user is on a different
  * device than World App).
  */
-class IDKitInviteCodeRequestImpl
-  implements IDKitInviteCodeRequest, IDKitDebugReportSource
-{
+class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
   private wasmRequest: WasmModule.IDKitInviteCodeRequest;
   private _connectorURI: string;
   private _expiresAt: number;
@@ -264,11 +231,7 @@ class IDKitInviteCodeRequestImpl
   }
 
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult> {
-    return pollUntilCompletionLoop(
-      () => this.pollOnce(),
-      () => this.getDebugReport(),
-      options,
-    );
+    return pollUntilCompletionLoop(() => this.pollOnce(), options);
   }
 
   getDebugReport(): IDKitDebugReport | undefined {

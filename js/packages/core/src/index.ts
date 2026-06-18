@@ -12,7 +12,6 @@ export {
   any,
   all,
   enumerate,
-  isIDKitDebugReportSource,
   // Preset helpers
   orbLegacy,
   secureDocumentLegacy,
@@ -26,7 +25,6 @@ export {
   // Types
   type IDKitRequest,
   type IDKitInviteCodeRequest,
-  type IDKitDebugReportSource,
   type IDKitCompletionResult,
   type WaitOptions,
   type RpContext,

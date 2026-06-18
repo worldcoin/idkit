@@ -195,7 +195,6 @@ pub struct BridgeDebugReport {
     pub transport: &'static str,
     pub timestamps: BridgeDebugReportTimestamps,
     pub request_id: String,
-    pub connector_uri: String,
     pub request_payload: serde_json::Value,
     /// Decrypted plaintext bridge response payload, captured only once the
     /// poll reaches `completed` and the response is successfully decoded and
@@ -922,7 +921,6 @@ impl BridgeConnection {
                 generated_at: current_timestamp_rfc3339(),
             },
             request_id: self.request_id.clone(),
-            connector_uri: self.connect_url(),
             request_payload: self.request_payload.clone(),
             response_payload,
         }
