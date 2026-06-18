@@ -634,6 +634,11 @@ fn build_request_payload(
     Ok(payload)
 }
 
+/// Serializes a [`BridgeRequestPayload`] built from `params` to wire JSON.
+///
+/// # Errors
+///
+/// Returns an error if payload construction fails or JSON serialization fails.
 pub fn build_request_payload_json(
     params: &BridgeConnectionParams,
     native: bool,
@@ -1276,7 +1281,7 @@ pub struct BridgeDebugCredentialRequest {
 /// Identity attribute filter in [`BridgeDebugPayload::identity_attributes`].
 ///
 /// Wire JSON uses a single `value` field that may be an integer or string.
-/// UniFFI exposes that polymorphism as optional `value_int` / `value_string`.
+/// `UniFFI` exposes that polymorphism as optional `value_int` / `value_string`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct BridgeDebugIdentityAttribute {
