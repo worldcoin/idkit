@@ -250,7 +250,7 @@ jobs:
           retention-days: 1
 
   publish:
-    name: Publish to GitHub Packages
+    name: Publish
     runs-on: ubuntu-latest
     needs: [prepare, build-host, build-android]
     environment: ${{ needs.prepare.outputs.environment }}
@@ -323,6 +323,56 @@ jobs:
           arguments: -p kotlin bindings:assembleRelease
         env:
           PKG_VERSION: ${{ needs.prepare.outputs.version }}
+
+      # Production only. The -Pidkit.publish.mavenCentral=true flag registers the
+      # Maven Central repository and signing tasks; without it (every dev release) the
+      # step below publishes to GitHub Packages alone.
+      #
+      # This task only UPLOADS the deployment to the Central Portal and returns; Portal
+      # validation is asynchronous. The next step polls until the deployment validates,
+      # so GitHub Packages does not publish if Central validation fails. USER_MANAGED
+      # then leaves the validated deployment awaiting a manual Publish in the Portal UI,
+      # the final gate on what actually goes live on Maven Central.
+      - name: Publish to Maven Central
+        if: needs.prepare.outputs.environment == 'production'
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: 8.9
+          arguments: -p kotlin bindings:publishToMavenCentral -Pidkit.publish.mavenCentral=true
+        env:
+          PKG_VERSION: ${{ needs.prepare.outputs.version }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MAVEN_SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MAVEN_SIGNING_KEY_PASSWORD }}
+
+      # Gate GitHub Packages on Central validation. The upload above returns before the
+      # Portal finishes its asynchronous validation, so without this a validation failure
+      # would still let GitHub Packages publish. Poll the "download from a validated
+      # deployment" endpoint, which returns 200 only once the deployment is VALIDATED.
+      - name: Wait for Maven Central validation
+        if: needs.prepare.outputs.environment == 'production'
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          PKG_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          TOKEN=$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')
+          URL="https://central.sonatype.com/api/v1/publisher/deployments/download/com/worldcoin/idkit/${PKG_VERSION}/idkit-${PKG_VERSION}.pom"
+          for i in $(seq 1 120); do
+            # `|| echo 000` keeps a transient curl transport error (DNS/connection/
+            # timeout) from tripping the runner's `set -e` and aborting the release;
+            # 000 is not 200, so the loop simply retries.
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$URL" || echo 000)
+            if [ "$CODE" = "200" ]; then
+              echo "Maven Central deployment for $PKG_VERSION validated."
+              exit 0
+            fi
+            echo "Not validated yet (HTTP $CODE); attempt $i/120, retrying in 15s..."
+            sleep 15
+          done
+          echo "::error::Maven Central deployment for $PKG_VERSION did not validate within ~30 minutes; skipping GitHub Packages. Check the Central Portal."
+          exit 1
 
       - name: Publish to GitHub Packages
         uses: gradle/gradle-build-action@v3
