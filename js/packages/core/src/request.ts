@@ -18,10 +18,7 @@ import type {
 import { IDKitErrorCodes } from "./types/result";
 import type { NativePayloadResult } from "./lib/wasm";
 import { WasmModule, initIDKit } from "./lib/wasm";
-import {
-  type DebugReportWithoutVersion,
-  buildDebugReport,
-} from "./lib/debug";
+import { type DebugReportWithoutVersion, buildDebugReport } from "./lib/debug";
 import {
   isInWorldApp,
   getWorldAppVerifyVersion,
