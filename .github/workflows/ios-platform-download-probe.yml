@@ -1,0 +1,53 @@
+name: Swift Bindings iOS Platform Probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        xcode: ["26.0.1", "26.1.1", "26.2", "26.3"]
+        attempt: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set Xcode developer directory
+        run: |
+          XCODE_APP_VERSION="${{ matrix.xcode }}"
+          XCODE_APP_VERSION="${XCODE_APP_VERSION//-/_}"
+          echo "DEVELOPER_DIR=/Applications/Xcode_${XCODE_APP_VERSION}.app/Contents/Developer" >> "$GITHUB_ENV"
+
+      - name: Check Swift sample app iOS platform
+        id: check-ios-platform
+        run: |
+          xcodebuild -version
+
+          IOS_PLATFORM_CHECK_LOG="${RUNNER_TEMP:-/tmp}/ios-platform-check.log"
+          if xcodebuild \
+            -project swift/Examples/IDKitSampleApp/IDKitSampleApp.xcodeproj \
+            -scheme IDKitSampleApp \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -showBuildSettings > "$IOS_PLATFORM_CHECK_LOG" 2>&1; then
+            echo "ios_platform_ready=true" >> "$GITHUB_OUTPUT"
+            echo "iOS platform ready"
+          else
+            cat "$IOS_PLATFORM_CHECK_LOG"
+            echo "ios_platform_ready=false" >> "$GITHUB_OUTPUT"
+            echo "iOS platform unavailable; downloading platform before build"
+          fi
+
+      - name: Download iOS platform
+        if: steps.check-ios-platform.outputs.ios_platform_ready == 'false'
+        run: |
+          echo "DOWNLOAD PHASE REACHED"
+          echo "xcode=${{ matrix.xcode }} attempt=${{ matrix.attempt }}"
+          xcodebuild -downloadPlatform iOS
+
