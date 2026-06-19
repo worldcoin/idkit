@@ -1,6 +1,9 @@
 name: Swift Bindings iOS Platform Probe
 
 on:
+  push:
+    branches:
+      - kartike/ab-test-swift-CI
   workflow_dispatch:
 
 permissions:
