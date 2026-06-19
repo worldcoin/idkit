@@ -13,7 +13,7 @@ echo "📦 Packaging IDKit Swift artifacts"
 rm -rf "$IOS_BUILD" "$PROJECT_ROOT/IDKitFFI.xcframework"
 mkdir -p "$FFI_INCLUDE_DIR"
 mkdir -p "$IOS_BUILD/bindings" \
-         "$IOS_BUILD/Headers/IDKit" \
+         "$IOS_BUILD/Headers" \
          "$IOS_BUILD/target/universal-ios-sim/release" \
          "$IOS_BUILD/target/universal-macos/release" \
          "$GENERATED_DIR"
@@ -82,8 +82,8 @@ module idkitFFI {
 }
 EOF
 
-cp "$IOS_BUILD/bindings"/idkit_coreFFI.h "$IOS_BUILD/Headers/IDKit/"
-cp "$IOS_BUILD/bindings"/idkit_coreFFI.modulemap "$IOS_BUILD/Headers/IDKit/module.modulemap"
+cp "$IOS_BUILD/bindings"/idkit_coreFFI.h "$IOS_BUILD/Headers/"
+cp "$IOS_BUILD/bindings"/idkit_coreFFI.modulemap "$IOS_BUILD/Headers/module.modulemap"
 
 echo "🏗️  Creating XCFramework"
 xcodebuild -create-xcframework \

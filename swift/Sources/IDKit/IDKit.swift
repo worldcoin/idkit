@@ -2,6 +2,13 @@ import Foundation
 
 public typealias IDKitResult = IdKitResult
 
+/// Typed projection of the bridge request payload, exposed for building test fixtures.
+public typealias BridgeRequestPayload = BridgeRequestPayloadWrapper
+/// Protocol-level proof request inside a ``BridgeRequestPayload``.
+public typealias ProofRequest = ProofRequestWrapper
+/// A per-credential request line item inside a ``ProofRequest``.
+public typealias CredentialRequestItem = CredentialRequestWrapper
+
 /// Configuration for uniqueness proof requests.
 public struct IDKitRequestConfig {
     public let appId: String
@@ -111,6 +118,24 @@ public enum IDKit {
     /// Creates a builder for uniqueness proof requests.
     public static func request(config: IDKitRequestConfig) -> IDKitBuilder {
         IDKitBuilder(inner: IdKitBuilder.fromRequest(config: config.native))
+    }
+
+    /// Builds the bridge request payload from a preset without opening a network
+    /// connection. Intended for building test fixtures.
+    public static func createBridgePayloadFromPresets(
+        config: IDKitRequestConfig, preset: Preset
+    ) throws -> BridgeRequestPayload {
+        try IdKitBuilder.fromRequest(config: config.native)
+            .bridgeRequestPayloadFromPreset(preset: preset)
+    }
+
+    /// Builds the bridge request payload from custom constraints without opening a
+    /// network connection. Intended for building test fixtures.
+    public static func createBridgePayloadFromConstraints(
+        config: IDKitRequestConfig, constraints: ConstraintNode
+    ) throws -> BridgeRequestPayload {
+        try IdKitBuilder.fromRequest(config: config.native)
+            .bridgeRequestPayload(constraints: constraints)
     }
 
     // TODO: Re-enable when World ID 4.0 is live
@@ -624,5 +649,19 @@ public extension Signal {
 
     var stringValue: String? {
         self.asString()
+    }
+}
+
+extension ProofRequest {
+    /// Credential identifiers from `proofRequests` (e.g. `["passport", "mnc"]`).
+    public var credentialIdentifiers: [String] {
+        proofRequests.map(\.identifier)
+    }
+}
+
+extension BridgeRequestPayload {
+    /// Credential identifiers when a v4 `proofRequest` is present; empty otherwise.
+    public var credentialIdentifiers: [String] {
+        proofRequest?.credentialIdentifiers ?? []
     }
 }
