@@ -37,6 +37,13 @@ typealias DocumentType = uniffi.idkit_core.DocumentType
 typealias IdentityAttribute = uniffi.idkit_core.IdentityAttribute
 typealias ConnectUrlMode = uniffi.idkit_core.ConnectUrlMode
 
+/** Typed projection of the bridge request payload, exposed for building test fixtures. */
+typealias BridgeRequestPayload = uniffi.idkit_core.BridgeRequestPayloadWrapper
+/** Protocol-level proof request inside a [BridgeRequestPayload]. */
+typealias ProofRequest = uniffi.idkit_core.ProofRequestWrapper
+/** A per-credential request line item inside a [ProofRequest]. */
+typealias CredentialRequestItem = uniffi.idkit_core.CredentialRequestWrapper
+
 data class IDKitRequestConfig(
     val appId: String,
     val action: String,
@@ -258,6 +265,26 @@ object IDKit {
         return IDKitBuilder(nativeRequest(config.toNative()))
     }
 
+    /**
+     * Builds the bridge request payload from a preset without opening a network
+     * connection. Intended for building test fixtures.
+     */
+    fun createBridgePayloadFromPresets(
+        config: IDKitRequestConfig,
+        preset: Preset,
+    ): BridgeRequestPayload =
+        nativeRequest(config.toNative()).bridgeRequestPayloadFromPreset(preset)
+
+    /**
+     * Builds the bridge request payload from custom constraints without opening a
+     * network connection. Intended for building test fixtures.
+     */
+    fun createBridgePayloadFromConstraints(
+        config: IDKitRequestConfig,
+        constraints: uniffi.idkit_core.ConstraintNode,
+    ): BridgeRequestPayload =
+        nativeRequest(config.toNative()).bridgeRequestPayload(constraints)
+
     // TODO: Re-enable when World ID 4.0 is live
     // fun createSession(config: IDKitSessionConfig): IDKitBuilder {
     //     require(config.appId.isNotBlank()) { "app_id is required" }
@@ -397,3 +424,9 @@ fun idkitResultToJson(result: IDKitResult): String = nativeIdkitResultToJson(res
 fun idkitResultFromJson(json: String): IDKitResult = nativeIdkitResultFromJson(json)
 
 fun hashSignal(signal: Signal): String = hashSignalFfi(signal)
+
+val ProofRequest.credentialIdentifiers: List<String>
+    get() = proofRequests.map { it.identifier }
+
+val BridgeRequestPayload.credentialIdentifiers: List<String>
+    get() = proofRequest?.credentialIdentifiers.orEmpty()

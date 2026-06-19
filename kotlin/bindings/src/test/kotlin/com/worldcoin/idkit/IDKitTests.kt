@@ -18,6 +18,11 @@ import uniffi.idkit_core.Preset
 import uniffi.idkit_core.ResponseItem
 import uniffi.idkit_core.RpContext
 import uniffi.idkit_core.StatusWrapper
+import uniffi.idkit_core.VerificationLevel
+import uniffi.idkit_core.ConstraintKindWrapper
+import uniffi.idkit_core.ConstraintNode
+import uniffi.idkit_core.CredentialRequest
+import uniffi.idkit_core.CredentialType
 
 class IDKitTests {
     private fun sampleResult(
@@ -80,6 +85,112 @@ class IDKitTests {
         // TODO: Re-enable when World ID 4.0 is live
         // IDKit.createSession(sessionConfig)
         // IDKit.proveSession("0x01", sessionConfig)
+    }
+
+    @Test
+    fun `bridge request payload exposes identity check contract fields`() {
+        val config = IDKitRequestConfig(
+            appId = "app_staging_1234567890abcdef",
+            action = "test-action",
+            rpContext = sampleRpContext(),
+            actionDescription = "Identity check",
+            bridgeUrl = null,
+            allowLegacyProofs = false,
+            requireUserPresence = true,
+            overrideConnectBaseUrl = null,
+            returnTo = "idkitsample://callback",
+            environment = Environment.STAGING,
+            connectUrlMode = null,
+        )
+
+        val preset = identityCheck(
+            attributes = listOf(
+                IdentityAttribute.MinimumAge(21u),
+                IdentityAttribute.Nationality("JPN"),
+            ),
+        )
+
+        val payload = IDKit.createBridgePayloadFromPresets(config, preset)
+
+        assertEquals("app_staging_1234567890abcdef", payload.appId)
+        assertEquals("test-action", payload.action)
+        assertEquals("Identity check", payload.actionDescription)
+        assertEquals(VerificationLevel.DOCUMENT, payload.verificationLevel)
+        assertEquals(true, payload.requireUserPresence)
+        assertEquals(true, payload.allowLegacyProofs)
+        assertEquals("idkitsample://callback", payload.returnToUrl)
+        assertEquals(Environment.STAGING, payload.environment)
+        assertNull(payload.timestamp)
+
+        val attributes = payload.identityAttributes!!
+        assertEquals(
+            listOf(
+                IdentityAttribute.MinimumAge(21u),
+                IdentityAttribute.Nationality("JPN"),
+            ),
+            attributes,
+        )
+
+        val proofRequest = payload.proofRequest!!
+        assertEquals(1u, proofRequest.version)
+        assertEquals("uniqueness", proofRequest.proofType)
+        assertEquals("rp_1234567890abcdef", proofRequest.rpId)
+        assertEquals(1_700_000_000u, proofRequest.createdAt)
+        assertEquals(1_700_003_600u, proofRequest.expiresAt)
+        assertTrue(proofRequest.id.isNotEmpty())
+
+        val constraints = proofRequest.constraints!!
+        assertEquals(ConstraintKindWrapper.ANY, constraints.kind())
+        assertEquals(2, constraints.children().size)
+        assertEquals(ConstraintKindWrapper.TYPE, constraints.children()[0].kind())
+        assertEquals("passport", constraints.children()[0].identifier())
+        assertEquals(ConstraintKindWrapper.TYPE, constraints.children()[1].kind())
+        assertEquals("mnc", constraints.children()[1].identifier())
+
+        assertEquals(listOf("passport", "mnc"), proofRequest.credentialIdentifiers)
+    }
+
+    @Test
+    fun `bridge request payload from constraints exposes passport or mnc`() {
+        val config = IDKitRequestConfig(
+            appId = "app_staging_1234567890abcdef",
+            action = "test-action",
+            rpContext = sampleRpContext(),
+            actionDescription = "Identity check",
+            bridgeUrl = null,
+            allowLegacyProofs = false,
+            requireUserPresence = false,
+            overrideConnectBaseUrl = null,
+            returnTo = null,
+            environment = Environment.STAGING,
+            connectUrlMode = null,
+        )
+
+        val constraints = ConstraintNode.any(
+            nodes = listOf(
+                ConstraintNode.item(
+                    request = CredentialRequest.withStringSignal(
+                        credentialType = CredentialType.PASSPORT,
+                        signal = null,
+                    ),
+                ),
+                ConstraintNode.item(
+                    request = CredentialRequest.withStringSignal(
+                        credentialType = CredentialType.MNC,
+                        signal = null,
+                    ),
+                ),
+            ),
+        )
+
+        val payload = IDKit.createBridgePayloadFromConstraints(config, constraints)
+
+        assertNull(payload.identityAttributes)
+
+        val proofRequest = payload.proofRequest!!
+        val payloadConstraints = proofRequest.constraints!!
+        assertEquals(ConstraintKindWrapper.ANY, payloadConstraints.kind())
+        assertEquals(listOf("passport", "mnc"), proofRequest.credentialIdentifiers)
     }
 
     @Test

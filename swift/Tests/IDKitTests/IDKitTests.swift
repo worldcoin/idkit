@@ -43,20 +43,18 @@ private func sampleRpContext() throws -> RpContext {
     )
 }
 
+
 @Test("IDKit entrypoints expose canonical builders")
 func idkitEntrypoints() throws {
-    let requestConfig = IDKitRequestConfig(
+    let requestConfig = 
+    IDKitRequestConfig(
         appId: "app_staging_1234567890abcdef",
-        action: "login",
+        action: "test-action",
         rpContext: try sampleRpContext(),
-        actionDescription: nil,
+        actionDescription: "Identity check",
         bridgeUrl: nil,
         allowLegacyProofs: false,
-        requireUserPresence: false,
-        overrideConnectBaseUrl: nil,
-        returnTo: nil,
-        environment: nil,
-        connectUrlMode: nil
+        requireUserPresence: true,
     )
 
     // TODO: Re-enable when World ID 4.0 is live
@@ -77,6 +75,104 @@ func idkitEntrypoints() throws {
     // _ = IDKit.proveSession(sessionId: "0x01", config: sessionConfig)
 
     #expect(Bool(true))
+}
+
+@Test("bridge request payload exposes identity check contract fields")
+func bridgeRequestPayloadIdentityCheck() throws {
+    let requestConfig = IDKitRequestConfig(
+        appId: "app_staging_1234567890abcdef",
+        action: "test-action",
+        rpContext: try sampleRpContext(),
+        actionDescription: "Identity check",
+        bridgeUrl: nil,
+        allowLegacyProofs: false,
+        requireUserPresence: true,
+        overrideConnectBaseUrl: nil,
+        returnTo: "idkitsample://callback",
+        environment: .staging,
+        connectUrlMode: nil
+    )
+
+    let preset = identityCheck(
+        attributes: [
+            .minimumAge(21),
+            .nationality("JPN")
+        ]
+    )
+
+    let payload = try IDKit.createBridgePayloadFromPresets(config: requestConfig, preset: preset)
+
+    #expect(payload.appId == "app_staging_1234567890abcdef")
+    #expect(payload.action == "test-action")
+    #expect(payload.actionDescription == "Identity check")
+    #expect(payload.verificationLevel == .document)
+    #expect(payload.requireUserPresence == true)
+    #expect(payload.allowLegacyProofs == true)
+    #expect(payload.returnToUrl == "idkitsample://callback")
+    #expect(payload.environment == .staging)
+    #expect(payload.timestamp == nil)
+
+    let attributes = try #require(payload.identityAttributes)
+    #expect(attributes == [
+        .minimumAge(21),
+        .nationality("JPN"),
+    ])
+
+    let proofRequest = try #require(payload.proofRequest)
+    #expect(proofRequest.version == 1)
+    #expect(proofRequest.proofType == "uniqueness")
+    #expect(proofRequest.rpId == "rp_1234567890abcdef")
+    #expect(proofRequest.createdAt == 1_700_000_000)
+    #expect(proofRequest.expiresAt == 1_700_003_600)
+    #expect(proofRequest.id.isEmpty == false)
+
+    let constraints = try #require(proofRequest.constraints)
+    #expect(constraints.kind() == .any)
+    #expect(constraints.children().count == 2)
+    #expect(constraints.children()[0].kind() == .type)
+    #expect(constraints.children()[0].identifier() == "passport")
+    #expect(constraints.children()[1].kind() == .type)
+    #expect(constraints.children()[1].identifier() == "mnc")
+
+    #expect(proofRequest.credentialIdentifiers == ["passport", "mnc"])
+}
+
+@Test("bridge request payload from constraints exposes passport or mnc")
+func bridgeRequestPayloadFromConstraints() throws {
+    let requestConfig = IDKitRequestConfig(
+        appId: "app_staging_1234567890abcdef",
+        action: "test-action",
+        rpContext: try sampleRpContext(),
+        actionDescription: "Identity check",
+        bridgeUrl: nil,
+        allowLegacyProofs: false,
+        requireUserPresence: false,
+        overrideConnectBaseUrl: nil,
+        returnTo: nil,
+        environment: .staging,
+        connectUrlMode: nil
+    )
+
+    let constraints = ConstraintNode.any(nodes: [
+        ConstraintNode.item(
+            request: CredentialRequest.withStringSignal(credentialType: .passport, signal: nil)
+        ),
+        ConstraintNode.item(
+            request: CredentialRequest.withStringSignal(credentialType: .mnc, signal: nil)
+        ),
+    ])
+
+    let payload = try IDKit.createBridgePayloadFromConstraints(
+        config: requestConfig,
+        constraints: constraints
+    )
+
+    #expect(payload.identityAttributes == nil)
+
+    let proofRequest = try #require(payload.proofRequest)
+    let payloadConstraints = try #require(proofRequest.constraints)
+    #expect(payloadConstraints.kind() == .any)
+    #expect(proofRequest.credentialIdentifiers == ["passport", "mnc"])
 }
 
 @Test("Status mapping covers all canonical variants")

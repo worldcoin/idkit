@@ -13,16 +13,15 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use world_id_primitives::{
-    FieldElement, OprfKeyId, ProofRequest, ProofResponse, ProofType, RequestVersion,
+    ConstraintExpr as ProtocolConstraintExpr, ConstraintNode as ProtocolConstraintNode,
+    FieldElement, OprfKeyId, ProofRequest, ProofResponse, ProofType, RequestItem, RequestVersion,
     ResponseItem as ProtocolResponseItem, SessionId,
 };
 
 #[cfg(feature = "native-crypto")]
 use crate::crypto::CryptoKey;
 
-use std::str::FromStr;
-#[cfg(feature = "ffi")]
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Environment
@@ -536,12 +535,11 @@ pub struct BridgeConnection {
 ///
 /// # Errors
 ///
-/// Returns an error if constraints are invalid, the signature/nonce format is
-/// wrong, or serialization fails.
-pub fn build_request_payload(
+/// Returns an error if constraints are invalid or the signature/nonce format is wrong.
+fn build_request_payload(
     params: &BridgeConnectionParams,
     native: bool,
-) -> Result<serde_json::Value> {
+) -> Result<BridgeRequestPayload> {
     if let Some(ref constraints) = params.constraints {
         constraints.validate()?;
     }
@@ -632,6 +630,19 @@ pub fn build_request_payload(
         return_to: params.return_to.clone(),
     };
 
+    Ok(payload)
+}
+
+/// Serializes a [`BridgeRequestPayload`] built from `params` to wire JSON.
+///
+/// # Errors
+///
+/// Returns an error if payload construction fails or JSON serialization fails.
+pub fn build_request_payload_json(
+    params: &BridgeConnectionParams,
+    native: bool,
+) -> Result<serde_json::Value> {
+    let payload = build_request_payload(params, native)?;
     serde_json::to_value(&payload).map_err(Into::into)
 }
 
@@ -1226,6 +1237,281 @@ async fn try_create_invite_code_request(
 // UniFFI bindings
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// FFI projection of the plaintext bridge request payload, exposed for SDK
+/// debug/contract inspection and fixture authoring.
+///
+/// This is a strongly-typed view of the private wire type [`BridgeRequestPayload`].
+/// It re-declares the payload's fields as FFI-compatible types because a
+/// `uniffi::Record` cannot reference the foreign `ProofRequest` or
+/// `serde_json::Value` directly. Construct it via [`TryFrom<BridgeRequestPayload>`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct BridgeRequestPayloadWrapper {
+    pub app_id: String,
+    pub action: Option<String>,
+    pub action_description: Option<String>,
+    pub signal: String,
+    pub verification_level: VerificationLevel,
+    pub timestamp: Option<String>,
+    pub proof_request: Option<ProofRequestWrapper>,
+    /// Identity-attribute predicates, reusing the same native [`IdentityAttribute`]
+    /// enum developers configure for presets like `identity_check`.
+    pub identity_attributes: Option<Vec<IdentityAttribute>>,
+    pub allow_legacy_proofs: bool,
+    pub require_user_presence: bool,
+    pub environment: Environment,
+    pub return_to_url: Option<String>,
+}
+
+/// FFI projection of the protocol-level proof request embedded in
+/// [`BridgeRequestPayloadWrapper`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct ProofRequestWrapper {
+    pub id: String,
+    pub version: u8,
+    pub proof_type: String,
+    pub rp_id: String,
+    pub oprf_key_id: String,
+    pub session_id: Option<String>,
+    pub action: Option<String>,
+    pub signature: String,
+    pub nonce: String,
+    pub created_at: u64,
+    pub expires_at: u64,
+    pub proof_requests: Vec<CredentialRequestWrapper>,
+    pub constraints: Option<Arc<ConstraintNodeWrapper>>,
+}
+
+/// FFI projection of a credential request item inside
+/// [`ProofRequestWrapper::proof_requests`].
+///
+/// Maps the protocol `RequestItem` 1:1.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Record))]
+pub struct CredentialRequestWrapper {
+    /// RP-defined identifier matched against constraints and responses (e.g. `passport`).
+    pub identifier: String,
+    /// Credential schema + issuer pair from the `CredentialSchemaIssuerRegistry`.
+    pub issuer_schema_id: u64,
+    /// `0x`-prefixed hex signal bound into the proof, when present.
+    pub signal: Option<String>,
+    /// Minimum `genesis_issued_at` the credential must meet, when constrained.
+    pub genesis_issued_at_min: Option<u64>,
+    /// Minimum credential expiration required for the proof, when constrained.
+    pub expires_at_min: Option<u64>,
+}
+
+/// Constraint tree branch kind exposed to mobile SDKs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
+pub enum ConstraintKindWrapper {
+    Type,
+    All,
+    Any,
+    Enumerate,
+}
+
+/// Mobile-safe view of a protocol constraint node.
+///
+/// This is an object rather than a recursive enum because `UniFFI` clients cannot
+/// consistently represent indirect recursive enums across Swift and Kotlin.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Object))]
+pub struct ConstraintNodeWrapper {
+    kind: ConstraintKindWrapper,
+    identifier: Option<String>,
+    children: Vec<Arc<Self>>,
+}
+
+#[cfg(feature = "ffi")]
+#[uniffi::export]
+impl ConstraintNodeWrapper {
+    #[must_use]
+    pub fn kind(&self) -> ConstraintKindWrapper {
+        self.kind
+    }
+
+    #[must_use]
+    pub fn identifier(&self) -> Option<String> {
+        self.identifier.clone()
+    }
+
+    #[must_use]
+    pub fn children(&self) -> Vec<Arc<Self>> {
+        self.children.clone()
+    }
+}
+
+fn proof_type_wire_name(proof_type: ProofType) -> &'static str {
+    match proof_type {
+        ProofType::Uniqueness => "uniqueness",
+        ProofType::CreateSession => "create_session",
+        ProofType::Session => "session",
+    }
+}
+
+fn proof_request_wire_value(proof_request: &ProofRequest) -> Result<serde_json::Value> {
+    serde_json::to_value(proof_request).map_err(Error::from)
+}
+
+fn scalar_wire_string(value: &serde_json::Value, field_name: &str) -> Result<String> {
+    match value {
+        serde_json::Value::String(value) => Ok(value.clone()),
+        serde_json::Value::Number(value) => Ok(value.to_string()),
+        serde_json::Value::Bool(value) => Ok(value.to_string()),
+        _ => Err(Error::InvalidConfiguration(format!(
+            "proof_request.{field_name} did not serialize as a scalar"
+        ))),
+    }
+}
+
+fn required_wire_scalar(wire: &serde_json::Value, field_name: &str) -> Result<String> {
+    let value = wire.get(field_name).ok_or_else(|| {
+        Error::InvalidConfiguration(format!("proof_request.{field_name} is missing"))
+    })?;
+    scalar_wire_string(value, field_name)
+}
+
+fn optional_wire_scalar(wire: &serde_json::Value, field_name: &str) -> Result<Option<String>> {
+    match wire.get(field_name) {
+        Some(serde_json::Value::Null) | None => Ok(None),
+        Some(value) => scalar_wire_string(value, field_name).map(Some),
+    }
+}
+
+fn required_wire_u8(wire: &serde_json::Value, field_name: &str) -> Result<u8> {
+    let value = wire.get(field_name).ok_or_else(|| {
+        Error::InvalidConfiguration(format!("proof_request.{field_name} is missing"))
+    })?;
+    let number = value.as_u64().ok_or_else(|| {
+        Error::InvalidConfiguration(format!(
+            "proof_request.{field_name} did not serialize as an integer"
+        ))
+    })?;
+    u8::try_from(number).map_err(|_| {
+        Error::InvalidConfiguration(format!("proof_request.{field_name} is out of range"))
+    })
+}
+
+impl TryFrom<RequestItem> for CredentialRequestWrapper {
+    type Error = Error;
+
+    fn try_from(item: RequestItem) -> Result<Self> {
+        Ok(Self {
+            identifier: item.identifier,
+            issuer_schema_id: item.issuer_schema_id,
+            signal: item
+                .signal
+                .map(|signal| format!("0x{}", hex::encode(signal))),
+            genesis_issued_at_min: item.genesis_issued_at_min,
+            expires_at_min: item.expires_at_min,
+        })
+    }
+}
+
+impl From<ProtocolConstraintExpr<'_>> for ConstraintNodeWrapper {
+    fn from(expr: ProtocolConstraintExpr<'_>) -> Self {
+        match expr {
+            ProtocolConstraintExpr::All { all } => Self {
+                kind: ConstraintKindWrapper::All,
+                identifier: None,
+                children: all.into_iter().map(Self::from).map(Arc::new).collect(),
+            },
+            ProtocolConstraintExpr::Any { any } => Self {
+                kind: ConstraintKindWrapper::Any,
+                identifier: None,
+                children: any.into_iter().map(Self::from).map(Arc::new).collect(),
+            },
+            ProtocolConstraintExpr::Enumerate { enumerate } => Self {
+                kind: ConstraintKindWrapper::Enumerate,
+                identifier: None,
+                children: enumerate
+                    .into_iter()
+                    .map(Self::from)
+                    .map(Arc::new)
+                    .collect(),
+            },
+        }
+    }
+}
+
+impl From<ProtocolConstraintNode<'_>> for ConstraintNodeWrapper {
+    fn from(node: ProtocolConstraintNode<'_>) -> Self {
+        match node {
+            ProtocolConstraintNode::Type(identifier) => Self {
+                kind: ConstraintKindWrapper::Type,
+                identifier: Some(identifier.into_owned()),
+                children: Vec::new(),
+            },
+            ProtocolConstraintNode::Expr(expr) => Self::from(expr),
+        }
+    }
+}
+
+impl TryFrom<ProofRequest> for ProofRequestWrapper {
+    type Error = Error;
+
+    fn try_from(proof_request: ProofRequest) -> Result<Self> {
+        let wire = proof_request_wire_value(&proof_request)?;
+        let constraints = proof_request
+            .constraints
+            .map(ConstraintNodeWrapper::from)
+            .map(Arc::new);
+
+        Ok(Self {
+            id: proof_request.id,
+            version: required_wire_u8(&wire, "version")?,
+            proof_type: proof_type_wire_name(proof_request.proof_type).to_string(),
+            rp_id: proof_request.rp_id.to_string(),
+            oprf_key_id: required_wire_scalar(&wire, "oprf_key_id")?,
+            session_id: optional_wire_scalar(&wire, "session_id")?,
+            action: optional_wire_scalar(&wire, "action")?,
+            signature: required_wire_scalar(&wire, "signature")?,
+            nonce: required_wire_scalar(&wire, "nonce")?,
+            created_at: proof_request.created_at,
+            expires_at: proof_request.expires_at,
+            proof_requests: proof_request
+                .requests
+                .into_iter()
+                .map(CredentialRequestWrapper::try_from)
+                .collect::<Result<Vec<_>>>()?,
+            constraints,
+        })
+    }
+}
+
+impl TryFrom<BridgeRequestPayload> for BridgeRequestPayloadWrapper {
+    type Error = Error;
+
+    fn try_from(payload: BridgeRequestPayload) -> Result<Self> {
+        Ok(Self {
+            app_id: payload.app_id,
+            action: payload.action,
+            action_description: payload.action_description,
+            signal: payload.signal,
+            verification_level: payload.verification_level,
+            timestamp: payload.timestamp,
+            proof_request: payload
+                .proof_request
+                .map(ProofRequestWrapper::try_from)
+                .transpose()?,
+            identity_attributes: payload.identity_attributes,
+            allow_legacy_proofs: payload.allow_legacy_proofs,
+            require_user_presence: payload.require_user_presence,
+            environment: payload.environment,
+            return_to_url: payload.return_to,
+        })
+    }
+}
+
+#[cfg(feature = "ffi")]
+fn build_request_payload_wrapper(
+    params: &BridgeConnectionParams,
+) -> Result<BridgeRequestPayloadWrapper> {
+    BridgeRequestPayloadWrapper::try_from(build_request_payload(params, false)?)
+}
+
 /// Configuration for `request()`
 #[cfg(feature = "ffi")]
 #[derive(Clone, uniffi::Record)]
@@ -1511,6 +1797,15 @@ impl IDKitConfig {
     }
 }
 
+#[cfg(feature = "ffi")]
+fn bridge_payload_json(
+    params: &BridgeConnectionParams,
+) -> std::result::Result<String, crate::error::IdkitError> {
+    let payload = build_request_payload(params, false).map_err(crate::error::IdkitError::from)?;
+    serde_json::to_string(&payload).map_err(|err| crate::error::IdkitError::JsonError {
+        details: err.to_string(),
+    })
+}
 /// Unified builder for creating `IDKit` requests and sessions
 #[cfg(feature = "ffi")]
 #[derive(uniffi::Object)]
@@ -1576,6 +1871,36 @@ impl IDKitBuilder {
         }))
     }
 
+    /// Builds the plaintext bridge payload JSON for the given constraints without
+    /// creating a bridge request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if constraints are invalid or payload construction fails.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn bridge_request_payload_json(
+        &self,
+        constraints: Arc<ConstraintNode>,
+    ) -> std::result::Result<String, crate::error::IdkitError> {
+        let params = self.config.to_params((*constraints).clone())?;
+        bridge_payload_json(&params)
+    }
+
+    /// Builds the plaintext bridge payload for the given constraints without
+    /// creating a bridge request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if constraints are invalid or payload construction fails.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn bridge_request_payload(
+        &self,
+        constraints: Arc<ConstraintNode>,
+    ) -> std::result::Result<BridgeRequestPayloadWrapper, crate::error::IdkitError> {
+        let params = self.config.to_params((*constraints).clone())?;
+        build_request_payload_wrapper(&params).map_err(Into::into)
+    }
+
     /// Creates a `BridgeConnection` from a preset (works for all request types)
     ///
     /// Presets provide a simplified way to create requests with predefined
@@ -1605,6 +1930,36 @@ impl IDKitBuilder {
             inner,
             connect_url_mode: self.config.connect_url_mode(),
         }))
+    }
+
+    /// Builds the plaintext bridge payload JSON for the given preset without
+    /// creating a bridge request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the preset is invalid or payload construction fails.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn bridge_request_payload_json_from_preset(
+        &self,
+        preset: Preset,
+    ) -> std::result::Result<String, crate::error::IdkitError> {
+        let params = self.config.to_params_from_preset(preset)?;
+        bridge_payload_json(&params)
+    }
+
+    /// Builds the plaintext bridge payload for the given preset without
+    /// creating a bridge request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the preset is invalid or payload construction fails.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn bridge_request_payload_from_preset(
+        &self,
+        preset: Preset,
+    ) -> std::result::Result<BridgeRequestPayloadWrapper, crate::error::IdkitError> {
+        let params = self.config.to_params_from_preset(preset)?;
+        build_request_payload_wrapper(&params).map_err(Into::into)
     }
 
     /// Creates an invite-code mode `BridgeConnection` with the given constraints (WDP-73).
@@ -1892,6 +2247,10 @@ mod tests {
     use super::*;
     use crate::types::{CredentialRequest, CredentialType, IntegritySignatureFormat, Signal};
 
+    fn payload_json(params: &BridgeConnectionParams, native: bool) -> serde_json::Value {
+        build_request_payload_json(params, native).unwrap()
+    }
+
     #[test]
     fn test_bridge_request_payload_serialization() {
         let item = CredentialRequest::new(
@@ -1996,7 +2355,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
         let proof_request = payload.get("proof_request").unwrap();
         assert_eq!(payload["action"], serde_json::json!("test-action"));
         assert_eq!(proof_request["proof_type"], serde_json::json!("uniqueness"));
@@ -2047,7 +2406,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
         let proof_request = payload.get("proof_request").unwrap();
         assert_eq!(payload["action"], serde_json::json!(""));
         assert_eq!(
@@ -2087,7 +2446,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let prove_payload = build_request_payload(&prove_params, false).unwrap();
+        let prove_payload = payload_json(&prove_params, false);
         assert_eq!(prove_payload["action"], serde_json::json!(""));
         assert_eq!(
             prove_payload["proof_request"]["proof_type"],
@@ -2133,7 +2492,7 @@ mod tests {
             ]),
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
 
         assert_eq!(
             payload["identity_attributes"],
@@ -2143,6 +2502,100 @@ mod tests {
             ])
         );
         assert!(payload.get("proof_request").is_some());
+    }
+
+    #[test]
+    fn test_build_bridge_request_payload_wrapper_identity_check() {
+        let app_id = AppId::new("app_staging_1234567890abcdef").unwrap();
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &("0x".to_string() + &"00".repeat(64) + "1b"),
+        )
+        .unwrap();
+        let constraints = ConstraintNode::any(vec![
+            ConstraintNode::item(CredentialRequest::new(CredentialType::Passport, None)),
+            ConstraintNode::item(CredentialRequest::new(CredentialType::Mnc, None)),
+        ]);
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::Uniqueness {
+                action: "test-action".to_string(),
+            },
+            constraints: Some(constraints),
+            rp_context,
+            action_description: Some("Identity check".to_string()),
+            legacy_verification_level: VerificationLevel::Document,
+            legacy_signal: String::new(),
+            bridge_url: None,
+            allow_legacy_proofs: true,
+            require_user_presence: true,
+            override_connect_base_url: None,
+            return_to: Some("idkitsample://callback".to_string()),
+            environment: Some(Environment::Staging),
+            identity_attributes: Some(vec![
+                IdentityAttribute::MinimumAge(21),
+                IdentityAttribute::Nationality("JPN".to_string()),
+            ]),
+        };
+
+        let payload =
+            BridgeRequestPayloadWrapper::try_from(build_request_payload(&params, false).unwrap())
+                .unwrap();
+
+        assert_eq!(payload.app_id, "app_staging_1234567890abcdef");
+        assert_eq!(payload.action.as_deref(), Some("test-action"));
+        assert_eq!(
+            payload.action_description.as_deref(),
+            Some("Identity check")
+        );
+        assert_eq!(payload.verification_level, VerificationLevel::Document);
+        assert!(payload.timestamp.is_none());
+        assert!(payload.allow_legacy_proofs);
+        assert!(payload.require_user_presence);
+        assert_eq!(payload.environment, Environment::Staging);
+        assert_eq!(
+            payload.return_to_url.as_deref(),
+            Some("idkitsample://callback")
+        );
+
+        let attributes = payload.identity_attributes.unwrap();
+        assert_eq!(
+            attributes,
+            vec![
+                IdentityAttribute::MinimumAge(21),
+                IdentityAttribute::Nationality("JPN".to_string()),
+            ]
+        );
+
+        let proof_request = payload.proof_request.unwrap();
+        assert_eq!(proof_request.version, 1);
+        assert_eq!(proof_request.proof_type, "uniqueness");
+        assert_eq!(proof_request.rp_id, "rp_1234567890abcdef");
+        assert_eq!(proof_request.created_at, 1_700_000_000);
+        assert_eq!(proof_request.expires_at, 1_700_003_600);
+        assert!(!proof_request.id.is_empty());
+        let constraints = proof_request.constraints.unwrap();
+        assert_eq!(constraints.kind, ConstraintKindWrapper::Any);
+        assert_eq!(constraints.children.len(), 2);
+        assert_eq!(constraints.children[0].kind, ConstraintKindWrapper::Type);
+        assert_eq!(
+            constraints.children[0].identifier.as_deref(),
+            Some("passport")
+        );
+        assert_eq!(constraints.children[1].kind, ConstraintKindWrapper::Type);
+        assert_eq!(constraints.children[1].identifier.as_deref(), Some("mnc"));
+        assert_eq!(
+            proof_request
+                .proof_requests
+                .iter()
+                .map(|item| item.identifier.as_str())
+                .collect::<Vec<_>>(),
+            vec!["passport", "mnc"]
+        );
     }
 
     #[test]
@@ -2809,7 +3262,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
         assert_eq!(payload["verification_level"], serde_json::json!("face"));
     }
 
@@ -2851,7 +3304,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
         assert_eq!(payload["verification_level"], serde_json::json!("device"));
     }
 
@@ -2892,7 +3345,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
         assert_eq!(payload["verification_level"], serde_json::json!("orb"));
         assert_eq!(payload["allow_legacy_proofs"], serde_json::json!(true));
         assert_eq!(
@@ -2938,7 +3391,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
         assert_eq!(payload["verification_level"], serde_json::json!("document"));
         assert_eq!(payload["allow_legacy_proofs"], serde_json::json!(true));
         assert_eq!(
@@ -3054,12 +3507,12 @@ mod tests {
         };
 
         // native=true includes timestamp
-        let payload = build_request_payload(&params, true).unwrap();
+        let payload = payload_json(&params, true);
         assert_eq!(payload["timestamp"], "2023-11-14T22:13:20Z");
         assert_eq!(payload["require_user_presence"], serde_json::json!(false));
 
         // native=false omits timestamp
-        let payload_bridge = build_request_payload(&params, false).unwrap();
+        let payload_bridge = payload_json(&params, false);
         assert!(payload_bridge.get("timestamp").is_none());
         assert_eq!(
             payload_bridge["require_user_presence"],
@@ -3105,13 +3558,13 @@ mod tests {
             identity_attributes: None,
         };
 
-        let bridge_payload = build_request_payload(&params, false).unwrap();
+        let bridge_payload = payload_json(&params, false);
         assert_eq!(
             bridge_payload["require_user_presence"],
             serde_json::json!(true)
         );
 
-        let native_payload = build_request_payload(&params, true).unwrap();
+        let native_payload = payload_json(&params, true);
         assert_eq!(
             native_payload["require_user_presence"],
             serde_json::json!(true)
@@ -3150,7 +3603,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
         assert_eq!(payload["return_to_url"], "idkitsample://callback");
         assert!(payload.get("return_to").is_none());
     }
@@ -3187,7 +3640,7 @@ mod tests {
             identity_attributes: None,
         };
 
-        let payload = build_request_payload(&params, false).unwrap();
+        let payload = payload_json(&params, false);
         assert!(payload.get("return_to_url").is_none());
     }
 
@@ -3233,10 +3686,10 @@ mod tests {
         let cached = CachedSignalHashes::compute(&params);
         assert_eq!(cached.legacy_signal_hash, expected);
 
-        let bridge_payload = build_request_payload(&params, false).unwrap();
+        let bridge_payload = payload_json(&params, false);
         assert_eq!(bridge_payload["signal"], expected);
 
-        let native_payload = build_request_payload(&params, true).unwrap();
+        let native_payload = payload_json(&params, true);
         assert_eq!(native_payload["signal"], expected);
 
         let native_v1_payload = build_native_v1_payload(&params).unwrap();
