@@ -3267,6 +3267,67 @@ mod tests {
     }
 
     #[test]
+    fn test_selfie_check_legacy_bridge_request_payload_is_face_only() {
+        let app_id = AppId::new("app_staging_1234567890abcdef").unwrap();
+        let preset = crate::preset::Preset::selfie_check_legacy(Some("face-signal".to_string()));
+        let bridge_params = preset.into_bridge_params();
+        let signature = "0x".to_string() + &"00".repeat(64) + "1b";
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &signature,
+        )
+        .unwrap();
+
+        let params = BridgeConnectionParams {
+            app_id,
+            kind: RequestKind::Uniqueness {
+                action: "test-action".to_string(),
+            },
+            constraints: bridge_params.constraints,
+            rp_context,
+            action_description: Some("Selfie check".to_string()),
+            legacy_verification_level: bridge_params
+                .legacy_verification_level
+                .expect("this preset should return legacy_verification_level"),
+            legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
+            bridge_url: None,
+            allow_legacy_proofs: false,
+            require_user_presence: false,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: Some(Environment::Staging),
+            identity_attributes: None,
+        };
+
+        let payload = payload_json(&params, false);
+
+        assert_eq!(
+            payload["app_id"],
+            serde_json::json!("app_staging_1234567890abcdef")
+        );
+        assert_eq!(payload["action"], serde_json::json!("test-action"));
+        assert_eq!(
+            payload["action_description"],
+            serde_json::json!("Selfie check")
+        );
+        assert_eq!(payload["verification_level"], serde_json::json!("face"));
+        assert_eq!(
+            payload["signal"],
+            serde_json::json!(crate::crypto::hash_signal(&Signal::from_string(
+                "face-signal".to_string()
+            )))
+        );
+        assert_eq!(payload["environment"], serde_json::json!("staging"));
+        assert_eq!(payload["allow_legacy_proofs"], serde_json::json!(false));
+        assert_eq!(payload["require_user_presence"], serde_json::json!(false));
+        assert!(payload.get("proof_request").is_none());
+        assert!(payload.get("identity_attributes").is_none());
+    }
+
+    #[test]
     fn test_device_legacy_preset_serializes_device_verification_level() {
         let preset = crate::preset::Preset::device_legacy(Some("device-signal".to_string()));
         let bridge_params = preset.into_bridge_params();
