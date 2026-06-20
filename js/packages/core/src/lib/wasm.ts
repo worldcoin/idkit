@@ -16,7 +16,7 @@ let wasmInitInput: Parameters<typeof initWasm>[0] | undefined;
  * it from document.currentScript because classic scripts do not have
  * import.meta.url.
  */
-export function setIDKitWasmInitInput(
+export function setWasmInput(
   input: Parameters<typeof initWasm>[0] | undefined,
 ): void {
   wasmInitInput = input;
