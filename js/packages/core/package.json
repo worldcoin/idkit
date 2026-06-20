@@ -6,6 +6,8 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "unpkg": "./dist/idkit.global.js",
+  "jsdelivr": "./dist/idkit.global.js",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -26,7 +28,9 @@
       "types": "./dist/session.d.ts",
       "import": "./dist/session.js",
       "require": "./dist/session.cjs"
-    }
+    },
+    "./idkit.global.js": "./dist/idkit.global.js",
+    "./idkit_wasm_bg.wasm": "./dist/idkit_wasm_bg.wasm"
   },
   "typesVersions": {
     "*": {
@@ -51,6 +55,7 @@
     "dev": "tsup --watch",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
+    "test:browser": "vitest run src/__tests__/browser-global.test.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },

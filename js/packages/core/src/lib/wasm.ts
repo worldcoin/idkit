@@ -6,6 +6,21 @@ import initWasm, * as WasmModule from "../../wasm/idkit_wasm.js";
 
 let wasmInitialized = false;
 let wasmInitPromise: Promise<void> | null = null;
+let wasmInitInput: Parameters<typeof initWasm>[0] | undefined;
+
+/**
+ * Sets the WASM location used by initIDKit().
+ *
+ * The ESM/CJS package path intentionally leaves this unset so wasm-bindgen can
+ * resolve the .wasm file relative to its module URL. The script-tag build sets
+ * it from document.currentScript because classic scripts do not have
+ * import.meta.url.
+ */
+export function setIDKitWasmInitInput(
+  input: Parameters<typeof initWasm>[0] | undefined,
+): void {
+  wasmInitInput = input;
+}
 
 /**
  * Initializes the WASM module for browser environments
@@ -24,7 +39,7 @@ export async function initIDKit(): Promise<void> {
 
   wasmInitPromise = (async () => {
     try {
-      await initWasm();
+      await initWasm(wasmInitInput);
       wasmInitialized = true;
     } catch (error) {
       wasmInitPromise = null;
