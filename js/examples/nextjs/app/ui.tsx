@@ -706,8 +706,7 @@ export function DemoClient(): ReactElement {
   const [returnTo, setReturnTo] = useState("");
   const [isReturnToTooltipOpen, setIsReturnToTooltipOpen] = useState(false);
   const [requireUserPresence, setRequireUserPresence] = useState(false);
-  const [forceInvalidRpSignature, setForceInvalidRpSignature] =
-    useState(false);
+  const [forceInvalidRpSignature, setForceInvalidRpSignature] = useState(false);
   const [useInviteCode, setUseInviteCode] = useState(false);
   const [flowMode, setFlowMode] = useState<FlowMode>("request");
   const [wasIdentityCheck, setWasIdentityCheck] = useState(false);
