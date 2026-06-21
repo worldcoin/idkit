@@ -581,9 +581,19 @@ function createPreset(kind: PresetKind, signal: string) {
   }
 }
 
+function corruptSignature(signature: string): string {
+  if (!signature.startsWith("0x") || signature.length < 4) {
+    return signature;
+  }
+
+  const flippedNibble = signature[2] === "0" ? "1" : "0";
+  return `0x${flippedNibble}${signature.slice(3)}`;
+}
+
 async function fetchRpContext(
   signatureType: FlowMode,
   action?: string,
+  corruptRpSignature = false,
 ): Promise<RpContext> {
   const body: { signature_type: FlowMode; action?: string } = {
     signature_type: signatureType,
@@ -620,7 +630,7 @@ async function fetchRpContext(
     nonce: data.nonce,
     created_at: data.created_at,
     expires_at: data.expires_at,
-    signature: data.sig,
+    signature: corruptRpSignature ? corruptSignature(data.sig) : data.sig,
   };
 }
 
@@ -696,6 +706,8 @@ export function DemoClient(): ReactElement {
   const [returnTo, setReturnTo] = useState("");
   const [isReturnToTooltipOpen, setIsReturnToTooltipOpen] = useState(false);
   const [requireUserPresence, setRequireUserPresence] = useState(false);
+  const [forceInvalidRpSignature, setForceInvalidRpSignature] =
+    useState(false);
   const [useInviteCode, setUseInviteCode] = useState(false);
   const [flowMode, setFlowMode] = useState<FlowMode>("request");
   const [wasIdentityCheck, setWasIdentityCheck] = useState(false);
@@ -977,6 +989,7 @@ export function DemoClient(): ReactElement {
       const rpContext = await fetchRpContext(
         flowMode,
         isSessionFlow ? undefined : action || "test-action",
+        forceInvalidRpSignature,
       );
       setWidgetSignal(`demo-signal-${Date.now()}`);
       setWidgetRpContext(rpContext);
@@ -988,6 +1001,7 @@ export function DemoClient(): ReactElement {
     action,
     canStartWidgetFlow,
     flowMode,
+    forceInvalidRpSignature,
     isIdentityCheck,
     isProveSessionFlow,
     isSessionFlow,
@@ -1664,6 +1678,17 @@ export function DemoClient(): ReactElement {
             id="cfgRequireUserPresence"
             checked={requireUserPresence}
             onChange={(e) => setRequireUserPresence(e.target.checked)}
+          />
+        </div>
+        <div className="config-row">
+          <label htmlFor="cfgForceInvalidRpSignature">
+            Invalid RP signature
+          </label>
+          <input
+            type="checkbox"
+            id="cfgForceInvalidRpSignature"
+            checked={forceInvalidRpSignature}
+            onChange={(e) => setForceInvalidRpSignature(e.target.checked)}
           />
         </div>
       </section>
