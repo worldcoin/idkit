@@ -202,6 +202,43 @@ describe("widgets", () => {
     expect(onSuccess).not.toHaveBeenCalled();
   });
 
+  it("request widget delivers onError once when it auto-closes on error (World App)", async () => {
+    // Regression: in the World App path the widget auto-closes on error, which
+    // sets `open=false`. That runs the open-effect's close branch (nulling the
+    // error dedupe ref) in the same commit as the error effect — previously the
+    // error effect would then re-fire onError for the same error. The `!open`
+    // guard must suppress that second delivery.
+    const flow = createFlow({
+      isInWorldApp: true,
+      isError: true,
+      errorCode: IDKitErrorCodes.InvalidRpSignature,
+    });
+    useIDKitRequestMock.mockReturnValue(flow);
+
+    const onError = vi.fn();
+    const onOpenChange = vi.fn();
+    const props = createRequestProps({ onError, onOpenChange });
+
+    const { rerender } = render(<IDKitRequestWidget {...props} open={true} />);
+
+    // Delivered once while open; the widget requests auto-close.
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(IDKitErrorCodes.InvalidRpSignature);
+    });
+    await waitFor(() => {
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    // Parent honors the auto-close (open → false), which resets the flow.
+    // onError must NOT fire a second time for the same error.
+    rerender(<IDKitRequestWidget {...props} open={false} />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
   it("request widget shows already verified state for replayed nullifiers", async () => {
     const flow = createFlow({
       isError: true,

@@ -26,6 +26,7 @@ import {
   setDebug,
   type ConstraintNode,
   type DocumentType,
+  type IDKitDebugReport,
   type IdentityAttribute,
   type IDKitResult,
   type IDKitResultSession,
@@ -614,8 +615,6 @@ async function fetchRpContext(
     throw new Error("Missing NEXT_PUBLIC_RP_ID");
   }
 
-  console.log(data);
-
   return {
     rp_id: RP_ID,
     nonce: data.nonce,
@@ -664,6 +663,9 @@ export function DemoClient(): ReactElement {
     null,
   );
   const [widgetError, setWidgetError] = useState<string | null>(null);
+  const [widgetDebugReport, setWidgetDebugReport] =
+    useState<IDKitDebugReport | null>(null);
+  const [debugReportCopied, setDebugReportCopied] = useState(false);
   const [widgetVerifyResult, setWidgetVerifyResult] = useState<unknown>(null);
   const [widgetIdkitResult, setWidgetIdkitResult] =
     useState<IDKitResult | null>(null);
@@ -796,6 +798,9 @@ export function DemoClient(): ReactElement {
   const effectiveReturnTo = useReturnTo
     ? returnTo.trim() || undefined
     : undefined;
+  const widgetDebugReportJson = widgetDebugReport
+    ? JSON.stringify(widgetDebugReport, null, 2)
+    : null;
 
   const createSharedState = useCallback(
     (): SharedDemoState => ({
@@ -947,6 +952,8 @@ export function DemoClient(): ReactElement {
 
   const startWidgetFlow = useCallback(async () => {
     setWidgetError(null);
+    setWidgetDebugReport(null);
+    setDebugReportCopied(false);
     setWidgetVerifyResult(null);
     setWidgetIdkitResult(null);
     setWidgetSessionResult(null);
@@ -986,6 +993,21 @@ export function DemoClient(): ReactElement {
     isSessionFlow,
     sessionId,
   ]);
+
+  const copyDebugReport = async () => {
+    if (!widgetDebugReportJson) return;
+    await navigator.clipboard.writeText(widgetDebugReportJson);
+    setDebugReportCopied(true);
+  };
+
+  const handleWidgetError = (
+    errorCode: string,
+    debugReport?: IDKitDebugReport,
+  ) => {
+    setWidgetError(`Verification failed: ${errorCode}`);
+    setWidgetDebugReport(debugReport ?? null);
+    setDebugReportCopied(false);
+  };
 
   if (!APP_ID || !RP_ID) {
     return (
@@ -1677,6 +1699,24 @@ export function DemoClient(): ReactElement {
         <p className="status">Select at least one identity attribute.</p>
       )}
       {widgetError && <p className="status">Error: {widgetError}</p>}
+      {widgetDebugReportJson && (
+        <details>
+          <summary>
+            Debug report ({widgetDebugReport?.transport}){" "}
+            <button
+              type="button"
+              className="secondary"
+              onClick={(event) => {
+                event.preventDefault();
+                void copyDebugReport();
+              }}
+            >
+              {debugReportCopied ? "Copied" : "Copy"}
+            </button>
+          </summary>
+          <pre>{widgetDebugReportJson}</pre>
+        </details>
+      )}
 
       {widgetRpContext &&
         !isSessionFlow &&
@@ -1699,9 +1739,7 @@ export function DemoClient(): ReactElement {
               );
               setWidgetVerifyResult(verified);
             }}
-            onError={(errorCode) => {
-              setWidgetError(`Verification failed: ${errorCode}`);
-            }}
+            onError={handleWidgetError}
             environment={environment}
             override_connect_base_url={overrideConnectBaseUrl}
             return_to={effectiveReturnTo}
@@ -1725,9 +1763,7 @@ export function DemoClient(): ReactElement {
               );
               setWidgetVerifyResult(verified);
             }}
-            onError={(errorCode) => {
-              setWidgetError(`Verification failed: ${errorCode}`);
-            }}
+            onError={handleWidgetError}
             environment={environment}
             override_connect_base_url={overrideConnectBaseUrl}
             return_to={effectiveReturnTo}
@@ -1755,9 +1791,7 @@ export function DemoClient(): ReactElement {
             );
             setWidgetVerifyResult(verified);
           }}
-          onError={(errorCode) => {
-            setWidgetError(`Verification failed: ${errorCode}`);
-          }}
+          onError={handleWidgetError}
           environment={environment}
           override_connect_base_url={overrideConnectBaseUrl}
           return_to={effectiveReturnTo}
