@@ -4,6 +4,12 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const moduleCleanPaths = [
+  "index.*",
+  "signing.*",
+  "hashing.*",
+  "session.*",
+];
 
 function copyWasmToDist(): void {
   // Copy WASM file to dist folder so it can be resolved by ESM imports and the
@@ -28,7 +34,7 @@ export default defineConfig([
     dts: true,
     splitting: false,
     sourcemap: false,
-    clean: true,
+    clean: moduleCleanPaths,
     treeshake: true,
     outDir: "dist",
     onSuccess: copyWasmToDist,
@@ -42,7 +48,7 @@ export default defineConfig([
     dts: false,
     splitting: false,
     sourcemap: false,
-    clean: false,
+    clean: ["idkit.global.js"],
     treeshake: true,
     minify: true,
     outDir: "dist",
