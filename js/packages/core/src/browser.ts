@@ -7,7 +7,6 @@
  */
 
 import { IDKit } from "./request";
-import { setWasmInput } from "./lib/wasm";
 
 type IDKitGlobal = typeof IDKit;
 
@@ -20,25 +19,6 @@ declare global {
   var IDKit: IDKitGlobal;
 }
 
-function currentScriptUrl(): string | undefined {
-  if (typeof document === "undefined") {
-    return undefined;
-  }
-
-  const script = document.currentScript as HTMLScriptElement | null;
-  if (script?.src) {
-    return script.src;
-  }
-
-  return undefined;
-}
-
-const scriptUrl = currentScriptUrl();
-if (scriptUrl) {
-  setWasmInput({
-    module_or_path: new URL("idkit_wasm_bg.wasm", scriptUrl),
-  });
-}
 
 globalThis.IDKit = IDKit;
 
