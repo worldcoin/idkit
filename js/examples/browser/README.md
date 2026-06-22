@@ -20,33 +20,31 @@ cd js/examples/browser
 pnpm dev
 ```
 
-Open http://localhost:4000 in your browser (Vite will auto-open it)
+Open http://localhost:4000 in your browser (Vite will auto-open it).
 
-CDN script-tag pages are also included:
+The single `index.html` file has three separate examples:
 
-- `legacy-cdn.html` shows `window.IDKit.request(...).preset(...)` with selectable 4.0 and legacy migration presets.
-- `session-cdn-4.0.html` shows `window.IDKit.createSession(...)` and `window.IDKit.proveSession(...)` with selectable 4.0 credential constraints.
+- Package import request: uses the workspace package through Vite and shows QR
+  or invite-code requests.
+- CDN global legacy request: loads `window.IDKit` from a script URL and runs
+  selectable 4.0 migration presets plus legacy-only presets.
+- CDN global 4.0 session: uses the same CDN global for `createSession` and
+  `proveSession` with selectable 4.0 credential constraints.
 
-After `pnpm dev` is running, open:
-
-- `http://localhost:4000/legacy-cdn.html`
-- `http://localhost:4000/session-cdn-4.0.html`
-
-Both pages intentionally load the published CDN artifact with one script tag:
+The CDN sections default to:
 `https://cdn.jsdelivr.net/npm/@worldcoin/idkit-core/dist/idkit.global.js`.
-This verifies the package was published with `dist/idkit.global.js` and the
-sibling `dist/idkit_wasm_bg.wasm` file. The browser example does not serve a
-local fallback for these files, so a missing CDN artifact fails visibly.
+They verify the package was published with `dist/idkit.global.js` and the
+sibling `dist/idkit_wasm_bg.wasm` file. The example does not serve a local
+fallback for these files, so a missing CDN artifact fails visibly.
 
-For pre-publish CDN testing, build the core package, commit the generated
-`dist/idkit.global.js` and `dist/idkit_wasm_bg.wasm` files to a branch, and
-temporarily point the script tag at:
+For pre-publish CDN testing, publish a temporary package or point the CDN script
+URL input at a branch artifact:
 
-```html
-<script src="https://cdn.jsdelivr.net/gh/worldcoin/idkit@<branch-or-sha>/js/packages/core/dist/idkit.global.js"></script>
+```text
+https://cdn.jsdelivr.net/gh/worldcoin/idkit@<branch-or-sha>/js/packages/core/dist/idkit.global.js
 ```
 
-Both pages use the local `/api/rp-signature` endpoint for backend-only RP
+All examples use the local `/api/rp-signature` endpoint for backend-only RP
 signing.
 
 #### Production

@@ -11,10 +11,10 @@ let wasmInitInput: Parameters<typeof initWasm>[0] | undefined;
 /**
  * Sets the WASM location used by initIDKit().
  *
- * The ESM/CJS package path intentionally leaves this unset so wasm-bindgen can
- * resolve the .wasm file relative to its module URL. The script-tag build sets
- * it from document.currentScript because classic scripts do not have
- * import.meta.url.
+ * The normal package and script-tag builds leave this unset so wasm-bindgen can
+ * resolve the .wasm file through its generated module/script URL fallback. This
+ * escape hatch is kept for embedding environments that need to override that
+ * location explicitly.
  */
 export function setWasmInput(
   input: Parameters<typeof initWasm>[0] | undefined,
