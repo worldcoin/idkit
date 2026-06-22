@@ -3,6 +3,7 @@ import {
   IDKitErrorCodes,
   isInWorldApp as isInWorldAppCheck,
   isDebug,
+  type IDKitDebugReport,
   type IDKitRequest,
 } from "@worldcoin/idkit-core";
 import type { FlowConfig, IDKitHookResult } from "../types";
@@ -26,6 +27,14 @@ export function useIDKitFlow<TResult>(
   const [runId, setRunId] = useState(0);
   // Mutable handle so event handlers (reset) can cancel the active polling loop.
   const abortRef = useRef<AbortController | null>(null);
+  // Live request handle so getDebugReport() can read the latest report on demand.
+  const requestRef = useRef<IDKitRequest | null>(null);
+  // Snapshot captured the instant a failure is recorded. It deliberately
+  // outlives reset()/close (which only null `requestRef`) and is cleared when a
+  // new attempt starts, so the host can always read the report for the error
+  // currently being surfaced — even across the reset/re-render the widget does
+  // around its onError callback.
+  const debugReportRef = useRef<IDKitDebugReport | undefined>(undefined);
   // Refs keep the effect stable (deps: [state.isOpen]) while always reading the latest values.
   const createFlowHandleRef = useRef(createFlowHandle);
   const configRef = useRef(config);
@@ -37,9 +46,19 @@ export function useIDKitFlow<TResult>(
   const reset = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
+    requestRef.current = null;
+    // NOTE: `debugReportRef` is intentionally NOT cleared here. The host may
+    // read the report after reset (the widget resets/re-renders around its
+    // onError callback). The snapshot is cleared when a new attempt starts.
     setState(createInitialHookState);
     setRunId((id) => id + 1);
   }, []);
+
+  const getDebugReport = useCallback(
+    (): IDKitDebugReport | undefined =>
+      debugReportRef.current ?? requestRef.current?.getDebugReport(),
+    [],
+  );
 
   const open = useCallback(() => {
     setState((prev) => {
@@ -62,10 +81,21 @@ export function useIDKitFlow<TResult>(
       return;
     }
 
+    // A new attempt is starting; drop any snapshot left by a previous run.
+    debugReportRef.current = undefined;
+
     const controller = new AbortController();
     abortRef.current = controller;
 
     const setFailed = (errorCode: IDKitErrorCodes) => {
+      // Capture the report now, while `requestRef` is still populated — a later
+      // reset/close must not be able to wipe it before the host reads it.
+      // Guarded so debug-report capture can never destabilize error handling.
+      try {
+        debugReportRef.current = requestRef.current?.getDebugReport();
+      } catch {
+        debugReportRef.current = undefined;
+      }
       setState((prev) => {
         if (prev.status === "failed" && prev.errorCode === errorCode) {
           return prev;
@@ -83,6 +113,7 @@ export function useIDKitFlow<TResult>(
       try {
         if (isDebug()) console.debug("[IDKit] Creating flow handle…");
         const request = await createFlowHandleRef.current();
+        requestRef.current = request;
         ensureNotAborted(controller.signal);
         if (isDebug())
           console.debug("[IDKit] Flow created", {
@@ -174,6 +205,7 @@ export function useIDKitFlow<TResult>(
     connectorURI: state.connectorURI,
     result: state.result,
     errorCode: state.errorCode,
+    getDebugReport,
     isOpen: state.isOpen,
     isInWorldApp,
   };

@@ -21,7 +21,10 @@ use world_id_primitives::{
 #[cfg(feature = "native-crypto")]
 use crate::crypto::CryptoKey;
 
-use std::{str::FromStr, sync::Arc};
+use std::{
+    str::FromStr,
+    sync::{Arc, Mutex, PoisonError},
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Environment
@@ -179,6 +182,19 @@ struct BridgePollResponse {
 
     /// Encrypted response (only present when status is "completed")
     response: Option<EncryptedPayload>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BridgeDebugReport {
+    pub transport: &'static str,
+    pub generated_at: String,
+    pub request_id: String,
+    pub request_payload: serde_json::Value,
+    /// Decrypted plaintext bridge response payload, captured only once the
+    /// poll reaches `completed` and the response is successfully decoded and
+    /// decrypted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_payload: Option<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -521,6 +537,10 @@ pub struct BridgeConnection {
     environment: Environment,
     /// Whether a successful response must prove user presence was completed.
     require_user_presence: bool,
+    /// Decrypted request payload used to create this bridge request.
+    request_payload: serde_json::Value,
+    /// Latest decrypted bridge response payload captured during polling.
+    latest_bridge_payload: Mutex<Option<String>>,
     // ─── Invite-code mode (WDP-73) — None for the legacy URL/QR path ────────
     /// Canonical 6-char Crockford Base32 invite code shown to the user.
     pub(crate) invite_code: Option<String>,
@@ -716,8 +736,9 @@ impl BridgeConnection {
 
         // Build the payload using the shared function (borrows params).
         // Bridge path does not need the timestamp field.
-        let payload_value = build_request_payload(&params, false)?;
-        let payload_json = serde_json::to_vec(&payload_value)?;
+        let payload = build_request_payload(&params, false)?;
+        let request_payload = serde_json::to_value(&payload)?;
+        let payload_json = serde_json::to_vec(&payload)?;
 
         // Compute signal hashes before partial moves
         let cached_signal_hashes = CachedSignalHashes::compute(&params);
@@ -790,6 +811,8 @@ impl BridgeConnection {
             return_to: params.return_to,
             environment: params.environment.unwrap_or_default(),
             require_user_presence: params.require_user_presence,
+            request_payload,
+            latest_bridge_payload: Mutex::new(None),
             invite_code: None,
             code_expires_at: None,
         })
@@ -884,6 +907,30 @@ impl BridgeConnection {
         )
     }
 
+    fn store_bridge_payload(&self, payload: String) {
+        *self
+            .latest_bridge_payload
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(payload);
+    }
+
+    #[must_use]
+    pub fn get_debug_report(&self) -> BridgeDebugReport {
+        let response_payload = self
+            .latest_bridge_payload
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+
+        BridgeDebugReport {
+            transport: "bridge",
+            generated_at: current_timestamp_rfc3339(),
+            request_id: self.request_id.clone(),
+            request_payload: self.request_payload.clone(),
+            response_payload,
+        }
+    }
+
     /// Polls the bridge for the current status (non-blocking)
     ///
     /// `GET /response/:id` is unauthenticated for both URL/QR and invite-code
@@ -916,7 +963,9 @@ impl BridgeConnection {
             "initialized" => Ok(Status::WaitingForConnection),
             "retrieved" => Ok(Status::AwaitingConfirmation),
             "completed" => {
-                let encrypted = poll_response.response.ok_or(Error::UnexpectedResponse)?;
+                let Some(encrypted) = poll_response.response else {
+                    return Err(Error::UnexpectedResponse);
+                };
 
                 let iv = base64_decode(&encrypted.iv)?;
                 let ciphertext = base64_decode(&encrypted.payload)?;
@@ -928,6 +977,10 @@ impl BridgeConnection {
 
                 #[cfg(not(feature = "native-crypto"))]
                 let plaintext = decrypt(&self.key_bytes, &iv, &ciphertext)?;
+
+                // Capture the decrypted plaintext for debugging only once the
+                // response is both decoded and decrypted successfully.
+                self.store_bridge_payload(String::from_utf8_lossy(&plaintext).into_owned());
 
                 let bridge_response: BridgeResponse = serde_json::from_slice(&plaintext)?;
 
@@ -1117,6 +1170,21 @@ fn current_unix_seconds() -> Result<u64> {
     }
 }
 
+fn current_timestamp_rfc3339() -> String {
+    let Ok(seconds) = current_unix_seconds() else {
+        return "1970-01-01T00:00:00Z".to_string();
+    };
+    let Ok(seconds) = i64::try_from(seconds) else {
+        return "1970-01-01T00:00:00Z".to_string();
+    };
+    let Ok(datetime) = time::OffsetDateTime::from_unix_timestamp(seconds) else {
+        return "1970-01-01T00:00:00Z".to_string();
+    };
+    datetime
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string())
+}
+
 #[allow(dead_code)]
 async fn try_create_invite_code_request(
     params: &BridgeConnectionParams,
@@ -1138,8 +1206,9 @@ async fn try_create_invite_code_request(
     // there's nothing to gain from determinism.
     let nonce_bytes = generate_nonce()?;
 
-    let payload_value = build_request_payload(params, false)?;
-    let payload_json = serde_json::to_vec(&payload_value).map_err(Error::from)?;
+    let payload = build_request_payload(params, false)?;
+    let request_payload = serde_json::to_value(&payload).map_err(Error::from)?;
+    let payload_json = serde_json::to_vec(&payload).map_err(Error::from)?;
     let encrypted = encrypt(&key_bytes, &nonce_bytes, &payload_json)?;
 
     let body = CreateRequestBody {
@@ -1228,6 +1297,8 @@ async fn try_create_invite_code_request(
         return_to: params.return_to.clone(),
         environment: params.environment.unwrap_or_default(),
         require_user_presence: params.require_user_presence,
+        request_payload,
+        latest_bridge_payload: Mutex::new(None),
         invite_code: Some(code),
         code_expires_at: Some(code_expires_at),
     })
@@ -2242,7 +2313,10 @@ impl IDKitInviteCodeRequest {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
+    use std::{
+        io::{Read, Write},
+        str::FromStr,
+    };
 
     use super::*;
     use crate::types::{CredentialRequest, CredentialType, IntegritySignatureFormat, Signal};
@@ -3701,7 +3775,7 @@ mod tests {
             bridge_url: BridgeUrl::default(),
             #[cfg(feature = "native-crypto")]
             key: crate::crypto::CryptoKey::new([0; 32], [0; 12]),
-            key_bytes: vec![1, 2, 3, 4],
+            key_bytes: vec![0; 32],
             request_id: "64e0ec6b-b4ca-47cc-8f70-504a95189e26".to_string(),
             app_id: "app_test".to_string(),
             client: reqwest::Client::new(),
@@ -3716,9 +3790,40 @@ mod tests {
             return_to,
             environment: Environment::Production,
             require_user_presence: false,
+            request_payload: serde_json::json!({
+                "app_id": "app_test",
+                "action": "test-action",
+            }),
+            latest_bridge_payload: Mutex::new(None),
             invite_code: None,
             code_expires_at: None,
         }
+    }
+
+    fn serve_bridge_response(body: String) -> BridgeUrl {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request_buffer = [0; 1024];
+            let _ = stream.read(&mut request_buffer);
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+                body.len(),
+                body
+            )
+            .unwrap();
+        });
+
+        let app_id = AppId::new("app_staging_test").unwrap();
+        BridgeUrl::new(format!("http://{addr}"), &app_id).unwrap()
+    }
+
+    fn poll_once(connection: &BridgeConnection) -> Result<Status> {
+        tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(connection.poll_for_status())
     }
 
     #[test]
@@ -3735,5 +3840,23 @@ mod tests {
         let url = connection.connect_url();
 
         assert!(!url.contains("return_to="));
+    }
+
+    #[test]
+    fn test_debug_report_omits_response_payload_until_completed() {
+        let mut connection = sample_connection(None);
+        let report = connection.get_debug_report();
+
+        assert_eq!(report.request_id, "64e0ec6b-b4ca-47cc-8f70-504a95189e26");
+        assert_eq!(report.request_payload["app_id"], "app_test");
+        assert_eq!(report.response_payload, None);
+
+        // Non-completed statuses don't carry a decrypted payload, so the report
+        // leaves `response_payload` empty.
+        connection.bridge_url = serve_bridge_response(r#"{"status":"initialized"}"#.to_string());
+        let status = poll_once(&connection).unwrap();
+        assert_eq!(status, Status::WaitingForConnection);
+
+        assert_eq!(connection.get_debug_report().response_payload, None);
     }
 }

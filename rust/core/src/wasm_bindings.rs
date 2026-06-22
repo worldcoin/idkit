@@ -10,7 +10,6 @@
 use crate::preset::Preset;
 use crate::{ConstraintNode, CredentialRequest, CredentialType, RpContext, Signal};
 use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Once;
@@ -1017,7 +1016,7 @@ impl IDKitBuilderWasm {
                 .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
 
             Ok(JsValue::from(IDKitRequest {
-                inner: Rc::new(RefCell::new(Some(connection))),
+                inner: Rc::new(connection),
             }))
         })
     }
@@ -1035,7 +1034,7 @@ impl IDKitBuilderWasm {
                 .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
 
             Ok(JsValue::from(IDKitRequest {
-                inner: Rc::new(RefCell::new(Some(connection))),
+                inner: Rc::new(connection),
             }))
         })
     }
@@ -1054,7 +1053,7 @@ impl IDKitBuilderWasm {
                 .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
 
             Ok(JsValue::from(IDKitInviteCodeRequest {
-                inner: Rc::new(RefCell::new(Some(connection))),
+                inner: Rc::new(connection),
             }))
         })
     }
@@ -1073,7 +1072,7 @@ impl IDKitBuilderWasm {
                 .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
 
             Ok(JsValue::from(IDKitInviteCodeRequest {
-                inner: Rc::new(RefCell::new(Some(connection))),
+                inner: Rc::new(connection),
             }))
         })
     }
@@ -1175,7 +1174,7 @@ pub fn prove_session(
 #[wasm_bindgen]
 pub struct IDKitRequest {
     #[wasm_bindgen(skip)]
-    inner: Rc<RefCell<Option<crate::BridgeConnection>>>,
+    inner: Rc<crate::BridgeConnection>,
 }
 
 #[wasm_bindgen]
@@ -1186,28 +1185,20 @@ impl IDKitRequest {
     ///
     /// # Errors
     ///
-    /// Returns an error if the request has been closed
+    /// Returns an error if the request state is invalid.
     #[wasm_bindgen(js_name = connectUrl)]
     pub fn connect_url(&self) -> Result<String, JsValue> {
-        self.inner
-            .borrow()
-            .as_ref()
-            .ok_or_else(|| JsValue::from_str("Request closed"))
-            .map(crate::BridgeConnection::connect_url)
+        Ok(self.inner.connect_url())
     }
 
     /// Returns the request ID for this request
     ///
     /// # Errors
     ///
-    /// Returns an error if the request has been closed
+    /// Returns an error if the request state is invalid.
     #[wasm_bindgen(js_name = requestId)]
     pub fn request_id(&self) -> Result<String, JsValue> {
-        self.inner
-            .borrow()
-            .as_ref()
-            .ok_or_else(|| JsValue::from_str("Request closed"))
-            .map(|s| s.request_id().to_string())
+        Ok(self.inner.request_id().to_string())
     }
 
     /// Polls the bridge for the current status (non-blocking)
@@ -1226,9 +1217,20 @@ impl IDKitRequest {
         let inner = self.inner.clone();
 
         future_to_promise(async move {
-            let status = poll_taking_inner(&inner).await?;
+            let status = poll_shared_inner(inner).await?;
             status_to_js_value(&status)
         })
+    }
+
+    /// Returns the latest debug report snapshot for this request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if report serialization fails.
+    #[wasm_bindgen(js_name = getDebugReport)]
+    pub fn get_debug_report(&self) -> Result<JsValue, JsValue> {
+        let report = self.inner.get_debug_report();
+        debug_report_to_js_value(&report)
     }
 }
 
@@ -1245,7 +1247,7 @@ impl IDKitRequest {
 #[wasm_bindgen]
 pub struct IDKitInviteCodeRequest {
     #[wasm_bindgen(skip)]
-    inner: Rc<RefCell<Option<crate::BridgeConnection>>>,
+    inner: Rc<crate::BridgeConnection>,
 }
 
 #[wasm_bindgen]
@@ -1258,49 +1260,34 @@ impl IDKitInviteCodeRequest {
     ///
     /// # Errors
     ///
-    /// Returns an error if the request has been closed.
+    /// Returns an error if the request state is invalid.
     #[wasm_bindgen(js_name = connectUrl)]
     pub fn connect_url(&self) -> Result<String, JsValue> {
-        self.inner
-            .borrow()
-            .as_ref()
-            .ok_or_else(|| JsValue::from_str("Request closed"))
-            .map(crate::BridgeConnection::connect_url)
+        Ok(self.inner.connect_url())
     }
 
     /// Unix-seconds expiry of the unredeemed code.
     ///
     /// # Errors
     ///
-    /// Returns an error if the request has been closed.
+    /// Returns an error if the request state is invalid.
     #[wasm_bindgen(js_name = expiresAt)]
     pub fn expires_at(&self) -> Result<f64, JsValue> {
-        self.inner
-            .borrow()
-            .as_ref()
-            .ok_or_else(|| JsValue::from_str("Request closed"))
-            .map(|s| {
-                #[allow(clippy::cast_precision_loss)]
-                {
-                    s.code_expires_at()
-                        .expect("invite-code wrapper always has code_expires_at populated")
-                        as f64
-                }
-            })
+        #[allow(clippy::cast_precision_loss)]
+        Ok(self
+            .inner
+            .code_expires_at()
+            .expect("invite-code wrapper always has code_expires_at populated") as f64)
     }
 
     /// Returns the request ID for this request.
     ///
     /// # Errors
     ///
-    /// Returns an error if the request has been closed.
+    /// Returns an error if the request state is invalid.
     #[wasm_bindgen(js_name = requestId)]
     pub fn request_id(&self) -> Result<String, JsValue> {
-        self.inner
-            .borrow()
-            .as_ref()
-            .ok_or_else(|| JsValue::from_str("Request closed"))
-            .map(|s| s.request_id().to_string())
+        Ok(self.inner.request_id().to_string())
     }
 
     /// Polls the bridge for the current status (non-blocking).
@@ -1317,30 +1304,25 @@ impl IDKitInviteCodeRequest {
         let inner = self.inner.clone();
 
         future_to_promise(async move {
-            let status = poll_taking_inner(&inner).await?;
+            let status = poll_shared_inner(inner).await?;
             status_to_js_value(&status)
         })
     }
+
+    /// Returns the latest debug report snapshot for this invite-code request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if report serialization fails.
+    #[wasm_bindgen(js_name = getDebugReport)]
+    pub fn get_debug_report(&self) -> Result<JsValue, JsValue> {
+        let report = self.inner.get_debug_report();
+        debug_report_to_js_value(&report)
+    }
 }
 
-/// Polls a `BridgeConnection` while taking it out of the `Rc<RefCell<Option<…>>>`
-/// for the await, then **always** puts it back — including on poll error.
-///
-/// Without this, a transient network blip would cause the `?` on the poll
-/// result to drop out of scope before the request is reinserted, leaving
-/// `inner` as `None` and turning every subsequent poll into a hard "Request
-/// closed" failure (which has the same shape as a deliberately-closed
-/// request, making it indistinguishable from a real teardown).
-async fn poll_taking_inner(
-    inner: &Rc<RefCell<Option<crate::BridgeConnection>>>,
-) -> Result<crate::Status, JsValue> {
-    let request = inner
-        .borrow_mut()
-        .take()
-        .ok_or_else(|| JsValue::from_str("Request closed"))?;
-
+async fn poll_shared_inner(request: Rc<crate::BridgeConnection>) -> Result<crate::Status, JsValue> {
     let result = request.poll_for_status().await;
-    *inner.borrow_mut() = Some(request);
 
     result.map_err(|e| JsValue::from_str(&format!("Poll failed: {e}")))
 }
@@ -1367,6 +1349,13 @@ fn status_to_js_value(status: &crate::Status) -> Result<JsValue, JsValue> {
     };
 
     result.map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
+}
+
+fn debug_report_to_js_value(report: &crate::bridge::BridgeDebugReport) -> Result<JsValue, JsValue> {
+    let ser = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+    report
+        .serialize(&ser)
+        .map_err(|e| JsValue::from_str(&format!("Serialization failed: {e}")))
 }
 
 // TypeScript type definitions

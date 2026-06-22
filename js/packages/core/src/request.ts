@@ -10,6 +10,7 @@ import type {
 } from "./types/config";
 import type {
   IDKitResult,
+  IDKitDebugReport,
   ConstraintNode,
   CredentialType,
   CredentialRequestType,
@@ -17,6 +18,7 @@ import type {
 import { IDKitErrorCodes } from "./types/result";
 import type { NativePayloadResult } from "./lib/wasm";
 import { WasmModule, initIDKit } from "./lib/wasm";
+import { type DebugReportWithoutVersion, buildDebugReport } from "./lib/debug";
 import {
   isInWorldApp,
   getWorldAppVerifyVersion,
@@ -51,6 +53,7 @@ export type IDKitCompletionResult =
   | { success: false; error: IDKitErrorCodes };
 
 const SESSION_ID_PATTERN = /^session_[0-9a-fA-F]{128}$/;
+type RustBridgeDebugReport = DebugReportWithoutVersion;
 
 // Re-export RpContext for convenience
 export type { RpContext };
@@ -70,6 +73,8 @@ export interface IDKitRequest {
   pollOnce(): Promise<Status>;
   /** Poll continuously until completion or timeout */
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult>;
+  /** Debug report for the latest request state. Always available, independent of debug mode. */
+  getDebugReport(): IDKitDebugReport;
 }
 
 /**
@@ -112,6 +117,16 @@ async function pollUntilCompletionLoop(
   }
 }
 
+type WasmDebugReportSource = {
+  getDebugReport(): RustBridgeDebugReport;
+};
+
+function getBridgeDebugReport(wasmRequest: unknown): IDKitDebugReport {
+  return buildDebugReport(
+    (wasmRequest as WasmDebugReportSource).getDebugReport(),
+  );
+}
+
 /**
  * Internal request implementation (bridge/WASM path)
  */
@@ -141,6 +156,10 @@ class IDKitRequestImpl implements IDKitRequest {
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult> {
     return pollUntilCompletionLoop(() => this.pollOnce(), options);
   }
+
+  getDebugReport(): IDKitDebugReport {
+    return getBridgeDebugReport(this.wasmRequest);
+  }
 }
 
 /**
@@ -163,6 +182,8 @@ export interface IDKitInviteCodeRequest {
   pollOnce(): Promise<Status>;
   /** Poll continuously until completion or timeout */
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult>;
+  /** Debug report for the latest request state. Always available, independent of debug mode. */
+  getDebugReport(): IDKitDebugReport;
 }
 
 /**
@@ -201,6 +222,10 @@ class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
 
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult> {
     return pollUntilCompletionLoop(() => this.pollOnce(), options);
+  }
+
+  getDebugReport(): IDKitDebugReport {
+    return getBridgeDebugReport(this.wasmRequest);
   }
 }
 

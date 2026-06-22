@@ -26,6 +26,7 @@ import {
   setDebug,
   type ConstraintNode,
   type DocumentType,
+  type IDKitDebugReport,
   type IdentityAttribute,
   type IDKitResult,
   type IDKitResultSession,
@@ -580,9 +581,19 @@ function createPreset(kind: PresetKind, signal: string) {
   }
 }
 
+function corruptSignature(signature: string): string {
+  if (!signature.startsWith("0x") || signature.length < 4) {
+    return signature;
+  }
+
+  const flippedNibble = signature[2] === "0" ? "1" : "0";
+  return `0x${flippedNibble}${signature.slice(3)}`;
+}
+
 async function fetchRpContext(
   signatureType: FlowMode,
   action?: string,
+  corruptRpSignature = false,
 ): Promise<RpContext> {
   const body: { signature_type: FlowMode; action?: string } = {
     signature_type: signatureType,
@@ -614,14 +625,12 @@ async function fetchRpContext(
     throw new Error("Missing NEXT_PUBLIC_RP_ID");
   }
 
-  console.log(data);
-
   return {
     rp_id: RP_ID,
     nonce: data.nonce,
     created_at: data.created_at,
     expires_at: data.expires_at,
-    signature: data.sig,
+    signature: corruptRpSignature ? corruptSignature(data.sig) : data.sig,
   };
 }
 
@@ -664,6 +673,9 @@ export function DemoClient(): ReactElement {
     null,
   );
   const [widgetError, setWidgetError] = useState<string | null>(null);
+  const [widgetDebugReport, setWidgetDebugReport] =
+    useState<IDKitDebugReport | null>(null);
+  const [debugReportCopied, setDebugReportCopied] = useState(false);
   const [widgetVerifyResult, setWidgetVerifyResult] = useState<unknown>(null);
   const [widgetIdkitResult, setWidgetIdkitResult] =
     useState<IDKitResult | null>(null);
@@ -694,6 +706,7 @@ export function DemoClient(): ReactElement {
   const [returnTo, setReturnTo] = useState("");
   const [isReturnToTooltipOpen, setIsReturnToTooltipOpen] = useState(false);
   const [requireUserPresence, setRequireUserPresence] = useState(false);
+  const [forceInvalidRpSignature, setForceInvalidRpSignature] = useState(false);
   const [useInviteCode, setUseInviteCode] = useState(false);
   const [flowMode, setFlowMode] = useState<FlowMode>("request");
   const [wasIdentityCheck, setWasIdentityCheck] = useState(false);
@@ -796,6 +809,9 @@ export function DemoClient(): ReactElement {
   const effectiveReturnTo = useReturnTo
     ? returnTo.trim() || undefined
     : undefined;
+  const widgetDebugReportJson = widgetDebugReport
+    ? JSON.stringify(widgetDebugReport, null, 2)
+    : null;
 
   const createSharedState = useCallback(
     (): SharedDemoState => ({
@@ -947,6 +963,8 @@ export function DemoClient(): ReactElement {
 
   const startWidgetFlow = useCallback(async () => {
     setWidgetError(null);
+    setWidgetDebugReport(null);
+    setDebugReportCopied(false);
     setWidgetVerifyResult(null);
     setWidgetIdkitResult(null);
     setWidgetSessionResult(null);
@@ -970,6 +988,7 @@ export function DemoClient(): ReactElement {
       const rpContext = await fetchRpContext(
         flowMode,
         isSessionFlow ? undefined : action || "test-action",
+        forceInvalidRpSignature,
       );
       setWidgetSignal(`demo-signal-${Date.now()}`);
       setWidgetRpContext(rpContext);
@@ -981,11 +1000,27 @@ export function DemoClient(): ReactElement {
     action,
     canStartWidgetFlow,
     flowMode,
+    forceInvalidRpSignature,
     isIdentityCheck,
     isProveSessionFlow,
     isSessionFlow,
     sessionId,
   ]);
+
+  const copyDebugReport = async () => {
+    if (!widgetDebugReportJson) return;
+    await navigator.clipboard.writeText(widgetDebugReportJson);
+    setDebugReportCopied(true);
+  };
+
+  const handleWidgetError = (
+    errorCode: string,
+    debugReport?: IDKitDebugReport,
+  ) => {
+    setWidgetError(`Verification failed: ${errorCode}`);
+    setWidgetDebugReport(debugReport ?? null);
+    setDebugReportCopied(false);
+  };
 
   if (!APP_ID || !RP_ID) {
     return (
@@ -1644,6 +1679,17 @@ export function DemoClient(): ReactElement {
             onChange={(e) => setRequireUserPresence(e.target.checked)}
           />
         </div>
+        <div className="config-row">
+          <label htmlFor="cfgForceInvalidRpSignature">
+            Invalid RP signature
+          </label>
+          <input
+            type="checkbox"
+            id="cfgForceInvalidRpSignature"
+            checked={forceInvalidRpSignature}
+            onChange={(e) => setForceInvalidRpSignature(e.target.checked)}
+          />
+        </div>
       </section>
 
       <div className="stack">
@@ -1677,6 +1723,24 @@ export function DemoClient(): ReactElement {
         <p className="status">Select at least one identity attribute.</p>
       )}
       {widgetError && <p className="status">Error: {widgetError}</p>}
+      {widgetDebugReportJson && (
+        <details>
+          <summary>
+            Debug report ({widgetDebugReport?.transport}){" "}
+            <button
+              type="button"
+              className="secondary"
+              onClick={(event) => {
+                event.preventDefault();
+                void copyDebugReport();
+              }}
+            >
+              {debugReportCopied ? "Copied" : "Copy"}
+            </button>
+          </summary>
+          <pre>{widgetDebugReportJson}</pre>
+        </details>
+      )}
 
       {widgetRpContext &&
         !isSessionFlow &&
@@ -1699,9 +1763,7 @@ export function DemoClient(): ReactElement {
               );
               setWidgetVerifyResult(verified);
             }}
-            onError={(errorCode) => {
-              setWidgetError(`Verification failed: ${errorCode}`);
-            }}
+            onError={handleWidgetError}
             environment={environment}
             override_connect_base_url={overrideConnectBaseUrl}
             return_to={effectiveReturnTo}
@@ -1725,9 +1787,7 @@ export function DemoClient(): ReactElement {
               );
               setWidgetVerifyResult(verified);
             }}
-            onError={(errorCode) => {
-              setWidgetError(`Verification failed: ${errorCode}`);
-            }}
+            onError={handleWidgetError}
             environment={environment}
             override_connect_base_url={overrideConnectBaseUrl}
             return_to={effectiveReturnTo}
@@ -1755,9 +1815,7 @@ export function DemoClient(): ReactElement {
             );
             setWidgetVerifyResult(verified);
           }}
-          onError={(errorCode) => {
-            setWidgetError(`Verification failed: ${errorCode}`);
-          }}
+          onError={handleWidgetError}
           environment={environment}
           override_connect_base_url={overrideConnectBaseUrl}
           return_to={effectiveReturnTo}

@@ -4,6 +4,7 @@ import type {
 } from "./request";
 import type { IDKitSessionHookConfig } from "./session";
 import type {
+  IDKitDebugReport,
   IDKitErrorCodes,
   IDKitResult,
   IDKitResultSession,
@@ -17,7 +18,10 @@ type WidgetSharedProps<TResult> = {
   onOpenChange: (open: boolean) => void;
   handleVerify?: (result: TResult) => MaybePromise<void>;
   onSuccess: (result: TResult) => MaybePromise<void>;
-  onError?: (errorCode: IDKitErrorCodes) => MaybePromise<void>;
+  onError?: (
+    errorCode: IDKitErrorCodes,
+    debugReport?: IDKitDebugReport,
+  ) => MaybePromise<void>;
   autoClose?: boolean;
   language?: SupportedLanguage;
 };

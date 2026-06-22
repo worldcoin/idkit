@@ -24,6 +24,31 @@ export type {
   CredentialRequestType,
 } from "../lib/wasm";
 
+/** Mini-app (World App native transport) diagnostics. All fields optional — they are filled in as the request progresses. */
+export type MiniAppDebugInfo = {
+  verify_version?: 1 | 2;
+  platform?: "ios" | "android" | "none";
+  send_channel?: "webkit.minikit" | "Android.postMessage" | "none";
+  minikit_subscribed?: boolean;
+  response_channel?: "window.message" | "minikit";
+};
+
+export type IDKitDebugReport = {
+  /** Schema version of this debug report (distinct from the SDK `package_version`). Currently always 1. */
+  version: 1;
+  package_version: string;
+  transport: "bridge" | "mini_app";
+  generated_at: string;
+  request_id?: string;
+  request_payload?: object;
+  /**
+   * Bridge transport: decrypted plaintext response payload (string), present
+   * only once the request completes. Native transport: structured debug object.
+   */
+  response_payload?: object | string;
+  mini_app?: MiniAppDebugInfo;
+};
+
 /**
  * IDKit error codes enum — runtime values for matching against errors.
  * Values mirror Rust's AppError enum (snake_case via serde rename_all).

@@ -57,6 +57,7 @@ export type {
   IDKitResult,
   IntegrityBundle,
   IntegritySignatureFormat,
+  IDKitDebugReport,
   IDKitResultSession,
   IDKitRequestConfig,
   IDKitSessionConfig,

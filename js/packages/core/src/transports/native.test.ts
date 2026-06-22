@@ -3,6 +3,7 @@ import { IDKitErrorCodes } from "../types/result";
 import type { BuilderConfig } from "./native";
 import { createNativeRequest, getWorldAppVerifyVersion } from "./native";
 import { hashSignal } from "../lib/hashing";
+import { setDebug } from "../lib/debug";
 
 const baseConfig: BuilderConfig = {
   type: "request",
@@ -55,6 +56,7 @@ describe("native transport request lifecycle", () => {
   });
 
   afterEach(() => {
+    setDebug(false);
     activeRequest?.cancel?.();
     vi.useRealTimers();
     vi.restoreAllMocks();
@@ -449,6 +451,48 @@ describe("native transport request lifecycle", () => {
     const sent = JSON.parse(postMessageFn.mock.calls[0][0]);
     expect(sent.version).toBe(1);
     expect(sent.command).toBe("verify");
+  });
+
+  it("exposes a debugReport via getDebugReport() on native failure regardless of debug mode", async () => {
+    setDebug(false);
+    const req = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "error",
+      error_code: IDKitErrorCodes.ConnectionFailed,
+    });
+
+    const completion = await completionPromise;
+    // The completion result no longer carries the debug report.
+    expect(completion).toEqual({
+      success: false,
+      error: IDKitErrorCodes.ConnectionFailed,
+    });
+
+    // The report is fetched on demand from the request handle.
+    const debugReport = req.getDebugReport();
+    expect(debugReport).toMatchObject({
+      version: 1,
+      transport: "mini_app",
+      package_version: "4.1.8",
+      request_payload: { payload: 1 },
+      response_payload: {
+        status: "error",
+        error_code: IDKitErrorCodes.ConnectionFailed,
+      },
+      mini_app: {
+        verify_version: 2,
+        platform: "android",
+        send_channel: "Android.postMessage",
+        minikit_subscribed: true,
+        response_channel: "minikit",
+      },
+    });
+    expect(debugReport?.request_id).toBe(req.requestId);
+    expect(debugReport?.generated_at).toBeTruthy();
   });
 });
 

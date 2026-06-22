@@ -46,7 +46,7 @@ private func sampleRpContext() throws -> RpContext {
 
 @Test("IDKit entrypoints expose canonical builders")
 func idkitEntrypoints() throws {
-    let requestConfig = 
+    let requestConfig =
     IDKitRequestConfig(
         appId: "app_staging_1234567890abcdef",
         action: "test-action",

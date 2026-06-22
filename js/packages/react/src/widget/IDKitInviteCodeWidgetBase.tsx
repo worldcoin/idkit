@@ -5,7 +5,7 @@ import {
   useState,
   type ReactElement,
 } from "react";
-import { IDKitErrorCodes } from "@worldcoin/idkit-core";
+import { IDKitErrorCodes, type IDKitDebugReport } from "@worldcoin/idkit-core";
 import type { IDKitInviteCodeHookResult } from "../types";
 import { IDKitModal } from "./IDKitModal";
 import { InviteCodeState } from "../components/States/InviteCodeState";
@@ -41,7 +41,10 @@ export type IDKitInviteCodeWidgetBaseProps<TResult> = {
   onOpenChange: (open: boolean) => void;
   handleVerify?: (result: TResult) => MaybePromise<void>;
   onSuccess: (result: TResult) => MaybePromise<void>;
-  onError?: (errorCode: IDKitErrorCodes) => MaybePromise<void>;
+  onError?: (
+    errorCode: IDKitErrorCodes,
+    debugReport?: IDKitDebugReport,
+  ) => MaybePromise<void>;
   autoClose?: boolean;
   language?: SupportedLanguage;
 };
@@ -133,7 +136,15 @@ export function IDKitInviteCodeWidgetBase<TResult>({
     (hostVerifyResult === "failed" ? IDKitErrorCodes.FailedByHostApp : null);
 
   useEffect(() => {
-    if (!isSuccess || !flow.result || flow.result === lastResultRef.current) {
+    // Skip while closed/closing (see the error effect below for the rationale):
+    // auto-close nulls the dedupe refs in the same commit, which would otherwise
+    // re-fire onSuccess for the same result.
+    if (
+      !open ||
+      !isSuccess ||
+      !flow.result ||
+      flow.result === lastResultRef.current
+    ) {
       return;
     }
 
@@ -141,10 +152,17 @@ export function IDKitInviteCodeWidgetBase<TResult>({
     void Promise.resolve(onSuccess(flow.result)).catch(() => {
       // Swallow host callback errors to keep widget flow stable.
     });
-  }, [flow.result, isSuccess, onSuccess]);
+  }, [open, flow.result, isSuccess, onSuccess]);
 
   useEffect(() => {
+    // Skip while closed/closing. When the widget auto-closes on error (World
+    // App path), the open-effect's close branch nulls `lastErrorCodeRef` in the
+    // same commit — and effects run open-effect → error-effect — so without this
+    // `!open` guard the error effect would re-run with a now-null dedupe ref but
+    // a still-set `effectiveErrorCode` (the hook's reset hasn't propagated yet)
+    // and deliver `onError` a second time. Errors are only delivered while open.
     if (
+      !open ||
       !effectiveErrorCode ||
       effectiveErrorCode === lastErrorCodeRef.current
     ) {
@@ -152,10 +170,15 @@ export function IDKitInviteCodeWidgetBase<TResult>({
     }
 
     lastErrorCodeRef.current = effectiveErrorCode;
-    void Promise.resolve(onError?.(effectiveErrorCode)).catch(() => {
+    // Only flow/bridge errors carry a debug report; host-app verify failures don't.
+    const debugReport = flow.errorCode ? flow.getDebugReport() : undefined;
+    const errorResult = debugReport
+      ? onError?.(effectiveErrorCode, debugReport)
+      : onError?.(effectiveErrorCode);
+    void Promise.resolve(errorResult).catch(() => {
       // Swallow host callback errors to keep widget flow stable.
     });
-  }, [effectiveErrorCode, onError]);
+  }, [open, effectiveErrorCode, flow, onError]);
 
   // In World App context there's no UI to render HostAppVerificationState,
   // so invoke handleVerify programmatically when the proof arrives.

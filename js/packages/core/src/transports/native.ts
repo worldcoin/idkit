@@ -21,11 +21,15 @@ import type {
   WaitOptions,
   Status,
 } from "../request";
-import type { IDKitResult } from "../types/result";
+import type {
+  IDKitResult,
+  IDKitDebugReport,
+  MiniAppDebugInfo,
+} from "../types/result";
 import { IDKitErrorCodes } from "../types/result";
 import type { IDKitResultV3, IntegrityBundle } from "../lib/wasm";
 import { WasmModule } from "../lib/wasm";
-import { isDebug } from "../lib/debug";
+import { isDebug, buildDebugReport } from "../lib/debug";
 
 const MINIAPP_VERIFY_ACTION = "miniapp-verify-action";
 
@@ -39,6 +43,41 @@ function toNativeErrorCode(error: unknown): IDKitErrorCodes {
   return (Object.values(IDKitErrorCodes) as string[]).includes(code)
     ? (code as IDKitErrorCodes)
     : IDKitErrorCodes.GenericError;
+}
+
+function asDebugObject(value: unknown): object | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value === "object" && value !== null) {
+    return value as object;
+  }
+  return { value };
+}
+
+function detectNativePlatform(): "ios" | "android" | "none" {
+  const w = window as unknown as Record<string, unknown>;
+  const webkit = w.webkit as
+    | { messageHandlers?: { minikit?: unknown } }
+    | undefined;
+  if (webkit?.messageHandlers?.minikit) {
+    return "ios";
+  }
+  if (w.Android) {
+    return "android";
+  }
+  return "none";
+}
+
+function detectSendChannel(): MiniAppDebugInfo["send_channel"] {
+  const platform = detectNativePlatform();
+  if (platform === "ios") {
+    return "webkit.minikit";
+  }
+  if (platform === "android") {
+    return "Android.postMessage";
+  }
+  return "none";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,6 +180,9 @@ class NativeIDKitRequest implements IDKitRequest {
   private resolveFn: ((result: IDKitCompletionResult) => void) | null = null;
   private messageHandler: ((event: MessageEvent) => void) | null = null;
   private miniKitHandler: ((payload: any) => void) | null = null;
+  private readonly requestPayload: unknown;
+  private responsePayload: unknown;
+  private debugState: MiniAppDebugInfo;
 
   constructor(
     wasmPayload: unknown,
@@ -151,13 +193,33 @@ class NativeIDKitRequest implements IDKitRequest {
   ) {
     this.requestId =
       crypto.randomUUID?.() ?? `native-${Date.now()}-${++_requestCounter}`;
+    this.requestPayload = wasmPayload;
+    this.responsePayload = undefined;
+    this.debugState = {
+      verify_version: version,
+      platform: detectNativePlatform(),
+      send_channel: detectSendChannel(),
+    };
 
     // Never rejects — all outcomes (success, error, cancel, timeout) resolve.
     this.resultPromise = new Promise<IDKitCompletionResult>((resolve) => {
       this.resolveFn = resolve;
 
-      const handleIncomingPayload = (responsePayload: any) => {
+      const recordResponse = (
+        responsePayload: unknown,
+        responseChannel: MiniAppDebugInfo["response_channel"],
+      ) => {
+        this.debugState.response_channel = responseChannel;
+        this.responsePayload = responsePayload;
+      };
+
+      const handleIncomingPayload = (
+        responsePayload: any,
+        responseChannel: MiniAppDebugInfo["response_channel"],
+      ) => {
         if (this.completionResult) return;
+
+        recordResponse(responsePayload, responseChannel);
 
         if (isDebug())
           console.debug("[IDKit] Native: received response", responsePayload);
@@ -216,7 +278,7 @@ class NativeIDKitRequest implements IDKitRequest {
           data?.type === MINIAPP_VERIFY_ACTION ||
           data?.command === MINIAPP_VERIFY_ACTION
         ) {
-          handleIncomingPayload(data.payload ?? data);
+          handleIncomingPayload(data.payload ?? data, "window.message");
         }
       };
       this.messageHandler = handler;
@@ -224,11 +286,13 @@ class NativeIDKitRequest implements IDKitRequest {
 
       // Some World App environments route responses via MiniKit.trigger(...)
       // instead of window.postMessage. Subscribe as a compatibility channel.
+      let miniKitSubscribed = false;
       try {
         const miniKit = (window as any).MiniKit as MiniKitBridge | undefined;
         if (typeof miniKit?.subscribe === "function") {
+          miniKitSubscribed = true;
           const miniKitHandler = (payload: any) => {
-            handleIncomingPayload(payload?.payload ?? payload);
+            handleIncomingPayload(payload?.payload ?? payload, "minikit");
           };
           this.miniKitHandler = miniKitHandler;
           miniKit.subscribe(MINIAPP_VERIFY_ACTION, miniKitHandler);
@@ -237,6 +301,7 @@ class NativeIDKitRequest implements IDKitRequest {
         if (isDebug())
           console.warn("[IDKit] Native: MiniKit subscribe failed", err);
       }
+      this.debugState.minikit_subscribed = miniKitSubscribed;
 
       // Wrap the WASM-built payload in the postMessage envelope
       const sendPayload = {
@@ -266,6 +331,7 @@ class NativeIDKitRequest implements IDKitRequest {
             console.warn(
               "[IDKit] Native: no native bridge found (no webkit/Android)",
             );
+          this.responsePayload = { error: IDKitErrorCodes.GenericError };
           this.complete({
             success: false,
             error: IDKitErrorCodes.GenericError,
@@ -273,11 +339,23 @@ class NativeIDKitRequest implements IDKitRequest {
         }
       } catch (err) {
         if (isDebug()) console.warn("[IDKit] Native: postMessage failed", err);
+        this.responsePayload = { error: IDKitErrorCodes.GenericError };
         this.complete({
           success: false,
           error: IDKitErrorCodes.GenericError,
         });
       }
+    });
+  }
+
+  getDebugReport(): IDKitDebugReport {
+    return buildDebugReport({
+      transport: "mini_app",
+      generated_at: new Date().toISOString(),
+      request_id: this.requestId,
+      request_payload: asDebugObject(this.requestPayload),
+      response_payload: asDebugObject(this.responsePayload),
+      mini_app: this.debugState,
     });
   }
 
