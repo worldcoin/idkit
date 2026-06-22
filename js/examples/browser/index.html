@@ -586,6 +586,7 @@
                 return;
               }
 
+              cdnIDKitLoadPromise = null;
               reject(new Error("CDN script loaded without window.IDKit."));
             };
             script.onerror = () => {
