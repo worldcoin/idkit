@@ -29,7 +29,6 @@
       "import": "./dist/session.js",
       "require": "./dist/session.cjs"
     }
-
   },
   "typesVersions": {
     "*": {

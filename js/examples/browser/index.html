@@ -657,8 +657,9 @@
           let request;
           if (useInviteCode) {
             // Create an invite-code request using the builder pattern
-            request =
-              await idkit.requestWithInviteCode(requestConfig).preset(preset);
+            request = await idkit
+              .requestWithInviteCode(requestConfig)
+              .preset(preset);
 
             // The URL is the same connector URL the URL/QR mode produces, with
             // `&c=<code>&a=<app_id>` appended. The world.org/verify landing

@@ -19,7 +19,6 @@ declare global {
   var IDKit: IDKitGlobal;
 }
 
-
 globalThis.IDKit = IDKit;
 
 export default IDKit;
