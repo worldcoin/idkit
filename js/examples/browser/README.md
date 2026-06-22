@@ -22,30 +22,18 @@ pnpm dev
 
 Open http://localhost:4000 in your browser (Vite will auto-open it).
 
-The single `index.html` file has three separate examples:
-
-- Package import request: uses the workspace package through Vite and shows QR
-  or invite-code requests.
-- CDN global legacy request: loads `window.IDKit` from a script URL and runs
-  selectable 4.0 migration presets plus legacy-only presets.
-- CDN global 4.0 session: uses the same CDN global for `createSession` and
-  `proveSession` with selectable 4.0 credential constraints.
-
-The CDN sections default to:
-`https://cdn.jsdelivr.net/npm/@worldcoin/idkit-core/dist/idkit.global.js`.
-They verify the package was published with `dist/idkit.global.js` and the
-sibling `dist/idkit_wasm_bg.wasm` file. The example does not serve a local
-fallback for these files, so a missing CDN artifact fails visibly.
-
-For pre-publish CDN testing, publish a temporary package or point the CDN script
-URL input at a branch artifact:
+By default, the example uses the built workspace package through Vite, so run
+the root `pnpm build` first to keep `dist/index.js` and
+`dist/idkit_wasm_bg.wasm` in sync. The `Use CDN version` checkbox reveals the
+standalone package URL and runs the same flow through that CDN global instead:
 
 ```text
-https://cdn.jsdelivr.net/gh/worldcoin/idkit@<branch-or-sha>/js/packages/core/dist/idkit.global.js
+https://unpkg.com/@worldcoin/idkit-core-standalone/dist/idkit.global.js
 ```
 
-All examples use the local `/api/rp-signature` endpoint for backend-only RP
-signing.
+This verifies the package was published with `dist/idkit.global.js` and the
+sibling `dist/idkit_wasm_bg.wasm` file. If the final standalone package name
+changes, update the hardcoded URL in `index.html`.
 
 #### Production
 

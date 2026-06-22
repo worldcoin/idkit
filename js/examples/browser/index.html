@@ -159,8 +159,7 @@
       }
 
       .config-row input[type="text"],
-      .config-row select,
-      .config-row textarea {
+      .config-row select {
         flex: 1;
         min-width: 0;
         max-width: 100%;
@@ -173,14 +172,20 @@
         color: var(--control-text);
       }
 
-      .config-row textarea {
-        min-height: 76px;
-        resize: vertical;
-      }
-
       .config-row input[type="text"][readonly] {
         background: var(--control-disabled-bg);
         opacity: 0.75;
+      }
+
+      .config-row code {
+        flex: 1;
+        min-width: 0;
+        background: var(--button-bg);
+        border: 1px solid var(--control-border);
+        border-radius: 6px;
+        font-size: 13px;
+        padding: 8px 10px;
+        overflow-wrap: anywhere;
       }
 
       #codeDisplay {
@@ -209,68 +214,15 @@
         font-size: 13px;
       }
 
-      .example-label {
-        margin-top: 28px;
-        margin-bottom: 8px;
-      }
-
-      .example-label h2 {
-        margin: 0 0 6px;
-        font-size: 20px;
-        letter-spacing: 0;
-      }
-
-      .example-label p {
-        margin: 0;
-        opacity: 0.68;
-        line-height: 1.5;
-      }
-
-      .button-row {
+      body > div {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
         margin-top: 16px;
       }
 
-      .button-row > button {
+      body > div > button {
         margin: 0;
-      }
-
-      .two-column {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 16px;
-        margin-top: 16px;
-      }
-
-      .output-link {
-        word-break: break-all;
-        overflow-wrap: anywhere;
-      }
-
-      .choices {
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        margin: 0;
-        padding: 12px;
-      }
-
-      .choices legend {
-        opacity: 0.7;
-        padding: 0 4px;
-      }
-
-      .choice-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin: 8px 0;
-        opacity: 0.9;
-      }
-
-      .choice-row input {
-        flex: 0 0 auto;
       }
 
       @media (max-width: 700px) {
@@ -312,7 +264,7 @@
           overflow-wrap: anywhere;
         }
 
-        .button-row > button,
+        body > div > button,
         .copy-row button {
           flex: 1 1 100%;
         }
@@ -320,10 +272,6 @@
         .copy-row {
           align-items: stretch;
           flex-wrap: wrap;
-        }
-
-        .two-column {
-          grid-template-columns: 1fr;
         }
       }
     </style>
@@ -339,14 +287,6 @@
     <p>
       Minimal example showing World ID verification using @worldcoin/idkit-core
     </p>
-
-    <div class="example-label">
-      <h2>1. Package import request</h2>
-      <p>
-        Uses the installed package through Vite. This is the normal browser-app
-        path for QR and invite-code requests.
-      </p>
-    </div>
 
     <section class="config-panel">
       <div class="config-row">
@@ -404,9 +344,17 @@
         <label for="cfgUseInviteCode">Use invite code</label>
         <input type="checkbox" id="cfgUseInviteCode" />
       </div>
+      <div class="config-row">
+        <label for="cfgUseCdnVersion">Use CDN version</label>
+        <input type="checkbox" id="cfgUseCdnVersion" />
+      </div>
+      <div class="config-row" id="cfgCdnUrlRow" hidden>
+        <label>CDN URL</label>
+        <code id="cfgCdnUrl"></code>
+      </div>
     </section>
 
-    <div class="button-row">
+    <div>
       <button id="verifyOrb">Verify with Orb</button>
       <button id="verifySecureDocument">Verify with Secure Document</button>
       <button id="verifyDocument">Verify with Document</button>
@@ -453,219 +401,6 @@
       <p id="errorText"></p>
     </section>
 
-    <div class="example-label">
-      <h2>2. CDN global legacy request</h2>
-      <p>
-        Loads <code>window.IDKit</code> from a script URL and creates request
-        presets that cover 4.0 migration helpers and legacy-only fallbacks.
-      </p>
-    </div>
-
-    <section class="config-panel">
-      <div class="config-row">
-        <label for="cdnScriptUrl">CDN script URL</label>
-        <input
-          type="text"
-          id="cdnScriptUrl"
-          value="https://cdn.jsdelivr.net/npm/@worldcoin/idkit-core/dist/idkit.global.js"
-        />
-      </div>
-      <div class="config-row">
-        <label></label>
-        <small style="opacity: 0.6">
-          The CDN examples use this script-tag global instead of the Vite
-          package import above.
-        </small>
-      </div>
-    </section>
-
-    <div class="two-column">
-      <section class="config-panel">
-        <div class="config-row">
-          <label for="cdnLegacyAppId">App ID</label>
-          <input
-            type="text"
-            id="cdnLegacyAppId"
-            value="app_d8bbd5341f16fb97a61e644b7e169c0e"
-          />
-        </div>
-        <div class="config-row">
-          <label for="cdnLegacyRpId">RP ID</label>
-          <input type="text" id="cdnLegacyRpId" value="rp_7b4f23dd5fb2a826" />
-        </div>
-        <div class="config-row">
-          <label for="cdnLegacyAction">Action</label>
-          <input type="text" id="cdnLegacyAction" value="legacy-cdn-demo" />
-        </div>
-        <div class="config-row">
-          <label for="cdnLegacySignal">Signal</label>
-          <input
-            type="text"
-            id="cdnLegacySignal"
-            value="legacy-cdn-user-123"
-          />
-        </div>
-        <div class="config-row">
-          <label for="cdnLegacyPreset">Preset</label>
-          <select id="cdnLegacyPreset">
-            <option value="proofOfHuman">
-              Proof of human, 4.0 with legacy Orb fallback
-            </option>
-            <option value="passport">
-              Passport, 4.0 with legacy document fallback
-            </option>
-            <option value="mnc">MNC, 4.0 with legacy document fallback</option>
-            <option value="identityCheck">
-              Identity check, 4.0 with legacy signal
-            </option>
-            <option value="orbLegacy">Orb legacy only</option>
-            <option value="secureDocumentLegacy">
-              Secure document legacy only
-            </option>
-            <option value="documentLegacy">Document legacy only</option>
-            <option value="deviceLegacy">Device legacy only</option>
-            <option value="selfieCheckLegacy">
-              Selfie check legacy only
-            </option>
-          </select>
-        </div>
-        <div class="config-row">
-          <label for="cdnLegacyEnvironment">Environment</label>
-          <select id="cdnLegacyEnvironment">
-            <option value="production">Production</option>
-            <option value="staging">Staging</option>
-          </select>
-        </div>
-        <div class="config-row">
-          <label for="cdnLegacyBridgeUrl">Bridge URL</label>
-          <input
-            type="text"
-            id="cdnLegacyBridgeUrl"
-            placeholder="https://bridge.worldcoin.org (default)"
-          />
-        </div>
-        <div class="config-row">
-          <label for="cdnLegacyAllowLegacy">Legacy proofs</label>
-          <input type="checkbox" id="cdnLegacyAllowLegacy" checked />
-        </div>
-        <div class="button-row">
-          <button id="cdnLegacyStart">Create CDN legacy request</button>
-          <button id="cdnLegacyCancel" disabled>Cancel polling</button>
-        </div>
-      </section>
-
-      <section>
-        <h3>CDN Legacy Output</h3>
-        <p id="cdnLegacyStatus">Idle</p>
-        <p>
-          <a
-            id="cdnLegacyConnector"
-            class="output-link"
-            href="#"
-            target="_blank"
-            rel="noreferrer"
-          ></a>
-        </p>
-        <pre id="cdnLegacyOutput">{}</pre>
-      </section>
-    </div>
-
-    <div class="example-label">
-      <h2>3. CDN global 4.0 session</h2>
-      <p>
-        Uses the same script-tag global for <code>createSession</code> and
-        <code>proveSession</code> with explicit 4.0 credential constraints.
-      </p>
-    </div>
-
-    <div class="two-column">
-      <section class="config-panel">
-        <div class="config-row">
-          <label for="cdnSessionAppId">App ID</label>
-          <input
-            type="text"
-            id="cdnSessionAppId"
-            value="app_d8bbd5341f16fb97a61e644b7e169c0e"
-          />
-        </div>
-        <div class="config-row">
-          <label for="cdnSessionRpId">RP ID</label>
-          <input type="text" id="cdnSessionRpId" value="rp_7b4f23dd5fb2a826" />
-        </div>
-        <div class="config-row">
-          <label for="cdnSessionId">Session ID</label>
-          <textarea
-            id="cdnSessionId"
-            placeholder="session_..."
-            spellcheck="false"
-          ></textarea>
-        </div>
-        <div class="config-row">
-          <label for="cdnSessionEnvironment">Environment</label>
-          <select id="cdnSessionEnvironment">
-            <option value="production">Production</option>
-            <option value="staging">Staging</option>
-          </select>
-        </div>
-        <div class="config-row">
-          <label for="cdnSessionBridgeUrl">Bridge URL</label>
-          <input
-            type="text"
-            id="cdnSessionBridgeUrl"
-            placeholder="https://bridge.worldcoin.org (default)"
-          />
-        </div>
-        <fieldset class="choices">
-          <legend>4.0 credentials</legend>
-          <label class="choice-row">
-            <input
-              type="checkbox"
-              name="cdnSessionCredential"
-              value="proof_of_human"
-              checked
-            />
-            Proof of human
-          </label>
-          <label class="choice-row">
-            <input type="checkbox" name="cdnSessionCredential" value="selfie" />
-            Selfie
-          </label>
-          <label class="choice-row">
-            <input
-              type="checkbox"
-              name="cdnSessionCredential"
-              value="passport"
-            />
-            Passport
-          </label>
-          <label class="choice-row">
-            <input type="checkbox" name="cdnSessionCredential" value="mnc" />
-            MNC
-          </label>
-        </fieldset>
-        <div class="button-row">
-          <button id="cdnSessionCreate">Create session</button>
-          <button id="cdnSessionProve">Prove session</button>
-          <button id="cdnSessionCancel" disabled>Cancel polling</button>
-        </div>
-      </section>
-
-      <section>
-        <h3>CDN Session Output</h3>
-        <p id="cdnSessionStatus">Idle</p>
-        <p>
-          <a
-            id="cdnSessionConnector"
-            class="output-link"
-            href="#"
-            target="_blank"
-            rel="noreferrer"
-          ></a>
-        </p>
-        <pre id="cdnSessionOutput">{}</pre>
-      </section>
-    </div>
-
     <script>
       // Theme toggle functionality
       const themeToggle = document.getElementById("themeToggle");
@@ -688,14 +423,11 @@
 
     <script type="module">
       // Import IDKit core (pure TypeScript, no dependencies)
-      import {
-        IDKit,
-        orbLegacy,
-        secureDocumentLegacy,
-        documentLegacy,
-        deviceLegacy,
-        selfieCheckLegacy,
-      } from "@worldcoin/idkit-core";
+      import { IDKit } from "@worldcoin/idkit-core";
+
+      const CDN_IDKIT_SCRIPT_URL =
+        "https://unpkg.com/@worldcoin/idkit-core-standalone/dist/idkit.global.js";
+      let cdnIDKitLoadPromise = null;
 
       // Format V4 verify response with visual indicators
       function formatVerifyResult(response) {
@@ -804,6 +536,15 @@
       const errorDiv = document.getElementById("error");
       const errorText = document.getElementById("errorText");
       const useInviteCodeToggle = document.getElementById("cfgUseInviteCode");
+      const useCdnVersionToggle = document.getElementById("cfgUseCdnVersion");
+      const cdnUrlRow = document.getElementById("cfgCdnUrlRow");
+      const cdnUrl = document.getElementById("cfgCdnUrl");
+
+      cdnUrl.textContent = CDN_IDKIT_SCRIPT_URL;
+      cdnUrlRow.hidden = !useCdnVersionToggle.checked;
+      useCdnVersionToggle.addEventListener("change", () => {
+        cdnUrlRow.hidden = !useCdnVersionToggle.checked;
+      });
 
       const hideAll = () => {
         qrDiv.hidden = true;
@@ -829,13 +570,62 @@
         return res.json();
       }
 
+      async function loadCdnIDKit() {
+        if (window.IDKit) {
+          return window.IDKit;
+        }
+
+        if (!cdnIDKitLoadPromise) {
+          cdnIDKitLoadPromise = new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.async = true;
+            script.src = CDN_IDKIT_SCRIPT_URL;
+            script.onload = () => {
+              if (window.IDKit) {
+                resolve(window.IDKit);
+                return;
+              }
+
+              reject(new Error("CDN script loaded without window.IDKit."));
+            };
+            script.onerror = () => {
+              cdnIDKitLoadPromise = null;
+              reject(
+                new Error(`Failed to load CDN script: ${CDN_IDKIT_SCRIPT_URL}`),
+              );
+            };
+            document.head.append(script);
+          });
+        }
+
+        return cdnIDKitLoadPromise;
+      }
+
+      async function getIDKit() {
+        if (useCdnVersionToggle.checked) {
+          return loadCdnIDKit();
+        }
+
+        return IDKit;
+      }
+
+      function createPreset(idkit, presetName) {
+        return idkit[presetName]({ signal: makeSignal() });
+      }
+
       // Function to verify with World ID using the new IDKit.request().constraints() API
-      async function startVerification(preset) {
+      async function startVerification(presetName) {
         let countdownInterval = null;
         try {
           hideAll();
 
           statusDiv.hidden = false;
+          statusText.textContent = useCdnVersionToggle.checked
+            ? "Loading CDN version..."
+            : "Fetching RP signature...";
+
+          const idkit = await getIDKit();
+
           statusText.textContent = "Fetching RP signature...";
 
           // Fetch RP signature from the backend
@@ -853,6 +643,7 @@
           statusText.textContent = "Creating verification request...";
 
           const useInviteCode = useInviteCodeToggle.checked;
+          const preset = createPreset(idkit, presetName);
           const requestConfig = {
             app_id: getAppId(),
             action: getAction(),
@@ -867,7 +658,7 @@
           if (useInviteCode) {
             // Create an invite-code request using the builder pattern
             request =
-              await IDKit.requestWithInviteCode(requestConfig).preset(preset);
+              await idkit.requestWithInviteCode(requestConfig).preset(preset);
 
             // The URL is the same connector URL the URL/QR mode produces, with
             // `&c=<code>&a=<app_id>` appended. The world.org/verify landing
@@ -894,7 +685,7 @@
             statusText.textContent = "Waiting for user to open verify URL...";
           } else {
             // Create a new request using the builder pattern
-            request = await IDKit.request(requestConfig).preset(preset);
+            request = await idkit.request(requestConfig).preset(preset);
 
             // Get the connector URL from the request
             const url = request.connectorURI;
@@ -963,327 +754,23 @@
       // Button event listeners
       document
         .getElementById("verifyOrb")
-        .addEventListener("click", () =>
-          startVerification(orbLegacy({ signal: makeSignal() })),
-        );
+        .addEventListener("click", () => startVerification("orbLegacy"));
       document
         .getElementById("verifySecureDocument")
         .addEventListener("click", () =>
-          startVerification(secureDocumentLegacy({ signal: makeSignal() })),
+          startVerification("secureDocumentLegacy"),
         );
       document
         .getElementById("verifyDocument")
-        .addEventListener("click", () =>
-          startVerification(documentLegacy({ signal: makeSignal() })),
-        );
+        .addEventListener("click", () => startVerification("documentLegacy"));
       document
         .getElementById("verifyDeviceLegacy")
-        .addEventListener("click", () =>
-          startVerification(deviceLegacy({ signal: makeSignal() })),
-        );
+        .addEventListener("click", () => startVerification("deviceLegacy"));
       document
         .getElementById("verifySelfieCheckLegacy")
         .addEventListener("click", () =>
-          startVerification(selfieCheckLegacy({ signal: makeSignal() })),
+          startVerification("selfieCheckLegacy"),
         );
-    </script>
-
-    <script>
-      let cdnScriptLoadPromise = null;
-      let cdnLoadedScriptUrl = "";
-      let cdnLegacyController = null;
-      let cdnSessionController = null;
-
-      function cdnElement(id) {
-        return document.getElementById(id);
-      }
-
-      function cdnValue(id) {
-        return cdnElement(id).value.trim();
-      }
-
-      function cdnOptionalValue(id) {
-        const current = cdnValue(id);
-        return current ? current : undefined;
-      }
-
-      function cdnWrite(id, data) {
-        cdnElement(id).textContent =
-          typeof data === "string" ? data : JSON.stringify(data, null, 2);
-      }
-
-      function clearCdnOutput(prefix) {
-        const connector = cdnElement(`${prefix}Connector`);
-        connector.textContent = "";
-        connector.removeAttribute("href");
-        cdnWrite(`${prefix}Output`, {});
-        cdnElement(`${prefix}Status`).classList.remove("error");
-      }
-
-      async function loadCdnIDKit() {
-        const scriptUrl = cdnValue("cdnScriptUrl");
-        if (!scriptUrl) {
-          throw new Error("CDN script URL is required.");
-        }
-
-        if (window.IDKit && cdnLoadedScriptUrl === scriptUrl) {
-          return window.IDKit;
-        }
-
-        if (cdnScriptLoadPromise && cdnLoadedScriptUrl === scriptUrl) {
-          return cdnScriptLoadPromise;
-        }
-
-        cdnLoadedScriptUrl = scriptUrl;
-        cdnScriptLoadPromise = new Promise((resolve, reject) => {
-          const script = document.createElement("script");
-          script.async = true;
-          script.src = scriptUrl;
-          script.onload = () => {
-            if (window.IDKit) {
-              resolve(window.IDKit);
-              return;
-            }
-
-            cdnScriptLoadPromise = null;
-            cdnLoadedScriptUrl = "";
-            reject(new Error("CDN script loaded but window.IDKit is missing."));
-          };
-          script.onerror = () => {
-            cdnScriptLoadPromise = null;
-            cdnLoadedScriptUrl = "";
-            reject(new Error(`Failed to load CDN script: ${scriptUrl}`));
-          };
-          document.head.append(script);
-        });
-
-        return cdnScriptLoadPromise;
-      }
-
-      async function fetchCdnRpContext({ action, rpId }) {
-        const response = await fetch("/api/rp-signature", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(action ? { action } : {}),
-        });
-
-        if (!response.ok) {
-          throw new Error(await response.text());
-        }
-
-        const signature = await response.json();
-        return {
-          rp_id: rpId,
-          nonce: signature.nonce,
-          created_at: signature.created_at,
-          expires_at: signature.expires_at,
-          signature: signature.sig,
-        };
-      }
-
-      function selectedCdnLegacyPreset(idkit) {
-        const signal = cdnValue("cdnLegacySignal");
-        const preset = cdnValue("cdnLegacyPreset");
-
-        switch (preset) {
-          case "proofOfHuman":
-            return idkit.proofOfHuman({ signal });
-          case "passport":
-            return idkit.passport({ signal });
-          case "mnc":
-            return idkit.mnc({ signal });
-          case "identityCheck":
-            return idkit.identityCheck({
-              attributes: [{ type: "minimum_age", value: 18 }],
-              legacy_signal: signal,
-            });
-          case "orbLegacy":
-            return idkit.orbLegacy({ signal });
-          case "secureDocumentLegacy":
-            return idkit.secureDocumentLegacy({ signal });
-          case "documentLegacy":
-            return idkit.documentLegacy({ signal });
-          case "deviceLegacy":
-            return idkit.deviceLegacy({ signal });
-          case "selfieCheckLegacy":
-            return idkit.selfieCheckLegacy({ signal });
-          default:
-            throw new Error(`Unsupported preset: ${preset}`);
-        }
-      }
-
-      async function runCdnLegacyRequest() {
-        cdnLegacyController = new AbortController();
-        const startButton = cdnElement("cdnLegacyStart");
-        const cancelButton = cdnElement("cdnLegacyCancel");
-        const status = cdnElement("cdnLegacyStatus");
-        const connector = cdnElement("cdnLegacyConnector");
-
-        startButton.disabled = true;
-        cancelButton.disabled = false;
-        clearCdnOutput("cdnLegacy");
-
-        try {
-          status.textContent = "Loading CDN global";
-          const idkit = await loadCdnIDKit();
-
-          status.textContent = "Fetching RP signature";
-          const rpContext = await fetchCdnRpContext({
-            action: cdnValue("cdnLegacyAction"),
-            rpId: cdnValue("cdnLegacyRpId"),
-          });
-
-          status.textContent = "Creating IDKit request";
-          const request = await idkit
-            .request({
-              app_id: cdnValue("cdnLegacyAppId"),
-              action: cdnValue("cdnLegacyAction"),
-              rp_context: rpContext,
-              allow_legacy_proofs: cdnElement("cdnLegacyAllowLegacy").checked,
-              environment: cdnValue("cdnLegacyEnvironment"),
-              bridge_url: cdnOptionalValue("cdnLegacyBridgeUrl"),
-            })
-            .preset(selectedCdnLegacyPreset(idkit));
-
-          connector.href = request.connectorURI;
-          connector.textContent = request.connectorURI;
-          cdnWrite("cdnLegacyOutput", {
-            request_id: request.requestId,
-            preset: cdnValue("cdnLegacyPreset"),
-          });
-
-          status.textContent = "Waiting for proof";
-          const completion = await request.pollUntilCompletion({
-            pollInterval: 2000,
-            timeout: 120000,
-            signal: cdnLegacyController.signal,
-          });
-
-          status.textContent = completion.success ? "Confirmed" : "Failed";
-          cdnWrite("cdnLegacyOutput", completion);
-        } catch (error) {
-          status.classList.add("error");
-          status.textContent =
-            error instanceof Error ? error.message : String(error);
-        } finally {
-          startButton.disabled = false;
-          cancelButton.disabled = true;
-          cdnLegacyController = null;
-        }
-      }
-
-      function selectedCdnSessionCredentials() {
-        const credentials = Array.from(
-          document.querySelectorAll('input[name="cdnSessionCredential"]:checked'),
-          (input) => input.value,
-        );
-
-        if (credentials.length === 0) {
-          throw new Error("Select at least one 4.0 credential.");
-        }
-
-        return credentials;
-      }
-
-      function cdnSessionConstraints(idkit, credentials) {
-        const requests = credentials.map((credential) =>
-          idkit.CredentialRequest(credential),
-        );
-
-        return requests.length === 1 ? requests[0] : idkit.any(...requests);
-      }
-
-      async function runCdnSessionRequest(mode) {
-        cdnSessionController = new AbortController();
-        const createButton = cdnElement("cdnSessionCreate");
-        const proveButton = cdnElement("cdnSessionProve");
-        const cancelButton = cdnElement("cdnSessionCancel");
-        const status = cdnElement("cdnSessionStatus");
-        const connector = cdnElement("cdnSessionConnector");
-
-        createButton.disabled = true;
-        proveButton.disabled = true;
-        cancelButton.disabled = false;
-        clearCdnOutput("cdnSession");
-
-        try {
-          status.textContent = "Loading CDN global";
-          const idkit = await loadCdnIDKit();
-
-          status.textContent = "Fetching RP signature";
-          const rpContext = await fetchCdnRpContext({
-            rpId: cdnValue("cdnSessionRpId"),
-          });
-          const credentials = selectedCdnSessionCredentials();
-          const config = {
-            app_id: cdnValue("cdnSessionAppId"),
-            rp_context: rpContext,
-            environment: cdnValue("cdnSessionEnvironment"),
-            bridge_url: cdnOptionalValue("cdnSessionBridgeUrl"),
-          };
-
-          status.textContent =
-            mode === "create"
-              ? "Creating session request"
-              : "Creating proof request";
-
-          const request =
-            mode === "create"
-              ? await idkit
-                  .createSession(config)
-                  .constraints(cdnSessionConstraints(idkit, credentials))
-              : await idkit
-                  .proveSession(cdnValue("cdnSessionId"), config)
-                  .constraints(cdnSessionConstraints(idkit, credentials));
-
-          connector.href = request.connectorURI;
-          connector.textContent = request.connectorURI;
-          cdnWrite("cdnSessionOutput", {
-            request_id: request.requestId,
-            credentials,
-          });
-
-          status.textContent = "Waiting for proof";
-          const completion = await request.pollUntilCompletion({
-            pollInterval: 2000,
-            timeout: 120000,
-            signal: cdnSessionController.signal,
-          });
-
-          status.textContent = completion.success ? "Confirmed" : "Failed";
-          cdnWrite("cdnSessionOutput", completion);
-
-          if (completion.success && completion.result.session_id) {
-            cdnElement("cdnSessionId").value = completion.result.session_id;
-          }
-        } catch (error) {
-          status.classList.add("error");
-          status.textContent =
-            error instanceof Error ? error.message : String(error);
-        } finally {
-          createButton.disabled = false;
-          proveButton.disabled = false;
-          cancelButton.disabled = true;
-          cdnSessionController = null;
-        }
-      }
-
-      cdnElement("cdnLegacyStart").addEventListener(
-        "click",
-        runCdnLegacyRequest,
-      );
-      cdnElement("cdnLegacyCancel").addEventListener("click", () => {
-        cdnLegacyController?.abort();
-      });
-      cdnElement("cdnSessionCreate").addEventListener("click", () =>
-        runCdnSessionRequest("create"),
-      );
-      cdnElement("cdnSessionProve").addEventListener("click", () =>
-        runCdnSessionRequest("prove"),
-      );
-      cdnElement("cdnSessionCancel").addEventListener("click", () => {
-        cdnSessionController?.abort();
-      });
     </script>
   </body>
 </html>
