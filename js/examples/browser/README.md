@@ -25,15 +25,14 @@ Open http://localhost:4000 in your browser (Vite will auto-open it).
 By default, the example uses the built workspace package through Vite, so run
 the root `pnpm build` first to keep `dist/index.js` and
 `dist/idkit_wasm_bg.wasm` in sync. The `Use CDN version` checkbox reveals the
-standalone package URL and runs the same flow through that CDN global instead:
+core package URL and runs the same flow through that CDN global instead:
 
 ```text
-https://unpkg.com/@worldcoin/idkit-core-standalone/dist/idkit.global.js
+https://unpkg.com/@worldcoin/idkit-core/dist/idkit.global.js
 ```
 
 This verifies the package was published with `dist/idkit.global.js` and the
-sibling `dist/idkit_wasm_bg.wasm` file. If the final standalone package name
-changes, update the hardcoded URL in `index.html`.
+sibling `dist/idkit_wasm_bg.wasm` file.
 
 #### Production
 

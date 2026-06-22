@@ -6,21 +6,6 @@ import initWasm, * as WasmModule from "../../wasm/idkit_wasm.js";
 
 let wasmInitialized = false;
 let wasmInitPromise: Promise<void> | null = null;
-let wasmInitInput: Parameters<typeof initWasm>[0] | undefined;
-
-/**
- * Sets the WASM location used by initIDKit().
- *
- * The normal package and script-tag builds leave this unset so wasm-bindgen can
- * resolve the .wasm file through its generated module/script URL fallback. This
- * escape hatch is kept for embedding environments that need to override that
- * location explicitly.
- */
-export function setWasmInput(
-  input: Parameters<typeof initWasm>[0] | undefined,
-): void {
-  wasmInitInput = input;
-}
 
 /**
  * Initializes the WASM module for browser environments
@@ -39,7 +24,7 @@ export async function initIDKit(): Promise<void> {
 
   wasmInitPromise = (async () => {
     try {
-      await initWasm(wasmInitInput);
+      await initWasm();
       wasmInitialized = true;
     } catch (error) {
       wasmInitPromise = null;
