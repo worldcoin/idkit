@@ -20,6 +20,7 @@ export function WorldIDState({
 
   return (
     <div
+      className="idkit-worldid-state"
       style={{
         display: "flex",
         flexDirection: "column",
