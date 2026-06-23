@@ -177,6 +177,17 @@
         opacity: 0.75;
       }
 
+      .config-row code {
+        flex: 1;
+        min-width: 0;
+        background: var(--button-bg);
+        border: 1px solid var(--control-border);
+        border-radius: 6px;
+        font-size: 13px;
+        padding: 8px 10px;
+        overflow-wrap: anywhere;
+      }
+
       #codeDisplay {
         font-family: monospace;
         font-size: 13px;
@@ -333,6 +344,14 @@
         <label for="cfgUseInviteCode">Use invite code</label>
         <input type="checkbox" id="cfgUseInviteCode" />
       </div>
+      <div class="config-row">
+        <label for="cfgUseCdnVersion">Use CDN version</label>
+        <input type="checkbox" id="cfgUseCdnVersion" />
+      </div>
+      <div class="config-row" id="cfgCdnUrlRow" hidden>
+        <label>CDN URL</label>
+        <code id="cfgCdnUrl"></code>
+      </div>
     </section>
 
     <div>
@@ -404,14 +423,10 @@
 
     <script type="module">
       // Import IDKit core (pure TypeScript, no dependencies)
-      import {
-        IDKit,
-        orbLegacy,
-        secureDocumentLegacy,
-        documentLegacy,
-        deviceLegacy,
-        selfieCheckLegacy,
-      } from "@worldcoin/idkit-core";
+      import { IDKit } from "@worldcoin/idkit-core";
+
+      const CDN_IDKIT_SCRIPT_URL = "https://unpkg.com/@worldcoin/idkit-core";
+      let cdnIDKitLoadPromise = null;
 
       // Format V4 verify response with visual indicators
       function formatVerifyResult(response) {
@@ -520,6 +535,15 @@
       const errorDiv = document.getElementById("error");
       const errorText = document.getElementById("errorText");
       const useInviteCodeToggle = document.getElementById("cfgUseInviteCode");
+      const useCdnVersionToggle = document.getElementById("cfgUseCdnVersion");
+      const cdnUrlRow = document.getElementById("cfgCdnUrlRow");
+      const cdnUrl = document.getElementById("cfgCdnUrl");
+
+      cdnUrl.textContent = CDN_IDKIT_SCRIPT_URL;
+      cdnUrlRow.hidden = !useCdnVersionToggle.checked;
+      useCdnVersionToggle.addEventListener("change", () => {
+        cdnUrlRow.hidden = !useCdnVersionToggle.checked;
+      });
 
       const hideAll = () => {
         qrDiv.hidden = true;
@@ -545,13 +569,63 @@
         return res.json();
       }
 
+      async function loadCdnIDKit() {
+        if (window.IDKit) {
+          return window.IDKit;
+        }
+
+        if (!cdnIDKitLoadPromise) {
+          cdnIDKitLoadPromise = new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.async = true;
+            script.src = CDN_IDKIT_SCRIPT_URL;
+            script.onload = () => {
+              if (window.IDKit) {
+                resolve(window.IDKit);
+                return;
+              }
+
+              cdnIDKitLoadPromise = null;
+              reject(new Error("CDN script loaded without window.IDKit."));
+            };
+            script.onerror = () => {
+              cdnIDKitLoadPromise = null;
+              reject(
+                new Error(`Failed to load CDN script: ${CDN_IDKIT_SCRIPT_URL}`),
+              );
+            };
+            document.head.append(script);
+          });
+        }
+
+        return cdnIDKitLoadPromise;
+      }
+
+      async function getIDKit() {
+        if (useCdnVersionToggle.checked) {
+          return loadCdnIDKit();
+        }
+
+        return IDKit;
+      }
+
+      function createPreset(idkit, presetName) {
+        return idkit[presetName]({ signal: makeSignal() });
+      }
+
       // Function to verify with World ID using the new IDKit.request().constraints() API
-      async function startVerification(preset) {
+      async function startVerification(presetName) {
         let countdownInterval = null;
         try {
           hideAll();
 
           statusDiv.hidden = false;
+          statusText.textContent = useCdnVersionToggle.checked
+            ? "Loading CDN version..."
+            : "Fetching RP signature...";
+
+          const idkit = await getIDKit();
+
           statusText.textContent = "Fetching RP signature...";
 
           // Fetch RP signature from the backend
@@ -569,6 +643,7 @@
           statusText.textContent = "Creating verification request...";
 
           const useInviteCode = useInviteCodeToggle.checked;
+          const preset = createPreset(idkit, presetName);
           const requestConfig = {
             app_id: getAppId(),
             action: getAction(),
@@ -582,8 +657,9 @@
           let request;
           if (useInviteCode) {
             // Create an invite-code request using the builder pattern
-            request =
-              await IDKit.requestWithInviteCode(requestConfig).preset(preset);
+            request = await idkit
+              .requestWithInviteCode(requestConfig)
+              .preset(preset);
 
             // The URL is the same connector URL the URL/QR mode produces, with
             // `&c=<code>&a=<app_id>` appended. The world.org/verify landing
@@ -610,7 +686,7 @@
             statusText.textContent = "Waiting for user to open verify URL...";
           } else {
             // Create a new request using the builder pattern
-            request = await IDKit.request(requestConfig).preset(preset);
+            request = await idkit.request(requestConfig).preset(preset);
 
             // Get the connector URL from the request
             const url = request.connectorURI;
@@ -679,28 +755,22 @@
       // Button event listeners
       document
         .getElementById("verifyOrb")
-        .addEventListener("click", () =>
-          startVerification(orbLegacy({ signal: makeSignal() })),
-        );
+        .addEventListener("click", () => startVerification("orbLegacy"));
       document
         .getElementById("verifySecureDocument")
         .addEventListener("click", () =>
-          startVerification(secureDocumentLegacy({ signal: makeSignal() })),
+          startVerification("secureDocumentLegacy"),
         );
       document
         .getElementById("verifyDocument")
-        .addEventListener("click", () =>
-          startVerification(documentLegacy({ signal: makeSignal() })),
-        );
+        .addEventListener("click", () => startVerification("documentLegacy"));
       document
         .getElementById("verifyDeviceLegacy")
-        .addEventListener("click", () =>
-          startVerification(deviceLegacy({ signal: makeSignal() })),
-        );
+        .addEventListener("click", () => startVerification("deviceLegacy"));
       document
         .getElementById("verifySelfieCheckLegacy")
         .addEventListener("click", () =>
-          startVerification(selfieCheckLegacy({ signal: makeSignal() })),
+          startVerification("selfieCheckLegacy"),
         );
     </script>
   </body>

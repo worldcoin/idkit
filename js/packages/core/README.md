@@ -8,6 +8,49 @@ World ID verification SDK for JavaScript/TypeScript. Zero dependencies, WASM-pow
 npm install @worldcoin/idkit-core
 ```
 
+## Script Tag / CDN
+
+The package also publishes a browser global build at
+`dist/idkit.global.js`. CDN package roots use that file via the `unpkg` and
+`jsdelivr` fields:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@worldcoin/idkit-core"></script>
+```
+
+The script exposes the client namespace as `window.IDKit`. It includes
+`IDKit.request`, `IDKit.requestWithInviteCode`, `IDKit.createSession`,
+`IDKit.proveSession`, `IDKit.CredentialRequest`, `IDKit.any`, `IDKit.all`,
+`IDKit.enumerate`, the World ID 4.0 helpers (`proofOfHuman`, `passport`,
+`mnc`, `identityCheck`), and the legacy migration presets.
+
+The WASM file is fetched automatically from the same CDN directory as the
+script (`idkit_wasm_bg.wasm`). RP signing is intentionally not exposed on the
+browser global; generate RP signatures on your backend with
+`@worldcoin/idkit-core/signing`.
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@worldcoin/idkit-core"></script>
+<script>
+  async function start() {
+    const sig = await fetch("/api/rp-signature").then((r) => r.json());
+    const request = await IDKit.request({
+      app_id: "app_xxxxx",
+      action: "my-action",
+      rp_context: {
+        rp_id: "rp_xxxxx",
+        nonce: sig.nonce,
+        created_at: sig.created_at,
+        expires_at: sig.expires_at,
+        signature: sig.sig,
+      },
+      allow_legacy_proofs: false,
+    }).constraints(IDKit.CredentialRequest("proof_of_human"));
+  }
+  void start();
+</script>
+```
+
 ## Backend: Generate RP Signature
 
 The RP signature authenticates your verification requests. Generate it server-side using the `/signing` subpath (pure JS, no WASM init needed):
