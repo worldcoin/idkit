@@ -4,6 +4,7 @@ import type { BuilderConfig } from "./native";
 import { createNativeRequest, getWorldAppVerifyVersion } from "./native";
 import { hashSignal } from "../lib/hashing";
 import { setDebug } from "../lib/debug";
+import packageJson from "../../package.json";
 
 const baseConfig: BuilderConfig = {
   type: "request",
@@ -477,7 +478,7 @@ describe("native transport request lifecycle", () => {
     expect(debugReport).toMatchObject({
       version: 1,
       transport: "mini_app",
-      package_version: "4.1.8",
+      package_version: packageJson.version,
       request_payload: { payload: 1 },
       response_payload: {
         status: "error",

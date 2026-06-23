@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import packageJson from "../../package.json";
 
 const {
   createNativeRequestMock,
@@ -98,7 +99,7 @@ describe("debug reports", () => {
       request_id: "request-id",
       request_payload: { app_id: "app_test" },
       response_payload: { bridge_status: "retrieved" },
-      package_version: "4.1.8",
+      package_version: packageJson.version,
     });
     expect(wasmRequestMock.getDebugReport).toHaveBeenCalledTimes(1);
   });
