@@ -345,11 +345,7 @@
         <input type="checkbox" id="cfgUseInviteCode" />
       </div>
       <div class="config-row">
-        <label for="cfgUseCdnVersion">Use CDN version</label>
-        <input type="checkbox" id="cfgUseCdnVersion" />
-      </div>
-      <div class="config-row" id="cfgCdnUrlRow" hidden>
-        <label>CDN URL</label>
+        <label>IDKit script</label>
         <code id="cfgCdnUrl"></code>
       </div>
     </section>
@@ -421,12 +417,11 @@
       updateToggleText();
     </script>
 
-    <script type="module">
-      // Import IDKit core (pure TypeScript, no dependencies)
-      import { IDKit } from "@worldcoin/idkit-core";
-
-      const CDN_IDKIT_SCRIPT_URL = "https://unpkg.com/@worldcoin/idkit-core";
-      let cdnIDKitLoadPromise = null;
+    <script src="https://unpkg.com/@worldcoin/idkit-core@4.2.0"></script>
+    <script>
+      const CDN_IDKIT_SCRIPT_URL =
+        "https://unpkg.com/@worldcoin/idkit-core@4.2.0";
+      const idkit = window.IDKit;
 
       // Format V4 verify response with visual indicators
       function formatVerifyResult(response) {
@@ -535,15 +530,9 @@
       const errorDiv = document.getElementById("error");
       const errorText = document.getElementById("errorText");
       const useInviteCodeToggle = document.getElementById("cfgUseInviteCode");
-      const useCdnVersionToggle = document.getElementById("cfgUseCdnVersion");
-      const cdnUrlRow = document.getElementById("cfgCdnUrlRow");
       const cdnUrl = document.getElementById("cfgCdnUrl");
 
       cdnUrl.textContent = CDN_IDKIT_SCRIPT_URL;
-      cdnUrlRow.hidden = !useCdnVersionToggle.checked;
-      useCdnVersionToggle.addEventListener("change", () => {
-        cdnUrlRow.hidden = !useCdnVersionToggle.checked;
-      });
 
       const hideAll = () => {
         qrDiv.hidden = true;
@@ -569,47 +558,7 @@
         return res.json();
       }
 
-      async function loadCdnIDKit() {
-        if (window.IDKit) {
-          return window.IDKit;
-        }
-
-        if (!cdnIDKitLoadPromise) {
-          cdnIDKitLoadPromise = new Promise((resolve, reject) => {
-            const script = document.createElement("script");
-            script.async = true;
-            script.src = CDN_IDKIT_SCRIPT_URL;
-            script.onload = () => {
-              if (window.IDKit) {
-                resolve(window.IDKit);
-                return;
-              }
-
-              cdnIDKitLoadPromise = null;
-              reject(new Error("CDN script loaded without window.IDKit."));
-            };
-            script.onerror = () => {
-              cdnIDKitLoadPromise = null;
-              reject(
-                new Error(`Failed to load CDN script: ${CDN_IDKIT_SCRIPT_URL}`),
-              );
-            };
-            document.head.append(script);
-          });
-        }
-
-        return cdnIDKitLoadPromise;
-      }
-
-      async function getIDKit() {
-        if (useCdnVersionToggle.checked) {
-          return loadCdnIDKit();
-        }
-
-        return IDKit;
-      }
-
-      function createPreset(idkit, presetName) {
+      function createPreset(presetName) {
         return idkit[presetName]({ signal: makeSignal() });
       }
 
@@ -620,13 +569,13 @@
           hideAll();
 
           statusDiv.hidden = false;
-          statusText.textContent = useCdnVersionToggle.checked
-            ? "Loading CDN version..."
-            : "Fetching RP signature...";
-
-          const idkit = await getIDKit();
-
           statusText.textContent = "Fetching RP signature...";
+
+          if (!idkit) {
+            throw new Error(
+              `CDN script loaded without window.IDKit: ${CDN_IDKIT_SCRIPT_URL}`,
+            );
+          }
 
           // Fetch RP signature from the backend
           const rpSig = await fetchRpSignature(getAction());
@@ -643,7 +592,7 @@
           statusText.textContent = "Creating verification request...";
 
           const useInviteCode = useInviteCodeToggle.checked;
-          const preset = createPreset(idkit, presetName);
+          const preset = createPreset(presetName);
           const requestConfig = {
             app_id: getAppId(),
             action: getAction(),
