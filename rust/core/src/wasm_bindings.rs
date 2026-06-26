@@ -1866,15 +1866,22 @@ export function proveSession(
 #[cfg(test)]
 mod tests {
     use super::{validate_v1_preset_support, IDKitConfigWasm};
-    use crate::{types::IdentityAttribute, ConstraintNode, Preset, RpContext};
+    use crate::{
+        bridge::PackageMetadata, types::IdentityAttribute, ConstraintNode, Preset, RpContext,
+    };
 
     fn sample_rp_context() -> RpContext {
         RpContext::new("rp_123456789abcdef0", "0x01", 1, 2, "0x1234").expect("valid rp_context")
     }
 
+    fn sample_package_metadata() -> PackageMetadata {
+        PackageMetadata::new("idkit_js_core", env!("CARGO_PKG_VERSION"))
+    }
+
     fn sample_request_config() -> IDKitConfigWasm {
         IDKitConfigWasm::Request {
             app_id: "app_staging_test".to_string(),
+            package_metadata: sample_package_metadata(),
             action: "test-action".to_string(),
             rp_context: sample_rp_context(),
             action_description: None,
@@ -1891,6 +1898,7 @@ mod tests {
     fn request_params_preserve_return_to() {
         let config = IDKitConfigWasm::Request {
             app_id: "app_staging_test".to_string(),
+            package_metadata: sample_package_metadata(),
             action: "test-action".to_string(),
             rp_context: sample_rp_context(),
             action_description: None,
@@ -1916,6 +1924,7 @@ mod tests {
     fn request_params_preserve_user_presence_requirement() {
         let config = IDKitConfigWasm::Request {
             app_id: "app_staging_test".to_string(),
+            package_metadata: sample_package_metadata(),
             action: "test-action".to_string(),
             rp_context: sample_rp_context(),
             action_description: None,
@@ -1938,6 +1947,7 @@ mod tests {
     fn create_session_params_preserve_return_to() {
         let config = IDKitConfigWasm::CreateSession {
             app_id: "app_staging_test".to_string(),
+            package_metadata: sample_package_metadata(),
             rp_context: sample_rp_context(),
             action_description: None,
             bridge_url: None,
@@ -1962,6 +1972,7 @@ mod tests {
         let config = IDKitConfigWasm::ProveSession {
             session_id: "session_123".to_string(),
             app_id: "app_staging_test".to_string(),
+            package_metadata: sample_package_metadata(),
             rp_context: sample_rp_context(),
             action_description: None,
             bridge_url: None,
