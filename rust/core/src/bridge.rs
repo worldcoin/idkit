@@ -91,24 +91,6 @@ impl PackageMetadata {
             package_version: package_version.into(),
         }
     }
-
-    #[must_use]
-    pub fn rust_core() -> Self {
-        Self::new("idkit_core", env!("CARGO_PKG_VERSION"))
-    }
-
-    #[must_use]
-    #[allow(dead_code)]
-    fn from_optional(package_name: &Option<String>, package_version: &Option<String>) -> Self {
-        match (package_name.as_deref(), package_version.as_deref()) {
-            (Some(name), Some(version))
-                if !name.trim().is_empty() && !version.trim().is_empty() =>
-            {
-                Self::new(name, version)
-            }
-            _ => Self::rust_core(),
-        }
-    }
 }
 
 /// Bridge request payload sent to initialize a session
@@ -122,10 +104,12 @@ struct BridgeRequestPayload {
     app_id: String,
 
     /// Normalized SDK package identifier for request attribution.
-    package_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    package_name: Option<String>,
 
     /// SDK package version for request attribution.
-    package_version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    package_version: Option<String>,
 
     /// Action ID from the Developer Portal.
     /// Session flows serialize this as an empty string for mobile bridge compatibility.
@@ -597,10 +581,10 @@ pub struct BridgeConnection {
 /// # Errors
 ///
 /// Returns an error if constraints are invalid or the signature/nonce format is wrong.
-fn build_request_payload_with_package_metadata(
+fn build_request_payload(
     params: &BridgeConnectionParams,
     native: bool,
-    package_metadata: &PackageMetadata,
+    package_metadata: Option<&PackageMetadata>,
 ) -> Result<BridgeRequestPayload> {
     if let Some(ref constraints) = params.constraints {
         constraints.validate()?;
@@ -679,8 +663,8 @@ fn build_request_payload_with_package_metadata(
     // Prepare the payload
     let payload = BridgeRequestPayload {
         app_id: params.app_id.as_str().to_string(),
-        package_name: package_metadata.package_name.clone(),
-        package_version: package_metadata.package_version.clone(),
+        package_name: package_metadata.map(|metadata| metadata.package_name.clone()),
+        package_version: package_metadata.map(|metadata| metadata.package_version.clone()),
         action: action_str,
         action_description: params.action_description.clone(),
         proof_request,
@@ -706,16 +690,17 @@ pub fn build_request_payload_json(
     params: &BridgeConnectionParams,
     native: bool,
 ) -> Result<serde_json::Value> {
-    let package_metadata = PackageMetadata::rust_core();
-    build_request_payload_json_with_package_metadata(params, native, &package_metadata)
+    let payload = build_request_payload(params, native, None)?;
+    serde_json::to_value(&payload).map_err(Into::into)
 }
 
-fn build_request_payload_json_with_package_metadata(
+#[cfg(any(test, feature = "ffi", feature = "wasm-bindings"))]
+pub(crate) fn build_request_payload_json_with_package_metadata(
     params: &BridgeConnectionParams,
     native: bool,
     package_metadata: &PackageMetadata,
 ) -> Result<serde_json::Value> {
-    let payload = build_request_payload_with_package_metadata(params, native, package_metadata)?;
+    let payload = build_request_payload(params, native, Some(package_metadata))?;
     serde_json::to_value(&payload).map_err(Into::into)
 }
 
@@ -777,13 +762,21 @@ impl BridgeConnection {
     /// Returns an error if the request cannot be created or the bridge call fails
     #[allow(dead_code, clippy::too_many_lines)]
     pub(crate) async fn create(params: BridgeConnectionParams) -> Result<Self> {
-        Self::create_with_package_metadata(params, PackageMetadata::rust_core()).await
+        Self::create_internal(params, None).await
     }
 
     #[allow(dead_code, clippy::too_many_lines)]
     pub(crate) async fn create_with_package_metadata(
         params: BridgeConnectionParams,
         package_metadata: PackageMetadata,
+    ) -> Result<Self> {
+        Self::create_internal(params, Some(package_metadata)).await
+    }
+
+    #[allow(dead_code, clippy::too_many_lines)]
+    async fn create_internal(
+        params: BridgeConnectionParams,
+        package_metadata: Option<PackageMetadata>,
     ) -> Result<Self> {
         // Generate encryption key and IV
         #[cfg(feature = "native-crypto")]
@@ -797,8 +790,7 @@ impl BridgeConnection {
 
         // Build the payload using the shared function (borrows params).
         // Bridge path does not need the timestamp field.
-        let payload =
-            build_request_payload_with_package_metadata(&params, false, &package_metadata)?;
+        let payload = build_request_payload(&params, false, package_metadata.as_ref())?;
         let request_payload = serde_json::to_value(&payload)?;
         let payload_json = serde_json::to_vec(&payload)?;
 
@@ -898,14 +890,21 @@ impl BridgeConnection {
     /// fails after retries.
     #[allow(dead_code)]
     pub(crate) async fn create_for_invite_code(params: BridgeConnectionParams) -> Result<Self> {
-        Self::create_for_invite_code_with_package_metadata(params, PackageMetadata::rust_core())
-            .await
+        Self::create_for_invite_code_internal(params, None).await
     }
 
     #[allow(dead_code)]
     pub(crate) async fn create_for_invite_code_with_package_metadata(
         params: BridgeConnectionParams,
         package_metadata: PackageMetadata,
+    ) -> Result<Self> {
+        Self::create_for_invite_code_internal(params, Some(package_metadata)).await
+    }
+
+    #[allow(dead_code)]
+    async fn create_for_invite_code_internal(
+        params: BridgeConnectionParams,
+        package_metadata: Option<PackageMetadata>,
     ) -> Result<Self> {
         const MAX_ATTEMPTS: u8 = 2;
 
@@ -914,7 +913,7 @@ impl BridgeConnection {
         // both attempts, the BridgeError surfaces with enough detail for the
         // caller's log infrastructure to flag it.
         for attempt in 1..=MAX_ATTEMPTS {
-            match try_create_invite_code_request(&params, &package_metadata).await {
+            match try_create_invite_code_request(&params, package_metadata.as_ref()).await {
                 Ok(connection) => return Ok(connection),
                 Err(CreateCodeError::Conflict) if attempt < MAX_ATTEMPTS => {}
                 Err(CreateCodeError::Conflict) => {
@@ -1259,7 +1258,7 @@ fn current_timestamp_rfc3339() -> String {
 #[allow(dead_code)]
 async fn try_create_invite_code_request(
     params: &BridgeConnectionParams,
-    package_metadata: &PackageMetadata,
+    package_metadata: Option<&PackageMetadata>,
 ) -> std::result::Result<BridgeConnection, CreateCodeError> {
     use crate::crypto::{
         generate_invite_code, generate_nonce, hkdf_invite_index_hex, hkdf_invite_key,
@@ -1278,7 +1277,7 @@ async fn try_create_invite_code_request(
     // there's nothing to gain from determinism.
     let nonce_bytes = generate_nonce()?;
 
-    let payload = build_request_payload_with_package_metadata(params, false, package_metadata)?;
+    let payload = build_request_payload(params, false, package_metadata)?;
     let request_payload = serde_json::to_value(&payload).map_err(Error::from)?;
     let payload_json = serde_json::to_vec(&payload).map_err(Error::from)?;
     let encrypted = encrypt(&key_bytes, &nonce_bytes, &payload_json)?;
@@ -1632,8 +1631,12 @@ impl TryFrom<BridgeRequestPayload> for BridgeRequestPayloadWrapper {
     fn try_from(payload: BridgeRequestPayload) -> Result<Self> {
         Ok(Self {
             app_id: payload.app_id,
-            package_name: payload.package_name,
-            package_version: payload.package_version,
+            package_name: payload.package_name.ok_or_else(|| {
+                Error::InvalidConfiguration("package_name is required".to_string())
+            })?,
+            package_version: payload.package_version.ok_or_else(|| {
+                Error::InvalidConfiguration("package_version is required".to_string())
+            })?,
             action: payload.action,
             action_description: payload.action_description,
             signal: payload.signal,
@@ -1657,10 +1660,10 @@ fn build_request_payload_wrapper(
     params: &BridgeConnectionParams,
     package_metadata: &PackageMetadata,
 ) -> Result<BridgeRequestPayloadWrapper> {
-    BridgeRequestPayloadWrapper::try_from(build_request_payload_with_package_metadata(
+    BridgeRequestPayloadWrapper::try_from(build_request_payload(
         params,
         false,
-        package_metadata,
+        Some(package_metadata),
     )?)
 }
 
@@ -1671,9 +1674,9 @@ pub struct IDKitRequestConfig {
     /// Application ID from the Developer Portal
     pub app_id: String,
     /// Normalized SDK package identifier, supplied by package wrappers.
-    pub package_name: Option<String>,
+    pub package_name: String,
     /// SDK package version, supplied by package wrappers.
-    pub package_version: Option<String>,
+    pub package_version: String,
     /// Action identifier
     pub action: String,
     /// RP context for building protocol-level `ProofRequest`
@@ -1707,9 +1710,9 @@ pub struct IDKitSessionConfig {
     /// Application ID from the Developer Portal
     pub app_id: String,
     /// Normalized SDK package identifier, supplied by package wrappers.
-    pub package_name: Option<String>,
+    pub package_name: String,
     /// SDK package version, supplied by package wrappers.
-    pub package_version: Option<String>,
+    pub package_version: String,
     /// RP context for building protocol-level `ProofRequest`
     pub rp_context: Arc<RpContext>,
     /// Optional action description shown to users
@@ -1743,10 +1746,10 @@ impl IDKitConfig {
     fn package_metadata(&self) -> PackageMetadata {
         match self {
             Self::Request(config) => {
-                PackageMetadata::from_optional(&config.package_name, &config.package_version)
+                PackageMetadata::new(config.package_name.clone(), config.package_version.clone())
             }
             Self::CreateSession(config) | Self::ProveSession { config, .. } => {
-                PackageMetadata::from_optional(&config.package_name, &config.package_version)
+                PackageMetadata::new(config.package_name.clone(), config.package_version.clone())
             }
         }
     }
@@ -1973,7 +1976,7 @@ fn bridge_payload_json(
     params: &BridgeConnectionParams,
     package_metadata: &PackageMetadata,
 ) -> std::result::Result<String, crate::error::IdkitError> {
-    let payload = build_request_payload_with_package_metadata(params, false, package_metadata)
+    let payload = build_request_payload_json_with_package_metadata(params, false, package_metadata)
         .map_err(crate::error::IdkitError::from)?;
     serde_json::to_string(&payload).map_err(|err| crate::error::IdkitError::JsonError {
         details: err.to_string(),
@@ -2447,6 +2450,11 @@ mod tests {
     use super::*;
     use crate::types::{CredentialRequest, CredentialType, IntegritySignatureFormat, Signal};
 
+    #[cfg(feature = "ffi")]
+    fn package_metadata() -> PackageMetadata {
+        PackageMetadata::new("idkit_test", "1.0.0")
+    }
+
     fn payload_json(params: &BridgeConnectionParams, native: bool) -> serde_json::Value {
         build_request_payload_json(params, native).unwrap()
     }
@@ -2504,8 +2512,8 @@ mod tests {
 
         let payload = BridgeRequestPayload {
             app_id: "app_test".to_string(),
-            package_name: "idkit_core".to_string(),
-            package_version: "1.2.3".to_string(),
+            package_name: Some("idkit_core".to_string()),
+            package_version: Some("1.2.3".to_string()),
             action: Some("test-action".to_string()),
             action_description: Some("Test description".to_string()),
             signal: String::new(),
@@ -2757,9 +2765,13 @@ mod tests {
             ]),
         };
 
-        let package_metadata = PackageMetadata::new("idkit_swift", "4.0.9");
         let payload = BridgeRequestPayloadWrapper::try_from(
-            build_request_payload_with_package_metadata(&params, false, &package_metadata).unwrap(),
+            build_request_payload(
+                &params,
+                false,
+                Some(&PackageMetadata::new("idkit_swift", "4.0.9")),
+            )
+            .unwrap(),
         )
         .unwrap();
 
@@ -3424,8 +3436,8 @@ mod tests {
         .unwrap();
         let config = IDKitConfig::Request(IDKitRequestConfig {
             app_id: "app_test".to_string(),
-            package_name: None,
-            package_version: None,
+            package_name: "idkit_test".to_string(),
+            package_version: "1.0.0".to_string(),
             action: "test-action".to_string(),
             rp_context: std::sync::Arc::new(rp_context),
             action_description: None,
@@ -3443,7 +3455,7 @@ mod tests {
             .unwrap();
 
         assert!(!params.require_user_presence);
-        assert_eq!(config.package_metadata(), PackageMetadata::rust_core());
+        assert_eq!(config.package_metadata(), package_metadata());
     }
 
     #[test]
