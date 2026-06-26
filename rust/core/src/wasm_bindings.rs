@@ -549,6 +549,7 @@ const WASM_PACKAGE_VERSION_PLACEHOLDER: &str = "0.0.0";
 enum IDKitConfigWasm {
     Request {
         app_id: String,
+        package_metadata: crate::bridge::PackageMetadata,
         action: String,
         rp_context: RpContext,
         action_description: Option<String>,
@@ -561,6 +562,7 @@ enum IDKitConfigWasm {
     },
     CreateSession {
         app_id: String,
+        package_metadata: crate::bridge::PackageMetadata,
         rp_context: RpContext,
         action_description: Option<String>,
         bridge_url: Option<String>,
@@ -572,6 +574,7 @@ enum IDKitConfigWasm {
     ProveSession {
         session_id: String,
         app_id: String,
+        package_metadata: crate::bridge::PackageMetadata,
         rp_context: RpContext,
         action_description: Option<String>,
         bridge_url: Option<String>,
@@ -583,6 +586,20 @@ enum IDKitConfigWasm {
 }
 
 impl IDKitConfigWasm {
+    fn package_metadata(&self) -> crate::bridge::PackageMetadata {
+        match self {
+            Self::Request {
+                package_metadata, ..
+            }
+            | Self::CreateSession {
+                package_metadata, ..
+            }
+            | Self::ProveSession {
+                package_metadata, ..
+            } => package_metadata.clone(),
+        }
+    }
+
     #[allow(clippy::too_many_lines)]
     fn to_params(
         &self,
@@ -600,6 +617,7 @@ impl IDKitConfigWasm {
                 override_connect_base_url,
                 return_to,
                 environment,
+                package_metadata: _,
             } => {
                 let app_id = crate::AppId::new(app_id)
                     .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
@@ -644,6 +662,7 @@ impl IDKitConfigWasm {
                 override_connect_base_url,
                 return_to,
                 environment,
+                package_metadata: _,
             } => {
                 let app_id = crate::AppId::new(app_id)
                     .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
@@ -687,6 +706,7 @@ impl IDKitConfigWasm {
                 override_connect_base_url,
                 return_to,
                 environment,
+                package_metadata: _,
             } => {
                 let app_id = crate::AppId::new(app_id)
                     .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
@@ -772,6 +792,8 @@ impl IDKitBuilderWasm {
     #[wasm_bindgen(constructor)]
     pub fn new(
         app_id: String,
+        package_name: String,
+        package_version: String,
         action: String,
         rp_context: RpContextWasm,
         action_description: Option<String>,
@@ -785,6 +807,10 @@ impl IDKitBuilderWasm {
         Self {
             config: IDKitConfigWasm::Request {
                 app_id,
+                package_metadata: crate::bridge::PackageMetadata::new(
+                    package_name,
+                    package_version,
+                ),
                 action,
                 rp_context: rp_context.into_inner(),
                 action_description,
@@ -803,6 +829,8 @@ impl IDKitBuilderWasm {
     #[wasm_bindgen(js_name = forCreateSession)]
     pub fn for_create_session(
         app_id: String,
+        package_name: String,
+        package_version: String,
         rp_context: RpContextWasm,
         action_description: Option<String>,
         bridge_url: Option<String>,
@@ -814,6 +842,10 @@ impl IDKitBuilderWasm {
         Self {
             config: IDKitConfigWasm::CreateSession {
                 app_id,
+                package_metadata: crate::bridge::PackageMetadata::new(
+                    package_name,
+                    package_version,
+                ),
                 rp_context: rp_context.into_inner(),
                 action_description,
                 bridge_url,
@@ -831,6 +863,8 @@ impl IDKitBuilderWasm {
     pub fn for_prove_session(
         session_id: String,
         app_id: String,
+        package_name: String,
+        package_version: String,
         rp_context: RpContextWasm,
         action_description: Option<String>,
         bridge_url: Option<String>,
@@ -843,6 +877,10 @@ impl IDKitBuilderWasm {
             config: IDKitConfigWasm::ProveSession {
                 session_id,
                 app_id,
+                package_metadata: crate::bridge::PackageMetadata::new(
+                    package_name,
+                    package_version,
+                ),
                 rp_context: rp_context.into_inner(),
                 action_description,
                 bridge_url,
@@ -868,9 +906,14 @@ impl IDKitBuilderWasm {
             .map_err(|e| JsValue::from_str(&format!("Invalid constraints: {e}")))?;
 
         let params = self.config.to_params(Some(constraints))?;
+        let package_metadata = self.config.package_metadata();
 
-        let payload = crate::bridge::build_request_payload_json(&params, true)
-            .map_err(|e| JsValue::from_str(&format!("Failed to build payload: {e}")))?;
+        let payload = crate::bridge::build_request_payload_json_with_package_metadata(
+            &params,
+            true,
+            &package_metadata,
+        )
+        .map_err(|e| JsValue::from_str(&format!("Failed to build payload: {e}")))?;
 
         let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
         let payload_js = payload
@@ -920,9 +963,14 @@ impl IDKitBuilderWasm {
             .map_err(|e| JsValue::from_str(&format!("Invalid preset: {e}")))?;
 
         let params = self.config.to_params_from_preset(preset)?;
+        let package_metadata = self.config.package_metadata();
 
-        let payload = crate::bridge::build_request_payload_json(&params, true)
-            .map_err(|e| JsValue::from_str(&format!("Failed to build payload: {e}")))?;
+        let payload = crate::bridge::build_request_payload_json_with_package_metadata(
+            &params,
+            true,
+            &package_metadata,
+        )
+        .map_err(|e| JsValue::from_str(&format!("Failed to build payload: {e}")))?;
 
         let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
         let payload_js = payload
@@ -1021,9 +1069,13 @@ impl IDKitBuilderWasm {
                 .map_err(|e| JsValue::from_str(&format!("Invalid constraints: {e}")))?;
 
             let params = config.to_params(Some(constraints))?;
-            let connection = crate::bridge::BridgeConnection::create(params)
-                .await
-                .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
+            let package_metadata = config.package_metadata();
+            let connection = crate::bridge::BridgeConnection::create_with_package_metadata(
+                params,
+                package_metadata,
+            )
+            .await
+            .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
 
             Ok(JsValue::from(IDKitRequest {
                 inner: Rc::new(connection),
@@ -1039,9 +1091,13 @@ impl IDKitBuilderWasm {
                 .map_err(|e| JsValue::from_str(&format!("Invalid preset: {e}")))?;
 
             let params = config.to_params_from_preset(preset)?;
-            let connection = crate::bridge::BridgeConnection::create(params)
-                .await
-                .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
+            let package_metadata = config.package_metadata();
+            let connection = crate::bridge::BridgeConnection::create_with_package_metadata(
+                params,
+                package_metadata,
+            )
+            .await
+            .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
 
             Ok(JsValue::from(IDKitRequest {
                 inner: Rc::new(connection),
@@ -1058,7 +1114,12 @@ impl IDKitBuilderWasm {
                 .map_err(|e| JsValue::from_str(&format!("Invalid constraints: {e}")))?;
 
             let params = config.to_params(Some(constraints))?;
-            let connection = crate::bridge::BridgeConnection::create_for_invite_code(params)
+            let package_metadata = config.package_metadata();
+            let connection =
+                crate::bridge::BridgeConnection::create_for_invite_code_with_package_metadata(
+                    params,
+                    package_metadata,
+                )
                 .await
                 .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
 
@@ -1077,7 +1138,12 @@ impl IDKitBuilderWasm {
                 .map_err(|e| JsValue::from_str(&format!("Invalid preset: {e}")))?;
 
             let params = config.to_params_from_preset(preset)?;
-            let connection = crate::bridge::BridgeConnection::create_for_invite_code(params)
+            let package_metadata = config.package_metadata();
+            let connection =
+                crate::bridge::BridgeConnection::create_for_invite_code_with_package_metadata(
+                    params,
+                    package_metadata,
+                )
                 .await
                 .map_err(|e| JsValue::from_str(&format!("Failed: {e}")))?;
 
@@ -1094,6 +1160,8 @@ impl IDKitBuilderWasm {
 #[allow(clippy::too_many_arguments)]
 pub fn request(
     app_id: String,
+    package_name: String,
+    package_version: String,
     action: String,
     rp_context: RpContextWasm,
     action_description: Option<String>,
@@ -1106,6 +1174,8 @@ pub fn request(
 ) -> IDKitBuilderWasm {
     IDKitBuilderWasm::new(
         app_id,
+        package_name,
+        package_version,
         action,
         rp_context,
         action_description,
@@ -1127,6 +1197,8 @@ pub fn request(
 #[allow(clippy::too_many_arguments)]
 pub fn create_session(
     app_id: String,
+    package_name: String,
+    package_version: String,
     rp_context: RpContextWasm,
     action_description: Option<String>,
     bridge_url: Option<String>,
@@ -1137,6 +1209,8 @@ pub fn create_session(
 ) -> IDKitBuilderWasm {
     IDKitBuilderWasm::for_create_session(
         app_id,
+        package_name,
+        package_version,
         rp_context,
         action_description,
         bridge_url,
@@ -1157,6 +1231,8 @@ pub fn create_session(
 pub fn prove_session(
     session_id: String,
     app_id: String,
+    package_name: String,
+    package_version: String,
     rp_context: RpContextWasm,
     action_description: Option<String>,
     bridge_url: Option<String>,
@@ -1168,6 +1244,8 @@ pub fn prove_session(
     IDKitBuilderWasm::for_prove_session(
         session_id,
         app_id,
+        package_name,
+        package_version,
         rp_context,
         action_description,
         bridge_url,
@@ -1752,6 +1830,8 @@ const TS_SESSION: &str = r#"
  */
 export function createSession(
     app_id: string,
+    package_name: string,
+    package_version: string,
     rp_context: RpContextWasm,
     action_description?: string,
     bridge_url?: string,
@@ -1771,6 +1851,8 @@ export function createSession(
 export function proveSession(
     session_id: `session_${string}`,
     app_id: string,
+    package_name: string,
+    package_version: string,
     rp_context: RpContextWasm,
     action_description?: string,
     bridge_url?: string,

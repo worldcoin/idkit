@@ -1,4 +1,5 @@
-import { IDKit, type IDKitResult } from "@worldcoin/idkit-core";
+import { type IDKitResult } from "@worldcoin/idkit-core";
+import { IDKit } from "../idkit";
 import type {
   IDKitRequestHookConfig,
   UseIDKitRequestHookResult,

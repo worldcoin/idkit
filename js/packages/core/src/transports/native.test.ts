@@ -1,14 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import packageJson from "../../package.json";
 import { IDKitErrorCodes } from "../types/result";
 import type { BuilderConfig } from "./native";
 import { createNativeRequest, getWorldAppVerifyVersion } from "./native";
 import { hashSignal } from "../lib/hashing";
 import { setDebug } from "../lib/debug";
-import packageJson from "../../package.json";
 
 const baseConfig: BuilderConfig = {
   type: "request",
   app_id: "app_staging_test",
+  package_metadata: {
+    package_name: "idkit_js_core",
+    package_version: packageJson.version,
+  },
   action: "test-action",
 };
 

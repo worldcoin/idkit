@@ -4,7 +4,13 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const moduleCleanPaths = ["index.*", "signing.*", "hashing.*", "session.*"];
+const moduleCleanPaths = [
+  "index.*",
+  "internal.*",
+  "signing.*",
+  "hashing.*",
+  "session.*",
+];
 
 function copyWasmToDist(): void {
   // Copy WASM file to dist folder so it can be resolved by ESM imports and the
@@ -21,6 +27,7 @@ export default defineConfig([
   {
     entry: [
       "src/index.ts",
+      "src/internal.ts",
       "src/signing.ts",
       "src/hashing.ts",
       "src/session.ts",

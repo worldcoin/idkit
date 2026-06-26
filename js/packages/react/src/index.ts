@@ -1,3 +1,5 @@
+export { IDKit } from "./idkit";
+
 export { useIDKitRequest } from "./hooks/useIDKitRequest";
 export { useIDKitInviteCodeRequest } from "./hooks/useIDKitInviteCodeRequest";
 export { useIDKitSession } from "./hooks/useIDKitSession";
@@ -29,7 +31,6 @@ export type {
 export type { SupportedLanguage } from "./lang/types";
 
 export {
-  IDKit,
   getSessionCommitment,
   CredentialRequest,
   any,

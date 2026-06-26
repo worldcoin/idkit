@@ -1,8 +1,8 @@
 import {
-  IDKit,
   IDKitErrorCodes,
   type IDKitResultSession,
 } from "@worldcoin/idkit-core";
+import { IDKit } from "../idkit";
 import type {
   IDKitSessionHookConfig,
   UseIDKitSessionHookResult,

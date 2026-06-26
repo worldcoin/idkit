@@ -1,22 +1,38 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IDKitErrorCodes } from "@worldcoin/idkit-core";
+import packageJson from "../../package.json";
 import { toErrorCode } from "../hooks/common";
 import { useIDKitRequest } from "../hooks/useIDKitRequest";
 import { useIDKitSession } from "../hooks/useIDKitSession";
 
-const { requestMock, createSessionMock, proveSessionMock } = vi.hoisted(() => ({
-  requestMock: vi.fn(),
-  createSessionMock: vi.fn(),
-  proveSessionMock: vi.fn(),
-}));
+const {
+  requestMock,
+  requestWithInviteCodeMock,
+  createSessionMock,
+  proveSessionMock,
+  createIDKitNamespaceMock,
+} = vi.hoisted(() => {
+  const requestMock = vi.fn();
+  const requestWithInviteCodeMock = vi.fn();
+  const createSessionMock = vi.fn();
+  const proveSessionMock = vi.fn();
+
+  return {
+    requestMock,
+    requestWithInviteCodeMock,
+    createSessionMock,
+    proveSessionMock,
+    createIDKitNamespaceMock: vi.fn(() => ({
+      request: requestMock,
+      requestWithInviteCode: requestWithInviteCodeMock,
+      createSession: createSessionMock,
+      proveSession: proveSessionMock,
+    })),
+  };
+});
 
 vi.mock("@worldcoin/idkit-core", () => ({
-  IDKit: {
-    request: requestMock,
-    createSession: createSessionMock,
-    proveSession: proveSessionMock,
-  },
   IDKitErrorCodes: {
     GenericError: "generic_error",
     ConnectionFailed: "connection_failed",
@@ -39,6 +55,10 @@ vi.mock("@worldcoin/idkit-core", () => ({
   isDebug: () => false,
 }));
 
+vi.mock("@worldcoin/idkit-core/internal", () => ({
+  createIDKitNamespace: createIDKitNamespaceMock,
+}));
+
 const baseRpContext = {
   rp_id: "rp_abc",
   nonce: "nonce",
@@ -48,6 +68,10 @@ const baseRpContext = {
 };
 const SESSION_ID_1 = `session_${"11".repeat(64)}` as const;
 const SESSION_ID_2 = `session_${"22".repeat(64)}` as const;
+const reactPackageMetadata = {
+  package_name: "idkit_react",
+  package_version: packageJson.version,
+};
 
 function makeRequest(pollOnce: () => Promise<unknown>) {
   return {
@@ -58,7 +82,14 @@ function makeRequest(pollOnce: () => Promise<unknown>) {
 
 describe("request/session hooks", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    requestMock.mockClear();
+    requestWithInviteCodeMock.mockClear();
+    createSessionMock.mockClear();
+    proveSessionMock.mockClear();
+  });
+
+  it("creates a React package namespace", () => {
+    expect(createIDKitNamespaceMock).toHaveBeenCalledWith(reactPackageMetadata);
   });
 
   it("request hook exposes full status sequence and result", async () => {
