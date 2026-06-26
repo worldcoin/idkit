@@ -113,6 +113,8 @@ class IDKitTests {
         val payload = IDKit.createBridgePayloadFromPresets(config, preset)
 
         assertEquals("app_staging_1234567890abcdef", payload.appId)
+        assertEquals("idkit_kotlin", payload.packageName)
+        assertEquals(IDKit.version, payload.packageVersion)
         assertEquals("test-action", payload.action)
         assertEquals("Identity check", payload.actionDescription)
         assertEquals(VerificationLevel.DOCUMENT, payload.verificationLevel)

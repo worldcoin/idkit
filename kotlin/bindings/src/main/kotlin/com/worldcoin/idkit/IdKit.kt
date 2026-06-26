@@ -37,6 +37,8 @@ typealias DocumentType = uniffi.idkit_core.DocumentType
 typealias IdentityAttribute = uniffi.idkit_core.IdentityAttribute
 typealias ConnectUrlMode = uniffi.idkit_core.ConnectUrlMode
 
+private const val SDK_PACKAGE_NAME = "idkit_kotlin"
+
 /** Typed projection of the bridge request payload, exposed for building test fixtures. */
 typealias BridgeRequestPayload = uniffi.idkit_core.BridgeRequestPayloadWrapper
 /** Protocol-level proof request inside a [BridgeRequestPayload]. */
@@ -60,6 +62,8 @@ data class IDKitRequestConfig(
     internal fun toNative(): NativeIDKitRequestConfig =
         NativeIDKitRequestConfig(
             appId = appId,
+            packageName = SDK_PACKAGE_NAME,
+            packageVersion = IDKit.version,
             action = action,
             rpContext = rpContext,
             actionDescription = actionDescription,
@@ -86,6 +90,8 @@ data class IDKitSessionConfig(
     internal fun toNative(): NativeIDKitSessionConfig =
         NativeIDKitSessionConfig(
             appId = appId,
+            packageName = SDK_PACKAGE_NAME,
+            packageVersion = IDKit.version,
             rpContext = rpContext,
             actionDescription = actionDescription,
             bridgeUrl = bridgeUrl,
@@ -257,7 +263,7 @@ class IDKitRequest internal constructor(
 }
 
 object IDKit {
-    const val version: String = "4.0.0"
+    val version: String = BuildConfig.IDKIT_PACKAGE_VERSION
 
     fun request(config: IDKitRequestConfig): IDKitBuilder {
         require(config.appId.isNotBlank()) { "app_id is required" }

@@ -1,5 +1,7 @@
 import Foundation
 
+private let sdkPackageName = "idkit_swift"
+
 public typealias IDKitResult = IdKitResult
 
 /// Typed projection of the bridge request payload, exposed for building test fixtures.
@@ -52,6 +54,8 @@ public struct IDKitRequestConfig {
     fileprivate var native: IdKitRequestConfig {
         IdKitRequestConfig(
             appId: appId,
+            packageName: sdkPackageName,
+            packageVersion: IDKit.version,
             action: action,
             rpContext: rpContext,
             actionDescription: actionDescription,
@@ -100,6 +104,8 @@ public struct IDKitSessionConfig {
     fileprivate var native: IdKitSessionConfig {
         IdKitSessionConfig(
             appId: appId,
+            packageName: sdkPackageName,
+            packageVersion: IDKit.version,
             rpContext: rpContext,
             actionDescription: actionDescription,
             bridgeUrl: bridgeUrl,

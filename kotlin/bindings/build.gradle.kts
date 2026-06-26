@@ -57,8 +57,13 @@ android {
     namespace = "com.worldcoin.idkit"
     compileSdk = 35
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         minSdk = 23
+        buildConfigField("String", "IDKIT_PACKAGE_VERSION", "\"$libraryVersion\"")
     }
 
     compileOptions {
