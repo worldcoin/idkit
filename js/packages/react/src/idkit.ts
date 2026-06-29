@@ -1,4 +1,4 @@
-import { createIDKitNamespace } from "@worldcoin/idkit-core/internal";
+import { createIDKitNamespace } from "@worldcoin/idkit-core";
 import packageJson from "../package.json";
 
 export const IDKit = createIDKitNamespace({

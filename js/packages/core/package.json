@@ -14,11 +14,6 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
-    "./internal": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    },
     "./signing": {
       "types": "./dist/signing.d.ts",
       "import": "./dist/signing.js",
@@ -37,9 +32,6 @@
   },
   "typesVersions": {
     "*": {
-      "internal": [
-        "./dist/index.d.ts"
-      ],
       "signing": [
         "./dist/signing.d.ts"
       ],

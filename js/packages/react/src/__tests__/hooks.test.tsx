@@ -56,12 +56,6 @@ vi.mock("@worldcoin/idkit-core", () => ({
   IDKitErrorCodes: idKitErrorCodes,
   isInWorldApp: () => false,
   isDebug: () => false,
-}));
-
-vi.mock("@worldcoin/idkit-core/internal", () => ({
-  IDKitErrorCodes: idKitErrorCodes,
-  isInWorldApp: () => false,
-  isDebug: () => false,
   createIDKitNamespace: createIDKitNamespaceMock,
 }));
 
