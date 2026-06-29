@@ -8,6 +8,7 @@
 export {
   // IDKit namespace (main entry point)
   IDKit,
+  createIDKitNamespace,
   CredentialRequest,
   any,
   all,
@@ -25,6 +26,8 @@ export {
   // Types
   type IDKitRequest,
   type IDKitInviteCodeRequest,
+  type IDKitNamespace,
+  type IDKitNamespaceOptions,
   type IDKitCompletionResult,
   type WaitOptions,
   type RpContext,

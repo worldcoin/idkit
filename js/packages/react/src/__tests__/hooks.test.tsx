@@ -7,33 +7,14 @@ import { useIDKitRequest } from "../hooks/useIDKitRequest";
 import { useIDKitSession } from "../hooks/useIDKitSession";
 
 const {
+  idKitErrorCodes,
   requestMock,
   requestWithInviteCodeMock,
   createSessionMock,
   proveSessionMock,
   createIDKitNamespaceMock,
 } = vi.hoisted(() => {
-  const requestMock = vi.fn();
-  const requestWithInviteCodeMock = vi.fn();
-  const createSessionMock = vi.fn();
-  const proveSessionMock = vi.fn();
-
-  return {
-    requestMock,
-    requestWithInviteCodeMock,
-    createSessionMock,
-    proveSessionMock,
-    createIDKitNamespaceMock: vi.fn(() => ({
-      request: requestMock,
-      requestWithInviteCode: requestWithInviteCodeMock,
-      createSession: createSessionMock,
-      proveSession: proveSessionMock,
-    })),
-  };
-});
-
-vi.mock("@worldcoin/idkit-core", () => ({
-  IDKitErrorCodes: {
+  const idKitErrorCodes = {
     GenericError: "generic_error",
     ConnectionFailed: "connection_failed",
     Timeout: "timeout",
@@ -50,12 +31,37 @@ vi.mock("@worldcoin/idkit-core", () => ({
     InvalidTimestamp: "invalid_timestamp",
     RpSignatureExpired: "rp_signature_expired",
     InvalidRpIdFormat: "invalid_rp_id_format",
-  },
+  };
+  const requestMock = vi.fn();
+  const requestWithInviteCodeMock = vi.fn();
+  const createSessionMock = vi.fn();
+  const proveSessionMock = vi.fn();
+
+  return {
+    idKitErrorCodes,
+    requestMock,
+    requestWithInviteCodeMock,
+    createSessionMock,
+    proveSessionMock,
+    createIDKitNamespaceMock: vi.fn(() => ({
+      request: requestMock,
+      requestWithInviteCode: requestWithInviteCodeMock,
+      createSession: createSessionMock,
+      proveSession: proveSessionMock,
+    })),
+  };
+});
+
+vi.mock("@worldcoin/idkit-core", () => ({
+  IDKitErrorCodes: idKitErrorCodes,
   isInWorldApp: () => false,
   isDebug: () => false,
 }));
 
 vi.mock("@worldcoin/idkit-core/internal", () => ({
+  IDKitErrorCodes: idKitErrorCodes,
+  isInWorldApp: () => false,
+  isDebug: () => false,
   createIDKitNamespace: createIDKitNamespaceMock,
 }));
 

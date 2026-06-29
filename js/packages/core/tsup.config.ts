@@ -27,7 +27,6 @@ export default defineConfig([
   {
     entry: [
       "src/index.ts",
-      "src/internal.ts",
       "src/signing.ts",
       "src/hashing.ts",
       "src/session.ts",
