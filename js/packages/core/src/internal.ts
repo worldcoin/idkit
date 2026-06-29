@@ -1,5 +1,5 @@
 export {
   createIDKitNamespace,
   type IDKitNamespace,
-  type IDKitPackageMetadata,
+  type IDKitNamespaceOptions,
 } from "./request";

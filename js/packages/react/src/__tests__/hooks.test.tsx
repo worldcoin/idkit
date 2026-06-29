@@ -68,7 +68,7 @@ const baseRpContext = {
 };
 const SESSION_ID_1 = `session_${"11".repeat(64)}` as const;
 const SESSION_ID_2 = `session_${"22".repeat(64)}` as const;
-const reactPackageMetadata = {
+const reactNamespaceOptions = {
   package_name: "idkit_react",
   package_version: packageJson.version,
 };
@@ -88,8 +88,10 @@ describe("request/session hooks", () => {
     proveSessionMock.mockClear();
   });
 
-  it("creates a React package namespace", () => {
-    expect(createIDKitNamespaceMock).toHaveBeenCalledWith(reactPackageMetadata);
+  it("creates a React namespace", () => {
+    expect(createIDKitNamespaceMock).toHaveBeenCalledWith(
+      reactNamespaceOptions,
+    );
   });
 
   it("request hook exposes full status sequence and result", async () => {

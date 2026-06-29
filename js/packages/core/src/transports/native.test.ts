@@ -9,10 +9,8 @@ import { setDebug } from "../lib/debug";
 const baseConfig: BuilderConfig = {
   type: "request",
   app_id: "app_staging_test",
-  package_metadata: {
-    package_name: "idkit_js_core",
-    package_version: packageJson.version,
-  },
+  package_name: "idkit_js_core",
+  package_version: packageJson.version,
   action: "test-action",
 };
 

@@ -56,12 +56,12 @@ export type IDKitCompletionResult =
 const SESSION_ID_PATTERN = /^session_[0-9a-fA-F]{128}$/;
 type RustBridgeDebugReport = DebugReportWithoutVersion;
 
-export type IDKitPackageMetadata = {
+export type IDKitNamespaceOptions = {
   package_name: string;
   package_version: string;
 };
 
-const CORE_PACKAGE_METADATA: IDKitPackageMetadata = {
+const CORE_NAMESPACE_OPTIONS: IDKitNamespaceOptions = {
   package_name: "idkit_js_core",
   package_version: packageJson.version,
 };
@@ -556,8 +556,8 @@ function createWasmBuilderFromConfig(
   if (config.type === "request") {
     return WasmModule.request(
       config.app_id,
-      config.package_metadata.package_name,
-      config.package_metadata.package_version,
+      config.package_name,
+      config.package_version,
       String(config.action ?? ""),
       rpContext,
       config.action_description ?? null,
@@ -574,8 +574,8 @@ function createWasmBuilderFromConfig(
     return WasmModule.proveSession(
       config.session_id!,
       config.app_id,
-      config.package_metadata.package_name,
-      config.package_metadata.package_version,
+      config.package_name,
+      config.package_version,
       rpContext,
       config.action_description ?? null,
       config.bridge_url ?? null,
@@ -589,8 +589,8 @@ function createWasmBuilderFromConfig(
   // type === "session"
   return WasmModule.createSession(
     config.app_id,
-    config.package_metadata.package_name,
-    config.package_metadata.package_version,
+    config.package_name,
+    config.package_version,
     rpContext,
     config.action_description ?? null,
     config.bridge_url ?? null,
@@ -853,9 +853,9 @@ class IDKitInviteCodeBuilder {
  * const proof = await request.pollUntilCompletion();
  * ```
  */
-function createRequestForPackage(
+function createRequestForNamespace(
   config: IDKitRequestConfig,
-  packageMetadata: IDKitPackageMetadata,
+  options: IDKitNamespaceOptions,
 ): IDKitBuilder {
   // Validate required fields
   if (!config.app_id) {
@@ -879,7 +879,8 @@ function createRequestForPackage(
   return new IDKitBuilder({
     type: "request",
     app_id: config.app_id,
-    package_metadata: packageMetadata,
+    package_name: options.package_name,
+    package_version: options.package_version,
     action: String(config.action),
     rp_context: config.rp_context,
     action_description: config.action_description,
@@ -893,7 +894,7 @@ function createRequestForPackage(
 }
 
 export function createRequest(config: IDKitRequestConfig): IDKitBuilder {
-  return createRequestForPackage(config, CORE_PACKAGE_METADATA);
+  return createRequestForNamespace(config, CORE_NAMESPACE_OPTIONS);
 }
 
 /**
@@ -916,9 +917,9 @@ export function createRequest(config: IDKitRequestConfig): IDKitBuilder {
  * const proof = await request.pollUntilCompletion();
  * ```
  */
-function createRequestWithInviteCodeForPackage(
+function createRequestWithInviteCodeForNamespace(
   config: IDKitRequestConfig,
-  packageMetadata: IDKitPackageMetadata,
+  options: IDKitNamespaceOptions,
 ): IDKitInviteCodeBuilder {
   // Validate required fields — mirror createRequest exactly so integrators
   // don't get different validation between the two paths.
@@ -943,7 +944,8 @@ function createRequestWithInviteCodeForPackage(
   return new IDKitInviteCodeBuilder({
     type: "request",
     app_id: config.app_id,
-    package_metadata: packageMetadata,
+    package_name: options.package_name,
+    package_version: options.package_version,
     action: String(config.action),
     rp_context: config.rp_context,
     action_description: config.action_description,
@@ -959,7 +961,10 @@ function createRequestWithInviteCodeForPackage(
 function createRequestWithInviteCode(
   config: IDKitRequestConfig,
 ): IDKitInviteCodeBuilder {
-  return createRequestWithInviteCodeForPackage(config, CORE_PACKAGE_METADATA);
+  return createRequestWithInviteCodeForNamespace(
+    config,
+    CORE_NAMESPACE_OPTIONS,
+  );
 }
 
 /**
@@ -988,9 +993,9 @@ function createRequestWithInviteCode(
  * // result.responses[0].session_nullifier -> for session tracking
  * ```
  */
-function createSessionForPackage(
+function createSessionForNamespace(
   config: IDKitSessionConfig,
-  packageMetadata: IDKitPackageMetadata,
+  options: IDKitNamespaceOptions,
 ): IDKitBuilder {
   // Validate required fields
   if (!config.app_id) {
@@ -1005,7 +1010,8 @@ function createSessionForPackage(
   return new IDKitBuilder({
     type: "createSession",
     app_id: config.app_id,
-    package_metadata: packageMetadata,
+    package_name: options.package_name,
+    package_version: options.package_version,
     rp_context: config.rp_context,
     action_description: config.action_description,
     bridge_url: config.bridge_url,
@@ -1017,7 +1023,7 @@ function createSessionForPackage(
 }
 
 export function createSession(config: IDKitSessionConfig): IDKitBuilder {
-  return createSessionForPackage(config, CORE_PACKAGE_METADATA);
+  return createSessionForNamespace(config, CORE_NAMESPACE_OPTIONS);
 }
 
 /**
@@ -1046,10 +1052,10 @@ export function createSession(config: IDKitSessionConfig): IDKitBuilder {
  * // result.responses[0].session_nullifier -> should match for same user
  * ```
  */
-function proveSessionForPackage(
+function proveSessionForNamespace(
   sessionId: `session_${string}`,
   config: IDKitSessionConfig,
-  packageMetadata: IDKitPackageMetadata,
+  options: IDKitNamespaceOptions,
 ): IDKitBuilder {
   // Validate required fields
   if (!sessionId) {
@@ -1073,7 +1079,8 @@ function proveSessionForPackage(
     type: "proveSession",
     session_id: sessionId,
     app_id: config.app_id,
-    package_metadata: packageMetadata,
+    package_name: options.package_name,
+    package_version: options.package_version,
     rp_context: config.rp_context,
     action_description: config.action_description,
     bridge_url: config.bridge_url,
@@ -1088,7 +1095,7 @@ export function proveSession(
   sessionId: `session_${string}`,
   config: IDKitSessionConfig,
 ): IDKitBuilder {
-  return proveSessionForPackage(sessionId, config, CORE_PACKAGE_METADATA);
+  return proveSessionForNamespace(sessionId, config, CORE_NAMESPACE_OPTIONS);
 }
 
 export type IDKitNamespace = {
@@ -1112,15 +1119,15 @@ export type IDKitNamespace = {
 };
 
 export function createIDKitNamespace(
-  packageMetadata: IDKitPackageMetadata,
+  options: IDKitNamespaceOptions,
 ): IDKitNamespace {
   return {
-    request: (config) => createRequestForPackage(config, packageMetadata),
+    request: (config) => createRequestForNamespace(config, options),
     requestWithInviteCode: (config) =>
-      createRequestWithInviteCodeForPackage(config, packageMetadata),
-    createSession: (config) => createSessionForPackage(config, packageMetadata),
+      createRequestWithInviteCodeForNamespace(config, options),
+    createSession: (config) => createSessionForNamespace(config, options),
     proveSession: (sessionId, config) =>
-      proveSessionForPackage(sessionId, config, packageMetadata),
+      proveSessionForNamespace(sessionId, config, options),
     CredentialRequest,
     any,
     all,
@@ -1159,5 +1166,5 @@ export function createIDKitNamespace(
  * ```
  */
 export const IDKit: IDKitNamespace = createIDKitNamespace(
-  CORE_PACKAGE_METADATA,
+  CORE_NAMESPACE_OPTIONS,
 );

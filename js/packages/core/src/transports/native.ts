@@ -112,10 +112,8 @@ export function getWorldAppVerifyVersion(): 1 | 2 {
 export interface BuilderConfig {
   type: "request" | "createSession" | "proveSession";
   app_id: string;
-  package_metadata: {
-    package_name: string;
-    package_version: string;
-  };
+  package_name: string;
+  package_version: string;
   action?: string;
   session_id?: `session_${string}`;
   rp_context?: import("../types/config").RpContext;
