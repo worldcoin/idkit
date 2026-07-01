@@ -1749,7 +1749,8 @@ export function DemoClient(): ReactElement {
             open={widgetOpen}
             onOpenChange={setWidgetOpen}
             app_id={APP_ID}
-            action={action || "test-action"}
+            // allow empty string action as input
+            action={action ?? "test-action"}
             rp_context={widgetRpContext}
             allow_legacy_proofs={shouldAllowLegacyProofs}
             require_user_presence={requireUserPresence}
@@ -1773,7 +1774,8 @@ export function DemoClient(): ReactElement {
             open={widgetOpen}
             onOpenChange={setWidgetOpen}
             app_id={APP_ID}
-            action={action || "test-action"}
+            // allow empty string action as input
+            action={action ?? "test-action"}
             rp_context={widgetRpContext}
             allow_legacy_proofs={shouldAllowLegacyProofs}
             require_user_presence={requireUserPresence}
