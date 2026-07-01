@@ -841,7 +841,7 @@ export function createRequest(config: IDKitRequestConfig): IDKitBuilder {
   if (!config.app_id) {
     throw new Error("app_id is required");
   }
-  if (!config.action) {
+  if (config.action === undefined || config.action === null) {
     throw new Error("action is required");
   }
   if (!config.rp_context) {
@@ -899,7 +899,7 @@ function createRequestWithInviteCode(
   if (!config.app_id) {
     throw new Error("app_id is required");
   }
-  if (!config.action) {
+  if (config.action === undefined || config.action === null) {
     throw new Error("action is required");
   }
   if (!config.rp_context) {
