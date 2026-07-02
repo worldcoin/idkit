@@ -541,6 +541,10 @@ pub fn base64_decode(data: &str) -> Result<Vec<u8>, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("Base64 decode failed: {e}")))
 }
 
+// TODO(#294): Thread real JS package metadata into the WASM builders.
+const WASM_PACKAGE_NAME_PLACEHOLDER: &str = "idkit_js_core";
+const WASM_PACKAGE_VERSION_PLACEHOLDER: &str = "0.0.0";
+
 /// Internal enum to store builder configuration (WASM)
 enum IDKitConfigWasm {
     Request {
@@ -607,6 +611,8 @@ impl IDKitConfigWasm {
 
                 Ok(crate::bridge::BridgeConnectionParams {
                     app_id,
+                    package_name: WASM_PACKAGE_NAME_PLACEHOLDER.to_string(),
+                    package_version: WASM_PACKAGE_VERSION_PLACEHOLDER.to_string(),
                     kind: crate::bridge::RequestKind::Uniqueness {
                         action: action.clone(),
                     },
@@ -649,6 +655,8 @@ impl IDKitConfigWasm {
 
                 Ok(crate::bridge::BridgeConnectionParams {
                     app_id,
+                    package_name: WASM_PACKAGE_NAME_PLACEHOLDER.to_string(),
+                    package_version: WASM_PACKAGE_VERSION_PLACEHOLDER.to_string(),
                     kind: crate::bridge::RequestKind::CreateSession,
                     constraints,
                     rp_context: rp_context.clone(),
@@ -690,6 +698,8 @@ impl IDKitConfigWasm {
 
                 Ok(crate::bridge::BridgeConnectionParams {
                     app_id,
+                    package_name: WASM_PACKAGE_NAME_PLACEHOLDER.to_string(),
+                    package_version: WASM_PACKAGE_VERSION_PLACEHOLDER.to_string(),
                     kind: crate::bridge::RequestKind::ProveSession {
                         session_id: session_id.clone(),
                     },

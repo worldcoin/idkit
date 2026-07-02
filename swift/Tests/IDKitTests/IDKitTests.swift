@@ -103,6 +103,8 @@ func bridgeRequestPayloadIdentityCheck() throws {
     let payload = try IDKit.createBridgePayloadFromPresets(config: requestConfig, preset: preset)
 
     #expect(payload.appId == "app_staging_1234567890abcdef")
+    #expect(payload.packageName == "idkit_swift")
+    #expect(payload.packageVersion == IDKit.version)
     #expect(payload.action == "test-action")
     #expect(payload.actionDescription == "Identity check")
     #expect(payload.verificationLevel == .document)

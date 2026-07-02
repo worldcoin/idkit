@@ -86,6 +86,12 @@ struct BridgeRequestPayload {
     /// Application ID from the Developer Portal
     app_id: String,
 
+    /// Normalized SDK package identifier for request attribution.
+    package_name: String,
+
+    /// SDK package version for request attribution.
+    package_version: String,
+
     /// Action ID from the Developer Portal.
     /// Session flows serialize this as an empty string for mobile bridge compatibility.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -432,6 +438,8 @@ pub enum Status {
 /// Parameters for creating a `BridgeConnection`
 pub struct BridgeConnectionParams {
     pub app_id: AppId,
+    pub package_name: String,
+    pub package_version: String,
     pub kind: RequestKind,
     /// Present only on in World ID 4.0 requests
     pub constraints: Option<ConstraintNode>,
@@ -637,6 +645,8 @@ fn build_request_payload(
     // Prepare the payload
     let payload = BridgeRequestPayload {
         app_id: params.app_id.as_str().to_string(),
+        package_name: params.package_name.clone(),
+        package_version: params.package_version.clone(),
         action: action_str,
         action_description: params.action_description.clone(),
         proof_request,
@@ -1319,6 +1329,8 @@ async fn try_create_invite_code_request(
 #[cfg_attr(feature = "ffi", derive(uniffi::Record))]
 pub struct BridgeRequestPayloadWrapper {
     pub app_id: String,
+    pub package_name: String,
+    pub package_version: String,
     pub action: Option<String>,
     pub action_description: Option<String>,
     pub signal: String,
@@ -1558,6 +1570,8 @@ impl TryFrom<BridgeRequestPayload> for BridgeRequestPayloadWrapper {
     fn try_from(payload: BridgeRequestPayload) -> Result<Self> {
         Ok(Self {
             app_id: payload.app_id,
+            package_name: payload.package_name,
+            package_version: payload.package_version,
             action: payload.action,
             action_description: payload.action_description,
             signal: payload.signal,
@@ -1589,6 +1603,10 @@ fn build_request_payload_wrapper(
 pub struct IDKitRequestConfig {
     /// Application ID from the Developer Portal
     pub app_id: String,
+    /// Normalized SDK package identifier, supplied by package wrappers.
+    pub package_name: String,
+    /// SDK package version, supplied by package wrappers.
+    pub package_version: String,
     /// Action identifier
     pub action: String,
     /// RP context for building protocol-level `ProofRequest`
@@ -1621,6 +1639,10 @@ pub struct IDKitRequestConfig {
 pub struct IDKitSessionConfig {
     /// Application ID from the Developer Portal
     pub app_id: String,
+    /// Normalized SDK package identifier, supplied by package wrappers.
+    pub package_name: String,
+    /// SDK package version, supplied by package wrappers.
+    pub package_version: String,
     /// RP context for building protocol-level `ProofRequest`
     pub rp_context: Arc<RpContext>,
     /// Optional action description shown to users
@@ -1677,6 +1699,8 @@ impl IDKitConfig {
 
                 Ok(BridgeConnectionParams {
                     app_id,
+                    package_name: config.package_name.clone(),
+                    package_version: config.package_version.clone(),
                     kind: RequestKind::Uniqueness {
                         action: config.action.clone(),
                     },
@@ -1707,6 +1731,8 @@ impl IDKitConfig {
 
                 Ok(BridgeConnectionParams {
                     app_id,
+                    package_name: config.package_name.clone(),
+                    package_version: config.package_version.clone(),
                     kind: RequestKind::CreateSession,
                     constraints: Some(constraints),
                     rp_context: (*config.rp_context).clone(),
@@ -1733,6 +1759,8 @@ impl IDKitConfig {
 
                 Ok(BridgeConnectionParams {
                     app_id,
+                    package_name: config.package_name.clone(),
+                    package_version: config.package_version.clone(),
                     kind: RequestKind::ProveSession {
                         session_id: session_id.clone(),
                     },
@@ -1755,7 +1783,7 @@ impl IDKitConfig {
     }
 
     /// Converts config + preset to `BridgeConnectionParams` (works for requests only)
-    #[allow(clippy::needless_pass_by_value)]
+    #[allow(clippy::needless_pass_by_value, clippy::too_many_lines)]
     fn to_params_from_preset(
         &self,
         preset: Preset,
@@ -1795,6 +1823,8 @@ impl IDKitConfig {
 
                 Ok(BridgeConnectionParams {
                     app_id,
+                    package_name: config.package_name.clone(),
+                    package_version: config.package_version.clone(),
                     kind: RequestKind::Uniqueness {
                         action: config.action.clone(),
                     },
@@ -1822,6 +1852,8 @@ impl IDKitConfig {
 
                 Ok(BridgeConnectionParams {
                     app_id,
+                    package_name: config.package_name.clone(),
+                    package_version: config.package_version.clone(),
                     kind: RequestKind::CreateSession,
                     constraints: bridge_params.constraints,
                     rp_context: (*config.rp_context).clone(),
@@ -1847,6 +1879,8 @@ impl IDKitConfig {
 
                 Ok(BridgeConnectionParams {
                     app_id,
+                    package_name: config.package_name.clone(),
+                    package_version: config.package_version.clone(),
                     kind: RequestKind::ProveSession {
                         session_id: session_id.clone(),
                     },
@@ -1872,7 +1906,8 @@ impl IDKitConfig {
 fn bridge_payload_json(
     params: &BridgeConnectionParams,
 ) -> std::result::Result<String, crate::error::IdkitError> {
-    let payload = build_request_payload(params, false).map_err(crate::error::IdkitError::from)?;
+    let payload =
+        build_request_payload_json(params, false).map_err(crate::error::IdkitError::from)?;
     serde_json::to_string(&payload).map_err(|err| crate::error::IdkitError::JsonError {
         details: err.to_string(),
     })
@@ -2370,6 +2405,8 @@ mod tests {
 
         let payload = BridgeRequestPayload {
             app_id: "app_test".to_string(),
+            package_name: "idkit_core".to_string(),
+            package_version: "1.2.3".to_string(),
             action: Some("test-action".to_string()),
             action_description: Some("Test description".to_string()),
             signal: String::new(),
@@ -2385,6 +2422,8 @@ mod tests {
 
         let json = serde_json::to_string(&payload).unwrap();
         assert!(json.contains("app_test"));
+        assert!(json.contains("idkit_core"));
+        assert!(json.contains("1.2.3"));
         assert!(json.contains("test-action"));
         assert!(json.contains("verification_level"));
         assert!(json.contains("proof_request"));
@@ -2412,6 +2451,8 @@ mod tests {
 
         let params = BridgeConnectionParams {
             app_id,
+            package_name: "idkit_test".to_string(),
+            package_version: "9.9.9".to_string(),
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
@@ -2431,6 +2472,8 @@ mod tests {
 
         let payload = payload_json(&params, false);
         let proof_request = payload.get("proof_request").unwrap();
+        assert_eq!(payload["package_name"], serde_json::json!("idkit_test"));
+        assert_eq!(payload["package_version"], serde_json::json!("9.9.9"));
         assert_eq!(payload["action"], serde_json::json!("test-action"));
         assert_eq!(proof_request["proof_type"], serde_json::json!("uniqueness"));
         assert!(proof_request.get("action").is_some());
@@ -2465,6 +2508,8 @@ mod tests {
 
         let params = BridgeConnectionParams {
             app_id,
+            package_name: "idkit_test".to_string(),
+            package_version: "1.0.0".to_string(),
             kind: RequestKind::CreateSession,
             constraints: Some(constraints),
             rp_context,
@@ -2495,6 +2540,8 @@ mod tests {
             .to_owned();
         let prove_params = BridgeConnectionParams {
             app_id: AppId::new("app_test").unwrap(),
+            package_name: "idkit_test".to_string(),
+            package_version: "1.0.0".to_string(),
             kind: RequestKind::ProveSession { session_id },
             constraints: Some(ConstraintNode::item(CredentialRequest::new(
                 CredentialType::ProofOfHuman,
@@ -2546,6 +2593,8 @@ mod tests {
 
         let params = BridgeConnectionParams {
             app_id,
+            package_name: "idkit_swift".to_string(),
+            package_version: "4.0.9".to_string(),
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
@@ -2596,6 +2645,8 @@ mod tests {
 
         let params = BridgeConnectionParams {
             app_id,
+            package_name: "idkit_swift".to_string(),
+            package_version: "4.0.9".to_string(),
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
@@ -2621,6 +2672,8 @@ mod tests {
                 .unwrap();
 
         assert_eq!(payload.app_id, "app_staging_1234567890abcdef");
+        assert_eq!(payload.package_name, "idkit_swift");
+        assert_eq!(payload.package_version, "4.0.9");
         assert_eq!(payload.action.as_deref(), Some("test-action"));
         assert_eq!(
             payload.action_description.as_deref(),
@@ -3279,6 +3332,8 @@ mod tests {
         .unwrap();
         let config = IDKitConfig::Request(IDKitRequestConfig {
             app_id: "app_test".to_string(),
+            package_name: "idkit_test".to_string(),
+            package_version: "1.0.0".to_string(),
             action: "test-action".to_string(),
             rp_context: std::sync::Arc::new(rp_context),
             action_description: None,
@@ -3296,6 +3351,8 @@ mod tests {
             .unwrap();
 
         assert!(!params.require_user_presence);
+        assert_eq!(params.package_name.as_str(), "idkit_test");
+        assert_eq!(params.package_version.as_str(), "1.0.0");
     }
 
     #[test]
@@ -3316,6 +3373,8 @@ mod tests {
 
         let params = BridgeConnectionParams {
             app_id,
+            package_name: "idkit_test".to_string(),
+            package_version: "1.0.0".to_string(),
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
@@ -3358,6 +3417,8 @@ mod tests {
 
         let params = BridgeConnectionParams {
             app_id,
+            package_name: "idkit_test".to_string(),
+            package_version: "1.0.0".to_string(),
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
@@ -3400,6 +3461,8 @@ mod tests {
 
         let params = BridgeConnectionParams {
             app_id,
+            package_name: "idkit_test".to_string(),
+            package_version: "1.0.0".to_string(),
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
@@ -3446,6 +3509,8 @@ mod tests {
 
         let params = BridgeConnectionParams {
             app_id,
+            package_name: "idkit_test".to_string(),
+            package_version: "1.0.0".to_string(),
             kind: RequestKind::Uniqueness {
                 action: "test-action".to_string(),
             },
@@ -3516,6 +3581,8 @@ mod tests {
 
         let params = BridgeConnectionParams {
             app_id,
+            package_name: "idkit_test".to_string(),
+            package_version: "1.0.0".to_string(),
             kind: RequestKind::Uniqueness {
                 action: "my-action".to_string(),
             },
@@ -3563,6 +3630,8 @@ mod tests {
 
         let params = BridgeConnectionParams {
             app_id,
+            package_name: "idkit_test".to_string(),
+            package_version: "1.0.0".to_string(),
             kind: RequestKind::Uniqueness {
                 action: "my-action".to_string(),
             },
@@ -3615,6 +3684,8 @@ mod tests {
 
         let params = BridgeConnectionParams {
             app_id,
+            package_name: "idkit_test".to_string(),
+            package_version: "1.0.0".to_string(),
             kind: RequestKind::Uniqueness {
                 action: "my-action".to_string(),
             },
@@ -3660,6 +3731,8 @@ mod tests {
 
         let params = BridgeConnectionParams {
             app_id,
+            package_name: "idkit_test".to_string(),
+            package_version: "1.0.0".to_string(),
             kind: RequestKind::Uniqueness {
                 action: "my-action".to_string(),
             },
@@ -3697,6 +3770,8 @@ mod tests {
 
         let params = BridgeConnectionParams {
             app_id,
+            package_name: "idkit_test".to_string(),
+            package_version: "1.0.0".to_string(),
             kind: RequestKind::Uniqueness {
                 action: "my-action".to_string(),
             },
@@ -3739,6 +3814,8 @@ mod tests {
 
         let params = BridgeConnectionParams {
             app_id,
+            package_name: "idkit_test".to_string(),
+            package_version: "1.0.0".to_string(),
             kind: RequestKind::Uniqueness {
                 action: "my-action".to_string(),
             },
