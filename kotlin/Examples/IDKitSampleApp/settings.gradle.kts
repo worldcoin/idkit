@@ -17,5 +17,5 @@ dependencyResolutionManagement {
 rootProject.name = "IDKitSampleApp"
 
 include(":app")
-include(":bindings")
-project(":bindings").projectDir = file("../../bindings")
+include(":idkit")
+project(":idkit").projectDir = file("../../idkit")

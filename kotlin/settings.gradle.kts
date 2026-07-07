@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "idkit-kotlin"
-include(":bindings")
+include(":idkit")

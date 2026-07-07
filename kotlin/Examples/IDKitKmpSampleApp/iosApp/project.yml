@@ -1,0 +1,52 @@
+name: IDKitKmpSampleApp
+options:
+  minimumXcodeGenVersion: 2.38.0
+  deploymentTarget:
+    iOS: 15.0
+targets:
+  IDKitKmpSampleApp:
+    type: application
+    platform: iOS
+    deploymentTarget: 15.0
+    sources:
+      - path: IDKitKmpSampleApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.worldcoin.idkit.kmp.sample
+        INFOPLIST_FILE: IDKitKmpSampleApp/Info.plist
+        SWIFT_VERSION: 5.9
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 1.0
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        FRAMEWORK_SEARCH_PATHS: $(inherited) $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
+        OTHER_LDFLAGS: $(inherited) -framework SampleShared
+        ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+    preBuildScripts:
+      - script: |
+          "$SRCROOT/build-shared-framework.sh"
+        name: Build Kotlin Shared Framework
+        basedOnDependencyAnalysis: false
+schemes:
+  IDKitKmpSampleApp:
+    build:
+      targets:
+        IDKitKmpSampleApp: all
+      preActions:
+        - script: |
+            REPO_ROOT="${SRCROOT}/../../../.."
+            LIB_SIM="${REPO_ROOT}/target/aarch64-apple-ios-sim/release/libidkit_kmp.a"
+            LIB_DEVICE="${REPO_ROOT}/target/aarch64-apple-ios/release/libidkit_kmp.a"
+
+            if [ ! -f "${LIB_SIM}" ] && [ ! -f "${LIB_DEVICE}" ]; then
+              echo "error: IDKit KMP native artifacts not found." >&2
+              echo "error: Run the following from the repo root, then build again:" >&2
+              echo "error:   bash scripts/build-kotlin.sh" >&2
+              exit 1
+            fi
+          name: Check IDKit KMP Dependencies
+          settingsTarget: IDKitKmpSampleApp
+    run:
+      config: Debug
+    test:
+      config: Debug

@@ -1,261 +1,112 @@
 # IDKit Kotlin SDK
 
-Kotlin SDK for World ID verification, backed by the Rust core via UniFFI.
+World ID SDK for Kotlin Multiplatform — one Kotlin API for **Android and iOS**, backed by the same Rust core as every other IDKit SDK. Plain Android apps consume it as a regular AAR; KMP projects use it from `commonMain`.
+
+```kotlin
+val config = IDKitRequestConfig(
+    appId = "app_...",
+    action = "my-action",
+    rpContext = RpContext(rpId = "rp_...", nonce = nonce, createdAt = createdAt, expiresAt = expiresAt, signature = sig),
+    returnTo = "myapp://callback",
+)
+
+val request = IDKit.request(config).preset(orbLegacy(signal = "my-signal"))
+openWorldApp(request.connectorURI)
+
+when (val completion = request.pollUntilCompletion()) {
+    is IDKitCompletionResult.Success -> verifyOnBackend(completion.result.rawJson)
+    is IDKitCompletionResult.Failure -> handle(completion.error)
+}
+request.close()
+```
 
 ## Installation
 
-The Kotlin SDK is published to Maven Central as `com.worldcoin:idkit` — once a version is released there, add `mavenCentral()` to your repositories and depend on it with no authentication. Release builds are also published to GitHub Packages; dev builds (`X.Y.Z-dev.<sha>`) are published there only.
+The SDK is published to Maven Central as `com.worldcoin:idkit` — add `mavenCentral()` to your repositories and depend on it with no authentication. Release builds are also published to GitHub Packages; dev builds (`X.Y.Z-dev.<sha>`) are published there only (GitHub Packages requires a token with `read:packages` even for public packages).
 
-GitHub Packages requires authentication for Maven downloads, even for public packages.
-Create a token with `read:packages` and expose it through environment variables.
+Plain Android app or a KMP project's `commonMain` — same coordinates either way:
 
 ```kotlin
-dependencyResolutionManagement {
-    repositories {
-        mavenCentral()
-        maven {
-            url = uri("https://maven.pkg.github.com/worldcoin/idkit")
-            credentials {
-                username = System.getenv("GITHUB_ACTOR")
-                password = System.getenv("GITHUB_TOKEN")
-            }
-        }
-    }
+dependencies {
+    implementation("com.worldcoin:idkit:<version>")
 }
 ```
 
-For local integration testing, build the Kotlin artifacts, publish them to `mavenLocal()`, and add `mavenLocal()` to the consuming app repositories:
+Pure-iOS (Swift-only) apps should prefer the [Swift SDK](../swift), which has first-class Swift types.
+
+### Migrating from 4.x
+
+5.0.0 replaces the UniFFI/JNA Android-only implementation with the Kotlin Multiplatform one. Coordinates (`com.worldcoin:idkit`) and package (`com.worldcoin.idkit`) are unchanged, but there are breaking API changes:
+
+- `IDKitBuilder.preset(...)` / `.constraints(...)` are now `suspend` (they open the bridge connection; 4.x did this blocking).
+- Call `IDKitRequest.close()` when done with a request to release the native handle (safe to call twice).
+- Types that previously leaked from `uniffi.idkit_core.*` (`RpContext`, `Environment`, `DocumentType`, `IdentityAttribute`, `ConstraintNode`, …) now live in `com.worldcoin.idkit` — update imports.
+
+## Architecture
+
+The SDK calls the Rust core **directly** through a small hand-written C ABI — it does not use UniFFI-generated bindings:
+
+```
+         commonMain (kotlin/idkit)
+  public API + poll loop + status/error mapping
+  kotlinx-serialization DTOs for the JSON boundary
+                    │
+     internal expect object NativeBridge (10 fns)
+       ┌────────────┴────────────┐
+  androidMain                iosMain
+  JNA direct mapping         Kotlin/Native cinterop
+  libidkit_kmp.so            libidkit_kmp.a (static)
+       └────────────┬────────────┘
+        rust/kmp-ffi (extern "C", JSON in/out)
+                    │
+              rust/core (idkit-core)
+```
+
+Why this shape:
+
+- **Why not generate KMP bindings from UniFFI?** The Rust core uses UniFFI 0.31; no Kotlin Multiplatform binding generator supports it (Gobley, the maintained one, targets UniFFI 0.29.x, and the compiled-metadata formats are incompatible). Downgrading the workspace's UniFFI would regenerate the shipping Swift SDK bindings and couple future core upgrades to a third-party release cadence.
+- **The C ABI** (`rust/kmp-ffi`, header at `rust/kmp-ffi/include/idkit_kmp.h`) passes JSON both ways and reuses the serde codecs the core already has. Every function returns an `{"ok": ...}` / `{"err": {code, message}}` envelope; panics are caught and converted to envelopes (never unwind across FFI); requests are opaque handles so double-free is a no-op; network-bound calls have a bounded 30s deadline and run off the main thread. It is independent of UniFFI versioning by construction.
+- **Distinct native library name** (`libidkit_kmp` vs the UniFFI toolchain's `libidkit`) keeps host test artifacts and the Swift SDK's build products from colliding.
+
+## Building
+
+Native artifacts are never committed; build them first from the repo root:
 
 ```bash
-bash scripts/build-kotlin.sh
-./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin :bindings:publishToMavenLocal
+bash scripts/build-kotlin.sh                 # host lib + Android ABIs (Docker/cargo-ndk) + iOS static libs
+SKIP_ANDROID=1 bash scripts/build-kotlin.sh  # macOS host + iOS only (no Docker/NDK needed)
 ```
 
-Then add `mavenLocal()` to the consuming app repositories:
+Outputs:
 
-```kotlin
-dependencyResolutionManagement {
-    repositories {
-        mavenLocal()
-        google()
-        mavenCentral()
-    }
-}
-```
+- `target/release/libidkit_kmp.{dylib,so}` — host library for JVM unit tests
+- `kotlin/idkit/src/androidMain/jniLibs/<abi>/libidkit_kmp.so` — Android (gitignored)
+- `target/<triple>/release/libidkit_kmp.a` — iOS, referenced by the cinterop config
 
-Then add the dependency:
+Android cross-builds use the `kmp-android-release` cargo profile (`panic = "unwind"`) — **not** `android-release` — because the FFI layer's `catch_unwind` must be able to convert panics into error envelopes instead of aborting the host app.
 
-```kotlin
-implementation("com.worldcoin:idkit:<version>")
-```
-
-## Local setup
-
-From repo root:
+Then:
 
 ```bash
-bash scripts/build-kotlin.sh
+cd kotlin
+./gradlew :idkit:assemble                  # all targets enabled on this host
+./gradlew :idkit:testReleaseUnitTest       # commonTest on the host JVM (JNA → host lib)
+./gradlew :idkit:iosSimulatorArm64Test     # commonTest on the iOS simulator (cinterop, statically linked)
+./gradlew :idkit:publishToMavenLocal       # a guard task verifies the native artifacts for enabled targets
 ```
 
-This builds Rust artifacts, regenerates UniFFI Kotlin bindings, and copies native libraries used by the Kotlin module.
+Requires JDK 17+, the Android SDK (`local.properties` or `ANDROID_HOME`), and Xcode on macOS for the iOS targets. On Linux the iOS targets are disabled automatically; **publishing to a remote repository is macOS-only** (the build fails it elsewhere, because the upload would otherwise be missing the iOS variants).
 
-## Canonical Kotlin API
+## API notes
 
-- Entry points:
-  - `IDKit.request(config: IDKitRequestConfig)`
-  - `IDKit.createSession(config: IDKitSessionConfig)`
-  - `IDKit.proveSession(sessionId: String, config: IDKitSessionConfig)`
-- Request object:
-  - `connectorURI: String`
-  - `requestId: String`
-  - `pollStatusOnce(): IDKitStatus`
-  - `pollUntilCompletion(options: IDKitPollOptions): IDKitCompletionResult`
-- Hashing:
-  - `IDKit.hashSignal(signal: String)`
-  - `IDKit.hashSignal(signal: ByteArray)`
+- `IDKitBuilder.preset(...)` / `.constraints(...)` are `suspend` and open the bridge connection over the network.
+- Call `IDKitRequest.close()` when done with a request to release the native handle (safe to call twice; the samples do it after the terminal status).
+- `IDKitResult.rawJson` is the untouched result JSON from the core — POST it verbatim to backend verification endpoints so unmodeled fields survive.
+- `IDKit.hashSignal(String)` follows the JS `hashSignal` semantics; use the `ByteArray` overload for binary signals (including any with interior NUL bytes).
+- Session and invite-code APIs are not exposed yet ("TODO: Re-enable when World ID 4.0 is live").
+- Kotlin and AGP versions are pinned in `kotlin/build.gradle.kts`; upgrade them in lockstep (Kotlin/Native ↔ Xcode compatibility matters here).
 
-## Quickstart
+## Example apps
 
-```kotlin
-import com.worldcoin.idkit.CredentialRequest
-import com.worldcoin.idkit.IDKit
-import com.worldcoin.idkit.IDKitPollOptions
-import com.worldcoin.idkit.IDKitRequestConfig
-import com.worldcoin.idkit.IDKitCompletionResult
-import com.worldcoin.idkit.IdentityAttribute
-import com.worldcoin.idkit.selfieCheckLegacy
-import com.worldcoin.idkit.identityCheck
-import com.worldcoin.idkit.orbLegacy
-import com.worldcoin.idkit.deviceLegacy
-import uniffi.idkit_core.DocumentType
-import uniffi.idkit_core.Environment
-import uniffi.idkit_core.RpContext
-
-val rpContext = RpContext(
-    rpId = "rp_1234567890abcdef",
-    nonce = backendNonce,
-    createdAt = backendCreatedAt,
-    expiresAt = backendExpiresAt,
-    signature = backendSig,
-)
-
-val config = IDKitRequestConfig(
-    appId = "app_staging_1234567890abcdef",
-    action = "login",
-    rpContext = rpContext,
-    actionDescription = "Log in",
-    bridgeUrl = null,
-    allowLegacyProofs = false,
-    requireUserPresence = false,
-    overrideConnectBaseUrl = null,
-    returnTo = null,
-    environment = Environment.STAGING,
-)
-
-val request = IDKit
-    .request(config)
-    .preset(orbLegacy(signal = "user-123"))
-
-println("Connector URL: ${request.connectorURI}")
-
-when (val completion = request.pollUntilCompletion(IDKitPollOptions())) {
-    is IDKitCompletionResult.Success -> println("Verified: ${completion.result.protocolVersion}")
-    is IDKitCompletionResult.Failure -> println("Failed: ${completion.error.rawValue}")
-}
-```
-
-For orb-or-device legacy verification, use:
-
-```kotlin
-val request = IDKit
-    .request(config)
-    .preset(deviceLegacy(signal = "user-123"))
-```
-
-For selfie-check verification, use:
-
-```kotlin
-val request = IDKit
-    .request(config)
-    .preset(selfieCheckLegacy(signal = "user-123"))
-```
-
-For document-based identity attestation, use:
-
-```kotlin
-val request = IDKit
-    .request(config)
-    .preset(
-        identityCheck(
-            attributes = listOf(
-                IdentityAttribute.MinimumAge(21u),
-                IdentityAttribute.Nationality("JPN"),
-                IdentityAttribute.DocumentType(DocumentType.PASSPORT),
-            ),
-        ),
-    )
-```
-
-## Credential request options parity
-
-```kotlin
-import com.worldcoin.idkit.CredentialRequest
-import com.worldcoin.idkit.CredentialRequestOptions
-import uniffi.idkit_core.CredentialType
-
-val orb = CredentialRequest(
-    CredentialType.ORB,
-    options = CredentialRequestOptions(
-        signal = "user-123",
-        genesisIssuedAtMin = 1_700_000_000u,
-        expiresAtMin = 1_800_000_000u,
-    ),
-)
-```
-
-## Session flow example
-
-```kotlin
-val sessionRequest = IDKit
-    .createSession(sessionConfig)
-    .constraints(anyOf(CredentialRequest(CredentialType.ORB)))
-
-val completion = sessionRequest.pollUntilCompletion()
-```
-
-## Android sample app
-
-A runnable Android sample exists at:
-
-- `kotlin/Examples/IDKitSampleApp`
-
-See `kotlin/Examples/IDKitSampleApp/README.md` for run steps.
-
-## Migration notes (`IdKit` -> `IDKit`)
-
-This release removes the legacy `IdKit` entrypoint and uses canonical `IDKit` naming.
-
-- `IdKit.request(...)` -> `IDKit.request(...)`
-- old raw `IdKitBuilder` wrapper usage -> canonical `IDKitBuilder`
-- old raw status/result wrappers -> `IDKitStatus` and `IDKitCompletionResult`
-
-## Local verification loop
-
-```bash
-bash scripts/build-kotlin.sh
-```
-
-If Gradle is available locally:
-
-```bash
-gradle -p kotlin bindings:test
-```
-
-## Publishing
-
-On production releases the Kotlin release workflow publishes to GitHub Packages and uploads a signed artifact to Maven Central (the first release awaits manual confirmation in the Central Portal before going live — see below). The GitHub Packages path uses GitHub's package credentials and can also be run locally:
-
-```bash
-./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin :bindings:publish
-```
-
-Without `-Pidkit.publish.mavenCentral=true`, this does not configure Maven Central upload or signing tasks.
-
-For local integration testing, publish to the local Maven repository with `:bindings:publishToMavenLocal` as described under [Installation](#installation).
-
-To publish to Maven Central from a local machine that already has credentials, keep the secrets in `~/.gradle/gradle.properties`:
-
-```properties
-mavenCentralUsername=<central-portal-token-username>
-mavenCentralPassword=<central-portal-token-password>
-signing.keyId=<gpg-key-id>
-signing.password=<gpg-key-password>
-signing.secretKeyRingFile=/path/to/secring.gpg
-```
-
-Then explicitly enable the Central publishing path for that Gradle invocation:
-
-```bash
-./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin \
-  -Pidkit.publish.mavenCentral=true \
-  :bindings:publishToMavenCentral
-```
-
-To upload and release from the Central Portal deployment in one command, run:
-
-```bash
-./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin \
-  -Pidkit.publish.mavenCentral=true \
-  :bindings:publishAndReleaseToMavenCentral
-```
-
-On production releases the workflow runs the upload-only `:bindings:publishToMavenCentral` step automatically (not `publishAndReleaseToMavenCentral`), using the Sonatype and GPG signing credentials stored as `production` environment secrets. The first release uploads to the Central Portal for manual confirmation before going live; a follow-up change switches it to fully automatic.
-
-## Troubleshooting
-
-- `connection_failed`:
-  - Check bridge URL/network and backend-generated RP context values.
-- `timeout`:
-  - Increase `IDKitPollOptions(timeoutMs = ...)` or verify user completed flow in World App.
-- `cancelled`:
-  - The polling coroutine was cancelled by the host app.
+- [`Examples/IDKitSampleApp`](Examples/IDKitSampleApp) — plain Android app (Jetpack Compose) consuming the SDK the way an Android-only integrator would.
+- [`Examples/IDKitKmpSampleApp`](Examples/IDKitKmpSampleApp) — KMP app: shared verification flow (Ktor + this SDK) driven by two native UIs, Jetpack Compose on Android and SwiftUI on iOS. See its README for run instructions (the iOS Xcode project is generated with XcodeGen, not checked in).

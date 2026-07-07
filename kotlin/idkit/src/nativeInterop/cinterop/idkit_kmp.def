@@ -1,0 +1,7 @@
+package = com.worldcoin.idkit.cinterop
+headers = idkit_kmp.h
+headerFilter = idkit_kmp.h
+staticLibraries = libidkit_kmp.a
+# Header include dir and per-target library search path are injected from
+# kotlin/idkit/build.gradle.kts (includeDirs / -libraryPath) so this file stays
+# free of machine-specific relative paths.

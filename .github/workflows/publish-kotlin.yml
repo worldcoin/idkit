@@ -114,62 +114,6 @@ jobs:
 
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-  build-host:
-    name: Build Host Library & UniFFI Bindings
-    runs-on: ubuntu-latest
-    needs: prepare
-    if: needs.prepare.outputs.should_publish == 'true'
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.prepare.outputs.ref }}
-
-      - name: Read rust-toolchain
-        id: rust-version
-        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: ${{ steps.rust-version.outputs.toolchain }}
-
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
-
-      - name: Build host library and generate UniFFI bindings
-        run: |
-          # Keep UniFFI metadata symbols so bindgen can introspect the shared library on Linux.
-          CARGO_PROFILE_RELEASE_STRIP=none cargo build --package idkit-core --release --locked --features uniffi-bindings
-
-          CARGO_PROFILE_RELEASE_STRIP=none cargo run -p uniffi-bindgen generate \
-            --library target/release/libidkit.so \
-            --crate idkit \
-            --language kotlin \
-            --no-format \
-            --out-dir kotlin/bindings/src/main/kotlin
-
-      - name: Verify UniFFI bindings were generated
-        run: |
-          echo "Checking for generated UniFFI files..."
-          ls -la kotlin/bindings/src/main/kotlin/
-          GENERATED_COUNT=$(find kotlin/bindings/src/main/kotlin/uniffi -type f -name "*.kt" 2>/dev/null | wc -l | tr -d '[:space:]')
-          if [ "$GENERATED_COUNT" -eq 0 ]; then
-            echo "ERROR: generated UniFFI Kotlin files were not found under kotlin/bindings/src/main/kotlin/uniffi"
-            exit 1
-          fi
-          echo "Generated UniFFI files found ($GENERATED_COUNT):"
-          find kotlin/bindings/src/main/kotlin/uniffi -type f -name "*.kt" | sort
-
-      - name: Upload host artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: kotlin-bindings-host
-          path: |
-            kotlin/bindings/src/main/
-          retention-days: 1
-
   build-android:
     name: Build Android ${{ matrix.abi }}
     runs-on: ubuntu-latest
@@ -231,13 +175,16 @@ jobs:
       - name: Install cross
         run: cargo install cross --git https://github.com/cross-rs/cross --locked
 
+      # kmp-android-release (panic=unwind) is required so the FFI layer's
+      # catch_unwind can convert panics into error envelopes instead of
+      # aborting the host app. Do NOT switch to android-release (panic=abort).
       - name: Build Android ${{ matrix.abi }}
         run: |
           echo "Building for ${{ matrix.target }} -> ${{ matrix.abi }}"
-          CARGO_HOME=/tmp RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wl,-z,common-page-size=4096" CROSS_NO_WARNINGS=1 cross build --package idkit-core --target ${{ matrix.target }} --profile android-release --locked --features uniffi-bindings
+          CARGO_HOME=/tmp RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wl,-z,common-page-size=4096" CROSS_NO_WARNINGS=1 cross build --package idkit-kmp-ffi --target ${{ matrix.target }} --profile kmp-android-release --locked
 
           mkdir -p android-libs/${{ matrix.abi }}
-          cp target/${{ matrix.target }}/android-release/libidkit.so android-libs/${{ matrix.abi }}/
+          cp target/${{ matrix.target }}/kmp-android-release/libidkit_kmp.so android-libs/${{ matrix.abi }}/
 
           echo "Cleaning up Docker resources..."
           docker system prune -f || true
@@ -245,14 +192,17 @@ jobs:
       - name: Upload Android ${{ matrix.abi }} artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kotlin-bindings-android-${{ matrix.abi }}
+          name: kotlin-android-${{ matrix.abi }}
           path: android-libs/${{ matrix.abi }}/
           retention-days: 1
 
   publish:
     name: Publish
-    runs-on: ubuntu-latest
-    needs: [prepare, build-host, build-android]
+    # KMP publishing must run on macOS: the iOS klib variants and complete root
+    # module metadata can only be produced where the Apple targets are enabled.
+    # The Gradle build hard-fails remote publishing from non-Mac hosts.
+    runs-on: macos-latest
+    needs: [prepare, build-android]
     environment: ${{ needs.prepare.outputs.environment }}
     permissions:
       contents: read
@@ -264,48 +214,48 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.ref }}
 
-      - name: Download host artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: kotlin-bindings-host
-          path: kotlin/bindings/src/main/
-
       - name: Download Android artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: kotlin-bindings-android-*
+          pattern: kotlin-android-*
           path: android-libs-temp
           merge-multiple: false
 
       - name: Organize Android libraries
         run: |
-          mkdir -p kotlin/bindings/src/main/jniLibs
+          mkdir -p kotlin/idkit/src/androidMain/jniLibs
 
-          for abi_dir in android-libs-temp/kotlin-bindings-android-*; do
-            abi=$(basename "$abi_dir" | sed 's/kotlin-bindings-android-//')
+          for abi_dir in android-libs-temp/kotlin-android-*; do
+            abi=$(basename "$abi_dir" | sed 's/kotlin-android-//')
             echo "Processing $abi..."
-            mkdir -p "kotlin/bindings/src/main/jniLibs/$abi"
-            so_count=$(find "$abi_dir" -maxdepth 1 -type f -name "*.so" | wc -l | tr -d '[:space:]')
-            if [ "$so_count" -eq 0 ]; then
-              echo "ERROR: expected at least one .so in $abi_dir"
+            mkdir -p "kotlin/idkit/src/androidMain/jniLibs/$abi"
+            if [ ! -s "$abi_dir/libidkit_kmp.so" ]; then
+              echo "ERROR: expected libidkit_kmp.so in $abi_dir"
               ls -la "$abi_dir" || true
               exit 1
             fi
-            cp "$abi_dir/"*.so "kotlin/bindings/src/main/jniLibs/$abi/"
+            cp "$abi_dir/libidkit_kmp.so" "kotlin/idkit/src/androidMain/jniLibs/$abi/"
           done
 
           echo "Final jniLibs structure:"
-          find kotlin/bindings/src/main/jniLibs -name "*.so"
+          find kotlin/idkit/src/androidMain/jniLibs -name "*.so"
 
-      - name: Verify Kotlin sources include generated UniFFI code
-        run: |
-          GENERATED_COUNT=$(find kotlin/bindings/src/main/kotlin/uniffi -type f -name "*.kt" 2>/dev/null | wc -l | tr -d '[:space:]')
-          echo "Generated UniFFI Kotlin source files found: $GENERATED_COUNT"
-          find kotlin/bindings/src/main/kotlin -type f -name "*.kt" | sort
-          if [ "$GENERATED_COUNT" -eq 0 ]; then
-            echo "ERROR: expected generated UniFFI Kotlin bindings were not downloaded"
-            exit 1
-          fi
+      - name: Read rust-toolchain
+        id: rust-version
+        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust-version.outputs.toolchain }}
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: publish-ios
+
+      - name: Build iOS static libraries
+        run: SKIP_ANDROID=1 ./scripts/build-kotlin.sh
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -313,14 +263,14 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Clean Gradle build state
-        run: rm -rf kotlin/.gradle kotlin/bindings/build kotlin/bindings/.gradle
-
-      - name: Build Kotlin artifact
-        uses: gradle/gradle-build-action@v3
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
         with:
-          gradle-version: 8.9
-          arguments: -p kotlin bindings:assembleRelease
+          packages: tools platform-tools platforms;android-35 build-tools;35.0.0
+
+      - name: Build Kotlin artifacts
+        working-directory: kotlin/
+        run: ./gradlew :idkit:assemble
         env:
           PKG_VERSION: ${{ needs.prepare.outputs.version }}
 
@@ -335,10 +285,8 @@ jobs:
       # the final gate on what actually goes live on Maven Central.
       - name: Publish to Maven Central
         if: needs.prepare.outputs.environment == 'production'
-        uses: gradle/gradle-build-action@v3
-        with:
-          gradle-version: 8.9
-          arguments: -p kotlin bindings:publishToMavenCentral -Pidkit.publish.mavenCentral=true
+        working-directory: kotlin/
+        run: ./gradlew :idkit:publishToMavenCentral -Pidkit.publish.mavenCentral=true
         env:
           PKG_VERSION: ${{ needs.prepare.outputs.version }}
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
@@ -375,10 +323,8 @@ jobs:
           exit 1
 
       - name: Publish to GitHub Packages
-        uses: gradle/gradle-build-action@v3
-        with:
-          gradle-version: 8.9
-          arguments: -p kotlin bindings:publish
+        working-directory: kotlin/
+        run: ./gradlew :idkit:publish
         env:
           PKG_VERSION: ${{ needs.prepare.outputs.version }}
           GITHUB_ACTOR: ${{ github.actor }}

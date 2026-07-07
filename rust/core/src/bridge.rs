@@ -733,7 +733,7 @@ impl BridgeConnection {
     ///
     /// Returns an error if the request cannot be created or the bridge call fails
     #[allow(dead_code, clippy::too_many_lines)]
-    pub(crate) async fn create(params: BridgeConnectionParams) -> Result<Self> {
+    pub async fn create(params: BridgeConnectionParams) -> Result<Self> {
         // Generate encryption key and IV
         #[cfg(feature = "native-crypto")]
         let (key_bytes, nonce_bytes) = crate::crypto::generate_key()?;
@@ -2184,8 +2184,12 @@ impl From<Status> for StatusWrapper {
     }
 }
 
-#[cfg(feature = "ffi")]
-fn to_app_error(error: &Error) -> AppError {
+/// Maps an internal [`Error`] to the wire-level [`AppError`] surfaced to SDK callers.
+///
+/// Used by binding layers (`UniFFI` wrappers and the KMP C ABI) so every SDK
+/// reports identical error codes for the same underlying failure.
+#[must_use]
+pub fn to_app_error(error: &Error) -> AppError {
     match error {
         Error::InvalidConfiguration(_) => AppError::MalformedRequest,
         Error::BridgeError(_) => AppError::ConnectionFailed,
@@ -2206,8 +2210,11 @@ fn to_app_error(error: &Error) -> AppError {
 /// Networking errors are network/transport-level failures where the bridge
 /// never returned a meaningful response. These are safe to retry because
 /// the request itself is valid — only the delivery failed.
-#[cfg(feature = "ffi")]
-fn is_networking_error(error: &Error) -> bool {
+///
+/// Binding layers use this to distinguish retryable `NetworkingError` statuses
+/// from terminal `Failed` statuses.
+#[must_use]
+pub fn is_networking_error(error: &Error) -> bool {
     match error {
         Error::Timeout | Error::ConnectionFailed | Error::BridgeError(_) => true,
         #[cfg(any(feature = "bridge", feature = "bridge-wasm"))]

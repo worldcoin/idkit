@@ -30,9 +30,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.worldcoin.idkit.DocumentType
+import com.worldcoin.idkit.Environment
 import com.worldcoin.idkit.IDKit
 import com.worldcoin.idkit.IDKitRequest
 import com.worldcoin.idkit.IDKitRequestConfig
+import com.worldcoin.idkit.IdentityAttribute
+import com.worldcoin.idkit.RpContext
 import com.worldcoin.idkit.documentLegacy
 import com.worldcoin.idkit.idkitResultToJson
 import com.worldcoin.idkit.deviceLegacy
@@ -54,10 +58,6 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
-import uniffi.idkit_core.DocumentType
-import uniffi.idkit_core.Environment
-import uniffi.idkit_core.IdentityAttribute
-import uniffi.idkit_core.RpContext
 
 class MainActivity : ComponentActivity() {
     private val model = SampleModel()
@@ -328,6 +328,8 @@ private class SampleModel {
 
     fun clear() {
         scope.cancel()
+        pendingRequest?.close()
+        pendingRequest = null
     }
 
     fun setAppForeground(isForeground: Boolean) {
@@ -374,6 +376,7 @@ private class SampleModel {
 
                 completionJob?.cancel()
                 connectorURI = request.connectorURI
+                pendingRequest?.close()
                 pendingRequest = request
                 deepLinkReceivedForPendingRequest = false
 
@@ -456,12 +459,18 @@ private class SampleModel {
                                 log("Verify response: $verifyResult")
                             } catch (error: Throwable) {
                                 log("Verify request failed: ${error.message ?: error::class.simpleName}")
+                            } finally {
+                                request.close()
                             }
                             return@launch
                         }
 
                         is com.worldcoin.idkit.IDKitStatus.Failed -> {
                             log("Proof completion failed: ${status.error.rawValue}")
+                            if (pendingRequest === request) {
+                                pendingRequest = null
+                            }
+                            request.close()
                             return@launch
                         }
 
