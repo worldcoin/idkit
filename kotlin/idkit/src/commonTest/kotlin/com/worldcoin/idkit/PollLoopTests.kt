@@ -72,6 +72,28 @@ class PollLoopTests {
     }
 
     @Test
+    fun pollStatusOnceCachesTerminalStatusAndStopsPolling() = runTest {
+        var polls = 0
+        val request = requestReturning {
+            polls += 1
+            IDKitStatus.Failed(IDKitErrorCode.USER_REJECTED)
+        }
+
+        assertEquals(IDKitStatus.Failed(IDKitErrorCode.USER_REJECTED), request.pollStatusOnce())
+        // The terminal status is cached and the handle released; the bridge
+        // must not be polled again.
+        assertEquals(IDKitStatus.Failed(IDKitErrorCode.USER_REJECTED), request.pollStatusOnce())
+        assertEquals(1, polls)
+    }
+
+    @Test
+    fun closeIsIdempotent() = runTest {
+        val request = requestReturning { IDKitStatus.WaitingForConnection }
+        request.close()
+        request.close()
+    }
+
+    @Test
     fun statusFlowEmitsDistinctStatesAndCompletes() = runTest {
         val statuses = ArrayDeque(
             listOf(

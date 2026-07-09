@@ -17,7 +17,6 @@ when (val completion = request.pollUntilCompletion()) {
     is IDKitCompletionResult.Success -> verifyOnBackend(completion.result.rawJson)
     is IDKitCompletionResult.Failure -> handle(completion.error)
 }
-request.close()
 ```
 
 ## Installation
@@ -39,8 +38,13 @@ Pure-iOS (Swift-only) apps should prefer the [Swift SDK](../swift), which has fi
 5.0.0 replaces the UniFFI/JNA Android-only implementation with the Kotlin Multiplatform one. Coordinates (`com.worldcoin:idkit`) and package (`com.worldcoin.idkit`) are unchanged, but there are breaking API changes:
 
 - `IDKitBuilder.preset(...)` / `.constraints(...)` are now `suspend` (they open the bridge connection; 4.x did this blocking).
-- Call `IDKitRequest.close()` when done with a request to release the native handle (safe to call twice).
+- `IDKitRequest` holds a native handle. It is released automatically once polling reaches a terminal status (`Confirmed`/`Failed`); if you abandon a request before that (including after a poll timeout or cancellation), call `IDKitRequest.close()` — it implements `AutoCloseable`, is safe to call twice, and can be used with `use { }`.
 - Types that previously leaked from `uniffi.idkit_core.*` (`RpContext`, `Environment`, `DocumentType`, `IdentityAttribute`, `ConstraintNode`, …) now live in `com.worldcoin.idkit` — update imports.
+- `statusFlow(pollInterval: Duration)` is now `statusFlow(pollIntervalMs: ULong)`; zero-argument calls are unaffected.
+- Constraint trees are plain data classes now: build them with `anyOf`/`allOf`/`enumerateOf` and `CredentialRequest(type, signal, ...)` instead of the removed uniffi `ConstraintNode`/`CredentialRequest` factories. The `Signal` type is gone — signals are `String` (or `ByteArray` for `hashSignal`).
+- `IDKitResult` is no longer a data class (no `copy()`/destructuring); parse fixtures with `idkitResultFromJson`. `IntegrityBundle.signatureFormat` is a plain string now.
+- Errors from the native layer throw `com.worldcoin.idkit.IDKitException` (a `RuntimeException` carrying the wire `code`) instead of `uniffi.idkit_core.IdkitException`.
+- Non-Gradle (plain Maven) consumers: the root artifact is metadata-only under KMP; depend on `com.worldcoin:idkit-android` directly instead.
 
 ## Architecture
 
@@ -100,7 +104,7 @@ Requires JDK 17+, the Android SDK (`local.properties` or `ANDROID_HOME`), and Xc
 ## API notes
 
 - `IDKitBuilder.preset(...)` / `.constraints(...)` are `suspend` and open the bridge connection over the network.
-- Call `IDKitRequest.close()` when done with a request to release the native handle (safe to call twice; the samples do it after the terminal status).
+- The native request handle is released automatically at a terminal status; call `IDKitRequest.close()` (`AutoCloseable`) only when abandoning a request early — e.g. after a poll timeout, on cancellation, or when replacing a pending request.
 - `IDKitResult.rawJson` is the untouched result JSON from the core — POST it verbatim to backend verification endpoints so unmodeled fields survive.
 - `IDKit.hashSignal(String)` follows the JS `hashSignal` semantics; use the `ByteArray` overload for binary signals (including any with interior NUL bytes).
 - Session and invite-code APIs are not exposed yet ("TODO: Re-enable when World ID 4.0 is live").

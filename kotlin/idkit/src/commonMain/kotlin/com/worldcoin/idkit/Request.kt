@@ -16,6 +16,9 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
+import kotlin.concurrent.atomics.AtomicBoolean
+import kotlin.concurrent.atomics.AtomicReference
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.coroutines.coroutineContext
 import kotlin.time.TimeSource
 
@@ -67,24 +70,40 @@ public class IDKitBuilder internal constructor(
         create: (configJson: String, payloadJson: String) -> String,
     ): IDKitRequest = withContext(ioDispatcher) {
         val ok = unwrapEnvelope(create(configJson, payloadJson)).jsonObject
-        IDKitRequest(
-            connectorUri = ok["connect_url"]?.jsonPrimitive?.content
-                ?: throw IDKitException("unexpected_response", "create response is missing connect_url"),
-            requestId = ok["request_id"]?.jsonPrimitive?.content
-                ?: throw IDKitException("unexpected_response", "create response is missing request_id"),
-            handle = ok["handle"]?.jsonPrimitive?.long
-                ?: throw IDKitException("unexpected_response", "create response is missing handle"),
-        )
+        val handle = ok["handle"]?.jsonPrimitive?.long
+            ?: throw IDKitException("unexpected_response", "create response is missing handle")
+        try {
+            IDKitRequest(
+                connectorUri = ok["connect_url"]?.jsonPrimitive?.content
+                    ?: throw IDKitException("unexpected_response", "create response is missing connect_url"),
+                requestId = ok["request_id"]?.jsonPrimitive?.content
+                    ?: throw IDKitException("unexpected_response", "create response is missing request_id"),
+                handle = handle,
+            )
+        } catch (error: Throwable) {
+            // The Rust side has already registered this request; free the handle
+            // so a malformed create response cannot leak the connection.
+            NativeBridge.requestFree(handle)
+            throw error
+        }
     }
 }
 
-/** An in-flight verification request. */
+/**
+ * An in-flight verification request.
+ *
+ * Holds a native handle that is released automatically once polling observes a
+ * terminal status ([IDKitStatus.Confirmed] or [IDKitStatus.Failed]). If you
+ * abandon a request before that — including after [pollUntilCompletion] times
+ * out or is cancelled — call [close] (or rely on the [AutoCloseable] contract).
+ */
+@OptIn(ExperimentalAtomicApi::class)
 public class IDKitRequest internal constructor(
     private val connectorUriValue: String,
     private val requestIdValue: String,
     private val handle: Long?,
     private val pollStatusProvider: suspend () -> IDKitStatus,
-) {
+) : AutoCloseable {
     internal constructor(connectorUri: String, requestId: String, handle: Long) : this(
         connectorUriValue = connectorUri,
         requestIdValue = requestId,
@@ -105,10 +124,25 @@ public class IDKitRequest internal constructor(
     public val requestId: String
         get() = requestIdValue
 
-    private var closed: Boolean = false
+    private val closed = AtomicBoolean(false)
+    private val terminalStatus = AtomicReference<IDKitStatus?>(null)
 
-    /** Polls the bridge once for the current status. */
-    public suspend fun pollStatusOnce(): IDKitStatus = pollStatusProvider()
+    /**
+     * Polls the bridge once for the current status.
+     *
+     * The first terminal status ([IDKitStatus.Confirmed] / [IDKitStatus.Failed])
+     * releases the native handle and is cached; subsequent calls return it
+     * without touching the bridge.
+     */
+    public suspend fun pollStatusOnce(): IDKitStatus {
+        terminalStatus.load()?.let { return it }
+        val status = pollStatusProvider()
+        if (status is IDKitStatus.Confirmed || status is IDKitStatus.Failed) {
+            terminalStatus.store(status)
+            close()
+        }
+        return status
+    }
 
     /**
      * Polls until the request reaches a terminal state.
@@ -116,6 +150,10 @@ public class IDKitRequest internal constructor(
      * Networking errors are retried silently; the wall-clock deadline yields
      * [IDKitErrorCode.TIMEOUT] and coroutine cancellation yields
      * [IDKitErrorCode.CANCELLED] — identical semantics to the Kotlin and Swift SDKs.
+     *
+     * A terminal status releases the native handle automatically. On TIMEOUT or
+     * CANCELLED the request stays open so polling can resume later; [close] it
+     * when abandoning the request instead.
      */
     public suspend fun pollUntilCompletion(
         options: IDKitPollOptions = IDKitPollOptions(),
@@ -146,13 +184,14 @@ public class IDKitRequest internal constructor(
     }
 
     /**
-     * Releases the native request handle. Call when done with the request;
-     * polling after close reports an `invalid_handle` [IDKitException].
-     * Safe to call more than once.
+     * Releases the native request handle. Called automatically when polling
+     * observes a terminal status; call it yourself when abandoning a request
+     * early. Safe to call more than once, from any thread. Polling a request
+     * closed before a terminal status reports an `invalid_handle`
+     * [IDKitException].
      */
-    public fun close() {
-        if (!closed) {
-            closed = true
+    public override fun close() {
+        if (closed.compareAndSet(expectedValue = false, newValue = true)) {
             handle?.let { NativeBridge.requestFree(it) }
         }
     }

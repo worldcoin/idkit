@@ -23,11 +23,13 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -154,6 +156,9 @@ class SampleController {
 
                 val request = IDKit.request(config).preset(snapshot.preset.toPreset(snapshot.signal))
 
+                // Stop polling the old request before releasing its native
+                // handle, or the in-flight poll would hit a freed handle.
+                pollJob?.cancelAndJoin()
                 pendingRequest?.close()
                 pendingRequest = request
                 _state.update { it.copy(connectorUrl = request.connectorURI) }
@@ -194,24 +199,36 @@ class SampleController {
         log("Started polling for request ${request.requestId} (trigger: $reason).")
         pollJob = scope.launch {
             val finished = withTimeoutOrNull(timeout = 180_000.milliseconds) {
-                request.statusFlow(pollIntervalMs = 2_000u).collect { status ->
-                    when (status) {
-                        IDKitStatus.WaitingForConnection -> log("Waiting for World App to connect...")
-                        IDKitStatus.AwaitingConfirmation -> log("Awaiting user confirmation...")
-                        is IDKitStatus.Confirmed -> {
-                            pendingRequest = null
-                            request.close()
-                            log("Proof confirmed. Calling verify endpoint: $verifyEndpoint")
-                            try {
-                                log("Verify response: ${verifyProof(resultJson = status.result.rawJson)}")
-                            } catch (error: Throwable) {
-                                log("Verify request failed: ${error.message ?: error::class.simpleName}")
+                try {
+                    request.statusFlow(pollIntervalMs = 2_000u).collect { status ->
+                        when (status) {
+                            IDKitStatus.WaitingForConnection -> log("Waiting for World App to connect...")
+                            IDKitStatus.AwaitingConfirmation -> log("Awaiting user confirmation...")
+                            // Terminal statuses release the native handle automatically.
+                            is IDKitStatus.Confirmed -> {
+                                pendingRequest = null
+                                log("Proof confirmed. Calling verify endpoint: $verifyEndpoint")
+                                try {
+                                    log("Verify response: ${verifyProof(resultJson = status.result.rawJson)}")
+                                } catch (error: Throwable) {
+                                    log("Verify request failed: ${error.message ?: error::class.simpleName}")
+                                }
                             }
-                        }
 
-                        is IDKitStatus.Failed -> log("Proof completion failed: ${status.error.rawValue}")
-                        is IDKitStatus.NetworkingError -> log("Networking error (${status.error.rawValue}), retrying...")
+                            is IDKitStatus.Failed -> {
+                                pendingRequest = null
+                                log("Proof completion failed: ${status.error.rawValue}")
+                            }
+
+                            // statusFlow retries transport errors internally and never
+                            // emits this; the branch exists for exhaustiveness only.
+                            is IDKitStatus.NetworkingError -> {}
+                        }
                     }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Throwable) {
+                    log("Polling failed: ${error.message ?: error::class.simpleName}")
                 }
             }
             if (finished == null) {

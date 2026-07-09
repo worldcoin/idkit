@@ -407,3 +407,43 @@ jobs:
       - name: Run iOS simulator tests
         working-directory: kotlin/
         run: ./gradlew :idkit:iosSimulatorArm64Test
+
+      # Rehearse the full multi-target publication so release-day breakage in
+      # variant metadata or publication wiring is caught on PRs (the release
+      # itself is the first time the real publish tasks otherwise run). The
+      # rehearsal flag skips the Android .so check — mac runners cannot
+      # cross-build them — and remote publishing rejects that flag, so it
+      # cannot leak into a release.
+      - name: Rehearse full KMP publication (Maven Local)
+        run: |
+          set -euo pipefail
+
+          ./kotlin/gradlew -p kotlin :idkit:publishToMavenLocal \
+            -Pidkit.rehearsal.allowMissingAndroidNativeLibs=true
+
+          VERSION="$(grep '^version=' kotlin/gradle.properties | cut -d= -f2- | tr -d '[:space:]')"
+          REPO="$HOME/.m2/repository/com/worldcoin"
+
+          for module in idkit-iosarm64 idkit-iossimulatorarm64 idkit-iosx64; do
+            for ext in klib pom module; do
+              artifact="$REPO/$module/$VERSION/$module-$VERSION.$ext"
+              if [ ! -s "$artifact" ]; then
+                echo "::error::Missing Maven publication artifact: $artifact"
+                exit 1
+              fi
+            done
+          done
+
+          # The root module metadata is what consumers resolve; every target
+          # variant must be present in it.
+          ROOT_MODULE="$REPO/idkit/$VERSION/idkit-$VERSION.module"
+          for variant in \
+            releaseApiElements-published \
+            iosArm64ApiElements-published \
+            iosSimulatorArm64ApiElements-published \
+            iosX64ApiElements-published; do
+            if ! grep -q "\"$variant\"" "$ROOT_MODULE"; then
+              echo "::error::Root Gradle module metadata is missing variant: $variant"
+              exit 1
+            fi
+          done

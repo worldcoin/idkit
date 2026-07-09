@@ -322,9 +322,20 @@ jobs:
           echo "::error::Maven Central deployment for $PKG_VERSION did not validate within ~30 minutes; skipping GitHub Packages. Check the Central Portal."
           exit 1
 
+      # GitHub Packages uploads are not atomic across the KMP modules, so publish
+      # the target modules first and the root module LAST. Consumers resolve the
+      # root module metadata; root-last means a partial failure leaves the version
+      # unresolvable (safe to retry) instead of resolvable-but-missing-variants.
+      # Two Gradle invocations because task order within one is not guaranteed.
       - name: Publish to GitHub Packages
         working-directory: kotlin/
-        run: ./gradlew :idkit:publish
+        run: |
+          ./gradlew \
+            :idkit:publishAndroidReleasePublicationToGithubPackagesRepository \
+            :idkit:publishIosArm64PublicationToGithubPackagesRepository \
+            :idkit:publishIosSimulatorArm64PublicationToGithubPackagesRepository \
+            :idkit:publishIosX64PublicationToGithubPackagesRepository
+          ./gradlew :idkit:publishKotlinMultiplatformPublicationToGithubPackagesRepository
         env:
           PKG_VERSION: ${{ needs.prepare.outputs.version }}
           GITHUB_ACTOR: ${{ github.actor }}

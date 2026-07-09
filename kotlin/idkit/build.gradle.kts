@@ -55,16 +55,27 @@ val iosRustTriples = listOf("aarch64-apple-ios", "aarch64-apple-ios-sim", "x86_6
 // disables them elsewhere), so the iOS static libs are only required there.
 val hostIsMac = System.getProperty("os.name").startsWith("Mac")
 
+// CI rehearses the full multi-target publication to Maven Local on macOS hosts
+// that cannot cross-build the Android .so files. The flag only relaxes the
+// Android native-library check for LOCAL publishing; remote publishing rejects
+// it outright (see requireAppleHostForRemotePublish).
+val rehearsalAllowMissingAndroidNativeLibs = providers
+    .gradleProperty("idkit.rehearsal.allowMissingAndroidNativeLibs")
+    .map(String::toBoolean)
+    .orElse(false)
+
 val verifyKmpNativeLibraries by tasks.registering {
     group = "verification"
     description = "Verifies that publishing includes the Rust native libraries for every enabled target."
 
     doLast {
         val missing = buildList {
-            requiredNativeAbis.forEach { abi ->
-                val lib = layout.projectDirectory
-                    .file("src/androidMain/jniLibs/$abi/libidkit_kmp.so").asFile
-                if (!lib.isFile || lib.length() == 0L) add("- android/$abi: $lib")
+            if (!rehearsalAllowMissingAndroidNativeLibs.get()) {
+                requiredNativeAbis.forEach { abi ->
+                    val lib = layout.projectDirectory
+                        .file("src/androidMain/jniLibs/$abi/libidkit_kmp.so").asFile
+                    if (!lib.isFile || lib.length() == 0L) add("- android/$abi: $lib")
+                }
             }
             if (hostIsMac) {
                 iosRustTriples.forEach { triple ->
@@ -95,6 +106,12 @@ val requireAppleHostForRemotePublish by tasks.registering {
             throw GradleException(
                 "Remote publishing must run on macOS so the iOS variants are included; " +
                     "publishing from this host would ship incomplete module metadata.",
+            )
+        }
+        if (rehearsalAllowMissingAndroidNativeLibs.get()) {
+            throw GradleException(
+                "idkit.rehearsal.allowMissingAndroidNativeLibs is a CI rehearsal flag for " +
+                    "publishToMavenLocal only; remote publishing must include the Android native libraries.",
             )
         }
     }
