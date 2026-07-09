@@ -40,9 +40,14 @@ countries.registerLocale(enLocale);
 const APP_ID = process.env.NEXT_PUBLIC_APP_ID as `app_${string}` | undefined;
 const RP_ID = process.env.NEXT_PUBLIC_RP_ID;
 const STAGING_CONNECT_BASE_URL = "https://staging.world.org/verify";
+const SANDBOX_CONNECT_BASE_URL = "https://sandbox.world.id.org/verify";
+const CONNECT_BASE_URL_OVERRIDES: Record<"staging" | "sandbox", string> = {
+  staging: STAGING_CONNECT_BASE_URL,
+  sandbox: SANDBOX_CONNECT_BASE_URL,
+};
 const STAGING_DEVPORTAL_BASE_URL = "https://staging-developer.worldcoin.org";
 const CONNECT_URL_OVERRIDE_TOOLTIP =
-  "Enable this to change the deeplink base URL to the staging verify endpoint. Useful when testing with a Staging iOS World App build that supports this override.";
+  "Enable this to change the deeplink base URL to the staging/sandbox verify endpoint. Useful when testing with a Staging or Sandbox iOS World App build that supports this override.";
 const DEVPORTAL_URL_OVERRIDE_TOOLTIP =
   "Enable this to send proof verification requests to the staging Developer Portal instead of production.";
 const GENESIS_ISSUED_AT_MIN_TOOLTIP =
@@ -86,7 +91,7 @@ const DEFAULT_IDENTITY_ATTRIBUTES: IdentityAttributesConfig = {
 
 type SharedDemoState = {
   action: string;
-  environment: "production" | "staging";
+  environment: "production" | "staging" | "sandbox";
   flowMode: FlowMode;
   genesisDate: string;
   genesisEnabled: boolean;
@@ -97,7 +102,7 @@ type SharedDemoState = {
   sessionId: string;
   useInviteCode: boolean;
   useReturnTo: boolean;
-  useStagingConnectBaseUrl: boolean;
+  useConnectBaseUrlOverride: boolean;
   useStagingDevPortalUrl: boolean;
   v4CredentialType: V4CredentialType;
   worldIdVersion: "3.0" | "4.0";
@@ -113,7 +118,7 @@ const FLOW_MODES: readonly FlowMode[] = [
   "create_session",
   "session",
 ];
-const ENVIRONMENTS = ["production", "staging"] as const;
+const ENVIRONMENTS = ["production", "staging", "sandbox"] as const;
 const WORLD_ID_VERSIONS = ["3.0", "4.0"] as const;
 const V4_CREDENTIAL_TYPES: readonly V4CredentialType[] = [
   "proof_of_human",
@@ -186,7 +191,7 @@ function createDefaultSharedDemoState(): SharedDemoState {
     sessionId: "",
     useInviteCode: false,
     useReturnTo: false,
-    useStagingConnectBaseUrl: false,
+    useConnectBaseUrlOverride: false,
     useStagingDevPortalUrl: false,
     v4CredentialType: "proof_of_human",
     worldIdVersion: "4.0",
@@ -333,9 +338,9 @@ function normalizeSharedDemoState(value: unknown): SharedDemoState | null {
     sessionId: coerceString(value.sessionId, fallback.sessionId, 160),
     useInviteCode: coerceBoolean(value.useInviteCode, fallback.useInviteCode),
     useReturnTo: coerceBoolean(value.useReturnTo, fallback.useReturnTo),
-    useStagingConnectBaseUrl: coerceBoolean(
-      value.useStagingConnectBaseUrl,
-      fallback.useStagingConnectBaseUrl,
+    useConnectBaseUrlOverride: coerceBoolean(
+      value.useConnectBaseUrlOverride,
+      fallback.useConnectBaseUrlOverride,
     ),
     useStagingDevPortalUrl: coerceBoolean(
       value.useStagingDevPortalUrl,
@@ -345,8 +350,13 @@ function normalizeSharedDemoState(value: unknown): SharedDemoState | null {
     worldIdVersion,
   };
 
+  // Connect URL override is available for both Staging and Sandbox; DevPortal
+  // override is Staging-only (there is no Sandbox Developer Portal).
+  if (state.environment === "production") {
+    state.useConnectBaseUrlOverride = false;
+  }
+
   if (state.environment !== "staging") {
-    state.useStagingConnectBaseUrl = false;
     state.useStagingDevPortalUrl = false;
   }
 
@@ -681,10 +691,10 @@ export function DemoClient(): ReactElement {
     useState<IDKitResult | null>(null);
   const [widgetSignal, setWidgetSignal] = useState("demo-signal-initial");
   const [action, setAction] = useState("test-action");
-  const [environment, setEnvironment] = useState<"production" | "staging">(
-    "production",
-  );
-  const [useStagingConnectBaseUrl, setUseStagingConnectBaseUrl] =
+  const [environment, setEnvironment] = useState<
+    "production" | "staging" | "sandbox"
+  >("production");
+  const [useConnectBaseUrlOverride, setUseConnectBaseUrlOverride] =
     useState(false);
   const [isConnectUrlTooltipOpen, setIsConnectUrlTooltipOpen] = useState(false);
   const [useStagingDevPortalUrl, setUseStagingDevPortalUrl] = useState(false);
@@ -798,9 +808,14 @@ export function DemoClient(): ReactElement {
     [sessionCredentialType, genesisIssuedAtMin],
   );
 
+  // The core widget only recognizes "production" | "staging"; sandbox reuses
+  // the staging code path (e.g. simulator callout) with a different connect URL.
+  const widgetEnvironment: "production" | "staging" =
+    environment === "production" ? "production" : "staging";
+
   const overrideConnectBaseUrl =
-    environment === "staging" && useStagingConnectBaseUrl
-      ? STAGING_CONNECT_BASE_URL
+    useConnectBaseUrlOverride && environment !== "production"
+      ? CONNECT_BASE_URL_OVERRIDES[environment]
       : undefined;
   const overrideDevPortalBaseUrl =
     environment === "staging" && useStagingDevPortalUrl
@@ -827,7 +842,7 @@ export function DemoClient(): ReactElement {
       sessionId,
       useInviteCode,
       useReturnTo,
-      useStagingConnectBaseUrl,
+      useConnectBaseUrlOverride,
       useStagingDevPortalUrl,
       v4CredentialType,
       worldIdVersion,
@@ -845,7 +860,7 @@ export function DemoClient(): ReactElement {
       sessionId,
       useInviteCode,
       useReturnTo,
-      useStagingConnectBaseUrl,
+      useConnectBaseUrlOverride,
       useStagingDevPortalUrl,
       v4CredentialType,
       worldIdVersion,
@@ -865,7 +880,7 @@ export function DemoClient(): ReactElement {
     setSessionId(state.sessionId);
     setUseInviteCode(state.useInviteCode);
     setUseReturnTo(state.useReturnTo);
-    setUseStagingConnectBaseUrl(state.useStagingConnectBaseUrl);
+    setUseConnectBaseUrlOverride(state.useConnectBaseUrlOverride);
     setUseStagingDevPortalUrl(state.useStagingDevPortalUrl);
     setV4CredentialType(state.v4CredentialType);
     setWorldIdVersion(state.worldIdVersion);
@@ -893,9 +908,13 @@ export function DemoClient(): ReactElement {
   }, [isLightTheme]);
 
   useEffect(() => {
-    if (environment !== "staging") {
-      setUseStagingConnectBaseUrl(false);
+    // Connect URL override is available for both Staging and Sandbox; DevPortal
+    // override is Staging-only (there is no Sandbox Developer Portal).
+    if (environment === "production") {
+      setUseConnectBaseUrlOverride(false);
       setIsConnectUrlTooltipOpen(false);
+    }
+    if (environment !== "staging") {
       setUseStagingDevPortalUrl(false);
       setIsDevPortalUrlTooltipOpen(false);
     }
@@ -1143,11 +1162,14 @@ export function DemoClient(): ReactElement {
             id="cfgEnv"
             value={environment}
             onChange={(e) =>
-              setEnvironment(e.target.value as "production" | "staging")
+              setEnvironment(
+                e.target.value as "production" | "staging" | "sandbox",
+              )
             }
           >
             <option value="production">Production</option>
             <option value="staging">Staging</option>
+            <option value="sandbox">Sandbox</option>
           </select>
         </div>
         {!isSessionFlow && (
@@ -1161,7 +1183,7 @@ export function DemoClient(): ReactElement {
             />
           </div>
         )}
-        {environment === "staging" && (
+        {(environment === "staging" || environment === "sandbox") && (
           <div className="config-row">
             <label htmlFor="cfgOverrideConnectBaseUrl">
               Connect URL override
@@ -1200,10 +1222,12 @@ export function DemoClient(): ReactElement {
             <input
               type="checkbox"
               id="cfgOverrideConnectBaseUrl"
-              checked={useStagingConnectBaseUrl}
-              onChange={(e) => setUseStagingConnectBaseUrl(e.target.checked)}
+              checked={useConnectBaseUrlOverride}
+              onChange={(e) => setUseConnectBaseUrlOverride(e.target.checked)}
             />
-            <span className="config-note">{STAGING_CONNECT_BASE_URL}</span>
+            <span className="config-note">
+              {CONNECT_BASE_URL_OVERRIDES[environment]}
+            </span>
           </div>
         )}
 
@@ -1765,7 +1789,7 @@ export function DemoClient(): ReactElement {
               setWidgetVerifyResult(verified);
             }}
             onError={handleWidgetError}
-            environment={environment}
+            environment={widgetEnvironment}
             override_connect_base_url={overrideConnectBaseUrl}
             return_to={effectiveReturnTo}
           />
@@ -1790,7 +1814,7 @@ export function DemoClient(): ReactElement {
               setWidgetVerifyResult(verified);
             }}
             onError={handleWidgetError}
-            environment={environment}
+            environment={widgetEnvironment}
             override_connect_base_url={overrideConnectBaseUrl}
             return_to={effectiveReturnTo}
           />
@@ -1818,7 +1842,7 @@ export function DemoClient(): ReactElement {
             setWidgetVerifyResult(verified);
           }}
           onError={handleWidgetError}
-          environment={environment}
+          environment={widgetEnvironment}
           override_connect_base_url={overrideConnectBaseUrl}
           return_to={effectiveReturnTo}
         />
