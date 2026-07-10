@@ -4,6 +4,7 @@ import IDKit
 enum SampleEnvironment: String, CaseIterable, Identifiable {
     case production
     case staging
+    case sandbox
 
     var id: String { rawValue }
 }
@@ -247,6 +248,7 @@ final class SampleModel: ObservableObject {
                     switch environment {
                     case .production: return .production
                     case .staging: return .staging
+                    case .sandbox: return .sandbox
                     }
                 }(),
                 connectUrlMode: {

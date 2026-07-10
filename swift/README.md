@@ -59,6 +59,8 @@ case .failure(let error):
 }
 ```
 
+`.production`, `.staging`, and `.sandbox` each select the corresponding connect URL.
+
 For orb-or-device legacy verification, use:
 
 ```swift

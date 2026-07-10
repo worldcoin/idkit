@@ -745,7 +745,7 @@ pub struct IDKitResult {
     /// Whether World App completed the requested user-presence check.
     pub user_presence_completed: bool,
 
-    /// The environment used for this request ("production" or "staging")
+    /// The environment used for this request ("production", "staging", or "sandbox")
     pub environment: String,
 
     /// Whether identity attributes were attested.

@@ -3,7 +3,7 @@
  * These tests verify that the WASM integration and core APIs are functional
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   IDKit,
   CredentialRequest,
@@ -187,6 +187,75 @@ describe("IDKitRequest API", () => {
     const emptyConstraint = any();
     expect(emptyConstraint).toHaveProperty("any");
     expect(emptyConstraint.any).toHaveLength(0);
+  });
+
+  it("should select the connect base URL from the environment", async () => {
+    const requestId = "64e0ec6b-b4ca-47cc-8f70-504a95189e26";
+    const fetchMock = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        const request =
+          input instanceof Request ? input : new Request(input, init);
+        const response = new Response(
+          JSON.stringify({ request_id: requestId }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        );
+
+        Object.defineProperty(response, "url", { value: request.url });
+        return response;
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const rpContext = {
+      rp_id: "rp_1234567890abcdef",
+      nonce:
+        "0x0000000000000000000000000000000000000000000000000000000000000001",
+      created_at: 1_700_000_000,
+      expires_at: 1_700_003_600,
+      signature: `0x${"00".repeat(64)}1b`,
+    };
+    const cases = [
+      { config: {}, expected: "https://world.org/verify?t=wld" },
+      {
+        config: { environment: "production" as const },
+        expected: "https://world.org/verify?t=wld",
+      },
+      {
+        config: { environment: "staging" as const },
+        expected: "https://staging.world.org/verify?t=wld",
+      },
+      {
+        config: { environment: "sandbox" as const },
+        expected: "https://sandbox.world.org/verify?t=wld",
+      },
+      {
+        config: {
+          environment: "sandbox" as const,
+          override_connect_base_url: "https://override.example/verify",
+        },
+        expected: "https://override.example/verify?t=wld",
+      },
+    ];
+
+    try {
+      for (const { config, expected } of cases) {
+        const request = await IDKit.request({
+          app_id: "app_staging_test",
+          action: "test-action",
+          rp_context: rpContext,
+          allow_legacy_proofs: true,
+          ...config,
+        }).preset(orbLegacy());
+
+        expect(request.connectorURI.startsWith(expected)).toBe(true);
+      }
+      expect(fetchMock).toHaveBeenCalledTimes(cases.length);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   // TODO: re-enable once this is supported and World ID 4.0 is rolled out live
