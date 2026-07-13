@@ -916,7 +916,7 @@ impl BridgeConnection {
         let base_url = self
             .override_connect_base_url
             .as_deref()
-            .unwrap_or(self.environment.connect_base_url());
+            .unwrap_or_else(|| self.environment.connect_base_url());
 
         format!(
             "{}?t=wld&i={}&k={}{}{}{}",
