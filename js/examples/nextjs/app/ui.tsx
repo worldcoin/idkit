@@ -112,7 +112,7 @@ const FLOW_MODES: readonly FlowMode[] = [
   "create_session",
   "session",
 ];
-const ENVIRONMENTS = ["production", "staging"] as const;
+const ENVIRONMENTS = ["production", "staging", "sandbox"] as const;
 const WORLD_ID_VERSIONS = ["3.0", "4.0"] as const;
 const V4_CREDENTIAL_TYPES: readonly V4CredentialType[] = [
   "proof_of_human",
@@ -790,7 +790,8 @@ export function DemoClient(): ReactElement {
   );
 
   const overrideDevPortalBaseUrl =
-    environment === "staging" && useStagingDevPortalUrl
+    (environment === "staging" || environment === "sandbox") &&
+    useStagingDevPortalUrl
       ? STAGING_DEVPORTAL_BASE_URL
       : undefined;
   const effectiveReturnTo = useReturnTo
