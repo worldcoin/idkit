@@ -541,14 +541,12 @@ pub fn base64_decode(data: &str) -> Result<Vec<u8>, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("Base64 decode failed: {e}")))
 }
 
-// TODO(#294): Thread real JS package metadata into the WASM builders.
-const WASM_PACKAGE_NAME_PLACEHOLDER: &str = "idkit_js_core";
-const WASM_PACKAGE_VERSION_PLACEHOLDER: &str = "0.0.0";
-
 /// Internal enum to store builder configuration (WASM)
 enum IDKitConfigWasm {
     Request {
         app_id: String,
+        package_name: String,
+        package_version: String,
         action: String,
         rp_context: RpContext,
         action_description: Option<String>,
@@ -561,6 +559,8 @@ enum IDKitConfigWasm {
     },
     CreateSession {
         app_id: String,
+        package_name: String,
+        package_version: String,
         rp_context: RpContext,
         action_description: Option<String>,
         bridge_url: Option<String>,
@@ -572,6 +572,8 @@ enum IDKitConfigWasm {
     ProveSession {
         session_id: String,
         app_id: String,
+        package_name: String,
+        package_version: String,
         rp_context: RpContext,
         action_description: Option<String>,
         bridge_url: Option<String>,
@@ -600,6 +602,8 @@ impl IDKitConfigWasm {
                 override_connect_base_url,
                 return_to,
                 environment,
+                package_name,
+                package_version,
             } => {
                 let app_id = crate::AppId::new(app_id)
                     .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
@@ -611,8 +615,8 @@ impl IDKitConfigWasm {
 
                 Ok(crate::bridge::BridgeConnectionParams {
                     app_id,
-                    package_name: WASM_PACKAGE_NAME_PLACEHOLDER.to_string(),
-                    package_version: WASM_PACKAGE_VERSION_PLACEHOLDER.to_string(),
+                    package_name: package_name.clone(),
+                    package_version: package_version.clone(),
                     kind: crate::bridge::RequestKind::Uniqueness {
                         action: action.clone(),
                     },
@@ -645,6 +649,8 @@ impl IDKitConfigWasm {
                 override_connect_base_url,
                 return_to,
                 environment,
+                package_name,
+                package_version,
             } => {
                 let app_id = crate::AppId::new(app_id)
                     .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
@@ -656,8 +662,8 @@ impl IDKitConfigWasm {
 
                 Ok(crate::bridge::BridgeConnectionParams {
                     app_id,
-                    package_name: WASM_PACKAGE_NAME_PLACEHOLDER.to_string(),
-                    package_version: WASM_PACKAGE_VERSION_PLACEHOLDER.to_string(),
+                    package_name: package_name.clone(),
+                    package_version: package_version.clone(),
                     kind: crate::bridge::RequestKind::CreateSession,
                     constraints,
                     rp_context: rp_context.clone(),
@@ -689,6 +695,8 @@ impl IDKitConfigWasm {
                 override_connect_base_url,
                 return_to,
                 environment,
+                package_name,
+                package_version,
             } => {
                 let app_id = crate::AppId::new(app_id)
                     .map_err(|e| JsValue::from_str(&format!("Invalid app_id: {e}")))?;
@@ -700,8 +708,8 @@ impl IDKitConfigWasm {
 
                 Ok(crate::bridge::BridgeConnectionParams {
                     app_id,
-                    package_name: WASM_PACKAGE_NAME_PLACEHOLDER.to_string(),
-                    package_version: WASM_PACKAGE_VERSION_PLACEHOLDER.to_string(),
+                    package_name: package_name.clone(),
+                    package_version: package_version.clone(),
                     kind: crate::bridge::RequestKind::ProveSession {
                         session_id: session_id.clone(),
                     },
@@ -775,6 +783,8 @@ impl IDKitBuilderWasm {
     #[wasm_bindgen(constructor)]
     pub fn new(
         app_id: String,
+        package_name: String,
+        package_version: String,
         action: String,
         rp_context: RpContextWasm,
         action_description: Option<String>,
@@ -788,6 +798,8 @@ impl IDKitBuilderWasm {
         Self {
             config: IDKitConfigWasm::Request {
                 app_id,
+                package_name,
+                package_version,
                 action,
                 rp_context: rp_context.into_inner(),
                 action_description,
@@ -806,6 +818,8 @@ impl IDKitBuilderWasm {
     #[wasm_bindgen(js_name = forCreateSession)]
     pub fn for_create_session(
         app_id: String,
+        package_name: String,
+        package_version: String,
         rp_context: RpContextWasm,
         action_description: Option<String>,
         bridge_url: Option<String>,
@@ -817,6 +831,8 @@ impl IDKitBuilderWasm {
         Self {
             config: IDKitConfigWasm::CreateSession {
                 app_id,
+                package_name,
+                package_version,
                 rp_context: rp_context.into_inner(),
                 action_description,
                 bridge_url,
@@ -834,6 +850,8 @@ impl IDKitBuilderWasm {
     pub fn for_prove_session(
         session_id: String,
         app_id: String,
+        package_name: String,
+        package_version: String,
         rp_context: RpContextWasm,
         action_description: Option<String>,
         bridge_url: Option<String>,
@@ -846,6 +864,8 @@ impl IDKitBuilderWasm {
             config: IDKitConfigWasm::ProveSession {
                 session_id,
                 app_id,
+                package_name,
+                package_version,
                 rp_context: rp_context.into_inner(),
                 action_description,
                 bridge_url,
@@ -1097,6 +1117,8 @@ impl IDKitBuilderWasm {
 #[allow(clippy::too_many_arguments)]
 pub fn request(
     app_id: String,
+    package_name: String,
+    package_version: String,
     action: String,
     rp_context: RpContextWasm,
     action_description: Option<String>,
@@ -1109,6 +1131,8 @@ pub fn request(
 ) -> IDKitBuilderWasm {
     IDKitBuilderWasm::new(
         app_id,
+        package_name,
+        package_version,
         action,
         rp_context,
         action_description,
@@ -1130,6 +1154,8 @@ pub fn request(
 #[allow(clippy::too_many_arguments)]
 pub fn create_session(
     app_id: String,
+    package_name: String,
+    package_version: String,
     rp_context: RpContextWasm,
     action_description: Option<String>,
     bridge_url: Option<String>,
@@ -1140,6 +1166,8 @@ pub fn create_session(
 ) -> IDKitBuilderWasm {
     IDKitBuilderWasm::for_create_session(
         app_id,
+        package_name,
+        package_version,
         rp_context,
         action_description,
         bridge_url,
@@ -1160,6 +1188,8 @@ pub fn create_session(
 pub fn prove_session(
     session_id: String,
     app_id: String,
+    package_name: String,
+    package_version: String,
     rp_context: RpContextWasm,
     action_description: Option<String>,
     bridge_url: Option<String>,
@@ -1171,6 +1201,8 @@ pub fn prove_session(
     IDKitBuilderWasm::for_prove_session(
         session_id,
         app_id,
+        package_name,
+        package_version,
         rp_context,
         action_description,
         bridge_url,
@@ -1755,6 +1787,8 @@ const TS_SESSION: &str = r#"
  */
 export function createSession(
     app_id: string,
+    package_name: string,
+    package_version: string,
     rp_context: RpContextWasm,
     action_description?: string,
     bridge_url?: string,
@@ -1774,6 +1808,8 @@ export function createSession(
 export function proveSession(
     session_id: `session_${string}`,
     app_id: string,
+    package_name: string,
+    package_version: string,
     rp_context: RpContextWasm,
     action_description?: string,
     bridge_url?: string,
@@ -1796,6 +1832,8 @@ mod tests {
     fn sample_request_config() -> IDKitConfigWasm {
         IDKitConfigWasm::Request {
             app_id: "app_staging_test".to_string(),
+            package_name: "idkit_js_core".to_string(),
+            package_version: env!("CARGO_PKG_VERSION").to_string(),
             action: "test-action".to_string(),
             rp_context: sample_rp_context(),
             action_description: None,
@@ -1812,6 +1850,8 @@ mod tests {
     fn request_params_preserve_return_to() {
         let config = IDKitConfigWasm::Request {
             app_id: "app_staging_test".to_string(),
+            package_name: "idkit_js_core".to_string(),
+            package_version: env!("CARGO_PKG_VERSION").to_string(),
             action: "test-action".to_string(),
             rp_context: sample_rp_context(),
             action_description: None,
@@ -1837,6 +1877,8 @@ mod tests {
     fn request_params_preserve_user_presence_requirement() {
         let config = IDKitConfigWasm::Request {
             app_id: "app_staging_test".to_string(),
+            package_name: "idkit_js_core".to_string(),
+            package_version: env!("CARGO_PKG_VERSION").to_string(),
             action: "test-action".to_string(),
             rp_context: sample_rp_context(),
             action_description: None,
@@ -1859,6 +1901,8 @@ mod tests {
     fn create_session_params_preserve_return_to() {
         let config = IDKitConfigWasm::CreateSession {
             app_id: "app_staging_test".to_string(),
+            package_name: "idkit_js_core".to_string(),
+            package_version: env!("CARGO_PKG_VERSION").to_string(),
             rp_context: sample_rp_context(),
             action_description: None,
             bridge_url: None,
@@ -1883,6 +1927,8 @@ mod tests {
         let config = IDKitConfigWasm::ProveSession {
             session_id: "session_123".to_string(),
             app_id: "app_staging_test".to_string(),
+            package_name: "idkit_js_core".to_string(),
+            package_version: env!("CARGO_PKG_VERSION").to_string(),
             rp_context: sample_rp_context(),
             action_description: None,
             bridge_url: None,

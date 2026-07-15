@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+import packageJson from "../../package.json";
 import {
   IDKit,
   CredentialRequest,
@@ -299,6 +300,8 @@ describe("IDKitRequest API", () => {
     );
     const builder = new WasmModule.IDKitBuilder(
       "app_test",
+      "idkit_js_core",
+      packageJson.version,
       "test-action",
       rpContext,
       null,
@@ -330,6 +333,8 @@ describe("IDKitRequest API", () => {
     );
     const builder = WasmModule.request(
       "app_staging_test",
+      "idkit_js_core",
+      packageJson.version,
       "test-action",
       rpContext,
       null,
@@ -350,10 +355,14 @@ describe("IDKitRequest API", () => {
       }),
     ) as {
       payload: {
+        package_name: string;
+        package_version: string;
         identity_attributes: Array<{ type: string; value: number | string }>;
       };
     };
 
+    expect(result.payload.package_name).toBe("idkit_js_core");
+    expect(result.payload.package_version).toBe(packageJson.version);
     expect(result.payload.identity_attributes).toEqual([
       { type: "minimum_age", value: 21 },
       { type: "nationality", value: "JPN" },

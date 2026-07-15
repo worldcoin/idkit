@@ -83,6 +83,21 @@ describe("debug reports", () => {
       allow_legacy_proofs: true,
     }).preset(orbLegacy());
 
+    expect(requestMock).toHaveBeenCalledWith(
+      "app_test",
+      "idkit_js_core",
+      packageJson.version,
+      "test-action",
+      expect.anything(),
+      null,
+      null,
+      true,
+      false,
+      null,
+      null,
+      null,
+    );
+
     const completion = await request.pollUntilCompletion({ pollInterval: 0 });
 
     // The completion result no longer carries the debug report.

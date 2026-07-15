@@ -3,6 +3,7 @@
  * Pure functional API for World ID verification - no dependencies
  */
 
+import packageJson from "../package.json";
 import type {
   IDKitRequestConfig,
   IDKitSessionConfig,
@@ -54,6 +55,16 @@ export type IDKitCompletionResult =
 
 const SESSION_ID_PATTERN = /^session_[0-9a-fA-F]{128}$/;
 type RustBridgeDebugReport = DebugReportWithoutVersion;
+
+export type IDKitNamespaceOptions = {
+  package_name: string;
+  package_version: string;
+};
+
+const CORE_NAMESPACE_OPTIONS: IDKitNamespaceOptions = {
+  package_name: "idkit_js_core",
+  package_version: packageJson.version,
+};
 
 // Re-export RpContext for convenience
 export type { RpContext };
@@ -545,6 +556,8 @@ function createWasmBuilderFromConfig(
   if (config.type === "request") {
     return WasmModule.request(
       config.app_id,
+      config.package_name,
+      config.package_version,
       String(config.action ?? ""),
       rpContext,
       config.action_description ?? null,
@@ -561,6 +574,8 @@ function createWasmBuilderFromConfig(
     return WasmModule.proveSession(
       config.session_id!,
       config.app_id,
+      config.package_name,
+      config.package_version,
       rpContext,
       config.action_description ?? null,
       config.bridge_url ?? null,
@@ -574,6 +589,8 @@ function createWasmBuilderFromConfig(
   // type === "session"
   return WasmModule.createSession(
     config.app_id,
+    config.package_name,
+    config.package_version,
     rpContext,
     config.action_description ?? null,
     config.bridge_url ?? null,
@@ -836,7 +853,10 @@ class IDKitInviteCodeBuilder {
  * const proof = await request.pollUntilCompletion();
  * ```
  */
-export function createRequest(config: IDKitRequestConfig): IDKitBuilder {
+function createRequestForNamespace(
+  config: IDKitRequestConfig,
+  options: IDKitNamespaceOptions,
+): IDKitBuilder {
   // Validate required fields
   if (!config.app_id) {
     throw new Error("app_id is required");
@@ -859,6 +879,8 @@ export function createRequest(config: IDKitRequestConfig): IDKitBuilder {
   return new IDKitBuilder({
     type: "request",
     app_id: config.app_id,
+    package_name: options.package_name,
+    package_version: options.package_version,
     action: String(config.action),
     rp_context: config.rp_context,
     action_description: config.action_description,
@@ -869,6 +891,10 @@ export function createRequest(config: IDKitRequestConfig): IDKitBuilder {
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
   });
+}
+
+export function createRequest(config: IDKitRequestConfig): IDKitBuilder {
+  return createRequestForNamespace(config, CORE_NAMESPACE_OPTIONS);
 }
 
 /**
@@ -891,8 +917,9 @@ export function createRequest(config: IDKitRequestConfig): IDKitBuilder {
  * const proof = await request.pollUntilCompletion();
  * ```
  */
-function createRequestWithInviteCode(
+function createRequestWithInviteCodeForNamespace(
   config: IDKitRequestConfig,
+  options: IDKitNamespaceOptions,
 ): IDKitInviteCodeBuilder {
   // Validate required fields — mirror createRequest exactly so integrators
   // don't get different validation between the two paths.
@@ -917,6 +944,8 @@ function createRequestWithInviteCode(
   return new IDKitInviteCodeBuilder({
     type: "request",
     app_id: config.app_id,
+    package_name: options.package_name,
+    package_version: options.package_version,
     action: String(config.action),
     rp_context: config.rp_context,
     action_description: config.action_description,
@@ -927,6 +956,15 @@ function createRequestWithInviteCode(
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
   });
+}
+
+function createRequestWithInviteCode(
+  config: IDKitRequestConfig,
+): IDKitInviteCodeBuilder {
+  return createRequestWithInviteCodeForNamespace(
+    config,
+    CORE_NAMESPACE_OPTIONS,
+  );
 }
 
 /**
@@ -955,7 +993,10 @@ function createRequestWithInviteCode(
  * // result.responses[0].session_nullifier -> for session tracking
  * ```
  */
-export function createSession(config: IDKitSessionConfig): IDKitBuilder {
+function createSessionForNamespace(
+  config: IDKitSessionConfig,
+  options: IDKitNamespaceOptions,
+): IDKitBuilder {
   // Validate required fields
   if (!config.app_id) {
     throw new Error("app_id is required");
@@ -969,6 +1010,8 @@ export function createSession(config: IDKitSessionConfig): IDKitBuilder {
   return new IDKitBuilder({
     type: "createSession",
     app_id: config.app_id,
+    package_name: options.package_name,
+    package_version: options.package_version,
     rp_context: config.rp_context,
     action_description: config.action_description,
     bridge_url: config.bridge_url,
@@ -977,6 +1020,10 @@ export function createSession(config: IDKitSessionConfig): IDKitBuilder {
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
   });
+}
+
+export function createSession(config: IDKitSessionConfig): IDKitBuilder {
+  return createSessionForNamespace(config, CORE_NAMESPACE_OPTIONS);
 }
 
 /**
@@ -1005,9 +1052,10 @@ export function createSession(config: IDKitSessionConfig): IDKitBuilder {
  * // result.responses[0].session_nullifier -> should match for same user
  * ```
  */
-export function proveSession(
+function proveSessionForNamespace(
   sessionId: `session_${string}`,
   config: IDKitSessionConfig,
+  options: IDKitNamespaceOptions,
 ): IDKitBuilder {
   // Validate required fields
   if (!sessionId) {
@@ -1031,6 +1079,8 @@ export function proveSession(
     type: "proveSession",
     session_id: sessionId,
     app_id: config.app_id,
+    package_name: options.package_name,
+    package_version: options.package_version,
     rp_context: config.rp_context,
     action_description: config.action_description,
     bridge_url: config.bridge_url,
@@ -1039,6 +1089,59 @@ export function proveSession(
     override_connect_base_url: config.override_connect_base_url,
     environment: config.environment,
   });
+}
+
+export function proveSession(
+  sessionId: `session_${string}`,
+  config: IDKitSessionConfig,
+): IDKitBuilder {
+  return proveSessionForNamespace(sessionId, config, CORE_NAMESPACE_OPTIONS);
+}
+
+export type IDKitNamespace = {
+  request: typeof createRequest;
+  requestWithInviteCode: typeof createRequestWithInviteCode;
+  createSession: typeof createSession;
+  proveSession: typeof proveSession;
+  CredentialRequest: typeof CredentialRequest;
+  any: typeof any;
+  all: typeof all;
+  enumerate: typeof enumerate;
+  orbLegacy: typeof orbLegacy;
+  secureDocumentLegacy: typeof secureDocumentLegacy;
+  documentLegacy: typeof documentLegacy;
+  deviceLegacy: typeof deviceLegacy;
+  selfieCheckLegacy: typeof selfieCheckLegacy;
+  proofOfHuman: typeof proofOfHuman;
+  passport: typeof passport;
+  mnc: typeof mnc;
+  identityCheck: typeof identityCheck;
+};
+
+export function createIDKitNamespace(
+  options: IDKitNamespaceOptions,
+): IDKitNamespace {
+  return {
+    request: (config) => createRequestForNamespace(config, options),
+    requestWithInviteCode: (config) =>
+      createRequestWithInviteCodeForNamespace(config, options),
+    createSession: (config) => createSessionForNamespace(config, options),
+    proveSession: (sessionId, config) =>
+      proveSessionForNamespace(sessionId, config, options),
+    CredentialRequest,
+    any,
+    all,
+    enumerate,
+    orbLegacy,
+    secureDocumentLegacy,
+    documentLegacy,
+    deviceLegacy,
+    selfieCheckLegacy,
+    proofOfHuman,
+    passport,
+    mnc,
+    identityCheck,
+  };
 }
 
 /**
@@ -1062,39 +1165,6 @@ export function proveSession(
  * const proof = await request.pollUntilCompletion()
  * ```
  */
-export const IDKit = {
-  /** Create a new verification request */
-  request: createRequest,
-  /** Create a new invite-code mode verification request (WDP-73) */
-  requestWithInviteCode: createRequestWithInviteCode,
-  /** Create a new session (no action, no existing session_id) */
-  createSession,
-  /** Prove an existing session (no action, has session_id) */
-  proveSession,
-  /** Create a CredentialRequest for a credential type */
-  CredentialRequest,
-  /** Create an OR constraint - at least one child must be satisfied */
-  any,
-  /** Create an AND constraint - all children must be satisfied */
-  all,
-  /** Create an enumerate constraint - all satisfiable children should be selected */
-  enumerate,
-  /** Create an OrbLegacy preset for World ID 3.0 legacy support */
-  orbLegacy,
-  /** Create a SecureDocumentLegacy preset for World ID 3.0 legacy support */
-  secureDocumentLegacy,
-  /** Create a DocumentLegacy preset for World ID 3.0 legacy support */
-  documentLegacy,
-  /** Create a DeviceLegacy preset for World ID 3.0 legacy support */
-  deviceLegacy,
-  /** Create a SelfieCheckLegacy preset for face verification */
-  selfieCheckLegacy,
-  /** Create a ProofOfHuman preset for World ID 4.0 with legacy Orb fallback */
-  proofOfHuman,
-  /** Create a Passport preset for World ID 4.0 with legacy document fallback */
-  passport,
-  /** Create an Mnc preset for World ID 4.0 with legacy document fallback */
-  mnc,
-  /** Create an IdentityCheck preset for World ID 4.0 identity attestation */
-  identityCheck,
-};
+export const IDKit: IDKitNamespace = createIDKitNamespace(
+  CORE_NAMESPACE_OPTIONS,
+);
