@@ -4,9 +4,7 @@
 //! automatically handling both World ID 4.0 and 3.0 protocol formats.
 
 use crate::types::IdentityAttribute;
-#[cfg(any(test, feature = "ffi", feature = "wasm-bindings"))]
 use crate::types::{CredentialRequest, CredentialType, VerificationLevel};
-#[cfg(any(test, feature = "ffi", feature = "wasm-bindings"))]
 use crate::{ConstraintNode, Signal};
 use serde::{Deserialize, Serialize};
 
@@ -121,12 +119,20 @@ pub enum Preset {
     },
 }
 
-#[cfg(any(test, feature = "ffi", feature = "wasm-bindings"))]
-pub(crate) struct BridgeParams {
+/// Bridge session parameters derived from a [`Preset`].
+///
+/// Consumed by binding layers (`UniFFI` wrappers and the KMP C ABI) to build
+/// `BridgeConnectionParams` from a preset.
+pub struct BridgeParams {
+    /// World ID 4.0 constraint tree (None for legacy-only presets)
     pub constraints: Option<ConstraintNode>,
+    /// World ID 3.0 legacy verification level
     pub legacy_verification_level: Option<VerificationLevel>,
+    /// Legacy signal string (if configured)
     pub legacy_signal: Option<String>,
+    /// Identity attribute filters (`IdentityCheck` presets only)
     pub identity_attributes: Option<Vec<IdentityAttribute>>,
+    /// Override for `allow_legacy_proofs` (`None` = let caller decide)
     pub allow_legacy_proofs_override: Option<bool>,
 }
 
@@ -202,9 +208,8 @@ impl Preset {
     /// - `Option<bool>` - override for `allow_legacy_proofs` (`None` = let caller decide)
     // TODO: This should be removed it was introduced to keep legacy preset compatible with proof_request
     // TODO: but we decided to keep legacy presets only 3.0, will tackle separately
-    #[cfg(any(test, feature = "ffi", feature = "wasm-bindings"))]
     #[must_use]
-    pub(crate) fn into_bridge_params(self) -> BridgeParams {
+    pub fn into_bridge_params(self) -> BridgeParams {
         match self {
             Self::OrbLegacy { signal } => BridgeParams {
                 constraints: None,

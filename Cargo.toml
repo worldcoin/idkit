@@ -3,6 +3,7 @@ resolver = "2"
 
 members = [
     "rust/core",
+    "rust/kmp-ffi",
     "rust/uniffi-bindgen-bin",
 ]
 
@@ -83,6 +84,12 @@ lto = true
 codegen-units = 1
 strip = true
 panic = "abort"
+
+# Android profile for the KMP C ABI: panics must unwind so the FFI layer's
+# catch_unwind can convert them into error envelopes instead of aborting the app.
+[profile.kmp-android-release]
+inherits = "android-release"
+panic = "unwind"
 
 [profile.wasm-release]
 inherits = "release"

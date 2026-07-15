@@ -300,7 +300,7 @@ jobs:
       - name: Install cross (for Android targets, if not cached)
         run: command -v cross || cargo install cross --git https://github.com/cross-rs/cross --locked
 
-      - name: Build Kotlin bindings (host + Android ABIs)
+      - name: Build Kotlin native libraries (host + Android ABIs)
         run: ./scripts/build-kotlin.sh
 
       - name: Setup Android SDK
@@ -308,48 +308,142 @@ jobs:
         with:
           packages: tools platform-tools platforms;android-35 build-tools;35.0.0
 
+      # iOS targets are disabled on Linux (kotlin.native.ignoreDisabledTargets);
+      # this runs commonTest on the host JVM against the host libidkit_kmp.
       - name: Run tests
         working-directory: kotlin/
-        run: gradle bindings:test
+        run: ./gradlew :idkit:testReleaseUnitTest
 
       - name: Build Kotlin sample app
         working-directory: kotlin/Examples/IDKitSampleApp
         run: ./gradlew :app:assembleDebug
 
-      - name: Validate Kotlin Maven publication
+      - name: Build KMP sample app (Android)
+        working-directory: kotlin/Examples/IDKitKmpSampleApp
+        run: ./gradlew :androidApp:assembleDebug
+
+      # Validates the Android slice of the KMP publication. The iOS variants and
+      # complete root metadata can only be produced on macOS; the publish workflow
+      # runs there and the build fails remote publishing from non-Mac hosts.
+      - name: Validate Kotlin Maven publication (Android slice)
         run: |
           set -euo pipefail
 
-          ./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin :bindings:publishToMavenLocal
-          ./kotlin/Examples/IDKitSampleApp/gradlew -p kotlin \
+          ./kotlin/gradlew -p kotlin :idkit:publishToMavenLocal
+          ./kotlin/gradlew -p kotlin \
             -Pidkit.publish.mavenCentral=true \
-            :bindings:publishToMavenCentral --dry-run
+            :idkit:publishToMavenCentral --dry-run
 
           VERSION="$(grep '^version=' kotlin/gradle.properties | cut -d= -f2- | tr -d '[:space:]')"
-          ARTIFACT_DIR="$HOME/.m2/repository/com/worldcoin/idkit/$VERSION"
-          ARTIFACT_BASE="$ARTIFACT_DIR/idkit-$VERSION"
+          REPO="$HOME/.m2/repository/com/worldcoin"
+          ROOT_BASE="$REPO/idkit/$VERSION/idkit-$VERSION"
+          ANDROID_BASE="$REPO/idkit-android/$VERSION/idkit-android-$VERSION"
 
           for artifact in \
-            "$ARTIFACT_BASE.aar" \
-            "$ARTIFACT_BASE.pom" \
-            "$ARTIFACT_BASE.module" \
-            "$ARTIFACT_BASE-sources.jar" \
-            "$ARTIFACT_BASE-javadoc.jar"; do
+            "$ROOT_BASE.pom" \
+            "$ROOT_BASE.module" \
+            "$ANDROID_BASE.aar" \
+            "$ANDROID_BASE.pom" \
+            "$ANDROID_BASE.module" \
+            "$ANDROID_BASE-sources.jar"; do
             if [ ! -s "$artifact" ]; then
               echo "::error::Missing Maven publication artifact: $artifact"
               exit 1
             fi
           done
 
-          grep -q '<groupId>com.worldcoin</groupId>' "$ARTIFACT_BASE.pom"
-          grep -q '<artifactId>idkit</artifactId>' "$ARTIFACT_BASE.pom"
-          grep -q '<packaging>aar</packaging>' "$ARTIFACT_BASE.pom"
+          grep -q '<groupId>com.worldcoin</groupId>' "$ROOT_BASE.pom"
+          grep -q '<artifactId>idkit</artifactId>' "$ROOT_BASE.pom"
+          grep -q '<packaging>aar</packaging>' "$ANDROID_BASE.pom"
 
           AAR_CONTENTS="$(mktemp)"
-          jar tf "$ARTIFACT_BASE.aar" > "$AAR_CONTENTS"
+          jar tf "$ANDROID_BASE.aar" > "$AAR_CONTENTS"
           for abi in arm64-v8a armeabi-v7a x86 x86_64; do
-            if ! grep -q "^jni/$abi/libidkit.so$" "$AAR_CONTENTS"; then
-              echo "::error::Missing native library in AAR: jni/$abi/libidkit.so"
+            if ! grep -q "^jni/$abi/libidkit_kmp.so$" "$AAR_CONTENTS"; then
+              echo "::error::Missing native library in AAR: jni/$abi/libidkit_kmp.so"
+              exit 1
+            fi
+          done
+
+  kotlin-ios:
+    name: Kotlin SDK - iOS targets (macOS)
+    runs-on: macos-latest
+    needs: rust-core
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read rust-toolchain
+        id: rust-version
+        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust-version.outputs.toolchain }}
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: tools platform-tools platforms;android-35 build-tools;35.0.0
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: kotlin-ios
+
+      - name: Build Kotlin native libraries (host + iOS)
+        run: SKIP_ANDROID=1 ./scripts/build-kotlin.sh
+
+      # commonTest on the iOS simulator: exercises the cinterop bridge and the
+      # statically linked Rust core on Kotlin/Native.
+      - name: Run iOS simulator tests
+        working-directory: kotlin/
+        run: ./gradlew :idkit:iosSimulatorArm64Test
+
+      # Rehearse the full multi-target publication so release-day breakage in
+      # variant metadata or publication wiring is caught on PRs (the release
+      # itself is the first time the real publish tasks otherwise run). The
+      # rehearsal flag skips the Android .so check — mac runners cannot
+      # cross-build them — and remote publishing rejects that flag, so it
+      # cannot leak into a release.
+      - name: Rehearse full KMP publication (Maven Local)
+        run: |
+          set -euo pipefail
+
+          ./kotlin/gradlew -p kotlin :idkit:publishToMavenLocal \
+            -Pidkit.rehearsal.allowMissingAndroidNativeLibs=true
+
+          VERSION="$(grep '^version=' kotlin/gradle.properties | cut -d= -f2- | tr -d '[:space:]')"
+          REPO="$HOME/.m2/repository/com/worldcoin"
+
+          for module in idkit-iosarm64 idkit-iossimulatorarm64 idkit-iosx64; do
+            for ext in klib pom module; do
+              artifact="$REPO/$module/$VERSION/$module-$VERSION.$ext"
+              if [ ! -s "$artifact" ]; then
+                echo "::error::Missing Maven publication artifact: $artifact"
+                exit 1
+              fi
+            done
+          done
+
+          # The root module metadata is what consumers resolve; every target
+          # variant must be present in it.
+          ROOT_MODULE="$REPO/idkit/$VERSION/idkit-$VERSION.module"
+          for variant in \
+            releaseApiElements-published \
+            iosArm64ApiElements-published \
+            iosSimulatorArm64ApiElements-published \
+            iosX64ApiElements-published; do
+            if ! grep -q "\"$variant\"" "$ROOT_MODULE"; then
+              echo "::error::Root Gradle module metadata is missing variant: $variant"
               exit 1
             fi
           done

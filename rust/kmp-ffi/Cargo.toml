@@ -1,0 +1,24 @@
+[package]
+name = "idkit-kmp-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "C ABI facade over idkit-core for the IDKit Kotlin Multiplatform SDK"
+publish = false
+
+[lib]
+name = "idkit_kmp"
+# `lib` keeps the crate linkable from its own integration tests; cdylib/staticlib
+# are the artifacts consumed by the Kotlin Multiplatform SDK (JNA / cinterop).
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[dependencies]
+# Deliberately without the `ffi` (UniFFI) feature: the KMP ABI is hand-written,
+# and omitting UniFFI keeps uniffi_* symbols out of the binary so an app can
+# link both this library and the UniFFI-based SDKs without symbol collisions.
+idkit-core = { path = "../core", default-features = false, features = ["native-crypto", "bridge"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }

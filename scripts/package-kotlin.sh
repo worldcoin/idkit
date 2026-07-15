@@ -6,9 +6,9 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 KOTLIN_DIR="$PROJECT_ROOT/kotlin"
 DIST_DIR="$KOTLIN_DIR/dist"
 
-echo "📦 Packaging Kotlin bindings"
+echo "📦 Packaging Kotlin SDK module"
 
-# Build bindings and native libs (host + Android if Docker available)
+# Build native libs (host + Android if Docker/cargo-ndk available + iOS on macOS)
 SKIP_ANDROID=${SKIP_ANDROID:-0} "$SCRIPT_DIR/build-kotlin.sh"
 
 VERSION=$(grep '^version=' "$KOTLIN_DIR/gradle.properties" | cut -d= -f2- | tr -d '[:space:]')
@@ -20,10 +20,10 @@ fi
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 
-echo "🗜️  Zipping bindings (version $VERSION)"
+echo "🗜️  Zipping SDK module (version $VERSION)"
 (
   cd "$KOTLIN_DIR"
-  zip -r "dist/idkit-kotlin-${VERSION}.zip" bindings > /dev/null
+  zip -r "dist/idkit-kotlin-${VERSION}.zip" idkit -x "idkit/build/*" -x "idkit/.gradle/*" > /dev/null
 )
 
 echo "✅ Kotlin package ready: $DIST_DIR/idkit-kotlin-${VERSION}.zip"
