@@ -175,6 +175,11 @@ export const WIDGET_STYLES = `
 }
 
 /* World ID State */
+.idkit-worldid-state {
+  width: 100%;
+  min-width: 0;
+}
+
 .idkit-worldid-icon {
   display: flex;
   align-items: center;
@@ -310,15 +315,18 @@ export const WIDGET_STYLES = `
 
 /* Mobile deep-link button */
 .idkit-deeplink-btn {
-  display: flex;
-  width: 100%;
+  box-sizing: border-box;
+  display: inline-flex;
+  width: auto;
+  max-width: 100%;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   border-radius: 16px;
   border: 1px solid transparent;
   background: var(--idkit-btn-bg);
   color: var(--idkit-btn-text);
-  padding: 16px;
+  padding: 16px 32px;
   font-family: var(--idkit-font);
   font-size: 16px;
   font-weight: 500;
@@ -332,8 +340,8 @@ export const WIDGET_STYLES = `
   flex-shrink: 0;
 }
 .idkit-deeplink-btn span {
-  flex: 1;
-  text-align: center;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 /* Loading spinner */
@@ -445,7 +453,9 @@ export const WIDGET_STYLES = `
     display: none;
   }
   .idkit-mobile-only {
-    display: block;
+    display: flex;
+    justify-content: center;
+    width: 100%;
   }
 }
 
