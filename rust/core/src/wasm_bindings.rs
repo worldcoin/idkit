@@ -634,6 +634,7 @@ impl IDKitConfigWasm {
                     return_to: return_to.clone(),
                     environment: environment.as_deref().map(|e| match e {
                         "staging" => crate::bridge::Environment::Staging,
+                        "sandbox" => crate::bridge::Environment::Sandbox,
                         _ => crate::bridge::Environment::Production,
                     }),
                     identity_attributes: None,
@@ -678,6 +679,7 @@ impl IDKitConfigWasm {
                     return_to: return_to.clone(),
                     environment: environment.as_deref().map(|e| match e {
                         "staging" => crate::bridge::Environment::Staging,
+                        "sandbox" => crate::bridge::Environment::Sandbox,
                         _ => crate::bridge::Environment::Production,
                     }),
                     identity_attributes: None,
@@ -725,6 +727,7 @@ impl IDKitConfigWasm {
                     return_to: return_to.clone(),
                     environment: environment.as_deref().map(|e| match e {
                         "staging" => crate::bridge::Environment::Staging,
+                        "sandbox" => crate::bridge::Environment::Sandbox,
                         _ => crate::bridge::Environment::Production,
                     }),
                     identity_attributes: None,
@@ -1508,7 +1511,7 @@ export interface IDKitResultV3 {
     responses: ResponseItemV3[];
     /** Whether World App completed the requested user-presence check. */
     user_presence_completed: boolean;
-    /** The environment used for this request ("production" or "staging") */
+    /** The environment used for this request ("production", "staging", or "sandbox") */
     environment: string;
     /** Optional World App integrity bundle for this proof request */
     integrity_bundle?: IntegrityBundle;
@@ -1528,7 +1531,7 @@ export interface IDKitResultV4 {
     responses: ResponseItemV4[];
     /** Whether World App completed the requested user-presence check. */
     user_presence_completed: boolean;
-    /** The environment used for this request ("production" or "staging") */
+    /** The environment used for this request ("production", "staging", or "sandbox") */
     environment: string;
     /** Whether identity attributes were attested. Only present on IdentityCheck responses. */
     identity_attested?: boolean;
@@ -1550,7 +1553,7 @@ export interface IDKitResultSession {
     responses: ResponseItemSession[];
     /** Whether World App completed the requested user-presence check. */
     user_presence_completed: boolean;
-    /** The environment used for this request ("production" or "staging") */
+    /** The environment used for this request ("production", "staging", or "sandbox") */
     environment: string;
     /** Optional World App integrity bundle for this proof request */
     integrity_bundle?: IntegrityBundle;
@@ -1569,7 +1572,7 @@ export interface ProofResponseToIDKitResultOptions {
     nonce: string;
     action?: string;
     action_description?: string;
-    environment?: "production" | "staging";
+    environment?: "production" | "staging" | "sandbox";
     signal_hashes?: Record<string, string>;
     identity_attested?: boolean;
     user_presence_completed?: boolean;

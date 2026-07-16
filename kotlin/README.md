@@ -124,6 +124,8 @@ when (val completion = request.pollUntilCompletion(IDKitPollOptions())) {
 }
 ```
 
+`Environment.PRODUCTION`, `Environment.STAGING`, and `Environment.SANDBOX` each select the corresponding connect URL.
+
 For orb-or-device legacy verification, use:
 
 ```kotlin

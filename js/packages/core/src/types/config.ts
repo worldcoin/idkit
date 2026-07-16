@@ -61,11 +61,11 @@ export type IDKitRequestConfig = {
   /** Require World App to perform a user-presence check before verification. Defaults to false. */
   require_user_presence?: boolean;
 
-  /** Optional override for the connect base URL (e.g., for staging environments) */
+  /** Optional connect base URL override; takes precedence over the environment mapping. */
   override_connect_base_url?: string;
 
   /** Optional environment override. Defaults to "production". */
-  environment?: "production" | "staging";
+  environment?: "production" | "staging" | "sandbox";
 };
 
 /**
@@ -89,9 +89,9 @@ export type IDKitSessionConfig = {
   return_to?: string;
   /** Require World App to perform a user-presence check before verification. Defaults to false. */
   require_user_presence?: boolean;
-  /** Optional override for the connect base URL (e.g., for staging environments) */
+  /** Optional connect base URL override; takes precedence over the environment mapping. */
   override_connect_base_url?: string;
 
   /** Optional environment override. Defaults to "production". */
-  environment?: "production" | "staging";
+  environment?: "production" | "staging" | "sandbox";
 };

@@ -50,6 +50,18 @@ pub enum Environment {
     #[default]
     Production,
     Staging,
+    Sandbox,
+}
+
+impl Environment {
+    #[must_use]
+    pub const fn connect_base_url(self) -> &'static str {
+        match self {
+            Self::Production => "https://world.org/verify",
+            Self::Staging => "https://staging.world.org/verify",
+            Self::Sandbox => "https://sandbox.world.org/verify",
+        }
+    }
 }
 
 /// Controls the format of the connect URL returned by `IDKitRequestWrapper`
@@ -450,7 +462,7 @@ pub struct BridgeConnectionParams {
     pub bridge_url: Option<BridgeUrl>,
     pub allow_legacy_proofs: bool,
     pub require_user_presence: bool,
-    /// Optional override for the connect base URL (e.g., for staging environments)
+    /// Optional connect base URL override; takes precedence over the environment mapping.
     pub override_connect_base_url: Option<String>,
     /// Optional deep-link callback URL appended as `return_to` on the connector URL
     pub return_to: Option<String>,
@@ -904,7 +916,7 @@ impl BridgeConnection {
         let base_url = self
             .override_connect_base_url
             .as_deref()
-            .unwrap_or("https://world.org/verify");
+            .unwrap_or_else(|| self.environment.connect_base_url());
 
         format!(
             "{}?t=wld&i={}&k={}{}{}{}",
@@ -1621,7 +1633,7 @@ pub struct IDKitRequestConfig {
     pub allow_legacy_proofs: bool,
     /// Optional user-presence requirement. Defaults to false when omitted.
     pub require_user_presence: Option<bool>,
-    /// Optional override for the connect base URL (e.g., for staging environments)
+    /// Optional connect base URL override; takes precedence over the environment mapping.
     pub override_connect_base_url: Option<String>,
     /// Optional deep-link callback URL appended as `return_to` on the connector URL
     pub return_to: Option<String>,
@@ -1651,7 +1663,7 @@ pub struct IDKitSessionConfig {
     pub bridge_url: Option<String>,
     /// Optional user-presence requirement. Defaults to false when omitted.
     pub require_user_presence: Option<bool>,
-    /// Optional override for the connect base URL (e.g., for staging environments)
+    /// Optional connect base URL override; takes precedence over the environment mapping.
     pub override_connect_base_url: Option<String>,
     /// Optional deep-link callback URL appended as `return_to` on the connector URL
     pub return_to: Option<String>,
@@ -3917,6 +3929,39 @@ mod tests {
         let url = connection.connect_url();
 
         assert!(!url.contains("return_to="));
+    }
+
+    #[test]
+    fn test_connect_url_uses_environment_base_url() {
+        for (environment, expected_base_url) in [
+            (Environment::Production, "https://world.org/verify"),
+            (Environment::Staging, "https://staging.world.org/verify"),
+            (Environment::Sandbox, "https://sandbox.world.org/verify"),
+        ] {
+            let mut connection = sample_connection(None);
+            connection.environment = environment;
+
+            assert!(connection
+                .connect_url()
+                .starts_with(&format!("{expected_base_url}?t=wld")));
+        }
+    }
+
+    #[test]
+    fn test_connect_url_override_takes_precedence_over_environment() {
+        let mut connection = sample_connection(None);
+        connection.environment = Environment::Sandbox;
+        connection.override_connect_base_url =
+            Some("https://custom.example.com/verify".to_string());
+
+        assert!(connection
+            .connect_url()
+            .starts_with("https://custom.example.com/verify?t=wld"));
+    }
+
+    #[test]
+    fn test_sandbox_environment_serializes_to_snake_case() {
+        assert_eq!(Environment::Sandbox.to_string(), "sandbox");
     }
 
     #[test]

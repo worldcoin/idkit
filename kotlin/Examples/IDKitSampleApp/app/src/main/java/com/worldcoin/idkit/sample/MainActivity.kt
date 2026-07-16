@@ -232,6 +232,22 @@ private fun EnvironmentSelector(
                     Text("staging")
                 }
             }
+
+            if (selected == SampleEnvironment.SANDBOX) {
+                FilledTonalButton(
+                    onClick = {},
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("sandbox")
+                }
+            } else {
+                OutlinedButton(
+                    onClick = { onSelect(SampleEnvironment.SANDBOX) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("sandbox")
+                }
+            }
         }
     }
 }
@@ -276,6 +292,7 @@ private fun LegacyPresetSelector(
 private enum class SampleEnvironment {
     PRODUCTION,
     STAGING,
+    SANDBOX,
 }
 
 private enum class SampleLegacyPreset(val label: String) {
@@ -363,6 +380,7 @@ private class SampleModel {
                     environment = when (environment) {
                         SampleEnvironment.PRODUCTION -> Environment.PRODUCTION
                         SampleEnvironment.STAGING -> Environment.STAGING
+                        SampleEnvironment.SANDBOX -> Environment.SANDBOX
                     },
                     connectUrlMode = null
                 )

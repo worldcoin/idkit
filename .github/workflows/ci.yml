@@ -173,11 +173,14 @@ jobs:
             -project swift/Examples/IDKitSampleApp/IDKitSampleApp.xcodeproj \
             -scheme IDKitSampleApp 2>&1)
           echo "$DESTINATIONS"
-          if echo "$DESTINATIONS" | grep -q "Available destinations"; then
+          if echo "$DESTINATIONS" | grep -Eq 'iOS [0-9.]+ is not installed'; then
+            echo "has_destinations=false" >> $GITHUB_OUTPUT
+            echo "Required iOS platform is not installed — downloading it"
+          elif echo "$DESTINATIONS" | grep -q "platform:iOS Simulator"; then
             echo "has_destinations=true" >> $GITHUB_OUTPUT
           else
             echo "has_destinations=false" >> $GITHUB_OUTPUT
-            echo "No available destinations — skipping build"
+            echo "No iOS Simulator destination is available — downloading the platform"
           fi
 
       - name: Download iOS platform
