@@ -47,6 +47,7 @@ jobs:
             echo "npm_tag=dev" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
             echo "ref=${INPUT_COMMIT_SHA:-$GITHUB_SHA}" >> $GITHUB_OUTPUT
+          # Recovery PRs may reuse an unpublished manifest version after release CI fails.
           elif [ "$PR_MERGED" = "true" ] && \
                echo "$PR_LABELS" | grep -q '"release"' && \
                echo "$PR_BODY" | grep -q "<!-- release_target:js-core -->"; then
