@@ -166,7 +166,7 @@ jobs:
         run: |
           # npm trusted publishing requires npm >= 11.5.1
           echo "Current npm version: $(npm --version)"
-          npm install -g npm@latest
+          npm install -g npm@12.0.1
           NPM_VER=$(npm --version)
           echo "Updated npm version: $NPM_VER"
           REQUIRED="11.5.1"
@@ -225,8 +225,7 @@ jobs:
           SERVER_VERSION: ${{ needs.prepare.outputs.server_version }}
           NPM_TAG: ${{ needs.prepare.outputs.npm_tag }}
         run: |
-          PACK_OUTPUT=$(npm pack --pack-destination /tmp --json)
-          TARBALL=$(echo "$PACK_OUTPUT" | jq -r '.[0].filename')
+          TARBALL=$(npm pack --pack-destination /tmp --json | jq -er 'first(.[]).filename')
           PACKAGE_JSON=$(tar -xOf "/tmp/$TARBALL" package/package.json)
 
           if echo "$PACKAGE_JSON" | jq -e '.dependencies["@worldcoin/idkit-server"] == "workspace:*"' >/dev/null; then
