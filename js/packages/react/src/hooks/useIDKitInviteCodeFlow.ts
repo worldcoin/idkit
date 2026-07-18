@@ -7,7 +7,12 @@ import {
   type IDKitInviteCodeRequest,
 } from "@worldcoin/idkit-core";
 import type { FlowConfig, IDKitInviteCodeHookResult } from "../types";
-import { delay, ensureNotAborted, toErrorCode } from "./common";
+import {
+  delay,
+  ensureNotAborted,
+  pollOnceWithRetry,
+  toErrorCode,
+} from "./common";
 import {
   createInitialInviteCodeHookState,
   type InviteCodeHookState,
@@ -146,7 +151,12 @@ export function useIDKitInviteCodeFlow<TResult>(
             return;
           }
 
-          const nextStatus = await request.pollOnce();
+          const nextStatus = await pollOnceWithRetry(() => request.pollOnce(), {
+            interval: pollInterval,
+            signal: controller.signal,
+            startedAt,
+            timeout,
+          });
           ensureNotAborted(controller.signal);
 
           if (nextStatus.type === "confirmed") {
