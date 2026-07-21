@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,7 +22,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -67,6 +68,7 @@ class MainActivity : ComponentActivity() {
 
         handleIntent(intent)
 
+        enableEdgeToEdge()
         setContent {
             SampleScreen(
                 model = model,
@@ -111,12 +113,13 @@ private fun SampleScreen(
     val connectorURI = model.connectorURI
 
     MaterialTheme {
-        Surface(modifier = Modifier.fillMaxSize()) {
+        Scaffold(modifier = Modifier.fillMaxSize()) { paddingValues ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
+                    .padding(paddingValues)
+                    .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text("IDKit Sample", style = MaterialTheme.typography.headlineSmall)
@@ -323,8 +326,8 @@ private enum class SampleLegacyPreset(val label: String) {
 private class SampleModel {
     var signatureEndpoint by mutableStateOf("https://idkit-js-example.vercel.app/api/rp-signature")
     var verifyEndpoint by mutableStateOf("https://idkit-js-example.vercel.app/api/verify-proof")
-    var appId by mutableStateOf("app_d8bbd5341f16fb97a61e644b7e169c0e")
-    var rpId by mutableStateOf("rp_7b4f23dd5fb2a826")
+    var appId by mutableStateOf("app_75c2486e930cb8c0026266335c869b7a")
+    var rpId by mutableStateOf("rp_9b6853dacd0dbcb1")
     var action by mutableStateOf("test-action")
     var signal by mutableStateOf("signal")
     var environment by mutableStateOf(SampleEnvironment.PRODUCTION)
