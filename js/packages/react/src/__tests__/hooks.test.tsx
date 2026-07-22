@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IDKitErrorCodes } from "@worldcoin/idkit-core";
 import packageJson from "../../package.json";
 import { toErrorCode } from "../hooks/common";
+import { useIDKitInviteCodeRequest } from "../hooks/useIDKitInviteCodeRequest";
 import { useIDKitRequest } from "../hooks/useIDKitRequest";
 import { useIDKitSession } from "../hooks/useIDKitSession";
 
@@ -496,6 +497,152 @@ describe("request/session hooks", () => {
     });
 
     expect(result.current.errorCode).toBe(IDKitErrorCodes.ConnectionFailed);
+  });
+
+  it("request hook retries transient poll failures without recreating the request", async () => {
+    const pollOnce = vi
+      .fn()
+      .mockRejectedValueOnce(IDKitErrorCodes.ConnectionFailed)
+      .mockResolvedValueOnce({
+        type: "confirmed",
+        result: { proof: "ok" },
+      });
+    requestMock.mockReturnValue({
+      preset: vi.fn(async () => makeRequest(pollOnce)),
+    });
+
+    const { result } = renderHook(() =>
+      useIDKitRequest({
+        app_id: "app_test",
+        action: "test-action",
+        rp_context: baseRpContext,
+        allow_legacy_proofs: false,
+        preset: { type: "OrbLegacy" },
+        polling: { interval: 0 },
+      }),
+    );
+
+    act(() => {
+      result.current.open();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(pollOnce).toHaveBeenCalledTimes(2);
+    expect(requestMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("request hook bounds transient poll retries while visible", async () => {
+    const pollOnce = vi
+      .fn()
+      .mockRejectedValue(IDKitErrorCodes.ConnectionFailed);
+    requestMock.mockReturnValue({
+      preset: vi.fn(async () => makeRequest(pollOnce)),
+    });
+
+    const { result } = renderHook(() =>
+      useIDKitRequest({
+        app_id: "app_test",
+        action: "test-action",
+        rp_context: baseRpContext,
+        allow_legacy_proofs: false,
+        preset: { type: "OrbLegacy" },
+        polling: { interval: 0 },
+      }),
+    );
+
+    act(() => {
+      result.current.open();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(result.current.errorCode).toBe(IDKitErrorCodes.ConnectionFailed);
+    expect(pollOnce).toHaveBeenCalledTimes(6);
+  });
+
+  it("request hook preserves the retry budget while the page is hidden", async () => {
+    const visibilityState = vi
+      .spyOn(document, "visibilityState", "get")
+      .mockReturnValue("hidden");
+    const pollOnce = vi.fn();
+    for (let attempt = 0; attempt < 7; attempt += 1) {
+      pollOnce.mockRejectedValueOnce(IDKitErrorCodes.ConnectionFailed);
+    }
+    pollOnce.mockResolvedValueOnce({
+      type: "confirmed",
+      result: { proof: "ok" },
+    });
+    requestMock.mockReturnValue({
+      preset: vi.fn(async () => makeRequest(pollOnce)),
+    });
+
+    try {
+      const { result } = renderHook(() =>
+        useIDKitRequest({
+          app_id: "app_test",
+          action: "test-action",
+          rp_context: baseRpContext,
+          allow_legacy_proofs: false,
+          preset: { type: "OrbLegacy" },
+          polling: { interval: 0 },
+        }),
+      );
+
+      act(() => {
+        result.current.open();
+      });
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(pollOnce).toHaveBeenCalledTimes(8);
+    } finally {
+      visibilityState.mockRestore();
+    }
+  });
+
+  it("invite-code hook retries transient poll failures", async () => {
+    const pollOnce = vi
+      .fn()
+      .mockRejectedValueOnce(IDKitErrorCodes.ConnectionFailed)
+      .mockResolvedValueOnce({
+        type: "confirmed",
+        result: { proof: "ok" },
+      });
+    requestWithInviteCodeMock.mockReturnValue({
+      preset: vi.fn(async () => ({
+        ...makeRequest(pollOnce),
+        expiresAt: 1_800_000_000,
+      })),
+    });
+
+    const { result } = renderHook(() =>
+      useIDKitInviteCodeRequest({
+        app_id: "app_test",
+        action: "test-action",
+        rp_context: baseRpContext,
+        allow_legacy_proofs: false,
+        preset: { type: "OrbLegacy" },
+        polling: { interval: 0 },
+      }),
+    );
+
+    act(() => {
+      result.current.open();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(pollOnce).toHaveBeenCalledTimes(2);
+    expect(requestWithInviteCodeMock).toHaveBeenCalledTimes(1);
   });
 
   it("request hook maps confirmed status without payload to unexpected_response", async () => {
