@@ -1,6 +1,5 @@
 import { useCallback, useState, type ReactElement } from "react";
 import { __ } from "../../lang";
-import { useMedia } from "../../hooks/useMedia";
 import { QRCode } from "../../widget/QRCode";
 import { QRPlaceholderIcon } from "../Icons/QRPlaceholderIcon";
 import { WorldcoinIcon } from "../Icons/WorldIcon";
@@ -14,8 +13,8 @@ export function QRState({
   qrData,
   showSimulatorCallout,
 }: QRStateProps): ReactElement {
-  const media = useMedia();
   const [copiedLink, setCopiedLink] = useState(false);
+  const [showMobileQR, setShowMobileQR] = useState(false);
 
   const copyLink = useCallback(() => {
     if (!qrData) return;
@@ -26,12 +25,57 @@ export function QRState({
 
   return (
     <>
-      {/* Mobile: deep-link button */}
+      {/* Mobile and tablet: deep link with a QR fallback */}
       <div className="idkit-mobile-only">
-        <a href={qrData ?? undefined} className="idkit-deeplink-btn">
-          <WorldcoinIcon />
-          <span>{__("Open World App")}</span>
-        </a>
+        <div className="idkit-mobile-handoff">
+          <a href={qrData ?? undefined} className="idkit-deeplink-btn">
+            <WorldcoinIcon />
+            <span>{__("Open World App")}</span>
+          </a>
+          <div className="idkit-handoff-divider">
+            <span aria-hidden="true" />
+            <span>{__("or")}</span>
+            <span aria-hidden="true" />
+          </div>
+          <button
+            type="button"
+            className="idkit-qr-toggle-btn"
+            aria-expanded={showMobileQR}
+            onClick={() => setShowMobileQR((show) => !show)}
+          >
+            {showMobileQR ? __("Hide QR Code") : __("Display QR Code")}
+          </button>
+          {showMobileQR && (
+            <div className="idkit-mobile-qr">
+              <div
+                className={`idkit-copy-toast ${copiedLink ? "visible" : "hidden"}`}
+              >
+                <span>{__("QR Code copied")}</span>
+              </div>
+              <div className="idkit-qr-wrapper">
+                <div className="idkit-qr-inner">
+                  {qrData ? (
+                    <div
+                      onClick={copyLink}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") copyLink();
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <QRCode data={qrData} size={160} />
+                    </div>
+                  ) : (
+                    <div className="idkit-qr-placeholder">
+                      <QRPlaceholderIcon />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Desktop: QR code */}
@@ -58,7 +102,7 @@ export function QRState({
                 tabIndex={0}
                 style={{ cursor: "pointer" }}
               >
-                <QRCode data={qrData} size={media === "mobile" ? 160 : 200} />
+                <QRCode data={qrData} size={200} />
               </div>
             ) : (
               <div className="idkit-qr-placeholder">

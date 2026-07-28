@@ -40,6 +40,9 @@ export const th: TranslationStrings = {
     "\u0e25\u0e2d\u0e07\u0e2d\u0e35\u0e01\u0e04\u0e23\u0e31\u0e49\u0e07",
   Close: "\u0e1b\u0e34\u0e14",
   "Open World App": "\u0e40\u0e1b\u0e34\u0e14 World App",
+  "Display QR Code": "\u0e41\u0e2a\u0e14\u0e07 QR Code",
+  "Hide QR Code": "\u0e0b\u0e48\u0e2d\u0e19 QR Code",
+  or: "\u0e2b\u0e23\u0e37\u0e2d",
   "QR Code copied":
     "\u0e04\u0e31\u0e14\u0e25\u0e2d\u0e01 QR Code \u0e41\u0e25\u0e49\u0e27",
   "Connect your World ID":
