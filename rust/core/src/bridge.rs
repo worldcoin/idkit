@@ -221,8 +221,13 @@ pub struct BridgeDebugReport {
 
 impl BridgeResponseV1 {
     fn into_response_item(self, signal_hash: String) -> ResponseItem {
+        let identifier = match self.verification_level {
+            VerificationLevel::Face => CredentialType::Selfie.to_string(),
+            verification_level => verification_level.to_string(),
+        };
+
         ResponseItem::V3 {
-            identifier: self.verification_level.to_string(),
+            identifier,
             signal_hash,
             proof: self.proof,
             merkle_root: self.merkle_root,
@@ -3068,6 +3073,27 @@ mod tests {
     #[test]
     fn test_non_selfie_face_identifier_is_preserved() {
         assert_eq!(normalize_response_identifier("face".to_string(), 1), "face");
+    }
+
+    #[test]
+    fn test_legacy_face_response_uses_public_selfie_identifier() {
+        let response = BridgeResponseV1 {
+            proof: "proof".to_string(),
+            merkle_root: "root".to_string(),
+            nullifier_hash: "nullifier".to_string(),
+            verification_level: VerificationLevel::Face,
+        };
+
+        let item = response.into_response_item("signal-hash".to_string());
+
+        assert!(matches!(
+            item,
+            ResponseItem::V3 {
+                identifier,
+                signal_hash,
+                ..
+            } if identifier == "selfie" && signal_hash == "signal-hash"
+        ));
     }
 
     #[test]
