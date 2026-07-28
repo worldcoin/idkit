@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IDKitErrorCodes } from "@worldcoin/idkit-core";
 import packageJson from "../../package.json";
-import { toErrorCode } from "../hooks/common";
+import { pollOnceWithRetry, toErrorCode } from "../hooks/common";
 import { useIDKitInviteCodeRequest } from "../hooks/useIDKitInviteCodeRequest";
 import { useIDKitRequest } from "../hooks/useIDKitRequest";
 import { useIDKitSession } from "../hooks/useIDKitSession";
@@ -532,6 +532,33 @@ describe("request/session hooks", () => {
 
     expect(pollOnce).toHaveBeenCalledTimes(2);
     expect(requestMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("retry polling rejects a result that resolves after the overall timeout", async () => {
+    const startedAt = 1_000;
+    let now = startedAt;
+    const dateNow = vi.spyOn(Date, "now").mockImplementation(() => now);
+    const pollOnce = vi
+      .fn()
+      .mockRejectedValueOnce(IDKitErrorCodes.ConnectionFailed)
+      .mockImplementationOnce(async () => {
+        now = startedAt + 11;
+        return { type: "confirmed", result: { proof: "late" } };
+      });
+
+    try {
+      await expect(
+        pollOnceWithRetry(pollOnce, {
+          interval: 0,
+          signal: new AbortController().signal,
+          startedAt,
+          timeout: 10,
+        }),
+      ).rejects.toBe(IDKitErrorCodes.Timeout);
+      expect(pollOnce).toHaveBeenCalledTimes(2);
+    } finally {
+      dateNow.mockRestore();
+    }
   });
 
   it("request hook bounds transient poll retries while visible", async () => {

@@ -95,7 +95,11 @@ export async function pollOnceWithRetry<TResult>(
     }
 
     try {
-      return await pollOnce();
+      const result = await pollOnce();
+      if (Date.now() - options.startedAt > options.timeout) {
+        throw IDKitErrorCodes.Timeout;
+      }
+      return result;
     } catch (error) {
       ensureNotAborted(options.signal);
 
