@@ -26,6 +26,9 @@ export interface TranslationStrings {
   "Try Again": string;
   Close: string;
   "Open World App": string;
+  "Display QR Code": string;
+  "Hide QR Code": string;
+  or: string;
   "QR Code copied": string;
   "Connect your World ID": string;
   "Use phone camera to scan the QR code": string;

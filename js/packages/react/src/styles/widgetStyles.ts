@@ -344,6 +344,53 @@ export const WIDGET_STYLES = `
   min-width: 0;
 }
 
+.idkit-mobile-handoff {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.idkit-mobile-handoff .idkit-deeplink-btn {
+  width: 100%;
+}
+.idkit-handoff-divider {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 16px;
+  color: var(--idkit-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.idkit-handoff-divider > span:first-child,
+.idkit-handoff-divider > span:last-child {
+  height: 1px;
+  flex: 1;
+  background: var(--idkit-border-light);
+}
+.idkit-qr-toggle-btn {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--idkit-border);
+  border-radius: 16px;
+  background: transparent;
+  color: var(--idkit-text);
+  padding: 16px 32px;
+  font-family: var(--idkit-font);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.idkit-mobile-qr {
+  position: relative;
+}
+.idkit-mobile-qr .idkit-copy-toast {
+  top: 100%;
+  bottom: auto;
+  margin: 8px 0 0;
+}
+
 /* Loading spinner */
 .idkit-spinner {
   animation: idkit-spin 1s linear infinite;

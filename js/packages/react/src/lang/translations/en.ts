@@ -30,6 +30,9 @@ export const en: TranslationStrings = {
   "Try Again": "Try Again",
   Close: "Close",
   "Open World App": "Open World App",
+  "Display QR Code": "Display QR Code",
+  "Hide QR Code": "Hide QR Code",
+  or: "or",
   "QR Code copied": "QR Code copied",
   "Connect your World ID": "Connect your World ID",
   "Use phone camera to scan the QR code":
