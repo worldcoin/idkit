@@ -312,7 +312,7 @@ struct ProofResponseToIDKitResultOptions {
     #[serde(default)]
     identity_attested: Option<bool>,
     #[serde(default)]
-    user_presence_completed: bool,
+    user_presence_completed: Option<bool>,
 }
 
 fn app_error_code(error: crate::error::AppError) -> Result<String, JsValue> {
@@ -1509,8 +1509,8 @@ export interface IDKitResultV3 {
     action_description?: string;
     /** Array of V3 credential responses */
     responses: ResponseItemV3[];
-    /** Whether World App completed the requested user-presence check. */
-    user_presence_completed: boolean;
+    /** Whether World App completed the requested user-presence check. Only present when requested. */
+    user_presence_completed?: boolean;
     /** The environment used for this request ("production", "staging", or "sandbox") */
     environment: string;
     /** Optional World App integrity bundle for this proof request */
@@ -1529,8 +1529,8 @@ export interface IDKitResultV4 {
     action_description?: string;
     /** Array of V4 credential responses */
     responses: ResponseItemV4[];
-    /** Whether World App completed the requested user-presence check. */
-    user_presence_completed: boolean;
+    /** Whether World App completed the requested user-presence check. Only present when requested. */
+    user_presence_completed?: boolean;
     /** The environment used for this request ("production", "staging", or "sandbox") */
     environment: string;
     /** Whether identity attributes were attested. Only present on IdentityCheck responses. */
@@ -1551,8 +1551,8 @@ export interface IDKitResultSession {
     session_id: `session_${string}`;
     /** Array of session credential responses */
     responses: ResponseItemSession[];
-    /** Whether World App completed the requested user-presence check. */
-    user_presence_completed: boolean;
+    /** Whether World App completed the requested user-presence check. Only present when requested. */
+    user_presence_completed?: boolean;
     /** The environment used for this request ("production", "staging", or "sandbox") */
     environment: string;
     /** Optional World App integrity bundle for this proof request */

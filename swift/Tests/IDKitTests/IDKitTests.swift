@@ -17,7 +17,7 @@ private actor StatusPoller {
     }
 }
 
-private func sampleResult(sessionId: String? = nil, userPresenceCompleted: Bool = false) -> IDKitResult {
+private func sampleResult(sessionId: String? = nil, userPresenceCompleted: Bool? = nil) -> IDKitResult {
     IDKitResult(
         protocolVersion: "4.0",
         nonce: "0x1234",

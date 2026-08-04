@@ -281,7 +281,7 @@ pub struct ProofResponseConversionContext<'a, S: std::hash::BuildHasher> {
     pub environment: Option<Environment>,
     pub signal_hashes: &'a std::collections::HashMap<String, String, S>,
     pub identity_attested: Option<bool>,
-    pub user_presence_completed: bool,
+    pub user_presence_completed: Option<bool>,
 }
 
 /// Converts a protocol `ProofResponse` to the public `IDKitResult` shape.
@@ -1058,7 +1058,8 @@ impl BridgeConnection {
                             self.action.clone(),
                             self.action_description.clone(),
                             responses,
-                            user_presence_completed,
+                            self.require_user_presence
+                                .then_some(user_presence_completed),
                             self.environment.as_ref(),
                         );
                         result.identity_attested = identity_attested;
@@ -1089,7 +1090,8 @@ impl BridgeConnection {
                             self.action.clone(),
                             self.action_description.clone(),
                             vec![item],
-                            user_presence_completed,
+                            self.require_user_presence
+                                .then_some(user_presence_completed),
                             self.environment.as_ref(),
                         );
                         result.identity_attested = identity_attested;
@@ -1130,7 +1132,9 @@ impl BridgeConnection {
                 environment: Some(self.environment),
                 signal_hashes: &self.cached_signal_hashes.signal_hashes,
                 identity_attested,
-                user_presence_completed,
+                user_presence_completed: self
+                    .require_user_presence
+                    .then_some(user_presence_completed),
             },
         )?;
         result.integrity_bundle = integrity_bundle;
@@ -2961,6 +2965,75 @@ mod tests {
         );
         assert_eq!(user_presence_failure_status(true, true), None);
         assert_eq!(user_presence_failure_status(false, false), None);
+    }
+
+    #[test]
+    fn test_unrequested_user_presence_is_omitted_from_result() {
+        let connection = sample_connection(None);
+        let proof_response = ProofResponse {
+            id: "req_success".to_string(),
+            version: RequestVersion::V1,
+            session_id: None,
+            error: None,
+            responses: vec![],
+        };
+
+        let status = connection
+            .handle_bridge_v2_response(proof_response, None, None, true)
+            .unwrap();
+
+        let Status::Confirmed(result) = status else {
+            panic!("expected confirmed result");
+        };
+        assert_eq!(result.user_presence_completed, None);
+        assert!(!serde_json::to_string(&result)
+            .unwrap()
+            .contains("user_presence_completed"));
+    }
+
+    #[test]
+    fn test_requested_user_presence_is_preserved_for_uniqueness_and_session_results() {
+        let mut connection = sample_connection(None);
+        connection.require_user_presence = true;
+        let uniqueness_response = ProofResponse {
+            id: "req_success".to_string(),
+            version: RequestVersion::V1,
+            session_id: None,
+            error: None,
+            responses: vec![],
+        };
+
+        let status = connection
+            .handle_bridge_v2_response(uniqueness_response, None, None, true)
+            .unwrap();
+        let Status::Confirmed(result) = status else {
+            panic!("expected confirmed uniqueness result");
+        };
+        assert_eq!(result.user_presence_completed, Some(true));
+
+        let session_response = ProofResponse {
+            id: "req_session".to_string(),
+            version: RequestVersion::V1,
+            session_id: Some(SessionId::default()),
+            error: None,
+            responses: vec![],
+        };
+        let signal_hashes = std::collections::HashMap::<String, String>::new();
+        let session_result = proof_response_to_idkit_result(
+            session_response,
+            ProofResponseConversionContext {
+                nonce: "nonce".to_string(),
+                action: None,
+                action_description: None,
+                environment: None,
+                signal_hashes: &signal_hashes,
+                identity_attested: None,
+                user_presence_completed: Some(true),
+            },
+        )
+        .unwrap();
+        assert!(session_result.is_session());
+        assert_eq!(session_result.user_presence_completed, Some(true));
     }
 
     #[test]
