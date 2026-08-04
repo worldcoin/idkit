@@ -324,9 +324,14 @@ pub fn proof_response_to_idkit_result<S: std::hash::BuildHasher>(
         .responses
         .into_iter()
         .map(|item| {
+            let incoming_identifier = item.identifier.clone();
             let normalized_identifier =
-                normalize_response_identifier(item.identifier.clone(), item.issuer_schema_id);
-            let signal_hash = context.signal_hashes.get(&normalized_identifier).cloned();
+                normalize_response_identifier(incoming_identifier.clone(), item.issuer_schema_id);
+            let signal_hash = context
+                .signal_hashes
+                .get(&normalized_identifier)
+                .or_else(|| context.signal_hashes.get(&incoming_identifier))
+                .cloned();
             ResponseItem::from_protocol_item(item, signal_hash)
         })
         .collect::<Result<Vec<_>>>()?;
@@ -3073,6 +3078,49 @@ mod tests {
     #[test]
     fn test_non_selfie_face_identifier_is_preserved() {
         assert_eq!(normalize_response_identifier("face".to_string(), 1), "face");
+    }
+
+    #[test]
+    fn test_selfie_response_falls_back_to_incoming_identifier_signal_hash() {
+        let proof_response: ProofResponse = serde_json::from_str(&format!(
+            r#"{{
+                "id": "req_selfie",
+                "version": 1,
+                "responses": [{{
+                    "identifier": "face",
+                    "issuer_schema_id": 11,
+                    "proof": "{ZERO_PROOF}",
+                    "nullifier": "{ZERO_NULLIFIER}",
+                    "expires_at_min": 1735689600
+                }}]
+            }}"#
+        ))
+        .unwrap();
+        let signal_hashes =
+            std::collections::HashMap::from([("face".to_string(), "signal-hash".to_string())]);
+
+        let result = proof_response_to_idkit_result(
+            proof_response,
+            ProofResponseConversionContext {
+                nonce: "1".to_string(),
+                action: Some("test-action".to_string()),
+                action_description: None,
+                environment: Some(Environment::Production),
+                signal_hashes: &signal_hashes,
+                identity_attested: None,
+                user_presence_completed: false,
+            },
+        )
+        .unwrap();
+
+        assert!(matches!(
+            &result.responses[0],
+            ResponseItem::V4 {
+                identifier,
+                signal_hash,
+                ..
+            } if identifier == "selfie" && signal_hash.as_deref() == Some("signal-hash")
+        ));
     }
 
     #[test]
