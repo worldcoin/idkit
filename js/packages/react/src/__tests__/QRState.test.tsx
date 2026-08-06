@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { QRState } from "../components/States/QRState";
 
@@ -35,5 +35,25 @@ describe("QRState simulator callout", () => {
     expect(
       screen.queryByRole("link", { name: /use the simulator/i }),
     ).toBeNull();
+  });
+
+  it("offers both app handoff and a QR fallback on smaller screens", () => {
+    render(<QRState qrData={qrData} />);
+
+    expect(
+      screen
+        .getByRole("link", { name: /open world app/i })
+        .getAttribute("href"),
+    ).toBe(qrData);
+    expect(screen.getAllByTestId("qr-code")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /display qr code/i }));
+
+    expect(
+      screen
+        .getByRole("button", { name: /hide qr code/i })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(screen.getAllByTestId("qr-code")).toHaveLength(2);
   });
 });

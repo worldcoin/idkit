@@ -198,6 +198,65 @@ describe("native transport request lifecycle", () => {
     }
   });
 
+  it("normalizes legacy single face responses and prefers the selfie signal hash", async () => {
+    const signalHashes = {
+      selfie: hashSignal("selfie-signal"),
+      face: hashSignal("face-signal"),
+    };
+    const req = createNativeRequest({}, baseConfig, signalHashes, "");
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      protocol_version: "3.0",
+      verification_level: "face",
+      proof: "0x01",
+      merkle_root: "0x02",
+      nullifier_hash: "0x03",
+    });
+
+    const completion = await completionPromise;
+    expect(completion.success).toBe(true);
+    if (completion.success) {
+      expect(completion.result.responses[0]).toMatchObject({
+        identifier: "selfie",
+        signal_hash: signalHashes.selfie,
+      });
+    }
+  });
+
+  it("normalizes legacy multi face responses and falls back to the face signal hash", async () => {
+    const signalHashes = { face: hashSignal("face-signal") };
+    const req = createNativeRequest({}, baseConfig, signalHashes, "");
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      protocol_version: "3.0",
+      verifications: [
+        {
+          verification_level: "face",
+          proof: "0x01",
+          merkle_root: "0x02",
+          nullifier_hash: "0x03",
+        },
+      ],
+    });
+
+    const completion = await completionPromise;
+    expect(completion.success).toBe(true);
+    if (completion.success) {
+      expect(completion.result.responses[0]).toMatchObject({
+        identifier: "selfie",
+        signal_hash: signalHashes.face,
+      });
+    }
+  });
+
   it("uses per-identifier signal hashes when response omits signal_hash", async () => {
     const signalHashes = {
       proof_of_human: hashSignal("poh-signal"),

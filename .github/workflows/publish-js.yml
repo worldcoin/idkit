@@ -47,6 +47,7 @@ jobs:
             echo "npm_tag=dev" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
             echo "ref=${INPUT_COMMIT_SHA:-$GITHUB_SHA}" >> $GITHUB_OUTPUT
+          # Recovery PRs may reuse an unpublished manifest version after release CI fails.
           elif [ "$PR_MERGED" = "true" ] && \
                echo "$PR_LABELS" | grep -q '"release"' && \
                echo "$PR_BODY" | grep -q "<!-- release_target:js-core -->"; then
@@ -166,7 +167,7 @@ jobs:
         run: |
           # npm trusted publishing requires npm >= 11.5.1
           echo "Current npm version: $(npm --version)"
-          npm install -g npm@latest
+          npm install -g npm@12.0.1
           NPM_VER=$(npm --version)
           echo "Updated npm version: $NPM_VER"
           REQUIRED="11.5.1"
@@ -225,8 +226,7 @@ jobs:
           SERVER_VERSION: ${{ needs.prepare.outputs.server_version }}
           NPM_TAG: ${{ needs.prepare.outputs.npm_tag }}
         run: |
-          PACK_OUTPUT=$(npm pack --pack-destination /tmp --json)
-          TARBALL=$(echo "$PACK_OUTPUT" | jq -r '.[0].filename')
+          TARBALL=$(npm pack --pack-destination /tmp --json | jq -er 'first(.[]).filename')
           PACKAGE_JSON=$(tar -xOf "/tmp/$TARBALL" package/package.json)
 
           if echo "$PACKAGE_JSON" | jq -e '.dependencies["@worldcoin/idkit-server"] == "workspace:*"' >/dev/null; then

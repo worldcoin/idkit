@@ -150,7 +150,7 @@ jobs:
         run: |
           # npm trusted publishing requires npm >= 11.5.1
           echo "Current npm version: $(npm --version)"
-          npm install -g npm@latest
+          npm install -g npm@12.0.1
           NPM_VER=$(npm --version)
           echo "Updated npm version: $NPM_VER"
           REQUIRED="11.5.1"
