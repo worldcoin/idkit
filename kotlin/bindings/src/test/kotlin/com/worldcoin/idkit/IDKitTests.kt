@@ -216,6 +216,10 @@ class IDKitTests {
             IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.INVALID_NETWORK)),
         )
         assertEquals(
+            IDKitStatus.Failed(IDKitErrorCode.FEATURE_UNAVAILABLE),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.FEATURE_UNAVAILABLE)),
+        )
+        assertEquals(
             IDKitStatus.Failed(IDKitErrorCode.USER_PRESENCE_FAILED),
             IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.USER_PRESENCE_FAILED)),
         )

@@ -235,6 +235,7 @@ public enum IDKitErrorCode: String, Equatable {
     case userRejected = "user_rejected"
     case verificationRejected = "verification_rejected"
     case credentialUnavailable = "credential_unavailable"
+    case featureUnavailable = "feature_unavailable"
     case worldId4NotAvailable = "world_id_4_not_available"
     case worldId3NotAvailable = "world_id_3_not_available"
     case malformedRequest = "malformed_request"
@@ -268,6 +269,8 @@ public enum IDKitErrorCode: String, Equatable {
             .verificationRejected
         case .credentialUnavailable:
             .credentialUnavailable
+        case .featureUnavailable:
+            .featureUnavailable
         case .worldId4NotAvailable:
             .worldId4NotAvailable
         case .worldId3NotAvailable:
