@@ -6,8 +6,8 @@ use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
     error::{AppError, Error, Result},
     types::{
-        AppId, BridgeResponseV1, BridgeUrl, IDKitResult, IdentityAttribute, IntegrityBundle,
-        ResponseItem, RpContext, VerificationLevel,
+        AppId, BridgeResponseV1, BridgeUrl, CredentialType, IDKitResult, IdentityAttribute,
+        IntegrityBundle, ResponseItem, RpContext, VerificationLevel,
     },
     ConstraintNode, Signal,
 };
@@ -221,13 +221,29 @@ pub struct BridgeDebugReport {
 
 impl BridgeResponseV1 {
     fn into_response_item(self, signal_hash: String) -> ResponseItem {
+        let identifier = match self.verification_level {
+            VerificationLevel::Face => CredentialType::Selfie.to_string(),
+            verification_level => verification_level.to_string(),
+        };
+
         ResponseItem::V3 {
-            identifier: self.verification_level.to_string(),
+            identifier,
             signal_hash,
             proof: self.proof,
             merkle_root: self.merkle_root,
             nullifier: self.nullifier_hash,
         }
+    }
+}
+
+/// Normalizes the historical app-facing name for schema 11 at the SDK result
+/// boundary. The bridge payload remains untouched, and World ID 3.0 continues
+/// to use the legacy `face` verification level.
+fn normalize_response_identifier(identifier: String, issuer_schema_id: u64) -> String {
+    if identifier == "face" && issuer_schema_id == CredentialType::Selfie.issuer_schema_id() {
+        CredentialType::Selfie.to_string()
+    } else {
+        identifier
     }
 }
 
@@ -239,9 +255,11 @@ impl ResponseItem {
         item: world_id_primitives::ResponseItem,
         signal_hash: Option<String>,
     ) -> Result<Self> {
+        let identifier = normalize_response_identifier(item.identifier, item.issuer_schema_id);
+
         if let Some(session_nullifier) = item.session_nullifier {
             Ok(Self::Session {
-                identifier: item.identifier,
+                identifier,
                 signal_hash,
                 proof: item
                     .proof
@@ -257,7 +275,7 @@ impl ResponseItem {
             })
         } else if let Some(nullifier) = item.nullifier {
             Ok(Self::V4 {
-                identifier: item.identifier,
+                identifier,
                 signal_hash,
                 proof: item
                     .proof
@@ -306,7 +324,14 @@ pub fn proof_response_to_idkit_result<S: std::hash::BuildHasher>(
         .responses
         .into_iter()
         .map(|item| {
-            let signal_hash = context.signal_hashes.get(&item.identifier).cloned();
+            let incoming_identifier = item.identifier.clone();
+            let normalized_identifier =
+                normalize_response_identifier(incoming_identifier.clone(), item.issuer_schema_id);
+            let signal_hash = context
+                .signal_hashes
+                .get(&normalized_identifier)
+                .or_else(|| context.signal_hashes.get(&incoming_identifier))
+                .cloned();
             ResponseItem::from_protocol_item(item, signal_hash)
         })
         .collect::<Result<Vec<_>>>()?;
@@ -2445,7 +2470,7 @@ mod tests {
     }
 
     #[test]
-    fn test_build_request_payload_serializes_selfie_v4_request() {
+    fn test_selfie_v4_request_and_response_use_normalized_identifier_and_signal_hash() {
         let app_id = AppId::new("app_test").unwrap();
         let signature = "0x".to_string() + &"00".repeat(64) + "1b";
         let rp_context = RpContext::new(
@@ -2499,6 +2524,57 @@ mod tests {
             serde_json::json!(11)
         );
         assert_eq!(payload["verification_level"], serde_json::json!("device"));
+
+        let cached_signal_hashes = CachedSignalHashes::compute(&params);
+        let expected_signal_hash =
+            crate::crypto::hash_signal(&Signal::from_string("selfie-signal".to_string()));
+        assert_eq!(
+            cached_signal_hashes.signal_hashes.get("selfie"),
+            Some(&expected_signal_hash)
+        );
+        assert!(!cached_signal_hashes.signal_hashes.contains_key("face"));
+
+        let proof_response: ProofResponse = serde_json::from_str(&format!(
+            r#"{{
+                "id": "req_selfie",
+                "version": 1,
+                "responses": [{{
+                    "identifier": "face",
+                    "issuer_schema_id": 11,
+                    "proof": "{ZERO_PROOF}",
+                    "nullifier": "{ZERO_NULLIFIER}",
+                    "expires_at_min": 1735689600
+                }}]
+            }}"#
+        ))
+        .unwrap();
+        let result = proof_response_to_idkit_result(
+            proof_response,
+            ProofResponseConversionContext {
+                nonce: "1".to_string(),
+                action: Some("test-action".to_string()),
+                action_description: Some("Selfie check".to_string()),
+                environment: Some(Environment::Production),
+                signal_hashes: &cached_signal_hashes.signal_hashes,
+                identity_attested: None,
+                user_presence_completed: false,
+            },
+        )
+        .unwrap();
+
+        match &result.responses[0] {
+            ResponseItem::V4 {
+                identifier,
+                signal_hash,
+                issuer_schema_id,
+                ..
+            } => {
+                assert_eq!(identifier, "selfie");
+                assert_eq!(signal_hash.as_ref(), Some(&expected_signal_hash));
+                assert_eq!(*issuer_schema_id, 11);
+            }
+            other => panic!("Expected V4 response, got: {other:?}"),
+        }
     }
 
     #[test]
@@ -2998,6 +3074,75 @@ mod tests {
     const ZERO_PROOF: &str = "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     const ZERO_NULLIFIER: &str =
         "nil_0000000000000000000000000000000000000000000000000000000000000000";
+
+    #[test]
+    fn test_non_selfie_face_identifier_is_preserved() {
+        assert_eq!(normalize_response_identifier("face".to_string(), 1), "face");
+    }
+
+    #[test]
+    fn test_selfie_response_falls_back_to_incoming_identifier_signal_hash() {
+        let proof_response: ProofResponse = serde_json::from_str(&format!(
+            r#"{{
+                "id": "req_selfie",
+                "version": 1,
+                "responses": [{{
+                    "identifier": "face",
+                    "issuer_schema_id": 11,
+                    "proof": "{ZERO_PROOF}",
+                    "nullifier": "{ZERO_NULLIFIER}",
+                    "expires_at_min": 1735689600
+                }}]
+            }}"#
+        ))
+        .unwrap();
+        let signal_hashes =
+            std::collections::HashMap::from([("face".to_string(), "signal-hash".to_string())]);
+
+        let result = proof_response_to_idkit_result(
+            proof_response,
+            ProofResponseConversionContext {
+                nonce: "1".to_string(),
+                action: Some("test-action".to_string()),
+                action_description: None,
+                environment: Some(Environment::Production),
+                signal_hashes: &signal_hashes,
+                identity_attested: None,
+                user_presence_completed: false,
+            },
+        )
+        .unwrap();
+
+        assert!(matches!(
+            &result.responses[0],
+            ResponseItem::V4 {
+                identifier,
+                signal_hash,
+                ..
+            } if identifier == "selfie" && signal_hash.as_deref() == Some("signal-hash")
+        ));
+    }
+
+    #[test]
+    fn test_legacy_face_response_uses_public_selfie_identifier() {
+        let response = BridgeResponseV1 {
+            proof: "proof".to_string(),
+            merkle_root: "root".to_string(),
+            nullifier_hash: "nullifier".to_string(),
+            verification_level: VerificationLevel::Face,
+        };
+
+        let item = response.into_response_item("signal-hash".to_string());
+
+        assert!(matches!(
+            item,
+            ResponseItem::V3 {
+                identifier,
+                signal_hash,
+                ..
+            } if identifier == "selfie" && signal_hash == "signal-hash"
+        ));
+    }
 
     #[test]
     fn test_bridge_response_v2_single_uniqueness_proof() {
