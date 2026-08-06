@@ -459,6 +459,10 @@ class NativeIDKitRequest implements IDKitRequest {
 // Incoming response mapping
 // ─────────────────────────────────────────────────────────────────────────────
 
+function normalizeLegacyResponseIdentifier(identifier: string): string {
+  return identifier === "face" ? "selfie" : identifier;
+}
+
 function nativeResultToIDKitResult(
   payload: unknown,
   config: BuilderConfig,
@@ -516,16 +520,23 @@ function nativeResultToIDKitResult(
       protocol_version: "3.0" as const,
       nonce: rpNonce,
       action: config.action ?? "",
-      responses: verifications.map((v) => ({
-        identifier: v.verification_level,
-        signal_hash:
-          v.signal_hash ??
-          signalHashes[v.verification_level] ??
-          legacySignalHash,
-        proof: v.proof,
-        merkle_root: v.merkle_root,
-        nullifier: v.nullifier_hash,
-      })),
+      responses: verifications.map((v) => {
+        const incomingIdentifier = v.verification_level as string;
+        const identifier =
+          normalizeLegacyResponseIdentifier(incomingIdentifier);
+
+        return {
+          identifier,
+          signal_hash:
+            v.signal_hash ??
+            signalHashes[identifier] ??
+            signalHashes[incomingIdentifier] ??
+            legacySignalHash,
+          proof: v.proof,
+          merkle_root: v.merkle_root,
+          nullifier: v.nullifier_hash,
+        };
+      }),
       ...(config.require_user_presence === true
         ? { user_presence_completed: userPresenceCompleted }
         : {}),
@@ -535,16 +546,20 @@ function nativeResultToIDKitResult(
   }
 
   // Legacy single verification response (v3 format from World App).
+  const incomingIdentifier = p.verification_level as string;
+  const identifier = normalizeLegacyResponseIdentifier(incomingIdentifier);
+
   return {
     protocol_version: "3.0" as const,
     nonce: rpNonce,
     action: config.action ?? "",
     responses: [
       {
-        identifier: p.verification_level,
+        identifier,
         signal_hash:
           p.signal_hash ??
-          signalHashes[p.verification_level] ??
+          signalHashes[identifier] ??
+          signalHashes[incomingIdentifier] ??
           legacySignalHash,
         proof: p.proof,
         merkle_root: p.merkle_root,
