@@ -743,7 +743,9 @@ pub struct IDKitResult {
     pub responses: Vec<ResponseItem>,
 
     /// Whether World App completed the requested user-presence check.
-    pub user_presence_completed: bool,
+    /// Only present when user presence was requested.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_presence_completed: Option<bool>,
 
     /// The environment used for this request ("production", "staging", or "sandbox")
     pub environment: String,
@@ -767,7 +769,7 @@ impl IDKitResult {
         action: Option<String>,
         action_description: Option<String>,
         responses: Vec<ResponseItem>,
-        user_presence_completed: bool,
+        user_presence_completed: Option<bool>,
         environment: impl Into<String>,
     ) -> Self {
         Self {
@@ -792,7 +794,7 @@ impl IDKitResult {
         session_id: String,
         action_description: Option<String>,
         responses: Vec<ResponseItem>,
-        user_presence_completed: bool,
+        user_presence_completed: Option<bool>,
         environment: impl Into<String>,
     ) -> Self {
         Self {
@@ -1421,7 +1423,7 @@ mod tests {
             None,
             None,
             responses,
-            false,
+            None,
             "production",
         );
         assert_eq!(result.protocol_version, "3.0");
@@ -1430,6 +1432,28 @@ mod tests {
             "0x0000000000000000000000000000000000000000000000000000000000000001"
         );
         assert_eq!(result.responses.len(), 1);
+        assert!(!serde_json::to_string(&result)
+            .unwrap()
+            .contains("user_presence_completed"));
+    }
+
+    #[test]
+    fn test_idkit_result_user_presence_serialization() {
+        let result = IDKitResult::new(
+            "4.0",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            Some("login".to_string()),
+            None,
+            Vec::new(),
+            Some(true),
+            "production",
+        );
+
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains(r#""user_presence_completed":true"#));
+
+        let deserialized: IDKitResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.user_presence_completed, Some(true));
     }
 
     #[test]
@@ -1440,7 +1464,7 @@ mod tests {
             None,
             None,
             Vec::new(),
-            false,
+            None,
             "production",
         );
         result.integrity_bundle = Some(IntegrityBundle {

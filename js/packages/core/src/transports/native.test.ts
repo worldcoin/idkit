@@ -119,7 +119,7 @@ describe("native transport request lifecycle", () => {
     expect(completion.success).toBe(true);
   });
 
-  it("defaults missing user_presence_completed to false on success", async () => {
+  it("omits user_presence_completed when user presence was not requested", async () => {
     const req = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
     activeRequest = req;
 
@@ -138,7 +138,31 @@ describe("native transport request lifecycle", () => {
     const completion = await completionPromise;
     expect(completion.success).toBe(true);
     if (completion.success) {
-      expect(completion.result.user_presence_completed).toBe(false);
+      expect(completion.result).not.toHaveProperty("user_presence_completed");
+    }
+  });
+
+  it("ignores unsolicited user_presence_completed on legacy success", async () => {
+    const req = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      user_presence_completed: true,
+      protocol_version: "3.0",
+      verification_level: "orb",
+      signal_hash: "0xabc",
+      proof: "0x01",
+      merkle_root: "0x02",
+      nullifier_hash: "0x03",
+    });
+
+    const completion = await completionPromise;
+    expect(completion.success).toBe(true);
+    if (completion.success) {
+      expect(completion.result).not.toHaveProperty("user_presence_completed");
     }
   });
 
@@ -312,6 +336,7 @@ describe("native transport request lifecycle", () => {
 
     miniKitHandlers["miniapp-verify-action"]?.({
       status: "success",
+      user_presence_completed: true,
       proof_response: {
         id: "req_abc123",
         version: 1,
@@ -335,6 +360,35 @@ describe("native transport request lifecycle", () => {
         proof: ["1", "2", "3", "4", "5"],
         nullifier: `0x${"a".padStart(64, "0")}`,
       });
+      expect(completion.result).not.toHaveProperty("user_presence_completed");
+    }
+  });
+
+  it("preserves requested user presence on wrapped v4 success", async () => {
+    const req = createNativeRequest(
+      {},
+      { ...baseConfig, require_user_presence: true },
+      {},
+      "",
+    );
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      user_presence_completed: true,
+      proof_response: {
+        id: "req_abc123",
+        version: 1,
+        responses: [],
+      },
+    });
+
+    const completion = await completionPromise;
+    expect(completion.success).toBe(true);
+    if (completion.success) {
+      expect(completion.result.user_presence_completed).toBe(true);
     }
   });
 

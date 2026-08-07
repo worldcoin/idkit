@@ -492,7 +492,9 @@ function nativeResultToIDKitResult(
       environment: config.environment ?? "production",
       signal_hashes: signalHashes,
       identity_attested: p.identity_attested,
-      user_presence_completed: userPresenceCompleted,
+      ...(config.require_user_presence === true
+        ? { user_presence_completed: userPresenceCompleted }
+        : {}),
     }) as IDKitResult;
 
     result.integrity_bundle = integrity_bundle;
@@ -535,7 +537,9 @@ function nativeResultToIDKitResult(
           nullifier: v.nullifier_hash,
         };
       }),
-      user_presence_completed: userPresenceCompleted,
+      ...(config.require_user_presence === true
+        ? { user_presence_completed: userPresenceCompleted }
+        : {}),
       environment: config.environment ?? "production",
       integrity_bundle,
     } satisfies IDKitResultV3;
@@ -562,7 +566,9 @@ function nativeResultToIDKitResult(
         nullifier: p.nullifier_hash,
       },
     ],
-    user_presence_completed: userPresenceCompleted,
+    ...(config.require_user_presence === true
+      ? { user_presence_completed: userPresenceCompleted }
+      : {}),
     environment: config.environment ?? "production",
     integrity_bundle,
   } satisfies IDKitResultV3;

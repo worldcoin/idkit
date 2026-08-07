@@ -27,7 +27,7 @@ import uniffi.idkit_core.CredentialType
 class IDKitTests {
     private fun sampleResult(
         sessionId: String? = null,
-        userPresenceCompleted: Boolean = false,
+        userPresenceCompleted: Boolean? = null,
     ): IDKitResult =
         IDKitResult(
             protocolVersion = "4.0",
