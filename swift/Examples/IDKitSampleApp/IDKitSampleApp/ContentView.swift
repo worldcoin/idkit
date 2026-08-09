@@ -193,8 +193,8 @@ struct ContentView: View {
 
 @MainActor
 final class SampleModel: ObservableObject {
-    @Published var appId = "app_d8bbd5341f16fb97a61e644b7e169c0e"
-    @Published var rpId = "rp_7b4f23dd5fb2a826"
+    @Published var appId = "app_75c2486e930cb8c0026266335c869b7a"
+    @Published var rpId = "rp_9b6853dacd0dbcb1"
     @Published var action = "test-action"
     @Published var signal = "signal"
     @Published var environment: SampleEnvironment = .production
