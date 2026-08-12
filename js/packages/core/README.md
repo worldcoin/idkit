@@ -12,12 +12,9 @@ npm install @worldcoin/idkit-core
 
 World ID 4.0 has two kinds of verification flows. Pick the one that matches your use case — both can be dropped into an HTML page with the CDN build below.
 
-| Flow | Entry point | Use it when | `action` field |
-| --- | --- | --- | --- |
-| **Action proof** | `IDKit.request()` | One-time check scoped to a specific action (e.g. `claim-airdrop-2026`). The action scopes the nullifier, so your backend can detect double-claims. | Required |
-| **Session proof** | `IDKit.createSession()` / `IDKit.proveSession()` | Returning-user continuity. The user proves they're the same person across visits without redoing a full verification each time. You get back a `session_id` to save and reuse. | Not accepted — sessions are scoped to your app via `rp_context` |
+| **Action proof** | `IDKit.request()` 
+| **Session proof** | `IDKit.createSession()` / `IDKit.proveSession()` 
 
-Both flows let you configure the credential level the same way, via `.constraints(...)` (a tree of `CredentialRequest(...)` combined with `any` / `all` / `enumerate`). Action proofs also accept `.preset(...)` for common scenarios — see [Using Presets](#using-presets).
 
 ### Action proof on an HTML page
 
