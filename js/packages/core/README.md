@@ -10,11 +10,12 @@ npm install @worldcoin/idkit-core
 
 ## Quickstart
 
-World ID 4.0 has two kinds of verification flows. Pick the one that matches your use case — both can be dropped into an HTML page with the CDN build below.
+`IDKit.request()` builds a nullifier- and action-backed proof request. `IDKit.createSession()` / `IDKit.proveSession()` work with **session proofs** — a new concept in IDKit 4.0 with no action backing; they return a `session_id` that you track on its own as the stable identifier for that user.
 
-| **Action proof** | `IDKit.request()` 
-| **Session proof** | `IDKit.createSession()` / `IDKit.proveSession()` 
+- **Action proof** — `IDKit.request()`. Requires an `action`. Returns a one-time-use `nullifier` scoped to that action; your backend dedups on it to prevent double-claims.
+- **Session proof** — `IDKit.createSession()` (first time) / `IDKit.proveSession(sessionId, ...)` (returning). No `action` field. Returns a stable `session_id` (per user-per-app) that you store as the long-lived identifier, plus a one-time-use `session_nullifier` per proof for replay protection.
 
+Both flows configure credentials the same way via `.constraints(...)` (a tree of `CredentialRequest(...)` combined with `any` / `all` / `enumerate`). Action proofs also accept `.preset(...)` for common scenarios — see [Using Presets](#using-presets).
 
 ### Action proof on an HTML page
 
