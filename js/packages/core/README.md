@@ -1,6 +1,6 @@
 # @worldcoin/idkit-core
 
-World ID verification SDK for JavaScript/TypeScript. Zero dependencies, WASM-powered.
+World ID verification SDK for JavaScript/TypeScript. 
 
 ## Installation
 
