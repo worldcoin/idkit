@@ -16,22 +16,34 @@ If you want World ID credentials to be users' main form of login, use `IDKit.cre
 
 ```js
 // First visit — mint a session_id and store it server-side
-const created = await IDKit.createSession({
+const IDKitSessionRequest = await IDKit.createSession({
   app_id: "app_xxxxx",
   rp_context: { /* from your backend */ },
-}).constraints(IDKit.CredentialRequest("proof_of_human"));
+}).constraints(IDKit.CredentialRequest("proof_of_human")); // → IDKitRequest
 
-const createdResult = await created.pollUntilCompletion();
-// save createdResult.result.session_id in your DB
+const result = await IDKitSessionRequest.pollUntilCompletion();
+// → { success: true, result: IDKitResultSession } | { success: false, error }
+// IDKitResultSession: {
+//   protocol_version: "4.0",
+//   session_id: "session_<hex>",
+//   nonce: string,
+//   responses: [{ identifier, proof, session_nullifier, ... }],
+//   environment: string,
+//   ...
+// }
+// save result.result.session_id in your DB
+```
 
+```js
 // Return visit — look up that session_id, then prove it
-const proven = await IDKit.proveSession(savedSessionId, {
+const IDKitSessionRequest = await IDKit.proveSession(savedSessionId, {
   app_id: "app_xxxxx",
   rp_context: { /* from your backend */ },
-}).constraints(IDKit.CredentialRequest("proof_of_human"));
+}).constraints(IDKit.CredentialRequest("proof_of_human")); // → IDKitRequest
 
-const provenResult = await proven.pollUntilCompletion();
-// provenResult.result.session_id matches for the same user
+const result = await IDKitSessionRequest.pollUntilCompletion();
+// → { success: true, result: IDKitResultSession } | { success: false, error }
+// same shape as createSession — result.result.session_id matches for the same user
 ```
 
 If you want to gate a specific action behind a credential, use `IDKit.request()`:
@@ -42,9 +54,18 @@ const request = await IDKit.request({
   action: "claim-airdrop-2026",
   rp_context: { /* from your backend */ },
   allow_legacy_proofs: false,
-}).constraints(IDKit.CredentialRequest("proof_of_human"));
+}).constraints(IDKit.CredentialRequest("proof_of_human")); // → IDKitRequest
 
 const completion = await request.pollUntilCompletion();
+// → { success: true, result: IDKitResult } | { success: false, error }
+// IDKitResult (v4 uniqueness): {
+//   protocol_version: "4.0",
+//   action: string,
+//   nonce: string,
+//   responses: [{ identifier, proof, nullifier, ... }],
+//   environment: string,
+//   ...
+// }
 // send completion.result to your backend → /api/v4/verify/{rp_id}
 // store the nullifier; same person + same action = reject on return
 ```
