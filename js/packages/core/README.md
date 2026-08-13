@@ -154,7 +154,9 @@ const request = await IDKit.request({
 }).preset(orbLegacy({ signal: "user-123" }));
 ```
 
-**Available presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy`
+**Available legacy presets** (`allow_legacy_proofs: true`): `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy`
+
+If `allow_legacy_proofs` is `false`, available v4.0 presets are: `proofOfHuman`, `passport`, `mnc`, `identityCheck`
 
 ## Subpath Exports
 
