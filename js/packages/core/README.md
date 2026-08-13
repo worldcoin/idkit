@@ -20,7 +20,9 @@ import { IDKit } from "@worldcoin/idkit-core";
 // First visit — mint a session_id and store it server-side
 const IDKitSessionRequest = await IDKit.createSession({
   app_id: "app_xxxxx",
-  rp_context: { /* from your backend */ },
+  rp_context: {
+    /* from your backend */
+  },
 }).constraints(IDKit.CredentialRequest("proof_of_human")); // → IDKitRequest
 
 const result = await IDKitSessionRequest.pollUntilCompletion();
@@ -40,7 +42,9 @@ const result = await IDKitSessionRequest.pollUntilCompletion();
 // Return visit — look up that session_id, then prove it
 const IDKitSessionRequest = await IDKit.proveSession(savedSessionId, {
   app_id: "app_xxxxx",
-  rp_context: { /* from your backend */ },
+  rp_context: {
+    /* from your backend */
+  },
 }).constraints(IDKit.CredentialRequest("proof_of_human")); // → IDKitRequest
 
 const result = await IDKitSessionRequest.pollUntilCompletion();
@@ -54,7 +58,9 @@ If you want to gate a specific action behind a credential, use `IDKit.request()`
 const request = await IDKit.request({
   app_id: "app_xxxxx",
   action: "claim-airdrop-2026",
-  rp_context: { /* from your backend */ },
+  rp_context: {
+    /* from your backend */
+  },
   allow_legacy_proofs: false,
 }).constraints(IDKit.CredentialRequest("proof_of_human")); // → IDKitRequest
 
@@ -164,7 +170,9 @@ import { IDKit, orbLegacy } from "@worldcoin/idkit-core";
 const request = await IDKit.request({
   app_id: "app_xxxxx",
   action: "my-action",
-  rp_context: { /* from your backend */ },
+  rp_context: {
+    /* from your backend */
+  },
   allow_legacy_proofs: true,
 }).preset(orbLegacy({ signal: "user-123" }));
 ```
