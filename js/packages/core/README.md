@@ -15,6 +15,8 @@ There are two ways you can request proofs with IDKit, and they depend on how you
 If you want World ID credentials to be users' main form of login, use `IDKit.createSession()` / `IDKit.proveSession()`:
 
 ```js
+import { IDKit } from "@worldcoin/idkit-core";
+
 // First visit — mint a session_id and store it server-side
 const IDKitSessionRequest = await IDKit.createSession({
   app_id: "app_xxxxx",
@@ -148,7 +150,7 @@ const request = await IDKit.request({
   app_id: "app_xxxxx",
   action: "my-action",
   rp_context: { /* from your backend */ },
-  allow_legacy_proofs: false,
+  allow_legacy_proofs: true,
 }).preset(orbLegacy({ signal: "user-123" }));
 ```
 
