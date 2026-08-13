@@ -72,7 +72,22 @@ const completion = await request.pollUntilCompletion();
 // store the nullifier; same person + same action = reject on return
 ```
 
-Either way: show `request.connectorURI` as a QR, wait for `pollUntilCompletion()`, then send `result` to your backend and forward it to `POST https://developer.worldcoin.org/api/v4/verify/{rp_id}`. Don't trust the client proof until that verify call succeeds.
+### Handling the result
+
+Show `connectorURI` as a QR while you poll. Once `pollUntilCompletion()` succeeds, send `result` to your backend — don't trust it client-side. Your backend forwards it to the Developer Portal:
+
+```typescript
+const response = await fetch(
+  `https://developer.world.org/api/v4/verify/${RP_ID}`,
+  {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(completion.result), // IDKitResult / IDKitResultSession
+  },
+);
+
+const { success } = await response.json();
+```
 
 ## Script Tag / CDN
 
