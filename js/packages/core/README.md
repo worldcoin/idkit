@@ -10,23 +10,32 @@ npm install @worldcoin/idkit-core
 
 ## Quickstart
 
+### Requirements
+
+From the [Developer Portal](https://developer.world.org): `app_id`, `rp_id`, and an RP signing key. Keep the signing key on your backend only.
+
 There are two ways you can request proofs with IDKit, and they depend on how you want to use the SDK.
 
-If you want to request a World ID session-scoped proof, use `IDKit.createSession()` and store the result `session_id`. You can then use `IDKit.proveSession` with `session_id` as a parameter to log and sync existing users with their session data.
+If you want to request a World ID session-scoped proof, use `IDKit.createSession()` and store the result `session_id`.  You can then use `IDKit.proveSession` with `session_id` as a parameter to log and sync existing users with their session data.
 
 ```js
 import { IDKit } from "@worldcoin/idkit-core";
 
+const rp_context = await fetch("/api/rp-signature").then((r) => r.json());
+
 // First visit — mint a session_id and store it server-side
 const IDKitSessionRequest = await IDKit.createSession({
   app_id: "app_xxxxx",
-  rp_context: {
-    /* from your backend */
-  },
+  rp_context, // pass through from your backend
 }).constraints(IDKit.CredentialRequest("proof_of_human")); // → IDKitRequest
 
 const result = await IDKitSessionRequest.pollUntilCompletion();
 // → { success: true, result: IDKitResultSession } | { success: false, error }
+if (!result.success) {
+  // user rejected, timeout, etc. — no result to read
+  console.error(result.error);
+  return;
+}
 // IDKitResultSession: {
 //   protocol_version: "4.0",
 //   session_id: "session_<hex>",
@@ -35,37 +44,44 @@ const result = await IDKitSessionRequest.pollUntilCompletion();
 //   environment: string,
 //   ...
 // }
-// save result.result.session_id in your DB
+// verify on your backend first, then save result.result.session_id in your DB
 ```
 
 ```js
 // Return visit — look up that session_id, then prove it
+const rp_context = await fetch("/api/rp-signature").then((r) => r.json());
+
 const IDKitSessionRequest = await IDKit.proveSession(savedSessionId, {
   app_id: "app_xxxxx",
-  rp_context: {
-    /* from your backend */
-  },
+  rp_context, // pass through from your backend
 }).constraints(IDKit.CredentialRequest("proof_of_human")); // → IDKitRequest
 
 const result = await IDKitSessionRequest.pollUntilCompletion();
-// → { success: true, result: IDKitResultSession } | { success: false, error }
+if (!result.success) {
+  console.error(result.error);
+  return;
+}
 // same shape as createSession — result.result.session_id matches for the same user
+// verify on your backend before treating the login as complete
 ```
 
-If you want to request a credential based on an action-key scope, use `IDKit.request()' and store the nullifier.
+If you want to request a credential based on an action-key scope, use `IDKit.request()` and store the nullifier.
 
 ```js
+const rp_context = await fetch("/api/rp-signature").then((r) => r.json());
+
 const request = await IDKit.request({
   app_id: "app_xxxxx",
-  action: "claim-airdrop-2026",
-  rp_context: {
-    /* from your backend */
-  },
+  action: "my-action",
+  rp_context, // pass through from your backend
   allow_legacy_proofs: false,
 }).constraints(IDKit.CredentialRequest("proof_of_human")); // → IDKitRequest
 
 const completion = await request.pollUntilCompletion();
-// → { success: true, result: IDKitResult } | { success: false, error }
+if (!completion.success) {
+  console.error(completion.error);
+  return;
+}
 // IDKitResult (v4 uniqueness): {
 //   protocol_version: "4.0",
 //   action: string,
@@ -75,7 +91,7 @@ const completion = await request.pollUntilCompletion();
 //   ...
 // }
 // send completion.result to your backend → /api/v4/verify/{rp_id}
-// store the nullifier; same person + same action = reject on return
+// only then store the nullifier; same person + same action = reject on return
 ```
 
 ### Handling the result
@@ -126,17 +142,11 @@ browser global; generate RP signatures on your backend with
 <script src="https://cdn.jsdelivr.net/npm/@worldcoin/idkit-core"></script>
 <script>
   async function start() {
-    const sig = await fetch("/api/rp-signature").then((r) => r.json());
+    const rp_context = await fetch("/api/rp-signature").then((r) => r.json());
     const request = await IDKit.request({
       app_id: "app_xxxxx",
       action: "my-action",
-      rp_context: {
-        rp_id: "rp_xxxxx",
-        nonce: sig.nonce,
-        created_at: sig.created_at,
-        expires_at: sig.expires_at,
-        signature: sig.sig,
-      },
+      rp_context, // pass through from your backend
       allow_legacy_proofs: false,
     }).constraints(IDKit.CredentialRequest("proof_of_human"));
   }
@@ -159,33 +169,49 @@ const sig = signRequest({
 
 // Return to client — this is your rp_context payload
 res.json({
-  sig: sig.sig,
+  rp_id: process.env.RP_ID!, // "rp_xxxxx"
   nonce: sig.nonce,
   created_at: sig.createdAt,
   expires_at: sig.expiresAt,
+  signature: sig.sig,
 });
 ```
 
-## Using Presets
+## Constraints and presets
 
-If you need World ID 3.0 backward compatibility, swap `.constraints(...)` for a legacy preset on `IDKit.request()` (sessions don't support presets):
+### v4 (default)
+
+For v4-only flows, use `.constraints(...)` with `allow_legacy_proofs: false` — same as the Quickstart examples. That’s the path where you only need to track v4 nullifiers / session ids. Sessions only support `.constraints(...)` (no presets).
+
+```typescript
+const request = await IDKit.request({
+  app_id: "app_xxxxx",
+  action: "my-action",
+  rp_context, // pass through from your backend
+  allow_legacy_proofs: false,
+}).constraints(IDKit.CredentialRequest("proof_of_human"));
+```
+
+### Presets (migration / legacy fallback)
+
+Presets are for World ID 3.0 compatibility on `IDKit.request()`. Prefer `.constraints(...)` when you want v4-only.
 
 ```typescript
 import { IDKit, orbLegacy } from "@worldcoin/idkit-core";
 
+const rp_context = await fetch("/api/rp-signature").then((r) => r.json());
+
 const request = await IDKit.request({
   app_id: "app_xxxxx",
   action: "my-action",
-  rp_context: {
-    /* from your backend */
-  },
+  rp_context, // pass through from your backend
   allow_legacy_proofs: true,
 }).preset(orbLegacy({ signal: "user-123" }));
 ```
 
-**Available legacy presets** (`allow_legacy_proofs: true`): `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy`
+**Legacy presets** (`*Legacy`): `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy` — use with `allow_legacy_proofs: true`.
 
-If `allow_legacy_proofs` is `false`, available v4.0 presets are: `proofOfHuman`, `passport`, `mnc`, `identityCheck`
+**Named helpers** (`proofOfHuman`, `passport`, `mnc`, `identityCheck`): these also enable legacy fallback under the hood, even if you pass `allow_legacy_proofs: false`. If you use them, track both v3 and v4 nullifiers. For v4-only, stick to `.constraints(...)`.
 
 ## Subpath Exports
 
