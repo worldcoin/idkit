@@ -80,19 +80,25 @@ const completion = await request.pollUntilCompletion();
 
 ### Handling the result
 
-Result should always be handled in the backend, good practice is to have a `/api/verify` route
+Result should always be handled in the backend. A good practice is to have a dedicated `/api/verify` route file where you have some form of the following:
 
 ```typescript
-const response = await fetch(
-  `https://developer.world.org/api/v4/verify/${RP_ID}`,
-  {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(completion.result), // IDKitResult / IDKitResultSession
-  },
-);
+import type { IDKitResult } from "@worldcoin/idkit-core";
 
-const { success } = await response.json();
+// proof = completion.result from pollUntilCompletion()
+async function verifyProof(proof: IDKitResult, rpId: string) {
+  const response = await fetch(
+    `https://developer.world.org/api/v4/verify/${rpId}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(proof),
+    },
+  );
+
+  const { success } = await response.json();
+  return success;
+}
 ```
 
 ## Script Tag / CDN
