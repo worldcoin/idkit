@@ -177,9 +177,9 @@ res.json({
 });
 ```
 
-### Presets (migration / legacy fallback)
+## Using Presets
 
-Presets are for World ID 3.0 compatibility on `IDKit.request()`. Prefer `.constraints(...)` when you want v4-only.
+If you need World ID 3.0 backward compatibility on `IDKit.request()`, swap `.constraints(...)` for a preset (sessions don't support presets):
 
 ```typescript
 import { IDKit, orbLegacy } from "@worldcoin/idkit-core";
@@ -194,7 +194,9 @@ const request = await IDKit.request({
 }).preset(orbLegacy({ signal: "user-123" }));
 ```
 
-**Legacy presets** (`*Legacy`): `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy` use with `allow_legacy_proofs: true`.
+**Legacy presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy`
+
+**Also available:** `proofOfHuman`, `passport`, `mnc`, `identityCheck` — these still enable legacy fallback (even with `allow_legacy_proofs: false`).
 
 ## Subpath Exports
 
