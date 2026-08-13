@@ -177,21 +177,6 @@ res.json({
 });
 ```
 
-## Constraints and presets
-
-### v4 (default)
-
-For v4-only flows, use `.constraints(...)` with `allow_legacy_proofs: false` — same as the Quickstart examples. That’s the path where you only need to track v4 nullifiers / session ids. Sessions only support `.constraints(...)` (no presets).
-
-```typescript
-const request = await IDKit.request({
-  app_id: "app_xxxxx",
-  action: "my-action",
-  rp_context, // pass through from your backend
-  allow_legacy_proofs: false,
-}).constraints(IDKit.CredentialRequest("proof_of_human"));
-```
-
 ### Presets (migration / legacy fallback)
 
 Presets are for World ID 3.0 compatibility on `IDKit.request()`. Prefer `.constraints(...)` when you want v4-only.
@@ -209,9 +194,7 @@ const request = await IDKit.request({
 }).preset(orbLegacy({ signal: "user-123" }));
 ```
 
-**Legacy presets** (`*Legacy`): `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy` — use with `allow_legacy_proofs: true`.
-
-**Named helpers** (`proofOfHuman`, `passport`, `mnc`, `identityCheck`): these also enable legacy fallback under the hood, even if you pass `allow_legacy_proofs: false`. If you use them, track both v3 and v4 nullifiers. For v4-only, stick to `.constraints(...)`.
+**Legacy presets** (`*Legacy`): `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy` use with `allow_legacy_proofs: true`.
 
 ## Subpath Exports
 
