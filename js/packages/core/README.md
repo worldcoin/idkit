@@ -12,7 +12,7 @@ npm install @worldcoin/idkit-core
 
 There are two ways you can request proofs with IDKit, and they depend on how you want to use the SDK.
 
-If you want World ID credentials to be users' main form of login, use `IDKit.createSession()` / `IDKit.proveSession()`:
+If you want to request World ID proofs one time, with session scope, us `IDKit.createSession()` and store the users' `session_id` from the result. You can then use `IDKit.proveSession` with session_id as a parameter. This is useful if you want to constrain sessions based on time, or refresh the type of credential you request from the user.
 
 ```js
 import { IDKit } from "@worldcoin/idkit-core";
@@ -52,7 +52,7 @@ const result = await IDKitSessionRequest.pollUntilCompletion();
 // same shape as createSession — result.result.session_id matches for the same user
 ```
 
-If you want to gate a specific action behind a credential, use `IDKit.request()`:
+If you want to request a credential based on an action-key scope, use `IDKit.request()' and store the nullifier.
 
 ```js
 const request = await IDKit.request({
