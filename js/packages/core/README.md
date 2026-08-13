@@ -80,7 +80,7 @@ const completion = await request.pollUntilCompletion();
 
 ### Handling the result
 
-Show `connectorURI` as a QR while you poll. Once `pollUntilCompletion()` succeeds, send `result` to your backend — don't trust it client-side. Your backend forwards it to the Developer Portal:
+Result should always be handled in the backend, good practice is to have a `/api/verify` route
 
 ```typescript
 const response = await fetch(
