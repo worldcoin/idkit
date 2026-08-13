@@ -16,7 +16,7 @@ From the [Developer Portal](https://developer.world.org): `app_id`, `rp_id`, and
 
 There are two ways you can request proofs with IDKit, and they depend on how you want to use the SDK.
 
-If you want to request a World ID session-scoped proof, use `IDKit.createSession()` and store the result `session_id`.  You can then use `IDKit.proveSession` with `session_id` as a parameter to log and sync existing users with their session data.
+If you want to request a World ID session-scoped proof, use `IDKit.createSession()` and store the result `session_id`. You can then use `IDKit.proveSession` with `session_id` as a parameter to log and sync existing users with their session data.
 
 ```js
 import { IDKit } from "@worldcoin/idkit-core";
