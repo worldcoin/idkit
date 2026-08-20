@@ -52,6 +52,7 @@ export enum IDKitErrorCodes {
   InvalidTimestamp = "invalid_timestamp",
   RpSignatureExpired = "rp_signature_expired",
   IdentityAttributesNotMatched = "identity_attributes_not_matched",
+  FeatureUnavailable = "feature_unavailable",
   GenericError = "generic_error",
   // Client-side errors
   InvalidRpIdFormat = "invalid_rp_id_format",

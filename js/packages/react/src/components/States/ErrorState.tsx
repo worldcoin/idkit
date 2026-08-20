@@ -33,6 +33,7 @@ const errorCodeVariants: Partial<Record<IDKitErrorCodes, ErrorVariant>> = {
   [IDKitErrorCodes.TimestampTooFarInFuture]: "configuration_error",
   [IDKitErrorCodes.InvalidTimestamp]: "configuration_error",
   [IDKitErrorCodes.RpSignatureExpired]: "configuration_error",
+  [IDKitErrorCodes.FeatureUnavailable]: "configuration_error",
   [IDKitErrorCodes.InvalidRpIdFormat]: "configuration_error",
 };
 

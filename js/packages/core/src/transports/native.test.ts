@@ -218,6 +218,29 @@ describe("native transport request lifecycle", () => {
     });
   });
 
+  it("maps feature unavailable ProofResponse errors from native host", async () => {
+    const req = createNativeRequest({}, baseConfig, {}, "");
+    activeRequest = req;
+
+    const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+
+    miniKitHandlers["miniapp-verify-action"]?.({
+      status: "success",
+      proof_response: {
+        id: "req_abc123",
+        version: 1,
+        error: "feature_unavailable",
+        responses: [],
+      },
+    });
+
+    const completion = await completionPromise;
+    expect(completion).toEqual({
+      success: false,
+      error: IDKitErrorCodes.FeatureUnavailable,
+    });
+  });
+
   it("rejects root v4 ProofResponse instead of treating it as legacy v3", async () => {
     const req = createNativeRequest({}, baseConfig, {}, "");
     activeRequest = req;

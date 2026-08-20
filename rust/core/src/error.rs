@@ -158,6 +158,10 @@ pub enum AppError {
     #[error("Identity attributes not matched")]
     IdentityAttributesNotMatched,
 
+    /// Requested feature is unavailable for this client or rollout
+    #[error("Feature is unavailable")]
+    FeatureUnavailable,
+
     /// Generic error
     #[error("An error occurred")]
     #[serde(other)]
@@ -192,6 +196,7 @@ impl AppError {
             "invalid_timestamp" => Self::InvalidTimestamp,
             "rp_signature_expired" => Self::RpSignatureExpired,
             "identity_attributes_not_matched" => Self::IdentityAttributesNotMatched,
+            "feature_unavailable" => Self::FeatureUnavailable,
             _ => Self::GenericError,
         }
     }

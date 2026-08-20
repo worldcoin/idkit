@@ -2210,6 +2210,7 @@ mod tests {
             ),
             ("invalid_timestamp", AppError::InvalidTimestamp),
             ("rp_signature_expired", AppError::RpSignatureExpired),
+            ("feature_unavailable", AppError::FeatureUnavailable),
         ];
 
         for (code, expected) in cases {

@@ -125,6 +125,7 @@ public enum IDKitErrorCode: String, Equatable {
     case invalidTimestamp = "invalid_timestamp"
     case rpSignatureExpired = "rp_signature_expired"
     case identityAttributesNotMatched = "identity_attributes_not_matched"
+    case featureUnavailable = "feature_unavailable"
     case genericError = "generic_error"
     case timeout = "timeout"
     case cancelled = "cancelled"
@@ -177,6 +178,8 @@ public enum IDKitErrorCode: String, Equatable {
             .rpSignatureExpired
         case .identityAttributesNotMatched:
             .identityAttributesNotMatched
+        case .featureUnavailable:
+            .featureUnavailable
         case .genericError:
             .genericError
         }

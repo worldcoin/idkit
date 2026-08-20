@@ -126,6 +126,10 @@ class IDKitTests {
             IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.RP_SIGNATURE_EXPIRED)),
         )
         assertEquals(
+            IDKitStatus.Failed(IDKitErrorCode.FEATURE_UNAVAILABLE),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.FEATURE_UNAVAILABLE)),
+        )
+        assertEquals(
             IDKitStatus.NetworkingError(IDKitErrorCode.CONNECTION_FAILED),
             IDKitRequest.mapStatus(StatusWrapper.NetworkingError(AppError.CONNECTION_FAILED)),
         )

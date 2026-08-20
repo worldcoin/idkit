@@ -213,6 +213,7 @@ describe("Enums", () => {
     );
     expect(IDKitErrorCodes.InvalidTimestamp).toBe("invalid_timestamp");
     expect(IDKitErrorCodes.RpSignatureExpired).toBe("rp_signature_expired");
+    expect(IDKitErrorCodes.FeatureUnavailable).toBe("feature_unavailable");
     expect(IDKitErrorCodes.InvalidRpIdFormat).toBe("invalid_rp_id_format");
     expect(IDKitErrorCodes.Timeout).toBe("timeout");
     expect(IDKitErrorCodes.Cancelled).toBe("cancelled");
