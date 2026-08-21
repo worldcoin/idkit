@@ -377,6 +377,7 @@ describe("Enums", () => {
     expect(IDKitErrorCodes.CredentialUnavailable).toBe(
       "credential_unavailable",
     );
+    expect(IDKitErrorCodes.FeatureUnavailable).toBe("feature_unavailable");
     expect(IDKitErrorCodes.UserPresenceFailed).toBe("user_presence_failed");
     expect(IDKitErrorCodes.WorldId4NotAvailable).toBe(
       "world_id_4_not_available",
