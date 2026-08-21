@@ -12,7 +12,6 @@
     "test": "pnpm -r test"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.27",
     "prettier": "^3.3",
     "turbo": "^2.2",
     "typescript": "^5.6"
