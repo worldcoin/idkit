@@ -3516,6 +3516,7 @@ mod tests {
         );
 
         let cases = [
+            ("feature_unavailable", AppError::FeatureUnavailable),
             ("world_id_4_not_available", AppError::WorldId4NotAvailable),
             ("world_id_3_not_available", AppError::WorldId3NotAvailable),
             ("duplicate_nonce", AppError::DuplicateNonce),

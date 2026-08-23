@@ -43,6 +43,12 @@ private func sampleRpContext() throws -> RpContext {
     )
 }
 
+@Test("feature unavailable maps to the canonical public error")
+func featureUnavailableErrorMapping() {
+    #expect(IDKitErrorCode.from(appError: .featureUnavailable) == .featureUnavailable)
+    #expect(IDKitErrorCode.featureUnavailable.rawValue == "feature_unavailable")
+}
+
 
 @Test("IDKit entrypoints expose canonical builders")
 func idkitEntrypoints() throws {

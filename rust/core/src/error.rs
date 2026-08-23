@@ -76,6 +76,10 @@ pub enum AppError {
     #[error("Requested credential is not available")]
     CredentialUnavailable,
 
+    /// Requested feature is not enabled for the app
+    #[error("Requested feature is not available")]
+    FeatureUnavailable,
+
     /// World ID 4.0 credential is not available
     #[error("World ID 4.0 is not available")]
     #[serde(rename = "world_id_4_not_available")]
@@ -178,6 +182,7 @@ impl AppError {
             "user_rejected" => Self::UserRejected,
             "verification_rejected" => Self::VerificationRejected,
             "credential_unavailable" => Self::CredentialUnavailable,
+            "feature_unavailable" => Self::FeatureUnavailable,
             "world_id_4_not_available" => Self::WorldId4NotAvailable,
             "world_id_3_not_available" => Self::WorldId3NotAvailable,
             "malformed_request" => Self::MalformedRequest,
