@@ -620,10 +620,10 @@ mod tests {
         let (items, expr) = node.to_protocol().unwrap();
 
         assert_eq!(items.len(), 2);
-        let json = serde_json::to_string(&expr).unwrap();
-        assert!(json.contains("any"));
-        assert!(json.contains("proof_of_human"));
-        assert!(json.contains("selfie"));
+        assert_eq!(
+            serde_json::to_value(expr).unwrap(),
+            serde_json::json!({"any": ["proof_of_human", "selfie"]})
+        );
     }
 
     #[test]
@@ -661,7 +661,10 @@ mod tests {
         let (items, expr) = node.to_protocol_top_level().unwrap();
 
         assert_eq!(items.len(), 2);
-        assert!(expr.is_some());
+        assert_eq!(
+            serde_json::to_value(expr.unwrap()).unwrap(),
+            serde_json::json!({"any": ["proof_of_human", "selfie"]})
+        );
     }
 
     #[test]
