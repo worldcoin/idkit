@@ -2348,7 +2348,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3909,7 +3909,7 @@ version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
 dependencies = [
- "heck 0.4.1",
+ "heck 0.5.0",
  "itertools 0.14.0",
  "log",
  "multimap",
@@ -4646,7 +4646,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5420,7 +5420,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6482,8 +6482,9 @@ dependencies = [
 
 [[package]]
 name = "world-id-primitives"
-version = "0.13.0"
-source = "git+https://github.com/worldcoin/world-id-protocol?rev=79f3983e5f1c29326de2938fe56eff76c156c698#79f3983e5f1c29326de2938fe56eff76c156c698"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d76ac44fcbb959d6460462b29ee8798ef28baa13cea47ac8e2e9ea4edb22be3b"
 dependencies = [
  "alloy 2.0.4",
  "alloy-primitives 1.5.7",
