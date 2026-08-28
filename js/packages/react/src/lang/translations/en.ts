@@ -46,8 +46,7 @@ export const en: TranslationStrings = {
   "Scan with your phone to continue verifying":
     "Scan with your phone to continue verifying",
   "Open Connector URL": "Open Connector URL",
-  "Or enter this code in World ID App":
-    "Or enter this code in World ID App",
+  "Or enter this code in World ID App": "Or enter this code in World ID App",
   Copy: "Copy",
   "Expires in": "Expires in",
   "Terms & Privacy": "Terms & Privacy",
