@@ -3,6 +3,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
+
+# Ensure cargo is in PATH (rustup proxy may not be available on all CI runners)
+if ! command -v cargo &>/dev/null; then
+  # shellcheck source=/dev/null
+  [ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"
+fi
 SWIFT_DIR="$PROJECT_ROOT/swift"
 GENERATED_DIR="$SWIFT_DIR/Sources/IDKit/Generated"
 IOS_BUILD="$PROJECT_ROOT/ios_build"
