@@ -8,8 +8,8 @@ export const en: TranslationStrings = {
     "You've already verified for this action.",
   "Something went wrong": "Something went wrong",
   "Request cancelled": "Request cancelled",
-  "You've cancelled the request in World App.":
-    "You've cancelled the request in World App.",
+  "You've cancelled the request in World ID App.":
+    "You've cancelled the request in World ID App.",
   "Verification unavailable": "Verification unavailable",
   "This verification request couldn't be completed. Please contact the website owner.":
     "This verification request couldn't be completed. Please contact the website owner.",
@@ -23,8 +23,8 @@ export const en: TranslationStrings = {
   "Your World ID doesn't meet the requirements for this verification.":
     "Your World ID doesn't meet the requirements for this verification.",
   "Presence check failed": "Presence check failed",
-  "World App couldn't confirm your presence for this request.":
-    "World App couldn't confirm your presence for this request.",
+  "World ID App couldn't confirm your presence for this request.":
+    "World ID App couldn't confirm your presence for this request.",
   "We couldn't complete your request. Please try again.":
     "We couldn't complete your request. Please try again.",
   "Try Again": "Try Again",
@@ -43,5 +43,12 @@ export const en: TranslationStrings = {
     "Transmitting verification to host app. Please wait...",
   "You will be redirected to the app, please return to this page once you're done":
     "You will be redirected to the app, please return to this page once you're done",
+  "Scan with your phone to continue verifying":
+    "Scan with your phone to continue verifying",
+  "Open Connector URL": "Open Connector URL",
+  "Or enter this code in World ID App":
+    "Or enter this code in World ID App",
+  Copy: "Copy",
+  "Expires in": "Expires in",
   "Terms & Privacy": "Terms & Privacy",
 };

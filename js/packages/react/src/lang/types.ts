@@ -11,7 +11,7 @@ export interface TranslationStrings {
   "You've already verified for this action.": string;
   "Something went wrong": string;
   "Request cancelled": string;
-  "You've cancelled the request in World App.": string;
+  "You've cancelled the request in World ID App.": string;
   "Verification unavailable": string;
   "This verification request couldn't be completed. Please contact the website owner.": string;
   "Connection lost": string;
@@ -21,7 +21,7 @@ export interface TranslationStrings {
   "Verification requirements not met": string;
   "Your World ID doesn't meet the requirements for this verification.": string;
   "Presence check failed": string;
-  "World App couldn't confirm your presence for this request.": string;
+  "World ID App couldn't confirm your presence for this request.": string;
   "We couldn't complete your request. Please try again.": string;
   "Try Again": string;
   Close: string;
@@ -36,6 +36,11 @@ export interface TranslationStrings {
   "Please continue in app": string;
   "Transmitting verification to host app. Please wait...": string;
   "You will be redirected to the app, please return to this page once you're done": string;
+  "Scan with your phone to continue verifying": string;
+  "Open Connector URL": string;
+  "Or enter this code in World ID App": string;
+  Copy: string;
+  "Expires in": string;
   "Terms & Privacy": string;
 }
 

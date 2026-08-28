@@ -1,5 +1,5 @@
 import { getTranslations } from "./localization";
-import type { TranslationStrings } from "./types";
+import type { TranslationKey, TranslationStrings } from "./types";
 
 const getLang = (): TranslationStrings | undefined => {
   return getTranslations();
@@ -37,7 +37,7 @@ const replaceParams = (
   return result;
 };
 
-export function __<T extends string>(
+export function __<T extends TranslationKey>(
   str: T,
   ...args: HasPlaceholder<T> extends true ? [params: TranslationParams<T>] : []
 ): string {

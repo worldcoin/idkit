@@ -346,7 +346,7 @@ describe("widgets", () => {
     expect(screen.getByText("Presence check failed")).toBeDefined();
     expect(
       screen.getByText(
-        "World App couldn't confirm your presence for this request.",
+        "World ID App couldn't confirm your presence for this request.",
       ),
     ).toBeDefined();
 

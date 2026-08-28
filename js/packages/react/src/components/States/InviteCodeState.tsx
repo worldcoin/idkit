@@ -131,7 +131,7 @@ export function InviteCodeState({
               color: "var(--idkit-text-secondary)",
             }}
           >
-            {__("Or enter this code in World App")}
+            {__("Or enter this code in World ID App")}
           </p>
           <div
             style={{

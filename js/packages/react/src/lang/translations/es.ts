@@ -8,8 +8,8 @@ export const es: TranslationStrings = {
     "Ya has verificado para esta accion.",
   "Something went wrong": "Algo sali\u00f3 mal",
   "Request cancelled": "Solicitud cancelada",
-  "You've cancelled the request in World App.":
-    "Has cancelado la solicitud en World App.",
+  "You've cancelled the request in World ID App.":
+    "Has cancelado la solicitud en World ID App.",
   "Verification unavailable": "Verificacion no disponible",
   "This verification request couldn't be completed. Please contact the website owner.":
     "No se pudo completar esta solicitud de verificacion. Por favor contacta al propietario del sitio web.",
@@ -24,8 +24,8 @@ export const es: TranslationStrings = {
   "Your World ID doesn't meet the requirements for this verification.":
     "Tu World ID no cumple los requisitos para esta verificacion.",
   "Presence check failed": "Fallo la comprobacion de presencia",
-  "World App couldn't confirm your presence for this request.":
-    "World App no pudo confirmar tu presencia para esta solicitud.",
+  "World ID App couldn't confirm your presence for this request.":
+    "World ID App no pudo confirmar tu presencia para esta solicitud.",
   "We couldn't complete your request. Please try again.":
     "No pudimos completar tu solicitud. Por favor intenta de nuevo.",
   "Try Again": "Intentar de nuevo",
@@ -44,5 +44,12 @@ export const es: TranslationStrings = {
     "Enviando verificaci\u00f3n a la aplicaci\u00f3n anfitriona. Por favor espera...",
   "You will be redirected to the app, please return to this page once you're done":
     "Ser\u00e1s redirigido a la aplicaci\u00f3n, por favor regresa a esta p\u00e1gina una vez que hayas terminado",
+  "Scan with your phone to continue verifying":
+    "Escanea con tu tel\u00e9fono para continuar con la verificaci\u00f3n",
+  "Open Connector URL": "Abrir URL del conector",
+  "Or enter this code in World ID App":
+    "O introduce este c\u00f3digo en World ID App",
+  Copy: "Copiar",
+  "Expires in": "Expira en",
   "Terms & Privacy": "T\u00e9rminos y privacidad",
 };
