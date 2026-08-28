@@ -30,7 +30,7 @@ export function QRState({
         <div className="idkit-mobile-handoff">
           <a href={qrData ?? undefined} className="idkit-deeplink-btn">
             <WorldcoinIcon />
-            <span>{__("Open World App")}</span>
+            <span>{__("Open World ID App")}</span>
           </a>
           <div className="idkit-handoff-divider">
             <span aria-hidden="true" />

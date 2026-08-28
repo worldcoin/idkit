@@ -29,7 +29,7 @@ export const en: TranslationStrings = {
     "We couldn't complete your request. Please try again.",
   "Try Again": "Try Again",
   Close: "Close",
-  "Open World App": "Open World App",
+  "Open World ID App": "Open World ID App",
   "Display QR Code": "Display QR Code",
   "Hide QR Code": "Hide QR Code",
   or: "or",

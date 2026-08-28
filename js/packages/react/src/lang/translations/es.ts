@@ -30,7 +30,7 @@ export const es: TranslationStrings = {
     "No pudimos completar tu solicitud. Por favor intenta de nuevo.",
   "Try Again": "Intentar de nuevo",
   Close: "Cerrar",
-  "Open World App": "Abrir World App",
+  "Open World ID App": "Abrir World ID App",
   "Display QR Code": "Mostrar c\u00f3digo QR",
   "Hide QR Code": "Ocultar c\u00f3digo QR",
   or: "o",

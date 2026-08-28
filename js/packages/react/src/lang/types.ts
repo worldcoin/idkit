@@ -25,7 +25,7 @@ export interface TranslationStrings {
   "We couldn't complete your request. Please try again.": string;
   "Try Again": string;
   Close: string;
-  "Open World App": string;
+  "Open World ID App": string;
   "Display QR Code": string;
   "Hide QR Code": string;
   or: string;
