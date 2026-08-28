@@ -755,9 +755,11 @@ export function DemoClient(): ReactElement {
       return {
         constraints: any(
           CredentialRequest("proof_of_human", {
+            signal: widgetSignal,
             genesis_issued_at_min: genesisIssuedAtMin,
           }),
           CredentialRequest("selfie", {
+            signal: widgetSignal,
             genesis_issued_at_min: genesisIssuedAtMin,
           }),
         ),
