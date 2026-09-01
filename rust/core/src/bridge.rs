@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use world_id_primitives::{
     ConstraintExpr as ProtocolConstraintExpr, ConstraintNode as ProtocolConstraintNode,
     FieldElement, OprfKeyId, ProofRequest, ProofResponse, ProofType, RequestItem, RequestVersion,
-    ResponseItem as ProtocolResponseItem, SessionId,
+    ResponseItem as ProtocolResponseItem, SessionId, SessionRef,
 };
 
 #[cfg(feature = "native-crypto")]
@@ -616,16 +616,31 @@ fn build_request_payload(
     let (proof_type, action_fe, session_id_fe, action_str) = match &params.kind {
         RequestKind::Uniqueness { action } => {
             let fe = FieldElement::from_arbitrary_raw_bytes(action.as_bytes());
-            (ProofType::Uniqueness, Some(fe), None, Some(action.clone()))
+            (
+                ProofType::Uniqueness,
+                Some(fe),
+                SessionRef::None,
+                Some(action.clone()),
+            )
         }
-        RequestKind::CreateSession => (ProofType::CreateSession, None, None, Some(String::new())),
+        RequestKind::CreateSession => (
+            ProofType::Session,
+            None,
+            SessionRef::Create,
+            Some(String::new()),
+        ),
         RequestKind::ProveSession { session_id } => {
             let parsed =
                 serde_json::from_value::<SessionId>(serde_json::Value::String(session_id.clone()))
                     .map_err(|_| {
                         Error::InvalidConfiguration("Invalid session_id format".to_string())
                     })?;
-            (ProofType::Session, None, Some(parsed), Some(String::new()))
+            (
+                ProofType::Session,
+                None,
+                SessionRef::Existing(parsed),
+                Some(String::new()),
+            )
         }
     };
 
@@ -1470,7 +1485,6 @@ impl ConstraintNodeWrapper {
 fn proof_type_wire_name(proof_type: ProofType) -> &'static str {
     match proof_type {
         ProofType::Uniqueness => "uniqueness",
-        ProofType::CreateSession => "create_session",
         ProofType::Session => "session",
     }
 }
@@ -2437,7 +2451,7 @@ mod tests {
             rp_id: rp_context.rp_id,
             oprf_key_id: OprfKeyId::new(ruint::aliases::U160::from(rp_context.rp_id.into_inner())),
             action: Some(action),
-            session_id: None,
+            session_id: SessionRef::None,
             signature,
             nonce,
             requests: request_items,
@@ -2620,10 +2634,8 @@ mod tests {
         let payload = payload_json(&params, false);
         let proof_request = payload.get("proof_request").unwrap();
         assert_eq!(payload["action"], serde_json::json!(""));
-        assert_eq!(
-            proof_request["proof_type"],
-            serde_json::json!("create_session")
-        );
+        assert_eq!(proof_request["proof_type"], serde_json::json!("session"));
+        assert_eq!(proof_request["session_id"], serde_json::json!("create"));
 
         let session_id = serde_json::to_value(SessionId::default())
             .unwrap()
