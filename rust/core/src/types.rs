@@ -654,6 +654,24 @@ pub struct IntegrityBundle {
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(untagged)]
 pub enum ResponseItem {
+    /// Self Check response for a World ID v4 uniqueness proof.
+    SelfieV4 {
+        /// Credential identifier (`"selfie"`)
+        identifier: String,
+        /// Signal hash (optional, included if signal was provided in request)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signal_hash: Option<String>,
+        /// Self Check issuer schema ID
+        issuer_schema_id: u64,
+        /// Encoded World ID proof: the compressed Groth16 proof followed by the Merkle root.
+        proof: Vec<String>,
+        /// RP-scoped nullifier (hex string)
+        nullifier: String,
+        /// Minimum expiration timestamp for the proof
+        expires_at_min: u64,
+        /// Self Check 4.0 z-score, encoded by the issuer as an integer.
+        sybil_score: u64,
+    },
     /// Protocol version 4.0 (World ID v4)
     V4 {
         /// Credential identifier (e.g., `proof_of_human`, `selfie`, `passport`, `mnc`)
@@ -674,11 +692,24 @@ pub enum ResponseItem {
         nullifier: String,
         /// Minimum expiration timestamp for the proof
         expires_at_min: u64,
-        /// Self Check 4.0 z-score, encoded by the issuer as an integer.
-        ///
-        /// Present only for Selfie Check responses that disclose the score.
+    },
+    /// Self Check response for a World ID v4 session proof.
+    SelfieSession {
+        /// Credential identifier (`"selfie"`)
+        identifier: String,
+        /// Signal hash (optional, included if signal was provided in request)
         #[serde(skip_serializing_if = "Option::is_none")]
-        sybil_score: Option<u64>,
+        signal_hash: Option<String>,
+        /// Self Check issuer schema ID
+        issuer_schema_id: u64,
+        /// Encoded World ID proof: the compressed Groth16 proof followed by the Merkle root.
+        proof: Vec<String>,
+        /// Session nullifier: `[nullifier, action]`
+        session_nullifier: Vec<String>,
+        /// Minimum expiration timestamp for the proof
+        expires_at_min: u64,
+        /// Self Check 4.0 z-score, encoded by the issuer as an integer.
+        sybil_score: u64,
     },
     /// Session proof (World ID v4 sessions)
     Session {
@@ -703,11 +734,6 @@ pub enum ResponseItem {
         session_nullifier: Vec<String>,
         /// Minimum expiration timestamp for the proof
         expires_at_min: u64,
-        /// Self Check 4.0 z-score, encoded by the issuer as an integer.
-        ///
-        /// Present only for Selfie Check responses that disclose the score.
-        #[serde(skip_serializing_if = "Option::is_none")]
-        sybil_score: Option<u64>,
     },
     /// Protocol version 3.0 (World ID v3 - legacy format)
     V3 {

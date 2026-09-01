@@ -256,39 +256,67 @@ impl ResponseItem {
         signal_hash: Option<String>,
         sybil_score: Option<u64>,
     ) -> Result<Self> {
+        let is_selfie = item.issuer_schema_id == CredentialType::Selfie.issuer_schema_id();
         let identifier = normalize_response_identifier(item.identifier, item.issuer_schema_id);
 
         if let Some(session_nullifier) = item.session_nullifier {
-            Ok(Self::Session {
-                identifier,
-                signal_hash,
-                proof: item
-                    .proof
-                    .as_ethereum_representation()
-                    .map(|v| v.to_string())
-                    .to_vec(),
-                session_nullifier: vec![
-                    session_nullifier.nullifier().to_string(),
-                    session_nullifier.action().to_string(),
-                ],
-                issuer_schema_id: item.issuer_schema_id,
-                expires_at_min: item.expires_at_min,
-                sybil_score,
-            })
+            let proof = item
+                .proof
+                .as_ethereum_representation()
+                .map(|v| v.to_string())
+                .to_vec();
+            let session_nullifier = vec![
+                session_nullifier.nullifier().to_string(),
+                session_nullifier.action().to_string(),
+            ];
+
+            if is_selfie {
+                Ok(Self::SelfieSession {
+                    identifier,
+                    signal_hash,
+                    proof,
+                    session_nullifier,
+                    issuer_schema_id: item.issuer_schema_id,
+                    expires_at_min: item.expires_at_min,
+                    sybil_score: sybil_score.ok_or(Error::UnexpectedResponse)?,
+                })
+            } else {
+                Ok(Self::Session {
+                    identifier,
+                    signal_hash,
+                    proof,
+                    session_nullifier,
+                    issuer_schema_id: item.issuer_schema_id,
+                    expires_at_min: item.expires_at_min,
+                })
+            }
         } else if let Some(nullifier) = item.nullifier {
-            Ok(Self::V4 {
-                identifier,
-                signal_hash,
-                proof: item
-                    .proof
-                    .as_ethereum_representation()
-                    .map(|v| v.to_string())
-                    .to_vec(),
-                nullifier: nullifier.inner.to_string(),
-                issuer_schema_id: item.issuer_schema_id,
-                expires_at_min: item.expires_at_min,
-                sybil_score,
-            })
+            let proof = item
+                .proof
+                .as_ethereum_representation()
+                .map(|v| v.to_string())
+                .to_vec();
+
+            if is_selfie {
+                Ok(Self::SelfieV4 {
+                    identifier,
+                    signal_hash,
+                    proof,
+                    nullifier: nullifier.inner.to_string(),
+                    issuer_schema_id: item.issuer_schema_id,
+                    expires_at_min: item.expires_at_min,
+                    sybil_score: sybil_score.ok_or(Error::UnexpectedResponse)?,
+                })
+            } else {
+                Ok(Self::V4 {
+                    identifier,
+                    signal_hash,
+                    proof,
+                    nullifier: nullifier.inner.to_string(),
+                    issuer_schema_id: item.issuer_schema_id,
+                    expires_at_min: item.expires_at_min,
+                })
+            }
         } else {
             Err(Error::UnexpectedResponse)
         }
@@ -298,16 +326,16 @@ impl ResponseItem {
 /// A protocol proof response plus the claim extension introduced by Self Check
 /// 4.0. The protocol crate intentionally does not model application-specific
 /// claims, so this keeps its response as the core `inner` value and preserves
-/// claims alongside the response item they arrived with.
+/// optional claims alongside the response item they arrived with.
 #[derive(Debug)]
 pub(crate) struct ProofResponseWithClaims {
     pub(crate) inner: ProofResponse,
-    claims_by_response: Vec<Vec<FieldElement>>,
+    claims_by_response: Vec<Option<Vec<FieldElement>>>,
 }
 
 impl ProofResponseWithClaims {
     fn without_claims(inner: ProofResponse) -> Self {
-        let claims_by_response = vec![Vec::new(); inner.responses.len()];
+        let claims_by_response = vec![None; inner.responses.len()];
         Self {
             inner,
             claims_by_response,
@@ -317,8 +345,7 @@ impl ProofResponseWithClaims {
 
 #[derive(Deserialize)]
 struct ResponseItemClaims {
-    #[serde(default)]
-    claims: Vec<FieldElement>,
+    claims: Option<Vec<FieldElement>>,
 }
 
 impl<'de> Deserialize<'de> for ProofResponseWithClaims {
@@ -348,12 +375,13 @@ impl<'de> Deserialize<'de> for ProofResponseWithClaims {
 
 fn sybil_score_for_response(
     item: &ProtocolResponseItem,
-    claims: &[FieldElement],
+    claims: Option<Vec<FieldElement>>,
 ) -> Result<Option<u64>> {
     if item.issuer_schema_id != CredentialType::Selfie.issuer_schema_id() {
         return Ok(None);
     }
 
+    let claims = claims.ok_or(Error::UnexpectedResponse)?;
     claims
         .first()
         .map(|score| u64::try_from(*score).map_err(|_| Error::UnexpectedResponse))
@@ -413,7 +441,7 @@ pub(crate) fn proof_response_with_claims_to_idkit_result<S: std::hash::BuildHash
                 .get(&normalized_identifier)
                 .or_else(|| context.signal_hashes.get(&incoming_identifier))
                 .cloned();
-            let sybil_score = sybil_score_for_response(&item, &claims)?;
+            let sybil_score = sybil_score_for_response(&item, claims)?;
             ResponseItem::from_protocol_item(item, signal_hash, sybil_score)
         })
         .collect::<Result<Vec<_>>>()?;
@@ -543,8 +571,7 @@ impl BridgeResponseV2 {
 struct ResponseItemWithClaims {
     #[serde(flatten)]
     inner: ProtocolResponseItem,
-    #[serde(default)]
-    claims: Vec<FieldElement>,
+    claims: Option<Vec<FieldElement>>,
 }
 
 fn user_presence_failure_status(
@@ -2656,22 +2683,12 @@ mod tests {
         );
         assert!(!cached_signal_hashes.signal_hashes.contains_key("face"));
 
-        let proof_response: ProofResponse = serde_json::from_str(&format!(
-            r#"{{
-                "id": "req_selfie",
-                "version": 1,
-                "responses": [{{
-                    "identifier": "face",
-                    "issuer_schema_id": 11,
-                    "proof": "{ZERO_PROOF}",
-                    "nullifier": "{ZERO_NULLIFIER}",
-                    "expires_at_min": 1735689600
-                }}]
-            }}"#
-        ))
-        .unwrap();
-        let result = proof_response_to_idkit_result(
-            proof_response,
+        let response = bridge_selfie_response("face", true);
+        let BridgeResponse::ResponseV2(proof_response) = response else {
+            panic!("Expected ResponseV2");
+        };
+        let result = proof_response_with_claims_to_idkit_result(
+            proof_response.into_proof_response(),
             ProofResponseConversionContext {
                 nonce: "1".to_string(),
                 action: Some("test-action".to_string()),
@@ -2685,7 +2702,7 @@ mod tests {
         .unwrap();
 
         match &result.responses[0] {
-            ResponseItem::V4 {
+            ResponseItem::SelfieV4 {
                 identifier,
                 signal_hash,
                 issuer_schema_id,
@@ -3279,6 +3296,27 @@ mod tests {
     const ZERO_NULLIFIER: &str =
         "nil_0000000000000000000000000000000000000000000000000000000000000000";
 
+    fn bridge_selfie_response(identifier: &str, include_claims: bool) -> BridgeResponse {
+        let claims = include_claims.then_some(
+            r#", "claims": ["0x000000000000000000000000000000000000000000000000000000000000000a"]"#,
+        );
+        serde_json::from_str(&format!(
+            r#"{{
+                "id": "req_selfie",
+                "version": 1,
+                "responses": [{{
+                    "identifier": "{identifier}",
+                    "issuer_schema_id": 11,
+                    "proof": "{ZERO_PROOF}",
+                    "nullifier": "{ZERO_NULLIFIER}",
+                    "expires_at_min": 1735689600{}
+                }}]
+            }}"#,
+            claims.unwrap_or_default(),
+        ))
+        .unwrap()
+    }
+
     #[test]
     fn test_non_selfie_face_identifier_is_preserved() {
         assert_eq!(normalize_response_identifier("face".to_string(), 1), "face");
@@ -3286,25 +3324,15 @@ mod tests {
 
     #[test]
     fn test_selfie_response_falls_back_to_incoming_identifier_signal_hash() {
-        let proof_response: ProofResponse = serde_json::from_str(&format!(
-            r#"{{
-                "id": "req_selfie",
-                "version": 1,
-                "responses": [{{
-                    "identifier": "face",
-                    "issuer_schema_id": 11,
-                    "proof": "{ZERO_PROOF}",
-                    "nullifier": "{ZERO_NULLIFIER}",
-                    "expires_at_min": 1735689600
-                }}]
-            }}"#
-        ))
-        .unwrap();
+        let response = bridge_selfie_response("face", true);
+        let BridgeResponse::ResponseV2(proof_response) = response else {
+            panic!("Expected ResponseV2");
+        };
         let signal_hashes =
             std::collections::HashMap::from([("face".to_string(), "signal-hash".to_string())]);
 
-        let result = proof_response_to_idkit_result(
-            proof_response,
+        let result = proof_response_with_claims_to_idkit_result(
+            proof_response.into_proof_response(),
             ProofResponseConversionContext {
                 nonce: "1".to_string(),
                 action: Some("test-action".to_string()),
@@ -3319,7 +3347,7 @@ mod tests {
 
         assert!(matches!(
             &result.responses[0],
-            ResponseItem::V4 {
+            ResponseItem::SelfieV4 {
                 identifier,
                 signal_hash,
                 ..
@@ -3419,12 +3447,50 @@ mod tests {
 
         assert!(matches!(
             result.responses.as_slice(),
-            [ResponseItem::V4 {
+            [ResponseItem::SelfieV4 {
                 identifier,
-                sybil_score: Some(10),
+                sybil_score: 10,
                 ..
             }] if identifier == "selfie"
         ));
+    }
+
+    #[test]
+    fn test_selfie_response_requires_sybil_score_claim() {
+        let json = format!(
+            r#"{{
+                "id": "req_selfie",
+                "version": 1,
+                "responses": [{{
+                    "identifier": "selfie",
+                    "issuer_schema_id": 11,
+                    "proof": "{ZERO_PROOF}",
+                    "nullifier": "{ZERO_NULLIFIER}",
+                    "expires_at_min": 1735689600
+                }}]
+            }}"#
+        );
+        let response: BridgeResponse = serde_json::from_str(&json).unwrap();
+        let BridgeResponse::ResponseV2(proof_response) = response else {
+            panic!("Expected ResponseV2");
+        };
+        let signal_hashes = std::collections::HashMap::<String, String>::new();
+
+        let error = proof_response_with_claims_to_idkit_result(
+            proof_response.into_proof_response(),
+            ProofResponseConversionContext {
+                nonce: "nonce".to_string(),
+                action: Some("action".to_string()),
+                action_description: None,
+                environment: None,
+                signal_hashes: &signal_hashes,
+                identity_attested: None,
+                user_presence_completed: None,
+            },
+        )
+        .unwrap_err();
+
+        assert!(matches!(error, Error::UnexpectedResponse));
     }
 
     #[test]
@@ -3464,10 +3530,7 @@ mod tests {
 
         assert!(matches!(
             result.responses.as_slice(),
-            [ResponseItem::V4 {
-                sybil_score: None,
-                ..
-            }]
+            [ResponseItem::V4 { .. }]
         ));
     }
 

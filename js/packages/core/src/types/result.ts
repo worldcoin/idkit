@@ -9,11 +9,13 @@ export type {
   // Uniqueness proof response types
   IDKitResult,
   ResponseItemV4,
+  SelfieCheckResponseItemV4,
   ResponseItemV3,
   IntegrityBundle,
   IntegritySignatureFormat,
   // Session proof response types
   ResponseItemSession,
+  SelfieCheckResponseItemSession,
   IDKitResultSession,
   // Status (includes both action and session confirmed)
   Status,

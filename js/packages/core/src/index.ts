@@ -59,9 +59,11 @@ export type {
   IntegrityBundle,
   IntegritySignatureFormat,
   ResponseItemV4,
+  SelfieCheckResponseItemV4,
   ResponseItemV3,
   // Session proof response types
   ResponseItemSession,
+  SelfieCheckResponseItemSession,
   IDKitResultSession,
   IDKitDebugReport,
   MiniAppDebugInfo,

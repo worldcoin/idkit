@@ -1451,9 +1451,9 @@ export interface IntegrityBundle {
     jwt: string;
 }
 
-/** V4 response item for World ID v4 uniqueness proofs */
+/** Non-Self Check response item for World ID v4 uniqueness proofs */
 export interface ResponseItemV4 {
-    /** Credential identifier (e.g., "proof_of_human", "selfie", "passport", "mnc") */
+    /** Credential identifier (e.g., "proof_of_human", "passport", "mnc") */
     identifier: string;
     /** Signal hash (optional, included if signal was provided in request) */
     signal_hash?: string;
@@ -1461,12 +1461,28 @@ export interface ResponseItemV4 {
     proof: string[];
     /** RP-scoped nullifier (hex) */
     nullifier: string;
-    /** Credential issuer schema ID (1=proof_of_human, 11=selfie, 9303=passport, 9310=mnc) */
+    /** Credential issuer schema ID (1=proof_of_human, 9303=passport, 9310=mnc) */
     issuer_schema_id: number;
     /** Minimum expiration timestamp (unix seconds) */
     expires_at_min: number;
-    /** Self Check 4.0 z-score, encoded by the issuer as an integer. Omitted when not disclosed. */
-    sybil_score?: number;
+}
+
+/** Self Check response item for World ID v4 uniqueness proofs */
+export interface SelfieCheckResponseItemV4 {
+    /** Credential identifier */
+    identifier: "selfie";
+    /** Signal hash (optional, included if signal was provided in request) */
+    signal_hash?: string;
+    /** Encoded World ID proof: first 4 elements are compressed Groth16 proof, 5th is Merkle root (hex strings). Compatible with WorldIDVerifier.sol */
+    proof: string[];
+    /** RP-scoped nullifier (hex) */
+    nullifier: string;
+    /** Self Check issuer schema ID */
+    issuer_schema_id: 11;
+    /** Minimum expiration timestamp (unix seconds) */
+    expires_at_min: number;
+    /** Self Check 4.0 z-score, encoded by the issuer as an integer. */
+    sybil_score: number;
 }
 
 /** V3 response item for World ID v3 (legacy format) */
@@ -1483,9 +1499,9 @@ export interface ResponseItemV3 {
     nullifier: string;
 }
 
-/** Session response item for World ID v4 session proofs */
+/** Non-Self Check session response item for World ID v4 session proofs */
 export interface ResponseItemSession {
-    /** Credential identifier (e.g., "proof_of_human", "selfie", "passport", "mnc") */
+    /** Credential identifier (e.g., "proof_of_human", "passport", "mnc") */
     identifier: string;
     /** Signal hash (optional, included if signal was provided in request) */
     signal_hash?: string;
@@ -1493,12 +1509,28 @@ export interface ResponseItemSession {
     proof: string[];
     /** Session nullifier: 1st element is the session nullifier, 2nd is the generated action (hex strings) */
     session_nullifier: string[];
-    /** Credential issuer schema ID (1=proof_of_human, 11=selfie, 9303=passport, 9310=mnc) */
+    /** Credential issuer schema ID (1=proof_of_human, 9303=passport, 9310=mnc) */
     issuer_schema_id: number;
     /** Minimum expiration timestamp (unix seconds) */
     expires_at_min: number;
-    /** Self Check 4.0 z-score, encoded by the issuer as an integer. Omitted when not disclosed. */
-    sybil_score?: number;
+}
+
+/** Self Check session response item for World ID v4 session proofs */
+export interface SelfieCheckResponseItemSession {
+    /** Credential identifier */
+    identifier: "selfie";
+    /** Signal hash (optional, included if signal was provided in request) */
+    signal_hash?: string;
+    /** Encoded World ID proof: first 4 elements are compressed Groth16 proof, 5th is Merkle root (hex strings). Compatible with WorldIDVerifier.sol */
+    proof: string[];
+    /** Session nullifier: 1st element is the session nullifier, 2nd is the generated action (hex strings) */
+    session_nullifier: string[];
+    /** Self Check issuer schema ID */
+    issuer_schema_id: 11;
+    /** Minimum expiration timestamp (unix seconds) */
+    expires_at_min: number;
+    /** Self Check 4.0 z-score, encoded by the issuer as an integer. */
+    sybil_score: number;
 }
 
 /** V3 result (legacy format - no session support) */
@@ -1532,7 +1564,7 @@ export interface IDKitResultV4 {
     /** Action description (only if provided in input) */
     action_description?: string;
     /** Array of V4 credential responses */
-    responses: ResponseItemV4[];
+    responses: Array<ResponseItemV4 | SelfieCheckResponseItemV4>;
     /** Whether World App completed the requested user-presence check. Only present when requested. */
     user_presence_completed?: boolean;
     /** The environment used for this request ("production", "staging", or "sandbox") */
@@ -1554,7 +1586,7 @@ export interface IDKitResultSession {
     /** Opaque session identifier returned by the World App in `session_<hex>` format */
     session_id: `session_${string}`;
     /** Array of session credential responses */
-    responses: ResponseItemSession[];
+    responses: Array<ResponseItemSession | SelfieCheckResponseItemSession>;
     /** Whether World App completed the requested user-presence check. Only present when requested. */
     user_presence_completed?: boolean;
     /** The environment used for this request ("production", "staging", or "sandbox") */
