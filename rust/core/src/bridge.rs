@@ -356,7 +356,7 @@ fn sybil_score_for_response(
 
     claims
         .first()
-        .map(|score| u64::try_from(score.clone()).map_err(|_| Error::UnexpectedResponse))
+        .map(|score| u64::try_from(*score).map_err(|_| Error::UnexpectedResponse))
         .transpose()
 }
 
