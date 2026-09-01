@@ -254,6 +254,7 @@ impl ResponseItem {
     fn from_protocol_item(
         item: world_id_primitives::ResponseItem,
         signal_hash: Option<String>,
+        sybil_score: Option<u64>,
     ) -> Result<Self> {
         let identifier = normalize_response_identifier(item.identifier, item.issuer_schema_id);
 
@@ -272,6 +273,7 @@ impl ResponseItem {
                 ],
                 issuer_schema_id: item.issuer_schema_id,
                 expires_at_min: item.expires_at_min,
+                sybil_score,
             })
         } else if let Some(nullifier) = item.nullifier {
             Ok(Self::V4 {
@@ -285,11 +287,77 @@ impl ResponseItem {
                 nullifier: nullifier.inner.to_string(),
                 issuer_schema_id: item.issuer_schema_id,
                 expires_at_min: item.expires_at_min,
+                sybil_score,
             })
         } else {
             Err(Error::UnexpectedResponse)
         }
     }
+}
+
+/// A protocol proof response plus the claim extension introduced by Self Check
+/// 4.0. The protocol crate intentionally does not model application-specific
+/// claims, so this keeps its response as the core `inner` value and preserves
+/// claims alongside the response item they arrived with.
+#[derive(Debug)]
+pub(crate) struct ProofResponseWithClaims {
+    pub(crate) inner: ProofResponse,
+    claims_by_response: Vec<Vec<FieldElement>>,
+}
+
+impl ProofResponseWithClaims {
+    fn without_claims(inner: ProofResponse) -> Self {
+        let claims_by_response = vec![Vec::new(); inner.responses.len()];
+        Self {
+            inner,
+            claims_by_response,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct ResponseItemClaims {
+    #[serde(default)]
+    claims: Vec<FieldElement>,
+}
+
+impl<'de> Deserialize<'de> for ProofResponseWithClaims {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let claims_by_response = value
+            .get("responses")
+            .cloned()
+            .map(serde_json::from_value::<Vec<ResponseItemClaims>>)
+            .transpose()
+            .map_err(serde::de::Error::custom)?
+            .unwrap_or_default()
+            .into_iter()
+            .map(|response| response.claims)
+            .collect();
+        let inner = serde_json::from_value(value).map_err(serde::de::Error::custom)?;
+
+        Ok(Self {
+            inner,
+            claims_by_response,
+        })
+    }
+}
+
+fn sybil_score_for_response(
+    item: &ProtocolResponseItem,
+    claims: &[FieldElement],
+) -> Result<Option<u64>> {
+    if item.issuer_schema_id != CredentialType::Selfie.issuer_schema_id() {
+        return Ok(None);
+    }
+
+    claims
+        .first()
+        .map(|score| u64::try_from(score.clone()).map_err(|_| Error::UnexpectedResponse))
+        .transpose()
 }
 
 pub struct ProofResponseConversionContext<'a, S: std::hash::BuildHasher> {
@@ -316,14 +384,27 @@ pub fn proof_response_to_idkit_result<S: std::hash::BuildHasher>(
     proof_response: world_id_primitives::ProofResponse,
     context: ProofResponseConversionContext<'_, S>,
 ) -> Result<IDKitResult> {
-    if let Some(error_code) = proof_response.error.as_deref() {
+    proof_response_with_claims_to_idkit_result(
+        ProofResponseWithClaims::without_claims(proof_response),
+        context,
+    )
+}
+
+pub(crate) fn proof_response_with_claims_to_idkit_result<S: std::hash::BuildHasher>(
+    proof_response: ProofResponseWithClaims,
+    context: ProofResponseConversionContext<'_, S>,
+) -> Result<IDKitResult> {
+    if let Some(error_code) = proof_response.inner.error.as_deref() {
         return Err(Error::AppError(AppError::from_code(error_code)));
     }
 
     let responses: Vec<ResponseItem> = proof_response
+        .inner
         .responses
         .into_iter()
+        .zip(proof_response.claims_by_response)
         .map(|item| {
+            let (item, claims) = item;
             let incoming_identifier = item.identifier.clone();
             let normalized_identifier =
                 normalize_response_identifier(incoming_identifier.clone(), item.issuer_schema_id);
@@ -332,13 +413,14 @@ pub fn proof_response_to_idkit_result<S: std::hash::BuildHasher>(
                 .get(&normalized_identifier)
                 .or_else(|| context.signal_hashes.get(&incoming_identifier))
                 .cloned();
-            ResponseItem::from_protocol_item(item, signal_hash)
+            let sybil_score = sybil_score_for_response(&item, &claims)?;
+            ResponseItem::from_protocol_item(item, signal_hash, sybil_score)
         })
         .collect::<Result<Vec<_>>>()?;
 
     let environment = context.environment.unwrap_or_default().to_string();
 
-    if let Some(session_id) = proof_response.session_id {
+    if let Some(session_id) = proof_response.inner.session_id {
         Ok(IDKitResult::new_session(
             context.nonce,
             serde_json::to_value(session_id)?
@@ -385,7 +467,7 @@ enum BridgeResponse {
 
     /// World ID 4.0 protocol response with extensions
     ResponseV2_1 {
-        proof_response: world_id_primitives::ProofResponse,
+        proof_response: ProofResponseWithClaims,
         identity_attested: Option<bool>,
         #[serde(default)]
         user_presence_completed: bool,
@@ -425,22 +507,44 @@ struct BridgeResponseV2 {
     #[serde(default)]
     error: Option<String>,
     /// Per-credential proof responses
-    responses: Vec<ProtocolResponseItem>,
+    responses: Vec<ResponseItemWithClaims>,
     /// Whether World App completed the requested user-presence check.
     #[serde(default)]
     user_presence_completed: bool,
 }
 
 impl BridgeResponseV2 {
-    fn into_proof_response(self) -> ProofResponse {
-        ProofResponse {
-            id: self.id,
-            version: self.version,
-            session_id: self.session_id,
-            error: self.error,
-            responses: self.responses,
+    fn into_proof_response(self) -> ProofResponseWithClaims {
+        let claims_by_response = self
+            .responses
+            .iter()
+            .map(|response| response.claims.clone())
+            .collect();
+        let responses = self
+            .responses
+            .into_iter()
+            .map(|response| response.inner)
+            .collect();
+
+        ProofResponseWithClaims {
+            inner: ProofResponse {
+                id: self.id,
+                version: self.version,
+                session_id: self.session_id,
+                error: self.error,
+                responses,
+            },
+            claims_by_response,
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct ResponseItemWithClaims {
+    #[serde(flatten)]
+    inner: ProtocolResponseItem,
+    #[serde(default)]
+    claims: Vec<FieldElement>,
 }
 
 fn user_presence_failure_status(
@@ -1147,13 +1251,13 @@ impl BridgeConnection {
 
     fn handle_bridge_v2_response(
         &self,
-        proof_response: world_id_primitives::ProofResponse,
+        proof_response: ProofResponseWithClaims,
         identity_attested: Option<bool>,
         integrity_bundle: Option<IntegrityBundle>,
         user_presence_completed: bool,
     ) -> Result<Status> {
         // Protocol-level errors take precedence over user-presence enforcement.
-        if let Some(error_code) = proof_response.error.as_deref() {
+        if let Some(error_code) = proof_response.inner.error.as_deref() {
             return Ok(Status::Failed(AppError::from_code(error_code)));
         }
 
@@ -1163,7 +1267,7 @@ impl BridgeConnection {
             return Ok(status);
         }
 
-        let mut result = proof_response_to_idkit_result(
+        let mut result = proof_response_with_claims_to_idkit_result(
             proof_response,
             ProofResponseConversionContext {
                 nonce: self.nonce.clone(),
@@ -3067,7 +3171,12 @@ mod tests {
         };
 
         let status = connection
-            .handle_bridge_v2_response(proof_response, None, None, true)
+            .handle_bridge_v2_response(
+                ProofResponseWithClaims::without_claims(proof_response),
+                None,
+                None,
+                true,
+            )
             .unwrap();
 
         let Status::Confirmed(result) = status else {
@@ -3092,7 +3201,12 @@ mod tests {
         };
 
         let status = connection
-            .handle_bridge_v2_response(uniqueness_response, None, None, true)
+            .handle_bridge_v2_response(
+                ProofResponseWithClaims::without_claims(uniqueness_response),
+                None,
+                None,
+                true,
+            )
             .unwrap();
         let Status::Confirmed(result) = status else {
             panic!("expected confirmed uniqueness result");
@@ -3138,7 +3252,12 @@ mod tests {
         };
 
         let status = connection
-            .handle_bridge_v2_response(proof_response, None, None, false)
+            .handle_bridge_v2_response(
+                ProofResponseWithClaims::without_claims(proof_response),
+                None,
+                None,
+                false,
+            )
             .unwrap();
 
         assert_eq!(status, Status::Failed(AppError::InvalidRpSignature));
@@ -3251,13 +3370,105 @@ mod tests {
                 assert_eq!(proof_response.id, "req_abc123");
                 assert!(proof_response.error.is_none());
                 assert_eq!(proof_response.responses.len(), 1);
-                assert_eq!(proof_response.responses[0].identifier, "orb");
-                assert_eq!(proof_response.responses[0].issuer_schema_id, 1);
-                assert!(proof_response.responses[0].nullifier.is_some());
-                assert!(proof_response.responses[0].session_nullifier.is_none());
+                assert_eq!(proof_response.responses[0].inner.identifier, "orb");
+                assert_eq!(proof_response.responses[0].inner.issuer_schema_id, 1);
+                assert!(proof_response.responses[0].inner.nullifier.is_some());
+                assert!(proof_response.responses[0]
+                    .inner
+                    .session_nullifier
+                    .is_none());
             }
             other => panic!("Expected ResponseV2, got: {other:?}"),
         }
+    }
+
+    #[test]
+    fn test_selfie_claim_is_exposed_as_sybil_score() {
+        let json = format!(
+            r#"{{
+                "id": "req_selfie",
+                "version": 1,
+                "responses": [{{
+                    "identifier": "selfie",
+                    "issuer_schema_id": 11,
+                    "proof": "{ZERO_PROOF}",
+                    "nullifier": "{ZERO_NULLIFIER}",
+                    "expires_at_min": 1735689600,
+                    "claims": ["0x000000000000000000000000000000000000000000000000000000000000000a"]
+                }}]
+            }}"#
+        );
+        let response: BridgeResponse = serde_json::from_str(&json).unwrap();
+        let BridgeResponse::ResponseV2(proof_response) = response else {
+            panic!("Expected ResponseV2");
+        };
+        let signal_hashes = std::collections::HashMap::<String, String>::new();
+        let result = proof_response_with_claims_to_idkit_result(
+            proof_response.into_proof_response(),
+            ProofResponseConversionContext {
+                nonce: "nonce".to_string(),
+                action: Some("action".to_string()),
+                action_description: None,
+                environment: None,
+                signal_hashes: &signal_hashes,
+                identity_attested: None,
+                user_presence_completed: None,
+            },
+        )
+        .unwrap();
+
+        assert!(matches!(
+            result.responses.as_slice(),
+            [ResponseItem::V4 {
+                identifier,
+                sybil_score: Some(10),
+                ..
+            }] if identifier == "selfie"
+        ));
+    }
+
+    #[test]
+    fn test_claims_are_not_exposed_for_non_selfie_responses() {
+        let json = format!(
+            r#"{{
+                "id": "req_orb",
+                "version": 1,
+                "responses": [{{
+                    "identifier": "orb",
+                    "issuer_schema_id": 1,
+                    "proof": "{ZERO_PROOF}",
+                    "nullifier": "{ZERO_NULLIFIER}",
+                    "expires_at_min": 1735689600,
+                    "claims": ["0x000000000000000000000000000000000000000000000000000000000000000a"]
+                }}]
+            }}"#
+        );
+        let response: BridgeResponse = serde_json::from_str(&json).unwrap();
+        let BridgeResponse::ResponseV2(proof_response) = response else {
+            panic!("Expected ResponseV2");
+        };
+        let signal_hashes = std::collections::HashMap::<String, String>::new();
+        let result = proof_response_with_claims_to_idkit_result(
+            proof_response.into_proof_response(),
+            ProofResponseConversionContext {
+                nonce: "nonce".to_string(),
+                action: Some("action".to_string()),
+                action_description: None,
+                environment: None,
+                signal_hashes: &signal_hashes,
+                identity_attested: None,
+                user_presence_completed: None,
+            },
+        )
+        .unwrap();
+
+        assert!(matches!(
+            result.responses.as_slice(),
+            [ResponseItem::V4 {
+                sybil_score: None,
+                ..
+            }]
+        ));
     }
 
     #[test]
@@ -3289,9 +3500,9 @@ mod tests {
         match response {
             BridgeResponse::ResponseV2(proof_response) => {
                 assert_eq!(proof_response.responses.len(), 2);
-                assert_eq!(proof_response.responses[0].identifier, "orb");
-                assert_eq!(proof_response.responses[1].identifier, "passport");
-                assert_eq!(proof_response.responses[1].issuer_schema_id, 9303);
+                assert_eq!(proof_response.responses[0].inner.identifier, "orb");
+                assert_eq!(proof_response.responses[1].inner.identifier, "passport");
+                assert_eq!(proof_response.responses[1].inner.issuer_schema_id, 9303);
             }
             other => panic!("Expected ResponseV2, got: {other:?}"),
         }
@@ -3354,9 +3565,9 @@ mod tests {
                 integrity_bundle,
                 user_presence_completed,
             } => {
-                assert_eq!(proof_response.id, "req_integrity");
-                assert_eq!(proof_response.responses.len(), 1);
-                assert_eq!(proof_response.responses[0].identifier, "face");
+                assert_eq!(proof_response.inner.id, "req_integrity");
+                assert_eq!(proof_response.inner.responses.len(), 1);
+                assert_eq!(proof_response.inner.responses[0].identifier, "face");
                 assert_eq!(identity_attested, Some(true));
                 assert!(!user_presence_completed);
                 let bundle = integrity_bundle.expect("integrity bundle");

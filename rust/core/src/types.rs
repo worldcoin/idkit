@@ -674,6 +674,11 @@ pub enum ResponseItem {
         nullifier: String,
         /// Minimum expiration timestamp for the proof
         expires_at_min: u64,
+        /// Self Check 4.0 z-score, encoded by the issuer as an integer.
+        ///
+        /// Present only for Selfie Check responses that disclose the score.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        sybil_score: Option<u64>,
     },
     /// Session proof (World ID v4 sessions)
     Session {
@@ -698,6 +703,11 @@ pub enum ResponseItem {
         session_nullifier: Vec<String>,
         /// Minimum expiration timestamp for the proof
         expires_at_min: u64,
+        /// Self Check 4.0 z-score, encoded by the issuer as an integer.
+        ///
+        /// Present only for Selfie Check responses that disclose the score.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        sybil_score: Option<u64>,
     },
     /// Protocol version 3.0 (World ID v3 - legacy format)
     V3 {

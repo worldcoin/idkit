@@ -337,11 +337,11 @@ pub fn proof_response_to_idkit_result_wasm(
     proof_response: JsValue,
     options: JsValue,
 ) -> Result<JsValue, JsValue> {
-    let proof_response: world_id_primitives::ProofResponse =
+    let proof_response: crate::bridge::ProofResponseWithClaims =
         serde_wasm_bindgen::from_value(proof_response)
             .map_err(|e| JsValue::from_str(&format!("Invalid ProofResponse: {e}")))?;
 
-    if let Some(error_code) = proof_response.error.as_deref() {
+    if let Some(error_code) = proof_response.inner.error.as_deref() {
         return Err(JsValue::from_str(&app_error_code(
             crate::error::AppError::from_code(error_code),
         )?));
@@ -350,7 +350,7 @@ pub fn proof_response_to_idkit_result_wasm(
     let options: ProofResponseToIDKitResultOptions = serde_wasm_bindgen::from_value(options)
         .map_err(|e| JsValue::from_str(&format!("Invalid ProofResponse options: {e}")))?;
 
-    let result = crate::bridge::proof_response_to_idkit_result(
+    let result = crate::bridge::proof_response_with_claims_to_idkit_result(
         proof_response,
         crate::bridge::ProofResponseConversionContext {
             nonce: options.nonce,
@@ -1465,6 +1465,8 @@ export interface ResponseItemV4 {
     issuer_schema_id: number;
     /** Minimum expiration timestamp (unix seconds) */
     expires_at_min: number;
+    /** Self Check 4.0 z-score, encoded by the issuer as an integer. Omitted when not disclosed. */
+    sybil_score?: number;
 }
 
 /** V3 response item for World ID v3 (legacy format) */
@@ -1495,6 +1497,8 @@ export interface ResponseItemSession {
     issuer_schema_id: number;
     /** Minimum expiration timestamp (unix seconds) */
     expires_at_min: number;
+    /** Self Check 4.0 z-score, encoded by the issuer as an integer. Omitted when not disclosed. */
+    sybil_score?: number;
 }
 
 /** V3 result (legacy format - no session support) */
