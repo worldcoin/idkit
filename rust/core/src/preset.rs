@@ -65,6 +65,19 @@ pub enum Preset {
         /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
         signal: Option<String>,
     },
+
+    /// Selfie Check verification (World ID 4.0)
+    ///
+    /// Requests a World ID 4.0 Selfie Check credential, with an optional signal.
+    /// This preset does not fall back to World ID 3.0 proofs.
+    ///
+    /// Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
+    SelfieCheck {
+        /// Optional signal to include in the proof.
+        /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
+        signal: Option<String>,
+    },
+
     /// Device verification
     ///
     /// Requests orb or device credentials, with optional signal.
@@ -130,6 +143,14 @@ pub(crate) struct BridgeParams {
     pub allow_legacy_proofs_override: Option<bool>,
 }
 
+#[cfg(any(test, feature = "ffi", feature = "wasm-bindings"))]
+fn selfie_check_constraint(signal: Option<&String>) -> ConstraintNode {
+    ConstraintNode::item(CredentialRequest::new(
+        CredentialType::Selfie,
+        signal.cloned().map(Signal::from_string),
+    ))
+}
+
 impl Preset {
     /// Creates a new `OrbLegacy` preset with optional signal
     #[must_use]
@@ -155,6 +176,14 @@ impl Preset {
     #[must_use]
     pub fn selfie_check_legacy(signal: Option<String>) -> Self {
         Self::SelfieCheckLegacy { signal }
+    }
+
+    /// Creates a new World ID 4.0 `SelfieCheck` preset with an optional signal.
+    ///
+    /// Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
+    #[must_use]
+    pub fn selfie_check(signal: Option<String>) -> Self {
+        Self::SelfieCheck { signal }
     }
 
     /// Creates a new `DeviceLegacy` preset with optional signal
@@ -233,6 +262,14 @@ impl Preset {
                 legacy_signal: signal,
                 identity_attributes: None,
                 allow_legacy_proofs_override: None,
+            },
+            Self::SelfieCheck { signal } => BridgeParams {
+                constraints: Some(selfie_check_constraint(signal.as_ref())),
+                // The v4 constraint determines the credential; keep the legacy wire field at device.
+                legacy_verification_level: Some(VerificationLevel::Device),
+                legacy_signal: signal,
+                identity_attributes: None,
+                allow_legacy_proofs_override: Some(false),
             },
             Self::DeviceLegacy { signal } => BridgeParams {
                 constraints: None,
@@ -332,6 +369,34 @@ mod tests {
         assert_eq!(bridge_params.legacy_signal, None);
         assert_eq!(bridge_params.identity_attributes, None);
         assert!(bridge_params.constraints.is_none());
+    }
+
+    #[test]
+    fn selfie_check_preset_builds_v4_selfie_constraint_and_disables_legacy_proofs() {
+        let preset = Preset::selfie_check(Some("selfie-signal".to_string()));
+        let bridge_params = preset.into_bridge_params();
+
+        assert_eq!(
+            bridge_params.legacy_verification_level,
+            Some(VerificationLevel::Device)
+        );
+        assert_eq!(
+            bridge_params.legacy_signal,
+            Some("selfie-signal".to_string())
+        );
+        assert_eq!(bridge_params.identity_attributes, None);
+        assert_eq!(bridge_params.allow_legacy_proofs_override, Some(false));
+
+        match bridge_params.constraints {
+            Some(ConstraintNode::Item(item)) => {
+                assert_eq!(item.credential_type, CredentialType::Selfie);
+                assert_eq!(
+                    item.signal.as_ref().and_then(Signal::as_str),
+                    Some("selfie-signal")
+                );
+            }
+            _ => panic!("expected selfieCheck constraint to be one selfie item"),
+        }
     }
 
     #[test]

@@ -73,6 +73,7 @@ export type {
   DocumentLegacyPreset,
   DeviceLegacyPreset,
   SelfieCheckLegacyPreset,
+  SelfieCheckPreset,
   ProofOfHumanPreset,
   PassportPreset,
   IdentityCheckPreset,

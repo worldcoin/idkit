@@ -343,13 +343,14 @@ func hashSignalOverloads() {
 //     #expect(request.expiresAtMin() == 1_800_000_000)
 // }
 
-@Test("Legacy preset helpers remain available")
-func legacyPresetHelpers() {
+@Test("Preset helpers remain available")
+func presetHelpers() {
     let orb = orbLegacy(signal: "x")
     let secureDoc = secureDocumentLegacy(signal: "y")
     let doc = documentLegacy(signal: "z")
     let device = deviceLegacy(signal: "d")
     let face = selfieCheckLegacy(signal: "f")
+    let selfie = selfieCheck(signal: "s")
     let identity = identityCheck(
         attributes: [
             .minimumAge(21),
@@ -361,7 +362,7 @@ func legacyPresetHelpers() {
     switch orb {
     case .orbLegacy(let signal):
         #expect(signal == "x")
-    case .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy,
+    case .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy, .selfieCheck,
          .identityCheck, .proofOfHuman, .passport, .mnc:
         Issue.record("Expected orbLegacy preset")
     }
@@ -369,7 +370,7 @@ func legacyPresetHelpers() {
     switch secureDoc {
     case .secureDocumentLegacy(let signal):
         #expect(signal == "y")
-    case .orbLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy,
+    case .orbLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy, .selfieCheck,
          .identityCheck, .proofOfHuman, .passport, .mnc:
         Issue.record("Expected secureDocumentLegacy preset")
     }
@@ -377,7 +378,7 @@ func legacyPresetHelpers() {
     switch doc {
     case .documentLegacy(let signal):
         #expect(signal == "z")
-    case .orbLegacy, .secureDocumentLegacy, .deviceLegacy, .selfieCheckLegacy,
+    case .orbLegacy, .secureDocumentLegacy, .deviceLegacy, .selfieCheckLegacy, .selfieCheck,
          .identityCheck, .proofOfHuman, .passport, .mnc:
         Issue.record("Expected documentLegacy preset")
     }
@@ -385,7 +386,7 @@ func legacyPresetHelpers() {
     switch device {
     case .deviceLegacy(let signal):
         #expect(signal == "d")
-    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .selfieCheckLegacy,
+    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .selfieCheckLegacy, .selfieCheck,
          .identityCheck, .proofOfHuman, .passport, .mnc:
         Issue.record("Expected deviceLegacy preset")
     }
@@ -393,9 +394,17 @@ func legacyPresetHelpers() {
     switch face {
     case .selfieCheckLegacy(let signal):
         #expect(signal == "f")
-    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy,
+    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .selfieCheck,
          .identityCheck, .proofOfHuman, .passport, .mnc:
         Issue.record("Expected selfieCheckLegacy preset")
+    }
+
+    switch selfie {
+    case .selfieCheck(let signal):
+        #expect(signal == "s")
+    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy,
+         .identityCheck, .proofOfHuman, .passport, .mnc:
+        Issue.record("Expected selfieCheck preset")
     }
 
     switch identity {
@@ -407,7 +416,7 @@ func legacyPresetHelpers() {
         ]
         #expect(attributes == expected)
         #expect(legacySignal == nil)
-    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy,
+    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy, .selfieCheck,
          .proofOfHuman, .passport, .mnc:
         Issue.record("Expected identityCheck preset")
     }
@@ -419,7 +428,7 @@ func legacyPresetHelpers() {
     switch identityWithSignal {
     case let .identityCheck(attributes: _, legacySignal: legacySignal):
         #expect(legacySignal == "my-signal")
-    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy,
+    case .orbLegacy, .secureDocumentLegacy, .documentLegacy, .deviceLegacy, .selfieCheckLegacy, .selfieCheck,
          .proofOfHuman, .passport, .mnc:
         Issue.record("Expected identityCheck preset with signal")
     }

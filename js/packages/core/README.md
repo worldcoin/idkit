@@ -22,7 +22,7 @@ The script exposes the client namespace as `window.IDKit`. It includes
 `IDKit.request`, `IDKit.requestWithInviteCode`, `IDKit.createSession`,
 `IDKit.proveSession`, `IDKit.CredentialRequest`, `IDKit.any`, `IDKit.all`,
 `IDKit.enumerate`, the World ID 4.0 helpers (`proofOfHuman`, `passport`,
-`mnc`, `identityCheck`), and the legacy migration presets.
+`mnc`, `identityCheck`, `selfieCheck`), and the legacy migration presets.
 
 The WASM file is fetched automatically from the same CDN directory as the
 script (`idkit_wasm_bg.wasm`). RP signing is intentionally not exposed on the
@@ -103,19 +103,19 @@ const request = await IDKit.request({
 const qrUrl = request.connectorURI;
 ```
 
-**Available presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy`
+**Available presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy`, `selfieCheck`
 
 Selfie check preset example:
 
 ```typescript
-import { IDKit, selfieCheckLegacy } from "@worldcoin/idkit-core";
+import { IDKit, selfieCheck } from "@worldcoin/idkit-core";
 
 const request = await IDKit.request({
   app_id: "app_xxxxx",
   action: "my-action",
   rp_context: rpContext,
   allow_legacy_proofs: false,
-}).preset(selfieCheckLegacy({ signal: "user-123" }));
+}).preset(selfieCheck({ signal: "user-123" }));
 ```
 
 ## Handling the Result

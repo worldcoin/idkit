@@ -13,6 +13,7 @@ import {
   orbLegacy,
   deviceLegacy,
   selfieCheckLegacy,
+  selfieCheck,
   proofOfHuman,
   passport,
   identityCheck,
@@ -55,6 +56,7 @@ describe("IDKitRequest API", () => {
     expect(typeof enumerate).toBe("function");
     expect(typeof orbLegacy).toBe("function");
     expect(typeof selfieCheckLegacy).toBe("function");
+    expect(typeof selfieCheck).toBe("function");
     expect(typeof proofOfHuman).toBe("function");
     expect(typeof passport).toBe("function");
   });
@@ -91,6 +93,12 @@ describe("IDKitRequest API", () => {
     const preset = selfieCheckLegacy({ signal: "face-signal" });
     expect(preset).toHaveProperty("type", "SelfieCheckLegacy");
     expect(preset).toHaveProperty("signal", "face-signal");
+  });
+
+  it("should create selfieCheck preset correctly", () => {
+    const preset = selfieCheck({ signal: "selfie-signal" });
+    expect(preset).toHaveProperty("type", "SelfieCheck");
+    expect(preset).toHaveProperty("signal", "selfie-signal");
   });
 
   it("should create deviceLegacy preset correctly", () => {

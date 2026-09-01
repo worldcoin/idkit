@@ -22,7 +22,7 @@ import {
   useIDKitRequest,
   orbLegacy,
   deviceLegacy,
-  selfieCheckLegacy,
+  selfieCheck,
 } from "@worldcoin/idkit";
 
 function Example() {
@@ -45,7 +45,7 @@ function Example() {
 }
 ```
 
-Use `deviceLegacy({ signal })` for orb-or-device legacy requests and `selfieCheckLegacy({ signal })` for selfie-check preset requests.
+Use `deviceLegacy({ signal })` for orb-or-device legacy requests and `selfieCheck({ signal })` for World ID 4.0 Selfie Check requests.
 
 ```tsx
 import type { IDKitRequestHookConfig } from "@worldcoin/idkit";
