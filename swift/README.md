@@ -69,7 +69,7 @@ let request = try IDKit
     .preset(deviceLegacy(signal: "user-123"))
 ```
 
-For selfie-check verification, use:
+For Selfie Check, use:
 
 ```swift
 let request = try IDKit

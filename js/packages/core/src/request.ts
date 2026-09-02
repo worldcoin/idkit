@@ -466,12 +466,9 @@ export function selfieCheckLegacy(
 }
 
 /**
- * Creates a SelfieCheck preset for World ID 4.0.
+ * Creates a `SelfieCheck` preset.
  *
- * This preset requests a selfie credential and does not allow legacy-proof fallback.
- *
- * Preview: Selfie Check is currently in preview.
- * Contact us if you need it enabled.
+ * The preset requests the Selfie Check credential and always disables fallback to legacy proofs.
  *
  * @param opts - Optional configuration with signal
  * @returns A SelfieCheck preset

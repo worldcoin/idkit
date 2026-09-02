@@ -45,7 +45,9 @@ function Example() {
 }
 ```
 
-Use `deviceLegacy({ signal })` for orb-or-device legacy requests and `selfieCheck({ signal })` for World ID 4.0 Selfie Check requests.
+Use `deviceLegacy({ signal })` for orb-or-device legacy requests. The
+`selfieCheck({ signal })` preset requests the Selfie Check credential and always
+disables fallback to legacy proofs.
 
 ```tsx
 import type { IDKitRequestHookConfig } from "@worldcoin/idkit";

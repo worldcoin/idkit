@@ -763,7 +763,7 @@ fn validate_v1_preset_support(preset: &Preset) -> Result<(), &'static str> {
     match preset {
         Preset::SelfieCheck { .. } => {
             return Err(
-                "SelfieCheck presets are not supported for nativePayloadV1FromPreset. Use nativePayloadFromPreset with a World ID 4.0-compatible client instead.",
+                "The SelfieCheck preset is not supported by nativePayloadV1FromPreset. Use nativePayloadFromPreset instead.",
             );
         }
         Preset::IdentityCheck { .. } => {
@@ -1730,9 +1730,12 @@ export interface SelfieCheckLegacyPreset {
     signal?: string;
 }
 
+/**
+ * A `SelfieCheck` preset.
+ *
+ * The preset requests the Selfie Check credential and always disables fallback to legacy proofs.
+ */
 export interface SelfieCheckPreset {
-    /** Requests a World ID 4.0 Selfie Check credential without legacy-proof fallback. */
-    /** Preview: Selfie Check is currently in preview. Contact us if you need it enabled. */
     type: "SelfieCheck";
     signal?: string;
 }
@@ -1785,7 +1788,11 @@ export function secureDocumentLegacy(signal?: string): Preset;
 export function documentLegacy(signal?: string): Preset;
 /** Preview: Selfie Check is currently in preview. Contact us if you need it enabled. */
 export function selfieCheckLegacy(signal?: string): Preset;
-/** Preview: Selfie Check is currently in preview. Contact us if you need it enabled. */
+/**
+ * Creates a `SelfieCheck` preset.
+ *
+ * The preset requests the Selfie Check credential and always disables fallback to legacy proofs.
+ */
 export function selfieCheck(signal?: string): Preset;
 export function deviceLegacy(signal?: string): Preset;
 export function proofOfHuman(signal?: string): Preset;
@@ -2018,7 +2025,7 @@ mod tests {
 
         assert!(validate_v1_preset_support(&preset)
             .expect_err("selfie check should be rejected for v1")
-            .contains("SelfieCheck presets are not supported"));
+            .contains("SelfieCheck preset is not supported"));
     }
 
     #[test]

@@ -614,10 +614,9 @@ public func selfieCheckLegacy(signal: String? = nil) -> Preset {
     .selfieCheckLegacy(signal: signal)
 }
 
-/// Returns the World ID 4.0 Selfie Check preset.
+/// Creates a `SelfieCheck` preset.
 ///
-/// This preset does not allow legacy-proof fallback.
-/// Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
+/// The preset requests the Selfie Check credential and always disables fallback to legacy proofs.
 public func selfieCheck(signal: String? = nil) -> Preset {
     .selfieCheck(signal: signal)
 }

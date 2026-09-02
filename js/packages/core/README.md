@@ -21,7 +21,7 @@ The package also publishes a browser global build at
 The script exposes the client namespace as `window.IDKit`. It includes
 `IDKit.request`, `IDKit.requestWithInviteCode`, `IDKit.createSession`,
 `IDKit.proveSession`, `IDKit.CredentialRequest`, `IDKit.any`, `IDKit.all`,
-`IDKit.enumerate`, the World ID 4.0 helpers (`proofOfHuman`, `passport`,
+`IDKit.enumerate`, the credential helpers (`proofOfHuman`, `passport`,
 `mnc`, `identityCheck`, `selfieCheck`), and the legacy migration presets.
 
 The WASM file is fetched automatically from the same CDN directory as the
@@ -105,7 +105,9 @@ const qrUrl = request.connectorURI;
 
 **Available presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy`, `selfieCheck`
 
-Selfie check preset example:
+Selfie Check preset example:
+
+The preset requests the Selfie Check credential and always disables fallback to legacy proofs.
 
 ```typescript
 import { IDKit, selfieCheck } from "@worldcoin/idkit-core";

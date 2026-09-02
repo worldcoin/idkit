@@ -1,7 +1,7 @@
-//! Credential presets for simplified World ID session creation
+//! Credential presets for simplified World ID request creation
 //!
-//! Presets provide a simplified API for common credential request patterns,
-//! automatically handling both World ID 4.0 and 3.0 protocol formats.
+//! Presets provide a simplified API for common credential request patterns
+//! and apply the compatibility behavior defined by each preset.
 
 use crate::types::IdentityAttribute;
 #[cfg(any(test, feature = "ffi", feature = "wasm-bindings"))]
@@ -12,9 +12,8 @@ use serde::{Deserialize, Serialize};
 
 /// Credential presets for World ID verification
 ///
-/// Each preset defines a pre-configured set of credential requests
-/// with sensible defaults. Presets convert to both World ID 4.0
-/// (requests array) and World ID 3.0 (`verification_level`) formats.
+/// Each preset defines a pre-configured set of credential requests with sensible defaults.
+/// Compatibility behavior, including fallback to legacy proofs, is documented by each preset.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(tag = "type")]
@@ -66,15 +65,13 @@ pub enum Preset {
         signal: Option<String>,
     },
 
-    /// Selfie Check verification (World ID 4.0)
+    /// Creates a `SelfieCheck` preset.
     ///
-    /// Requests a World ID 4.0 Selfie Check credential, with an optional signal.
-    /// This preset does not fall back to World ID 3.0 proofs.
-    ///
-    /// Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
+    /// The preset requests the Selfie Check credential and always disables fallback to legacy
+    /// proofs.
     SelfieCheck {
-        /// Optional signal to include in the proof.
-        /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
+        /// Optional signal to bind to the proof.
+        /// Can be a plain string or a hex-encoded value with a `0x` prefix.
         signal: Option<String>,
     },
 
@@ -178,9 +175,10 @@ impl Preset {
         Self::SelfieCheckLegacy { signal }
     }
 
-    /// Creates a new World ID 4.0 `SelfieCheck` preset with an optional signal.
+    /// Creates a `SelfieCheck` preset.
     ///
-    /// Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
+    /// The preset requests the Selfie Check credential and always disables fallback to legacy
+    /// proofs.
     #[must_use]
     pub fn selfie_check(signal: Option<String>) -> Self {
         Self::SelfieCheck { signal }
@@ -265,7 +263,8 @@ impl Preset {
             },
             Self::SelfieCheck { signal } => BridgeParams {
                 constraints: Some(selfie_check_constraint(signal.as_ref())),
-                // The v4 constraint determines the credential; keep the legacy wire field at device.
+                // The constraint selects the Selfie Check credential. Keep the legacy wire field at
+                // device for compatibility; fallback to legacy proofs remains disabled.
                 legacy_verification_level: Some(VerificationLevel::Device),
                 legacy_signal: signal,
                 identity_attributes: None,

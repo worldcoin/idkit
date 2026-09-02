@@ -134,7 +134,7 @@ val request = IDKit
     .preset(deviceLegacy(signal = "user-123"))
 ```
 
-For selfie-check verification, use:
+For Selfie Check, use:
 
 ```kotlin
 val request = IDKit

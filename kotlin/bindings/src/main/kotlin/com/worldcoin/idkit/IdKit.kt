@@ -422,10 +422,9 @@ fun deviceLegacy(signal: String? = null): Preset = Preset.DeviceLegacy(signal = 
 fun selfieCheckLegacy(signal: String? = null): Preset = Preset.SelfieCheckLegacy(signal = signal)
 
 /**
- * Returns the World ID 4.0 Selfie Check preset.
+ * Creates a `SelfieCheck` preset.
  *
- * This preset does not allow legacy-proof fallback.
- * Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
+ * The preset requests the Selfie Check credential and always disables fallback to legacy proofs.
  */
 fun selfieCheck(signal: String? = null): Preset = Preset.SelfieCheck(signal = signal)
 
