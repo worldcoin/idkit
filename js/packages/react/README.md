@@ -7,7 +7,6 @@ React SDK for World ID built on top of `@worldcoin/idkit-core`. Headless hooks f
 ```bash
 npm install @worldcoin/idkit
 ```
-
 ## Quickstart
 
 ### Requirements
@@ -16,7 +15,7 @@ From the [Developer Portal](https://developer.world.org): `app_id`, `rp_id`, and
 
 There are two ways you can request proofs with IDKit, and they depend on how you want to use the SDK.
 
-If you want to request a World ID session-scoped proof, use `useIDKitSession` / `IDKitSessionWidget` and store the result `session_id`. On a return visit, pass that `session_id` as `existing_session_id` to log and sync existing users with their session data. Sessions always take `constraints` — they don't support presets.
+If you want to request a World ID session-scoped proof, use `useIDKitSession` / `IDKitSessionWidget` and store the result `session_id`. On a return visit, pass that `session_id` as `existing_session_id` to log and sync existing users with their session data. 
 
 ```tsx
 import { useIDKitSession, CredentialRequest } from "@worldcoin/idkit";
@@ -101,29 +100,6 @@ The same configs work on the widgets (`IDKitSessionWidget`, `IDKitRequestWidget`
 
 If the user is on a different device than World App (desktop browser ↔ phone), use `useIDKitInviteCodeRequest` / `IDKitInviteCodeRequestWidget` with the same request config as `useIDKitRequest`.
 
-### Handling the result
-
-Result should always be handled in the backend. A good practice is to have a dedicated `/api/verify` route file where you have some form of the following:
-
-```typescript
-import type { IDKitResult } from "@worldcoin/idkit";
-
-// proof = flow.result, or the argument to handleVerify / onSuccess
-async function verifyProof(proof: IDKitResult, rpId: string) {
-  const response = await fetch(
-    `https://developer.world.org/api/v4/verify/${rpId}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(proof),
-    },
-  );
-
-  const { success } = await response.json();
-  return success;
-}
-```
-
 ## Widget usage
 
 ```tsx
@@ -164,73 +140,6 @@ function WidgetExample() {
 }
 ```
 
-## Backend: Generate RP Signature
-
-That `rp_context` in the examples above comes from your backend. Generate it server-side with the `/signing` subpath (pure JS, no WASM or React needed):
-
-```typescript
-import { signRequest } from "@worldcoin/idkit/signing";
-
-// Never expose RP_SIGNING_KEY to clients
-const sig = signRequest({
-  action: "my-action", // omit for session flows
-  signingKeyHex: process.env.RP_SIGNING_KEY!,
-});
-
-// Return to client — this is your rp_context payload
-res.json({
-  rp_id: process.env.RP_ID!, // "rp_xxxxx"
-  nonce: sig.nonce,
-  created_at: sig.createdAt,
-  expires_at: sig.expiresAt,
-  signature: sig.sig,
-});
-```
-
-## Using Presets
-
-If you need World ID 3.0 backward compatibility on `useIDKitRequest` / `IDKitRequestWidget`, swap `constraints` for a preset (sessions don't support presets):
-
-```tsx
-import { useIDKitRequest, orbLegacy } from "@worldcoin/idkit";
-
-const flow = useIDKitRequest({
-  app_id: "app_xxxxx",
-  action: "my-action",
-  rp_context, // pass through from your backend
-  allow_legacy_proofs: true,
-  preset: orbLegacy({ signal: "user-123" }),
-});
-```
-
-**Available presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy`, `selfieCheck`
-
-Selfie Check preset example:
-
-The preset requests the Selfie Check credential and always disables fallback to legacy proofs.
-
-```tsx
-import { IDKitRequestWidget, selfieCheck } from "@worldcoin/idkit";
-
-<IDKitRequestWidget
-  open={open}
-  onOpenChange={setOpen}
-  app_id="app_xxxxx"
-  action="my-action"
-  rp_context={rpContext}
-  allow_legacy_proofs={false}
-  preset={selfieCheck({ signal: "user-123" })}
-  onSuccess={(result) => {
-    // required: runs after verification succeeds
-  }}
-/>;
-```
-
-**Legacy presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy`
-
-**Also available:** `proofOfHuman`, `passport`, `mnc`, `identityCheck` — these still enable legacy fallback (even with `allow_legacy_proofs: false`).
-
-Pass either `preset` or `constraints` on a request, not both.
 
 ## Subpath Exports
 
