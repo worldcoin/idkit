@@ -1,6 +1,13 @@
 # @worldcoin/idkit
 
-React SDK for World ID built on top of `@worldcoin/idkit-core`. Headless hooks for custom UI, and controlled widgets with shadow DOM isolation.
+React SDK for World ID built on top of `@worldcoin/idkit-core`.
+
+## Highlights
+
+- Headless hooks for custom UI
+- Built-in controlled widgets with shadow DOM isolation
+- Separate request and session APIs
+- Pure JS `/signing` and `/hashing` subpath exports for server-side use
 
 ## Installation
 
