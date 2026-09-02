@@ -15,6 +15,7 @@ import {
   documentLegacy,
   deviceLegacy,
   identityCheck,
+  selfieCheck,
   selfieCheckLegacy,
   IDKitInviteCodeRequestWidget,
   IDKitRequestWidget,
@@ -786,11 +787,7 @@ export function DemoClient(): ReactElement {
         }),
       };
     }
-    return {
-      constraints: CredentialRequest(v4CredentialType, {
-        genesis_issued_at_min: genesisIssuedAtMin,
-      }),
-    };
+    return { preset: selfieCheck({ signal: widgetSignal }) };
   }, [
     worldIdVersion,
     presetKind,
