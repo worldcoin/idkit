@@ -3961,6 +3961,58 @@ mod tests {
     }
 
     #[test]
+    fn test_selfie_check_preset_serializes_v4_request_with_device_verification_level() {
+        let preset = crate::preset::Preset::selfie_check(Some("selfie-signal".to_string()));
+        let bridge_params = preset.into_bridge_params();
+
+        let app_id = AppId::new("app_test").unwrap();
+        let signature = "0x".to_string() + &"00".repeat(64) + "1b";
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            1_700_000_000,
+            1_700_003_600,
+            &signature,
+        )
+        .unwrap();
+
+        let params = BridgeConnectionParams {
+            app_id,
+            package_name: "idkit_test".to_string(),
+            package_version: "1.0.0".to_string(),
+            kind: RequestKind::Uniqueness {
+                action: "test-action".to_string(),
+            },
+            constraints: bridge_params.constraints,
+            rp_context,
+            action_description: Some("Selfie check".to_string()),
+            legacy_verification_level: bridge_params
+                .legacy_verification_level
+                .expect("this preset should return legacy_verification_level"),
+            legacy_signal: bridge_params.legacy_signal.unwrap_or_default(),
+            bridge_url: None,
+            allow_legacy_proofs: bridge_params.allow_legacy_proofs_override.unwrap_or(false),
+            require_user_presence: false,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: Some(Environment::Production),
+            identity_attributes: None,
+        };
+
+        let payload = payload_json(&params, false);
+        assert_eq!(payload["verification_level"], serde_json::json!("device"));
+        assert_eq!(payload["allow_legacy_proofs"], serde_json::json!(false));
+        assert_eq!(
+            payload["proof_request"]["proof_requests"][0]["identifier"],
+            serde_json::json!("selfie")
+        );
+        assert_eq!(
+            payload["proof_request"]["proof_requests"][0]["issuer_schema_id"],
+            serde_json::json!(11)
+        );
+    }
+
+    #[test]
     fn test_proof_of_human_preset_serializes_v4_request_with_legacy_fallback() {
         let preset = crate::preset::Preset::proof_of_human(Some("poh-signal".to_string()));
         let bridge_params = preset.into_bridge_params();

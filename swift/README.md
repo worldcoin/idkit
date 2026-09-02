@@ -69,12 +69,12 @@ let request = try IDKit
     .preset(deviceLegacy(signal: "user-123"))
 ```
 
-For selfie-check verification, use:
+For Selfie Check, use:
 
 ```swift
 let request = try IDKit
     .request(config: config)
-    .preset(selfieCheckLegacy(signal: "user-123"))
+    .preset(selfieCheck(signal: "user-123"))
 ```
 
 For document-based identity attestation, use:

@@ -41,6 +41,7 @@ export {
   secureDocumentLegacy,
   deviceLegacy,
   selfieCheckLegacy,
+  selfieCheck,
   proofOfHuman,
   passport,
   identityCheck,
@@ -76,4 +77,5 @@ export type {
   IdentityAttribute,
   IdentityCheckPreset,
   MncPreset,
+  SelfieCheckPreset,
 } from "@worldcoin/idkit-core";

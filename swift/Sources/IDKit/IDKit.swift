@@ -614,6 +614,13 @@ public func selfieCheckLegacy(signal: String? = nil) -> Preset {
     .selfieCheckLegacy(signal: signal)
 }
 
+/// Creates a `SelfieCheck` preset.
+///
+/// The preset requests the Selfie Check credential and always disables fallback to legacy proofs.
+public func selfieCheck(signal: String? = nil) -> Preset {
+    .selfieCheck(signal: signal)
+}
+
 /// Returns the identity check preset.
 public func identityCheck(attributes: [IdentityAttribute], legacySignal: String? = nil) -> Preset {
     .identityCheck(attributes: attributes, legacySignal: legacySignal)

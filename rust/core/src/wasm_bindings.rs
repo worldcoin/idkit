@@ -760,10 +760,18 @@ impl IDKitConfigWasm {
 }
 
 fn validate_v1_preset_support(preset: &Preset) -> Result<(), &'static str> {
-    if matches!(preset, Preset::IdentityCheck { .. }) {
-        return Err(
-            "IdentityCheck presets are not supported for nativePayloadV1FromPreset. Use nativePayloadFromPreset with a World ID 4.0-compatible client instead.",
-        );
+    match preset {
+        Preset::SelfieCheck { .. } => {
+            return Err(
+                "The SelfieCheck preset is not supported by nativePayloadV1FromPreset. Use nativePayloadFromPreset instead.",
+            );
+        }
+        Preset::IdentityCheck { .. } => {
+            return Err(
+                "IdentityCheck presets are not supported for nativePayloadV1FromPreset. Use nativePayloadFromPreset with a World ID 4.0-compatible client instead.",
+            );
+        }
+        _ => {}
     }
 
     Ok(())
@@ -1722,6 +1730,16 @@ export interface SelfieCheckLegacyPreset {
     signal?: string;
 }
 
+/**
+ * A `SelfieCheck` preset.
+ *
+ * The preset requests the Selfie Check credential and always disables fallback to legacy proofs.
+ */
+export interface SelfieCheckPreset {
+    type: "SelfieCheck";
+    signal?: string;
+}
+
 export interface DeviceLegacyPreset {
     /** This preset only returns World ID 3.0 proofs. Use it for compatibility with older IDKit versions. */
     type: "DeviceLegacy";
@@ -1758,6 +1776,7 @@ export type Preset =
     | SecureDocumentLegacyPreset
     | DocumentLegacyPreset
     | SelfieCheckLegacyPreset
+    | SelfieCheckPreset
     | DeviceLegacyPreset
     | ProofOfHumanPreset
     | PassportPreset
@@ -1769,6 +1788,12 @@ export function secureDocumentLegacy(signal?: string): Preset;
 export function documentLegacy(signal?: string): Preset;
 /** Preview: Selfie Check is currently in preview. Contact us if you need it enabled. */
 export function selfieCheckLegacy(signal?: string): Preset;
+/**
+ * Creates a `SelfieCheck` preset.
+ *
+ * The preset requests the Selfie Check credential and always disables fallback to legacy proofs.
+ */
+export function selfieCheck(signal?: string): Preset;
 export function deviceLegacy(signal?: string): Preset;
 export function proofOfHuman(signal?: string): Preset;
 export function passport(signal?: string): Preset;
@@ -1992,6 +2017,15 @@ mod tests {
         assert!(validate_v1_preset_support(&preset)
             .expect_err("identity check should be rejected for v1")
             .contains("IdentityCheck presets are not supported"));
+    }
+
+    #[test]
+    fn native_payload_v1_from_preset_rejects_selfie_check() {
+        let preset = Preset::selfie_check(None);
+
+        assert!(validate_v1_preset_support(&preset)
+            .expect_err("selfie check should be rejected for v1")
+            .contains("SelfieCheck preset is not supported"));
     }
 
     #[test]
