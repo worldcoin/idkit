@@ -21,9 +21,6 @@ If you want to request a World ID session-scoped proof, use `IDKit.createSession
 ```js
 import { IDKit } from "@worldcoin/idkit-core";
 
-// Fresh rp_context for every request creation (nonce is single-use; signature expires)
-const rp_context = await fetch("/api/rp-signature").then((r) => r.json());
-
 // First visit — mint a session_id and store it server-side
 const IDKitSessionRequest = await IDKit.createSession({
   app_id: "app_xxxxx",
