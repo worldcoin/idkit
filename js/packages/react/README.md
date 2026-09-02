@@ -28,7 +28,6 @@ If you want to request a World ID session-scoped proof, use `useIDKitSession` / 
 ```tsx
 import { useIDKitSession, CredentialRequest } from "@worldcoin/idkit";
 
-// Fresh rp_context for every request creation (nonce is single-use; signature expires)
 const rp_context = await fetch("/api/rp-signature").then((r) => r.json());
 
 function CreateSessionExample() {
