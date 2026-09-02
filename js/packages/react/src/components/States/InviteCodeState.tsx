@@ -62,7 +62,7 @@ export function InviteCodeState({
       <div className="idkit-mobile-only">
         <a href={connectorURI ?? undefined} className="idkit-deeplink-btn">
           <WorldcoinIcon />
-          <span>{__("Open World App")}</span>
+          <span>{__("Open World ID App")}</span>
         </a>
       </div>
 
@@ -131,7 +131,7 @@ export function InviteCodeState({
               color: "var(--idkit-text-secondary)",
             }}
           >
-            {__("Or enter this code in World App")}
+            {__("Or enter this code in World ID App")}
           </p>
           <div
             style={{

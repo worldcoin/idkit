@@ -47,6 +47,7 @@ export { WasmModule };
 export type {
   // Uniqueness proof response types
   ResponseItemV4,
+  SelfieCheckResponseItemV4,
   ResponseItemV3,
   IDKitResult,
   IDKitResultV3,
@@ -56,6 +57,7 @@ export type {
   // Session proof response types
   IDKitResultSession,
   ResponseItemSession,
+  SelfieCheckResponseItemSession,
   Status,
   IDKitErrorCode,
   // Shared types
@@ -71,6 +73,7 @@ export type {
   DocumentLegacyPreset,
   DeviceLegacyPreset,
   SelfieCheckLegacyPreset,
+  SelfieCheckPreset,
   ProofOfHumanPreset,
   PassportPreset,
   IdentityCheckPreset,

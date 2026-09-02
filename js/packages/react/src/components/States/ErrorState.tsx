@@ -51,7 +51,7 @@ const variantConfig = {
   },
   cancelled: {
     title: "Request cancelled" as const,
-    message: "You've cancelled the request in World App." as const,
+    message: "You've cancelled the request in World ID App." as const,
     Icon: WarningIcon,
     actionLabel: "Try Again" as const,
     action: "retry" as const,
@@ -90,7 +90,7 @@ const variantConfig = {
   user_presence_failed: {
     title: "Presence check failed" as const,
     message:
-      "World App couldn't confirm your presence for this request." as const,
+      "World ID App couldn't confirm your presence for this request." as const,
     Icon: WarningIcon,
     actionLabel: "Close" as const,
     action: "close" as const,

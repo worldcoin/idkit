@@ -340,6 +340,7 @@ export type {
   SecureDocumentLegacyPreset,
   DocumentLegacyPreset,
   SelfieCheckLegacyPreset,
+  SelfieCheckPreset,
   DeviceLegacyPreset,
   ProofOfHumanPreset,
   PassportPreset,
@@ -355,6 +356,7 @@ import type {
   SecureDocumentLegacyPreset,
   DocumentLegacyPreset,
   SelfieCheckLegacyPreset,
+  SelfieCheckPreset,
   DeviceLegacyPreset,
   ProofOfHumanPreset,
   PassportPreset,
@@ -461,6 +463,24 @@ export function selfieCheckLegacy(
   opts: { signal?: string } = {},
 ): SelfieCheckLegacyPreset {
   return { type: "SelfieCheckLegacy", signal: opts.signal };
+}
+
+/**
+ * Creates a `SelfieCheck` preset.
+ *
+ * The preset requests the Selfie Check credential and always disables fallback to legacy proofs.
+ *
+ * @param opts - Optional configuration with signal
+ * @returns A SelfieCheck preset
+ *
+ * @example
+ * ```typescript
+ * const request = await IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: false })
+ *   .preset(selfieCheck({ signal: 'user-123' }))
+ * ```
+ */
+export function selfieCheck(opts: { signal?: string } = {}): SelfieCheckPreset {
+  return { type: "SelfieCheck", signal: opts.signal };
 }
 
 /**
@@ -671,7 +691,7 @@ class IDKitBuilder {
    * Presets provide a simplified way to create requests with predefined
    * credential configurations.
    *
-   * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), documentLegacy(), selfieCheckLegacy(), deviceLegacy(), proofOfHuman(), or passport()
+   * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), documentLegacy(), selfieCheckLegacy(), selfieCheck(), deviceLegacy(), proofOfHuman(), or passport()
    * @returns A new IDKitRequest instance
    *
    * @example
@@ -788,7 +808,7 @@ class IDKitInviteCodeBuilder {
   /**
    * Creates an invite-code mode IDKit request from a preset.
    *
-   * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), documentLegacy(), selfieCheckLegacy(), deviceLegacy(), proofOfHuman(), or passport()
+   * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), documentLegacy(), selfieCheckLegacy(), selfieCheck(), deviceLegacy(), proofOfHuman(), or passport()
    * @returns A new IDKitInviteCodeRequest instance
    */
   async preset(preset: Preset): Promise<IDKitInviteCodeRequest> {
@@ -1112,6 +1132,7 @@ export type IDKitNamespace = {
   documentLegacy: typeof documentLegacy;
   deviceLegacy: typeof deviceLegacy;
   selfieCheckLegacy: typeof selfieCheckLegacy;
+  selfieCheck: typeof selfieCheck;
   proofOfHuman: typeof proofOfHuman;
   passport: typeof passport;
   mnc: typeof mnc;
@@ -1137,6 +1158,7 @@ export function createIDKitNamespace(
     documentLegacy,
     deviceLegacy,
     selfieCheckLegacy,
+    selfieCheck,
     proofOfHuman,
     passport,
     mnc,

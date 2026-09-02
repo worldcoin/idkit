@@ -11,9 +11,11 @@ import countries from "i18n-iso-countries";
 import enLocale from "i18n-iso-countries/langs/en.json";
 import {
   CredentialRequest,
+  any,
   documentLegacy,
   deviceLegacy,
   identityCheck,
+  selfieCheck,
   selfieCheckLegacy,
   IDKitInviteCodeRequestWidget,
   IDKitRequestWidget,
@@ -58,6 +60,7 @@ type FlowMode = "request" | "create_session" | "session";
 
 type V4CredentialType =
   | "proof_of_human"
+  | "proof_of_human_or_selfie"
   | "selfie"
   | "passport"
   | "mnc"
@@ -116,6 +119,7 @@ const ENVIRONMENTS = ["production", "staging", "sandbox"] as const;
 const WORLD_ID_VERSIONS = ["3.0", "4.0"] as const;
 const V4_CREDENTIAL_TYPES: readonly V4CredentialType[] = [
   "proof_of_human",
+  "proof_of_human_or_selfie",
   "selfie",
   "passport",
   "mnc",
@@ -123,6 +127,7 @@ const V4_CREDENTIAL_TYPES: readonly V4CredentialType[] = [
 ];
 const SESSION_CREDENTIAL_TYPES: readonly SessionCredentialType[] = [
   "proof_of_human",
+  "proof_of_human_or_selfie",
   "selfie",
   "passport",
   "mnc",
@@ -144,6 +149,7 @@ const FLOW_MODE_TO_NAME: Record<FlowMode, string> = {
 
 const V4_CREDENTIAL_TO_NAME: Record<V4CredentialType, string> = {
   proof_of_human: "Proof of Human",
+  proof_of_human_or_selfie: "PoH or Selfie",
   selfie: "Selfie",
   passport: "Passport",
   mnc: "My Number Card",
@@ -746,6 +752,20 @@ export function DemoClient(): ReactElement {
     if (v4CredentialType === "proof_of_human") {
       return { preset: proofOfHuman({ signal: widgetSignal }) };
     }
+    if (v4CredentialType === "proof_of_human_or_selfie") {
+      return {
+        constraints: any(
+          CredentialRequest("proof_of_human", {
+            signal: widgetSignal,
+            genesis_issued_at_min: genesisIssuedAtMin,
+          }),
+          CredentialRequest("selfie", {
+            signal: widgetSignal,
+            genesis_issued_at_min: genesisIssuedAtMin,
+          }),
+        ),
+      };
+    }
     if (v4CredentialType === "passport") {
       return { preset: passportPreset({ signal: widgetSignal }) };
     }
@@ -767,11 +787,7 @@ export function DemoClient(): ReactElement {
         }),
       };
     }
-    return {
-      constraints: CredentialRequest(v4CredentialType, {
-        genesis_issued_at_min: genesisIssuedAtMin,
-      }),
-    };
+    return { preset: selfieCheck({ signal: widgetSignal }) };
   }, [
     worldIdVersion,
     presetKind,
@@ -781,13 +797,22 @@ export function DemoClient(): ReactElement {
     widgetSignal,
   ]);
 
-  const sessionConstraints = useMemo(
-    () =>
-      CredentialRequest(sessionCredentialType, {
-        genesis_issued_at_min: genesisIssuedAtMin,
-      }),
-    [sessionCredentialType, genesisIssuedAtMin],
-  );
+  const sessionConstraints = useMemo(() => {
+    if (sessionCredentialType === "proof_of_human_or_selfie") {
+      return any(
+        CredentialRequest("proof_of_human", {
+          genesis_issued_at_min: genesisIssuedAtMin,
+        }),
+        CredentialRequest("selfie", {
+          genesis_issued_at_min: genesisIssuedAtMin,
+        }),
+      );
+    }
+
+    return CredentialRequest(sessionCredentialType, {
+      genesis_issued_at_min: genesisIssuedAtMin,
+    });
+  }, [sessionCredentialType, genesisIssuedAtMin]);
 
   const overrideDevPortalBaseUrl =
     (environment === "staging" || environment === "sandbox") &&
@@ -1236,6 +1261,7 @@ export function DemoClient(): ReactElement {
                 }
               >
                 <option value="proof_of_human">Proof Of Human</option>
+                <option value="proof_of_human_or_selfie">PoH or Selfie</option>
                 <option value="selfie">Selfie</option>
                 <option value="passport">Passport</option>
                 <option value="mnc">My Number Card</option>

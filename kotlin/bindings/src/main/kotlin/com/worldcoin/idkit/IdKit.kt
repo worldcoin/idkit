@@ -108,6 +108,7 @@ enum class IDKitErrorCode(val rawValue: String) {
     USER_REJECTED("user_rejected"),
     VERIFICATION_REJECTED("verification_rejected"),
     CREDENTIAL_UNAVAILABLE("credential_unavailable"),
+    FEATURE_UNAVAILABLE("feature_unavailable"),
     WORLD_ID_4_NOT_AVAILABLE("world_id_4_not_available"),
     WORLD_ID_3_NOT_AVAILABLE("world_id_3_not_available"),
     MALFORMED_REQUEST("malformed_request"),
@@ -138,6 +139,7 @@ enum class IDKitErrorCode(val rawValue: String) {
             AppError.USER_REJECTED -> USER_REJECTED
             AppError.VERIFICATION_REJECTED -> VERIFICATION_REJECTED
             AppError.CREDENTIAL_UNAVAILABLE -> CREDENTIAL_UNAVAILABLE
+            AppError.FEATURE_UNAVAILABLE -> FEATURE_UNAVAILABLE
             AppError.WORLD_ID4_NOT_AVAILABLE -> WORLD_ID_4_NOT_AVAILABLE
             AppError.WORLD_ID3_NOT_AVAILABLE -> WORLD_ID_3_NOT_AVAILABLE
             AppError.MALFORMED_REQUEST -> MALFORMED_REQUEST
@@ -418,6 +420,13 @@ fun deviceLegacy(signal: String? = null): Preset = Preset.DeviceLegacy(signal = 
  * Preview: Selfie Check is currently in preview. Contact us if you need it enabled.
  */
 fun selfieCheckLegacy(signal: String? = null): Preset = Preset.SelfieCheckLegacy(signal = signal)
+
+/**
+ * Creates a `SelfieCheck` preset.
+ *
+ * The preset requests the Selfie Check credential and always disables fallback to legacy proofs.
+ */
+fun selfieCheck(signal: String? = null): Preset = Preset.SelfieCheck(signal = signal)
 
 /**
  * Returns the identity check preset.

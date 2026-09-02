@@ -9,11 +9,13 @@ export type {
   // Uniqueness proof response types
   IDKitResult,
   ResponseItemV4,
+  SelfieCheckResponseItemV4,
   ResponseItemV3,
   IntegrityBundle,
   IntegritySignatureFormat,
   // Session proof response types
   ResponseItemSession,
+  SelfieCheckResponseItemSession,
   IDKitResultSession,
   // Status (includes both action and session confirmed)
   Status,
@@ -59,6 +61,7 @@ export enum IDKitErrorCodes {
   UserRejected = "user_rejected",
   VerificationRejected = "verification_rejected",
   CredentialUnavailable = "credential_unavailable",
+  FeatureUnavailable = "feature_unavailable",
   WorldId4NotAvailable = "world_id_4_not_available",
   WorldId3NotAvailable = "world_id_3_not_available",
   MalformedRequest = "malformed_request",

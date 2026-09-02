@@ -42,7 +42,7 @@ describe("QRState simulator callout", () => {
 
     expect(
       screen
-        .getByRole("link", { name: /open world app/i })
+        .getByRole("link", { name: /open world id app/i })
         .getAttribute("href"),
     ).toBe(qrData);
     expect(screen.getAllByTestId("qr-code")).toHaveLength(1);

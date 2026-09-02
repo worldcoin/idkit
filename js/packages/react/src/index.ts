@@ -41,6 +41,7 @@ export {
   secureDocumentLegacy,
   deviceLegacy,
   selfieCheckLegacy,
+  selfieCheck,
   proofOfHuman,
   passport,
   identityCheck,
@@ -66,7 +67,9 @@ export type {
   CredentialRequestType,
   ResponseItemV3,
   ResponseItemV4,
+  SelfieCheckResponseItemV4,
   ResponseItemSession,
+  SelfieCheckResponseItemSession,
   IDKitErrorCode,
   ProofOfHumanPreset,
   PassportPreset,
@@ -74,4 +77,5 @@ export type {
   IdentityAttribute,
   IdentityCheckPreset,
   MncPreset,
+  SelfieCheckPreset,
 } from "@worldcoin/idkit-core";

@@ -130,8 +130,8 @@ The package also publishes a browser global build at
 The script exposes the client namespace as `window.IDKit`. It includes
 `IDKit.request`, `IDKit.requestWithInviteCode`, `IDKit.createSession`,
 `IDKit.proveSession`, `IDKit.CredentialRequest`, `IDKit.any`, `IDKit.all`,
-`IDKit.enumerate`, the World ID 4.0 helpers (`proofOfHuman`, `passport`,
-`mnc`, `identityCheck`), and the legacy migration presets.
+`IDKit.enumerate`, the credential helpers (`proofOfHuman`, `passport`,
+`mnc`, `identityCheck`, `selfieCheck`), and the legacy migration presets.
 
 The WASM file is fetched automatically from the same CDN directory as the
 script (`idkit_wasm_bg.wasm`). RP signing is intentionally not exposed on the
@@ -192,6 +192,50 @@ const request = await IDKit.request({
   rp_context, // pass through from your backend
   allow_legacy_proofs: true,
 }).preset(orbLegacy({ signal: "user-123" }));
+
+// Display QR code for World App
+const qrUrl = request.connectorURI;
+```
+
+**Available presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy`, `selfieCheck`
+
+Selfie Check preset example:
+
+The preset requests the Selfie Check credential and always disables fallback to legacy proofs.
+
+```typescript
+import { IDKit, selfieCheck } from "@worldcoin/idkit-core";
+
+const request = await IDKit.request({
+  app_id: "app_xxxxx",
+  action: "my-action",
+  rp_context: rpContext,
+  allow_legacy_proofs: false,
+}).preset(selfieCheck({ signal: "user-123" }));
+```
+
+## Handling the Result
+
+Poll for the verification proof, then verify it server-side:
+
+```typescript
+// Wait for the user to scan and approve
+const completion = await request.pollUntilCompletion({
+  pollInterval: 2000,
+  timeout: 120_000,
+});
+
+if (!completion.success) {
+  console.error("Verification failed:", completion.error);
+  return;
+}
+
+// Send proof to your backend for verification
+const verified = await fetch("/api/verify-proof", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(completion.result),
+}).then((r) => r.json());
 ```
 
 **Legacy presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy`

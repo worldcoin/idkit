@@ -1,7 +1,7 @@
-//! Credential presets for simplified World ID session creation
+//! Credential presets for simplified World ID request creation
 //!
-//! Presets provide a simplified API for common credential request patterns,
-//! automatically handling both World ID 4.0 and 3.0 protocol formats.
+//! Presets provide a simplified API for common credential request patterns
+//! and apply the compatibility behavior defined by each preset.
 
 use crate::types::IdentityAttribute;
 #[cfg(any(test, feature = "ffi", feature = "wasm-bindings"))]
@@ -12,9 +12,8 @@ use serde::{Deserialize, Serialize};
 
 /// Credential presets for World ID verification
 ///
-/// Each preset defines a pre-configured set of credential requests
-/// with sensible defaults. Presets convert to both World ID 4.0
-/// (requests array) and World ID 3.0 (`verification_level`) formats.
+/// Each preset defines a pre-configured set of credential requests with sensible defaults.
+/// Compatibility behavior, including fallback to legacy proofs, is documented by each preset.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(tag = "type")]
@@ -65,6 +64,17 @@ pub enum Preset {
         /// Can be a plain string or hex-encoded ABI value (with 0x prefix).
         signal: Option<String>,
     },
+
+    /// Creates a `SelfieCheck` preset.
+    ///
+    /// The preset requests the Selfie Check credential and always disables fallback to legacy
+    /// proofs.
+    SelfieCheck {
+        /// Optional signal to bind to the proof.
+        /// Can be a plain string or a hex-encoded value with a `0x` prefix.
+        signal: Option<String>,
+    },
+
     /// Device verification
     ///
     /// Requests orb or device credentials, with optional signal.
@@ -130,6 +140,14 @@ pub(crate) struct BridgeParams {
     pub allow_legacy_proofs_override: Option<bool>,
 }
 
+#[cfg(any(test, feature = "ffi", feature = "wasm-bindings"))]
+fn selfie_check_constraint(signal: Option<&String>) -> ConstraintNode {
+    ConstraintNode::item(CredentialRequest::new(
+        CredentialType::Selfie,
+        signal.cloned().map(Signal::from_string),
+    ))
+}
+
 impl Preset {
     /// Creates a new `OrbLegacy` preset with optional signal
     #[must_use]
@@ -155,6 +173,15 @@ impl Preset {
     #[must_use]
     pub fn selfie_check_legacy(signal: Option<String>) -> Self {
         Self::SelfieCheckLegacy { signal }
+    }
+
+    /// Creates a `SelfieCheck` preset.
+    ///
+    /// The preset requests the Selfie Check credential and always disables fallback to legacy
+    /// proofs.
+    #[must_use]
+    pub fn selfie_check(signal: Option<String>) -> Self {
+        Self::SelfieCheck { signal }
     }
 
     /// Creates a new `DeviceLegacy` preset with optional signal
@@ -233,6 +260,15 @@ impl Preset {
                 legacy_signal: signal,
                 identity_attributes: None,
                 allow_legacy_proofs_override: None,
+            },
+            Self::SelfieCheck { signal } => BridgeParams {
+                constraints: Some(selfie_check_constraint(signal.as_ref())),
+                // The constraint selects the Selfie Check credential. Keep the legacy wire field at
+                // device for compatibility; fallback to legacy proofs remains disabled.
+                legacy_verification_level: Some(VerificationLevel::Device),
+                legacy_signal: signal,
+                identity_attributes: None,
+                allow_legacy_proofs_override: Some(false),
             },
             Self::DeviceLegacy { signal } => BridgeParams {
                 constraints: None,
@@ -332,6 +368,34 @@ mod tests {
         assert_eq!(bridge_params.legacy_signal, None);
         assert_eq!(bridge_params.identity_attributes, None);
         assert!(bridge_params.constraints.is_none());
+    }
+
+    #[test]
+    fn selfie_check_preset_builds_v4_selfie_constraint_and_disables_legacy_proofs() {
+        let preset = Preset::selfie_check(Some("selfie-signal".to_string()));
+        let bridge_params = preset.into_bridge_params();
+
+        assert_eq!(
+            bridge_params.legacy_verification_level,
+            Some(VerificationLevel::Device)
+        );
+        assert_eq!(
+            bridge_params.legacy_signal,
+            Some("selfie-signal".to_string())
+        );
+        assert_eq!(bridge_params.identity_attributes, None);
+        assert_eq!(bridge_params.allow_legacy_proofs_override, Some(false));
+
+        match bridge_params.constraints {
+            Some(ConstraintNode::Item(item)) => {
+                assert_eq!(item.credential_type, CredentialType::Selfie);
+                assert_eq!(
+                    item.signal.as_ref().and_then(Signal::as_str),
+                    Some("selfie-signal")
+                );
+            }
+            _ => panic!("expected selfieCheck constraint to be one selfie item"),
+        }
     }
 
     #[test]
