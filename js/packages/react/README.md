@@ -223,7 +223,7 @@ import { IDKitRequestWidget, selfieCheck } from "@worldcoin/idkit";
   onSuccess={(result) => {
     // required: runs after verification succeeds
   }}
-/>
+/>;
 ```
 
 **Legacy presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy`
@@ -236,10 +236,10 @@ Pass either `preset` or `constraints` on a request, not both.
 
 Pure JS subpath exports are available for server-side use without WASM or React:
 
-| Subpath    | Exports                                      |
-| ---------- | -------------------------------------------- |
-| `/signing` | `signRequest`, `RpSignature` (type)          |
-| `/hashing` | `hashSignal`                                 |
+| Subpath    | Exports                             |
+| ---------- | ----------------------------------- |
+| `/signing` | `signRequest`, `RpSignature` (type) |
+| `/hashing` | `hashSignal`                        |
 
 ```typescript
 import { signRequest } from "@worldcoin/idkit/signing";
