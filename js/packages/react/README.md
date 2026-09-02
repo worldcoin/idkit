@@ -101,29 +101,6 @@ The same configs work on the widgets (`IDKitSessionWidget`, `IDKitRequestWidget`
 
 If the user is on a different device than World App (desktop browser ↔ phone), use `useIDKitInviteCodeRequest` / `IDKitInviteCodeRequestWidget` with the same request config as `useIDKitRequest`.
 
-### Handling the result
-
-Result should always be handled in the backend. A good practice is to have a dedicated `/api/verify` route file where you have some form of the following:
-
-```typescript
-import type { IDKitResult } from "@worldcoin/idkit";
-
-// proof = flow.result, or the argument to handleVerify / onSuccess
-async function verifyProof(proof: IDKitResult, rpId: string) {
-  const response = await fetch(
-    `https://developer.world.org/api/v4/verify/${rpId}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(proof),
-    },
-  );
-
-  const { success } = await response.json();
-  return success;
-}
-```
-
 ## Widget usage
 
 ```tsx
