@@ -7,6 +7,7 @@ React SDK for World ID built on top of `@worldcoin/idkit-core`. Headless hooks f
 ```bash
 npm install @worldcoin/idkit
 ```
+
 ## Quickstart
 
 ### Requirements
@@ -15,7 +16,7 @@ From the [Developer Portal](https://developer.world.org): `app_id`, `rp_id`, and
 
 There are two ways you can request proofs with IDKit, and they depend on how you want to use the SDK.
 
-If you want to request a World ID session-scoped proof, use `useIDKitSession` / `IDKitSessionWidget` and store the result `session_id`. On a return visit, pass that `session_id` as `existing_session_id` to log and sync existing users with their session data. 
+If you want to request a World ID session-scoped proof, use `useIDKitSession` / `IDKitSessionWidget` and store the result `session_id`. On a return visit, pass that `session_id` as `existing_session_id` to log and sync existing users with their session data.
 
 ```tsx
 import { useIDKitSession, CredentialRequest } from "@worldcoin/idkit";
@@ -139,7 +140,6 @@ function WidgetExample() {
   );
 }
 ```
-
 
 ## Subpath Exports
 
