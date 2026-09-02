@@ -17,6 +17,9 @@ const baseConfig: BuilderConfig = {
 const proofResponseProof = [1n, 2n, 3n, 4n, 5n]
   .map((value) => value.toString(16).padStart(64, "0"))
   .join("");
+const selfieClaims = [
+  "0x000000000000000000000000000000000000000000000000000000000000000a",
+];
 
 function proofResponseNullifier(value: string): string {
   return `nil_${value.padStart(64, "0")}`;
@@ -311,6 +314,7 @@ describe("native transport request lifecycle", () => {
             nullifier: proofResponseNullifier("b"),
             issuer_schema_id: 11,
             expires_at_min: 0,
+            claims: selfieClaims,
           },
         ],
       },
@@ -467,6 +471,7 @@ describe("native transport request lifecycle", () => {
             nullifier: proofResponseNullifier("a"),
             issuer_schema_id: 11,
             expires_at_min: 0,
+            claims: selfieClaims,
           },
         ],
       },
