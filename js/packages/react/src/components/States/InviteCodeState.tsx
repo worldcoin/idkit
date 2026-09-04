@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { __ } from "../../lang";
 import { useMedia } from "../../hooks/useMedia";
-import { WorldcoinIcon } from "../Icons/WorldIcon";
+import { HumanBadgeIcon } from "../Icons/HumanBadgeIcon";
 import { LoadingIcon } from "../Icons/LoadingIcon";
 import { QRCode } from "../../widget/QRCode";
 
@@ -45,7 +45,7 @@ export function InviteCodeState({
       }}
     >
       <div className="idkit-worldid-icon">
-        <WorldcoinIcon />
+        <HumanBadgeIcon />
       </div>
 
       <h2 className="idkit-heading">{__("Connect your World ID")}</h2>
@@ -61,7 +61,7 @@ export function InviteCodeState({
       {/* Mobile: deep-link button */}
       <div className="idkit-mobile-only">
         <a href={connectorURI ?? undefined} className="idkit-deeplink-btn">
-          <WorldcoinIcon />
+          <HumanBadgeIcon />
           <span>{__("Open World ID App")}</span>
         </a>
       </div>

@@ -190,7 +190,7 @@ export const WIDGET_STYLES = `
   border: 1.2px solid var(--idkit-border);
   margin-bottom: 16px;
 }
-.idkit-worldid-icon svg {
+.idkit-worldid-icon img {
   width: 32px;
   height: 32px;
   color: var(--idkit-text);
@@ -334,7 +334,7 @@ export const WIDGET_STYLES = `
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
-.idkit-deeplink-btn svg {
+.idkit-deeplink-btn img {
   width: 20px;
   height: 20px;
   flex-shrink: 0;

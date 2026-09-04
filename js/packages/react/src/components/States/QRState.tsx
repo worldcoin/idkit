@@ -2,7 +2,7 @@ import { useCallback, useState, type ReactElement } from "react";
 import { __ } from "../../lang";
 import { QRCode } from "../../widget/QRCode";
 import { QRPlaceholderIcon } from "../Icons/QRPlaceholderIcon";
-import { WorldcoinIcon } from "../Icons/WorldIcon";
+import { HumanBadgeIcon } from "../Icons/HumanBadgeIcon";
 
 type QRStateProps = {
   qrData: string | null;
@@ -29,7 +29,7 @@ export function QRState({
       <div className="idkit-mobile-only">
         <div className="idkit-mobile-handoff">
           <a href={qrData ?? undefined} className="idkit-deeplink-btn">
-            <WorldcoinIcon />
+            <HumanBadgeIcon />
             <span>{__("Open World ID App")}</span>
           </a>
           <div className="idkit-handoff-divider">
