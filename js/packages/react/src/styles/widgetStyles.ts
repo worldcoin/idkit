@@ -184,16 +184,14 @@ export const WIDGET_STYLES = `
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: 1.2px solid var(--idkit-border);
+  width: 48px;
+  height: 48px;
   margin-bottom: 16px;
 }
 .idkit-worldid-icon img {
-  width: 32px;
-  height: 32px;
-  color: var(--idkit-text);
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .idkit-heading {
