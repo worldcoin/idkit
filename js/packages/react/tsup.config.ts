@@ -8,6 +8,9 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   treeshake: true,
+  loader: {
+    ".svg": "dataurl",
+  },
   outDir: "dist",
   external: ["react", "react-dom"],
 });
