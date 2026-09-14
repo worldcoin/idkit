@@ -184,16 +184,14 @@ export const WIDGET_STYLES = `
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: 1.2px solid var(--idkit-border);
+  width: 48px;
+  height: 48px;
   margin-bottom: 16px;
 }
-.idkit-worldid-icon svg {
-  width: 32px;
-  height: 32px;
-  color: var(--idkit-text);
+.idkit-worldid-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .idkit-heading {
@@ -334,7 +332,7 @@ export const WIDGET_STYLES = `
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
-.idkit-deeplink-btn svg {
+.idkit-deeplink-btn img {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
