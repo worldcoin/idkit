@@ -292,6 +292,34 @@ pre {
   overflow-wrap: anywhere;
 }
 
+.checkbox-group {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  min-width: 0;
+}
+
+.checkbox-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.config-row-top {
+  align-items: flex-start;
+}
+
+.config-row .config-preview {
+  flex: 1;
+  min-width: 0;
+  max-height: 260px;
+  margin: 0;
+  overflow: auto;
+}
+
 .arena-sections,
 .arena-cases {
   display: flex;
@@ -477,6 +505,12 @@ pre {
   }
 
   .config-note {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .checkbox-group,
+  .config-row .config-preview {
     flex: 1 1 100%;
     width: 100%;
   }

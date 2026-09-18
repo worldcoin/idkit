@@ -27,6 +27,7 @@ import {
   secureDocumentLegacy,
   setDebug,
   type ConstraintNode,
+  type CredentialType,
   type DocumentType,
   type IDKitDebugReport,
   type IdentityAttribute,
@@ -35,6 +36,18 @@ import {
   type Preset,
   type RpContext,
 } from "@worldcoin/idkit";
+import {
+  DEFAULT_MULTI_COMBINATOR,
+  DEFAULT_MULTI_CREDENTIALS,
+  MULTI_COMBINATORS,
+  MULTI_COMBINATOR_TO_NAME,
+  MULTI_CREDENTIALS,
+  MULTI_CREDENTIAL_TO_NAME,
+  buildMultiConstraints,
+  describeMultiConstraints,
+  normalizeMultiCredentials,
+  type MultiCombinator,
+} from "./multi-constraints";
 
 setDebug(true);
 countries.registerLocale(enLocale);
@@ -53,6 +66,10 @@ const GENESIS_ISSUED_AT_MIN_TOOLTIP =
   "is greater than or equal to this value. Useful for migration from previous protocol versions.";
 const RETURN_TO_TOOLTIP =
   "Enable this to append a return_to callback to the connector URL. The default value just reopens Chrome, and you can override it before starting a verification.";
+const MULTI_COMBINATOR_TOOLTIP =
+  "any: World App satisfies the request with the first selected credential the account holds (selection order is priority). " +
+  "all: every selected credential is required. " +
+  "enumerate: every selected credential the account holds is included; at least one is required.";
 
 type PresetKind = "orb" | "secure_document" | "document" | "device" | "selfie";
 
@@ -64,6 +81,7 @@ type V4CredentialType =
   | "selfie"
   | "passport"
   | "mnc"
+  | "multi"
   | "identity_check";
 type SessionCredentialType = Exclude<V4CredentialType, "identity_check">;
 
@@ -94,6 +112,8 @@ type SharedDemoState = {
   genesisDate: string;
   genesisEnabled: boolean;
   identityAttributes: IdentityAttributesConfig;
+  multiCombinator: MultiCombinator;
+  multiCredentials: CredentialType[];
   presetKind: PresetKind;
   requireUserPresence: boolean;
   returnTo: string;
@@ -123,6 +143,7 @@ const V4_CREDENTIAL_TYPES: readonly V4CredentialType[] = [
   "selfie",
   "passport",
   "mnc",
+  "multi",
   "identity_check",
 ];
 const SESSION_CREDENTIAL_TYPES: readonly SessionCredentialType[] = [
@@ -131,6 +152,7 @@ const SESSION_CREDENTIAL_TYPES: readonly SessionCredentialType[] = [
   "selfie",
   "passport",
   "mnc",
+  "multi",
 ];
 const PRESET_KINDS: readonly PresetKind[] = [
   "orb",
@@ -153,6 +175,7 @@ const V4_CREDENTIAL_TO_NAME: Record<V4CredentialType, string> = {
   selfie: "Selfie",
   passport: "Passport",
   mnc: "My Number Card",
+  multi: "Multiple credentials",
   identity_check: "Identity Check",
 };
 
@@ -185,6 +208,8 @@ function createDefaultSharedDemoState(): SharedDemoState {
     genesisDate: "",
     genesisEnabled: false,
     identityAttributes: cloneIdentityAttributes(DEFAULT_IDENTITY_ATTRIBUTES),
+    multiCombinator: DEFAULT_MULTI_COMBINATOR,
+    multiCredentials: [...DEFAULT_MULTI_CREDENTIALS],
     presetKind: "orb",
     requireUserPresence: false,
     returnTo: "",
@@ -328,6 +353,15 @@ function normalizeSharedDemoState(value: unknown): SharedDemoState | null {
       fallback.genesisEnabled,
     ),
     identityAttributes: normalizeIdentityAttributes(value.identityAttributes),
+    multiCombinator: pickChoice(
+      value.multiCombinator,
+      MULTI_COMBINATORS,
+      fallback.multiCombinator,
+    ),
+    multiCredentials: normalizeMultiCredentials(
+      value.multiCredentials,
+      fallback.multiCredentials,
+    ),
     presetKind: pickChoice(value.presetKind, PRESET_KINDS, fallback.presetKind),
     requireUserPresence: coerceBoolean(
       value.requireUserPresence,
@@ -373,9 +407,14 @@ function normalizeSharedDemoState(value: unknown): SharedDemoState | null {
     );
   }
 
-  if (state.v4CredentialType !== "mnc") {
+  if (state.v4CredentialType !== "mnc" && state.v4CredentialType !== "multi") {
     state.genesisEnabled = false;
     state.genesisDate = "";
+  }
+
+  if (state.v4CredentialType !== "multi") {
+    state.multiCombinator = fallback.multiCombinator;
+    state.multiCredentials = [...fallback.multiCredentials];
   }
 
   if (
@@ -693,6 +732,14 @@ export function DemoClient(): ReactElement {
   const [identityAttributes, setIdentityAttributes] =
     useState<IdentityAttributesConfig>(DEFAULT_IDENTITY_ATTRIBUTES);
   const [presetKind, setPresetKind] = useState<PresetKind>("orb");
+  const [multiCombinator, setMultiCombinator] = useState<MultiCombinator>(
+    DEFAULT_MULTI_COMBINATOR,
+  );
+  const [multiCredentials, setMultiCredentials] = useState<CredentialType[]>(
+    () => [...DEFAULT_MULTI_CREDENTIALS],
+  );
+  const [isMultiCombinatorTooltipOpen, setIsMultiCombinatorTooltipOpen] =
+    useState(false);
   const [genesisEnabled, setGenesisEnabled] = useState(false);
   const [genesisDate, setGenesisDate] = useState("");
   const [isGenesisTooltipOpen, setIsGenesisTooltipOpen] = useState(false);
@@ -711,7 +758,9 @@ export function DemoClient(): ReactElement {
   const [shareStatus, setShareStatus] = useState<ShareStatus | null>(null);
   const [manualShareUrl, setManualShareUrl] = useState<string | null>(null);
   const isV4PresetCredential =
-    v4CredentialType !== "mnc" && v4CredentialType !== "identity_check";
+    v4CredentialType !== "mnc" &&
+    v4CredentialType !== "multi" &&
+    v4CredentialType !== "identity_check";
   const isSessionFlow = flowMode !== "request";
   const isCreateSessionFlow = flowMode === "create_session";
   const isProveSessionFlow = flowMode === "session";
@@ -732,15 +781,21 @@ export function DemoClient(): ReactElement {
     !isSessionFlow &&
     worldIdVersion === "4.0" &&
     v4CredentialType === "identity_check";
+  const isMultiCredential =
+    worldIdVersion === "4.0" && v4CredentialType === "multi";
+  const hasMultiCredentialSelection = multiCredentials.length > 0;
   const canStartWidgetFlow =
-    !isIdentityCheck || identityAttributesPayload.length > 0;
+    (!isIdentityCheck || identityAttributesPayload.length > 0) &&
+    (!isMultiCredential || hasMultiCredentialSelection);
   const isMncGenesisConstraintsRequest =
     !isSessionFlow &&
     worldIdVersion === "4.0" &&
-    v4CredentialType === "mnc" &&
-    genesisIssuedAtMin != null;
-  // MNC + genesis uses constraints(). Keep this branch v4-only to avoid a legacy
-  // fallback being interpreted as device-level when the request is document-scoped.
+    genesisIssuedAtMin != null &&
+    (v4CredentialType === "mnc" ||
+      (v4CredentialType === "multi" && multiCredentials.includes("mnc")));
+  // MNC + genesis (alone or inside a multi-credential request) uses constraints().
+  // Keep this branch v4-only to avoid a legacy fallback being interpreted as
+  // device-level when the request is document-scoped.
   const shouldAllowLegacyProofs = !isMncGenesisConstraintsRequest;
 
   const requestConstraintsOrPreset:
@@ -780,6 +835,14 @@ export function DemoClient(): ReactElement {
         }),
       };
     }
+    if (v4CredentialType === "multi") {
+      return {
+        constraints: buildMultiConstraints(multiCombinator, multiCredentials, {
+          signal: widgetSignal,
+          genesis_issued_at_min: genesisIssuedAtMin,
+        }),
+      };
+    }
     if (v4CredentialType === "identity_check") {
       return {
         preset: identityCheck({
@@ -794,10 +857,17 @@ export function DemoClient(): ReactElement {
     v4CredentialType,
     genesisIssuedAtMin,
     identityAttributesPayload,
+    multiCombinator,
+    multiCredentials,
     widgetSignal,
   ]);
 
   const sessionConstraints = useMemo(() => {
+    if (sessionCredentialType === "multi") {
+      return buildMultiConstraints(multiCombinator, multiCredentials, {
+        genesis_issued_at_min: genesisIssuedAtMin,
+      });
+    }
     if (sessionCredentialType === "proof_of_human_or_selfie") {
       return any(
         CredentialRequest("proof_of_human", {
@@ -812,7 +882,39 @@ export function DemoClient(): ReactElement {
     return CredentialRequest(sessionCredentialType, {
       genesis_issued_at_min: genesisIssuedAtMin,
     });
-  }, [sessionCredentialType, genesisIssuedAtMin]);
+  }, [
+    sessionCredentialType,
+    genesisIssuedAtMin,
+    multiCombinator,
+    multiCredentials,
+  ]);
+
+  // The exact tree handed to the widget, so testers can eyeball it before starting.
+  const multiConstraintsPreview = useMemo(() => {
+    if (!isMultiCredential || !hasMultiCredentialSelection) {
+      return null;
+    }
+    const node = isSessionFlow
+      ? sessionConstraints
+      : "constraints" in requestConstraintsOrPreset
+        ? requestConstraintsOrPreset.constraints
+        : null;
+    return node ? JSON.stringify(node, null, 2) : null;
+  }, [
+    hasMultiCredentialSelection,
+    isMultiCredential,
+    isSessionFlow,
+    requestConstraintsOrPreset,
+    sessionConstraints,
+  ]);
+  const v4CredentialLabel =
+    v4CredentialType === "multi"
+      ? describeMultiConstraints(multiCombinator, multiCredentials)
+      : V4_CREDENTIAL_TO_NAME[v4CredentialType];
+  const sessionCredentialLabel =
+    sessionCredentialType === "multi"
+      ? describeMultiConstraints(multiCombinator, multiCredentials)
+      : V4_CREDENTIAL_TO_NAME[sessionCredentialType];
 
   const overrideDevPortalBaseUrl =
     (environment === "staging" || environment === "sandbox") &&
@@ -834,6 +936,8 @@ export function DemoClient(): ReactElement {
       genesisDate,
       genesisEnabled,
       identityAttributes: cloneIdentityAttributes(identityAttributes),
+      multiCombinator,
+      multiCredentials: [...multiCredentials],
       presetKind,
       requireUserPresence,
       returnTo,
@@ -851,6 +955,8 @@ export function DemoClient(): ReactElement {
       genesisDate,
       genesisEnabled,
       identityAttributes,
+      multiCombinator,
+      multiCredentials,
       presetKind,
       requireUserPresence,
       returnTo,
@@ -870,6 +976,8 @@ export function DemoClient(): ReactElement {
     setGenesisDate(state.genesisDate);
     setGenesisEnabled(state.genesisEnabled);
     setIdentityAttributes(cloneIdentityAttributes(state.identityAttributes));
+    setMultiCombinator(state.multiCombinator);
+    setMultiCredentials([...state.multiCredentials]);
     setPresetKind(state.presetKind);
     setRequireUserPresence(state.requireUserPresence);
     setReturnTo(state.returnTo);
@@ -880,6 +988,20 @@ export function DemoClient(): ReactElement {
     setV4CredentialType(state.v4CredentialType);
     setWorldIdVersion(state.worldIdVersion);
   }, []);
+
+  const toggleMultiCredential = useCallback(
+    (credential: CredentialType, checked: boolean) => {
+      setMultiCredentials((current) =>
+        checked
+          ? MULTI_CREDENTIALS.filter(
+              (candidate) =>
+                candidate === credential || current.includes(candidate),
+            )
+          : current.filter((candidate) => candidate !== credential),
+      );
+    },
+    [],
+  );
 
   const shareConfig = useCallback(async () => {
     const shareUrl = createSharedConfigUrl(createSharedState());
@@ -979,7 +1101,11 @@ export function DemoClient(): ReactElement {
     setWasIdentityCheck(isIdentityCheck);
 
     if (!canStartWidgetFlow) {
-      setWidgetError("Select at least one identity attribute.");
+      setWidgetError(
+        isIdentityCheck
+          ? "Select at least one identity attribute."
+          : "Select at least one credential.",
+      );
       return;
     }
 
@@ -1265,11 +1391,99 @@ export function DemoClient(): ReactElement {
                 <option value="selfie">Selfie</option>
                 <option value="passport">Passport</option>
                 <option value="mnc">My Number Card</option>
+                <option value="multi">Multiple credentials</option>
                 {!isSessionFlow && (
                   <option value="identity_check">Identity Check</option>
                 )}
               </select>
             </div>
+            {v4CredentialType === "multi" && (
+              <>
+                <div className="config-row">
+                  <label htmlFor="cfgMultiCombinator">Combinator</label>
+                  <div
+                    className="tooltip"
+                    onMouseEnter={() => setIsMultiCombinatorTooltipOpen(true)}
+                    onMouseLeave={() => setIsMultiCombinatorTooltipOpen(false)}
+                  >
+                    <button
+                      type="button"
+                      className="tooltip-trigger"
+                      aria-label="Explain constraint combinators"
+                      aria-describedby={
+                        isMultiCombinatorTooltipOpen
+                          ? "multi-combinator-tooltip"
+                          : undefined
+                      }
+                      aria-expanded={isMultiCombinatorTooltipOpen}
+                      onFocus={() => setIsMultiCombinatorTooltipOpen(true)}
+                      onBlur={() => setIsMultiCombinatorTooltipOpen(false)}
+                      onClick={() => setIsMultiCombinatorTooltipOpen(true)}
+                    >
+                      ?
+                    </button>
+                    {isMultiCombinatorTooltipOpen && (
+                      <span
+                        id="multi-combinator-tooltip"
+                        role="tooltip"
+                        className="tooltip-content"
+                      >
+                        {MULTI_COMBINATOR_TOOLTIP}
+                      </span>
+                    )}
+                  </div>
+                  <select
+                    id="cfgMultiCombinator"
+                    value={multiCombinator}
+                    onChange={(e) =>
+                      setMultiCombinator(e.target.value as MultiCombinator)
+                    }
+                  >
+                    {MULTI_COMBINATORS.map((combinator) => (
+                      <option key={combinator} value={combinator}>
+                        {MULTI_COMBINATOR_TO_NAME[combinator]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="config-row">
+                  <label id="cfgMultiCredentialsLabel">Credentials</label>
+                  <div
+                    className="checkbox-group"
+                    role="group"
+                    aria-labelledby="cfgMultiCredentialsLabel"
+                  >
+                    {MULTI_CREDENTIALS.map((credential) => (
+                      <label key={credential} className="checkbox-option">
+                        <input
+                          type="checkbox"
+                          checked={multiCredentials.includes(credential)}
+                          onChange={(e) =>
+                            toggleMultiCredential(credential, e.target.checked)
+                          }
+                        />
+                        {MULTI_CREDENTIAL_TO_NAME[credential]}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="config-row config-row-top">
+                  <label id="cfgMultiPreviewLabel">Constraints preview</label>
+                  {multiConstraintsPreview ? (
+                    <pre
+                      className="config-preview"
+                      aria-labelledby="cfgMultiPreviewLabel"
+                    >
+                      {multiConstraintsPreview}
+                    </pre>
+                  ) : (
+                    <span className="config-note">
+                      Select at least one credential.
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
             {v4CredentialType !== "identity_check" && (
               <>
                 <div className="config-row">
@@ -1670,24 +1884,27 @@ export function DemoClient(): ReactElement {
 
         {!isSessionFlow && worldIdVersion === "4.0" && (
           <button onClick={startWidgetFlow} disabled={!canStartWidgetFlow}>
-            Verify with {V4_CREDENTIAL_TO_NAME[v4CredentialType]}
+            Verify with {v4CredentialLabel}
           </button>
         )}
 
         {isCreateSessionFlow && (
-          <button onClick={startWidgetFlow}>
-            Create Session with {V4_CREDENTIAL_TO_NAME[sessionCredentialType]}
+          <button onClick={startWidgetFlow} disabled={!canStartWidgetFlow}>
+            Create Session with {sessionCredentialLabel}
           </button>
         )}
 
         {isProveSessionFlow && (
-          <button onClick={startWidgetFlow}>
-            Prove Session with {V4_CREDENTIAL_TO_NAME[sessionCredentialType]}
+          <button onClick={startWidgetFlow} disabled={!canStartWidgetFlow}>
+            Prove Session with {sessionCredentialLabel}
           </button>
         )}
       </div>
       {isIdentityCheck && identityAttributesPayload.length === 0 && (
         <p className="status">Select at least one identity attribute.</p>
+      )}
+      {isMultiCredential && !hasMultiCredentialSelection && (
+        <p className="status">Select at least one credential.</p>
       )}
       {widgetError && <p className="status">Error: {widgetError}</p>}
       {widgetDebugReportJson && (
