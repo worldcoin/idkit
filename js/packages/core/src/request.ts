@@ -88,6 +88,34 @@ export interface IDKitRequest {
   getDebugReport(): IDKitDebugReport;
 }
 
+async function pollBeforeDeadline(
+  pollOnce: () => Promise<Status>,
+  deadline: number,
+  signal?: AbortSignal,
+): Promise<Status | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
+
+  try {
+    return await Promise.race([
+      Promise.resolve()
+        .then(pollOnce)
+        .catch(() => null),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(resolve, Math.max(0, deadline - Date.now()), null);
+        if (signal) {
+          onAbort = () => resolve(null);
+          signal.addEventListener("abort", onAbort, { once: true });
+          if (signal.aborted) onAbort();
+        }
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+    if (onAbort && signal) signal.removeEventListener("abort", onAbort);
+  }
+}
+
 /**
  * Shared poll loop. Used by both URL-mode and invite-code-mode request impls;
  * the loop body is identical between the two paths because the bridge
@@ -99,24 +127,37 @@ async function pollUntilCompletionLoop(
 ): Promise<IDKitCompletionResult> {
   const pollInterval = options?.pollInterval ?? 1000;
   const timeout = options?.timeout ?? 900_000; // 15 minutes default
-  const startTime = Date.now();
+  const deadline = Date.now() + timeout;
 
   while (true) {
     if (options?.signal?.aborted) {
       return { success: false, error: IDKitErrorCodes.Cancelled };
     }
 
-    if (Date.now() - startTime > timeout) {
+    if (Date.now() >= deadline) {
       return { success: false, error: IDKitErrorCodes.Timeout };
     }
 
-    const status = await pollOnce();
+    // A backgrounded browser can lose an individual network request. Keep the
+    // flow alive until the bridge reports a terminal status or time runs out.
+    const status = await pollBeforeDeadline(
+      pollOnce,
+      deadline,
+      options?.signal,
+    );
 
-    if (status.type === "confirmed" && status.result) {
+    if (options?.signal?.aborted) {
+      return { success: false, error: IDKitErrorCodes.Cancelled };
+    }
+    if (Date.now() >= deadline) {
+      return { success: false, error: IDKitErrorCodes.Timeout };
+    }
+
+    if (status?.type === "confirmed" && status.result) {
       return { success: true, result: status.result };
     }
 
-    if (status.type === "failed") {
+    if (status?.type === "failed") {
       return {
         success: false,
         error:
@@ -124,7 +165,12 @@ async function pollUntilCompletionLoop(
       };
     }
 
-    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    await new Promise((resolve) =>
+      setTimeout(
+        resolve,
+        Math.min(pollInterval, Math.max(0, deadline - Date.now())),
+      ),
+    );
   }
 }
 
