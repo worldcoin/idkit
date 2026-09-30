@@ -15,6 +15,7 @@ pub mod bridge;
 pub mod constraints;
 pub mod crypto;
 pub mod error;
+pub mod nullifier;
 pub mod preset;
 #[cfg(feature = "rp-signature")]
 pub mod rp_signature;
@@ -31,6 +32,7 @@ pub use constraints::ConstraintNode;
 #[cfg(any(feature = "native-crypto", feature = "wasm-crypto"))]
 pub use crypto::CryptoKey;
 pub use error::{Error, Result};
+pub use nullifier::Nullifier;
 pub use preset::Preset;
 pub use types::{
     AppId, BridgeResponseV1, BridgeUrl, CredentialRequest, CredentialType, IDKitResult,

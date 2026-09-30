@@ -28,6 +28,11 @@
       "types": "./dist/session.d.ts",
       "import": "./dist/session.js",
       "require": "./dist/session.cjs"
+    },
+    "./nullifier": {
+      "types": "./dist/nullifier.d.ts",
+      "import": "./dist/nullifier.js",
+      "require": "./dist/nullifier.cjs"
     }
   },
   "typesVersions": {
@@ -40,6 +45,9 @@
       ],
       "session": [
         "./dist/session.d.ts"
+      ],
+      "nullifier": [
+        "./dist/nullifier.d.ts"
       ]
     }
   },
