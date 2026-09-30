@@ -26,3 +26,5 @@ Example iOS app:
 ## License
 
 MIT License - see [LICENSE](./LICENSE) for details.
+
+<!-- gha-poc-arc -->
