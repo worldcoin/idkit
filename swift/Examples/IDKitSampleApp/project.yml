@@ -35,14 +35,21 @@ schemes:
             REPO_ROOT="${SRCROOT}/../../.."
             XCFRAMEWORK="${REPO_ROOT}/IDKitFFI.xcframework"
             GENERATED="${REPO_ROOT}/swift/Sources/IDKit/Generated/idkit_core.swift"
+            RUST_SRC="${REPO_ROOT}/rust/core/src"
+
+            NEEDS_BUILD=0
 
             if [ ! -d "${XCFRAMEWORK}" ] || [ ! -f "${GENERATED}" ]; then
-              echo "error: IDKit native artifacts not found." >&2
-              echo "error: Run the following from the repo root, then build again:" >&2
-              echo "error:   ./scripts/package-swift.sh" >&2
-              exit 1
+              NEEDS_BUILD=1
+            elif [ -n "$(find "${RUST_SRC}" -newer "${GENERATED}" -name '*.rs' -print -quit)" ]; then
+              NEEDS_BUILD=1
             fi
-          name: Check IDKit Dependencies
+
+            if [ "${NEEDS_BUILD}" -eq 1 ]; then
+              echo "note: IDKit native artifacts missing or stale — rebuilding..."
+              "${REPO_ROOT}/scripts/package-swift.sh"
+            fi
+          name: Build IDKit Dependencies
           settingsTarget: IDKitSampleApp
     run:
       config: Debug
