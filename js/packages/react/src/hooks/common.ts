@@ -53,6 +53,32 @@ export async function delay(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+export async function pollBeforeDeadline<T>(
+  pollOnce: () => Promise<T>,
+  deadline: number,
+  signal: AbortSignal,
+): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
+
+  try {
+    return await Promise.race([
+      Promise.resolve()
+        .then(pollOnce)
+        .catch(() => null),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(resolve, Math.max(0, deadline - Date.now()), null);
+        onAbort = () => resolve(null);
+        signal.addEventListener("abort", onAbort, { once: true });
+        if (signal.aborted) onAbort();
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+    if (onAbort) signal.removeEventListener("abort", onAbort);
+  }
+}
+
 const knownErrorCodes = new Set<string>(Object.values(IDKitErrorCodes));
 
 function asKnownErrorCode(value: unknown): IDKitErrorCodes | null {

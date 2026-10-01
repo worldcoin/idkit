@@ -1146,8 +1146,15 @@ impl BridgeConnection {
             .send()
             .await?;
 
-        if !response.status().is_success() {
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
             return Ok(Status::Failed(AppError::ConnectionFailed));
+        }
+
+        if !response.status().is_success() {
+            return Err(Error::BridgeError(format!(
+                "Polling bridge returned HTTP {}",
+                response.status()
+            )));
         }
 
         let poll_response: BridgePollResponse = response.json().await?;
@@ -4446,16 +4453,17 @@ mod tests {
         }
     }
 
-    fn serve_bridge_response(body: String) -> BridgeUrl {
+    fn serve_bridge_http_response(status: &str, body: String) -> BridgeUrl {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
+        let status = status.to_string();
         std::thread::spawn(move || {
             let (mut stream, _) = listener.accept().unwrap();
             let mut request_buffer = [0; 1024];
             let _ = stream.read(&mut request_buffer);
             write!(
                 stream,
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+                "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
                 body.len(),
                 body
             )
@@ -4466,10 +4474,28 @@ mod tests {
         BridgeUrl::new(format!("http://{addr}"), &app_id).unwrap()
     }
 
+    fn serve_bridge_response(body: String) -> BridgeUrl {
+        serve_bridge_http_response("200 OK", body)
+    }
+
     fn poll_once(connection: &BridgeConnection) -> Result<Status> {
         tokio::runtime::Runtime::new()
             .unwrap()
             .block_on(connection.poll_for_status())
+    }
+
+    #[test]
+    fn test_poll_only_treats_missing_entry_as_terminal_http_error() {
+        let mut connection = sample_connection(None);
+        connection.bridge_url = serve_bridge_http_response("404 Not Found", String::new());
+        assert_eq!(
+            poll_once(&connection).unwrap(),
+            Status::Failed(AppError::ConnectionFailed)
+        );
+
+        connection.bridge_url =
+            serve_bridge_http_response("503 Service Unavailable", String::new());
+        assert!(matches!(poll_once(&connection), Err(Error::BridgeError(_))));
     }
 
     #[test]

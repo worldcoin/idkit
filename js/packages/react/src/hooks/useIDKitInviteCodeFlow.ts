@@ -7,7 +7,12 @@ import {
   type IDKitInviteCodeRequest,
 } from "@worldcoin/idkit-core";
 import type { FlowConfig, IDKitInviteCodeHookResult } from "../types";
-import { delay, ensureNotAborted, toErrorCode } from "./common";
+import {
+  delay,
+  ensureNotAborted,
+  pollBeforeDeadline,
+  toErrorCode,
+} from "./common";
 import {
   createInitialInviteCodeHookState,
   type InviteCodeHookState,
@@ -109,6 +114,8 @@ export function useIDKitInviteCodeFlow<TResult>(
     };
 
     void (async () => {
+      const deadline =
+        Date.now() + (configRef.current.polling?.timeout ?? 900_000);
       try {
         if (isDebug())
           console.debug("[IDKit] Creating invite-code flow handle…");
@@ -135,19 +142,40 @@ export function useIDKitInviteCodeFlow<TResult>(
         });
 
         const pollInterval = configRef.current.polling?.interval ?? 1000;
-        const timeout = configRef.current.polling?.timeout ?? 900_000;
-        const startedAt = Date.now();
-
         while (true) {
           ensureNotAborted(controller.signal);
 
-          if (Date.now() - startedAt > timeout) {
+          if (Date.now() >= deadline) {
             setFailed(IDKitErrorCodes.Timeout);
             return;
           }
 
-          const nextStatus = await request.pollOnce();
+          const nextStatus = await pollBeforeDeadline(
+            () =>
+              request.pollOnce().catch((error: unknown) => {
+                if (isDebug())
+                  console.warn(
+                    "[IDKit] Invite-code poll request failed; retrying",
+                    error,
+                  );
+                return null;
+              }),
+            deadline,
+            controller.signal,
+          );
           ensureNotAborted(controller.signal);
+          if (Date.now() >= deadline) {
+            setFailed(IDKitErrorCodes.Timeout);
+            return;
+          }
+
+          if (nextStatus === null) {
+            await delay(
+              Math.min(pollInterval, deadline - Date.now()),
+              controller.signal,
+            );
+            continue;
+          }
 
           if (nextStatus.type === "confirmed") {
             const confirmedResult = nextStatus.result;
@@ -182,7 +210,10 @@ export function useIDKitInviteCodeFlow<TResult>(
             return { ...prev, status: nextStatus.type };
           });
 
-          await delay(pollInterval, controller.signal);
+          await delay(
+            Math.min(pollInterval, deadline - Date.now()),
+            controller.signal,
+          );
         }
       } catch (error) {
         if (controller.signal.aborted) {

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IDKitErrorCodes } from "@worldcoin/idkit-core";
 import packageJson from "../../package.json";
 import { toErrorCode } from "../hooks/common";
+import { useIDKitInviteCodeRequest } from "../hooks/useIDKitInviteCodeRequest";
 import { useIDKitRequest } from "../hooks/useIDKitRequest";
 import { useIDKitSession } from "../hooks/useIDKitSession";
 
@@ -496,6 +497,110 @@ describe("request/session hooks", () => {
     });
 
     expect(result.current.errorCode).toBe(IDKitErrorCodes.ConnectionFailed);
+  });
+
+  it("request hook retries a failed poll and accepts a later result", async () => {
+    const pollOnce = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Failed to fetch"))
+      .mockResolvedValueOnce({ type: "confirmed", result: { proof: "ok" } });
+    requestMock.mockReturnValue({
+      preset: vi.fn(async () => makeRequest(pollOnce)),
+    });
+
+    const { result } = renderHook(() =>
+      useIDKitRequest({
+        app_id: "app_test",
+        action: "test-action",
+        rp_context: baseRpContext,
+        allow_legacy_proofs: false,
+        preset: { type: "OrbLegacy" },
+        polling: { interval: 0, timeout: 1000 },
+      }),
+    );
+
+    act(() => result.current.open());
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(pollOnce).toHaveBeenCalledTimes(2);
+    expect(result.current.result).toEqual({ proof: "ok" });
+  });
+
+  it("request hook counts flow creation against its timeout", async () => {
+    const pollOnce = vi.fn();
+    requestMock.mockReturnValue({
+      preset: vi.fn(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        return makeRequest(pollOnce);
+      }),
+    });
+
+    const { result } = renderHook(() =>
+      useIDKitRequest({
+        app_id: "app_test",
+        action: "test-action",
+        rp_context: baseRpContext,
+        allow_legacy_proofs: false,
+        preset: { type: "OrbLegacy" },
+        polling: { interval: 0, timeout: 10 },
+      }),
+    );
+
+    act(() => result.current.open());
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.errorCode).toBe(IDKitErrorCodes.Timeout);
+    expect(pollOnce).not.toHaveBeenCalled();
+  });
+
+  it("request hook times out when a poll never settles", async () => {
+    const pollOnce = vi.fn(() => new Promise<never>(() => {}));
+    requestMock.mockReturnValue({
+      preset: vi.fn(async () => makeRequest(pollOnce)),
+    });
+
+    const { result } = renderHook(() =>
+      useIDKitRequest({
+        app_id: "app_test",
+        action: "test-action",
+        rp_context: baseRpContext,
+        allow_legacy_proofs: false,
+        preset: { type: "OrbLegacy" },
+        polling: { interval: 0, timeout: 20 },
+      }),
+    );
+
+    act(() => result.current.open());
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.errorCode).toBe(IDKitErrorCodes.Timeout);
+    expect(pollOnce).toHaveBeenCalledTimes(1);
+  });
+
+  it("invite-code hook retries a failed poll and accepts a later result", async () => {
+    const pollOnce = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Failed to fetch"))
+      .mockResolvedValueOnce({ type: "confirmed", result: { proof: "ok" } });
+    requestWithInviteCodeMock.mockReturnValue({
+      preset: vi.fn(async () => ({
+        ...makeRequest(pollOnce),
+        expiresAt: 123,
+      })),
+    });
+
+    const { result } = renderHook(() =>
+      useIDKitInviteCodeRequest({
+        app_id: "app_test",
+        action: "test-action",
+        rp_context: baseRpContext,
+        allow_legacy_proofs: false,
+        preset: { type: "OrbLegacy" },
+        polling: { interval: 0, timeout: 1000 },
+      }),
+    );
+
+    act(() => result.current.open());
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(pollOnce).toHaveBeenCalledTimes(2);
+    expect(result.current.result).toEqual({ proof: "ok" });
   });
 
   it("request hook maps confirmed status without payload to unexpected_response", async () => {

@@ -118,4 +118,61 @@ describe("debug reports", () => {
     });
     expect(wasmRequestMock.getDebugReport).toHaveBeenCalledTimes(1);
   });
+
+  it("retries a rejected bridge poll until a terminal status arrives", async () => {
+    requestMock.mockReturnValue(wasmBuilderMock);
+    wasmBuilderMock.preset.mockResolvedValue(wasmRequestMock);
+    wasmRequestMock.pollForStatus
+      .mockRejectedValueOnce(new Error("Failed to fetch"))
+      .mockResolvedValueOnce({ type: "confirmed", result: { proof: "ok" } });
+
+    const request = await IDKit.request({
+      app_id: "app_test",
+      action: "test-action",
+      rp_context: {
+        rp_id: "rp_test",
+        nonce: "0x01",
+        created_at: 1,
+        expires_at: 2,
+        signature: "0x1234",
+      },
+      allow_legacy_proofs: true,
+    }).preset(orbLegacy());
+
+    expect(
+      await request.pollUntilCompletion({ pollInterval: 0, timeout: 1000 }),
+    ).toEqual({
+      success: true,
+      result: { proof: "ok" },
+    });
+    expect(wasmRequestMock.pollForStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("times out when a bridge poll never settles", async () => {
+    requestMock.mockReturnValue(wasmBuilderMock);
+    wasmBuilderMock.preset.mockResolvedValue(wasmRequestMock);
+    wasmRequestMock.pollForStatus.mockImplementationOnce(
+      () => new Promise(() => {}),
+    );
+
+    const request = await IDKit.request({
+      app_id: "app_test",
+      action: "test-action",
+      rp_context: {
+        rp_id: "rp_test",
+        nonce: "0x01",
+        created_at: 1,
+        expires_at: 2,
+        signature: "0x1234",
+      },
+      allow_legacy_proofs: true,
+    }).preset(orbLegacy());
+
+    expect(
+      await request.pollUntilCompletion({ pollInterval: 0, timeout: 20 }),
+    ).toEqual({
+      success: false,
+      error: IDKitErrorCodes.Timeout,
+    });
+  });
 });
