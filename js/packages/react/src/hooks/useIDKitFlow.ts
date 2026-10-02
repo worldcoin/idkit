@@ -11,6 +11,7 @@ import {
   createInitialHookState,
   delay,
   ensureNotAborted,
+  pollOnceWithRetry,
   toErrorCode,
   type HookState,
 } from "./common";
@@ -141,7 +142,12 @@ export function useIDKitFlow<TResult>(
             return;
           }
 
-          const nextStatus = await request.pollOnce();
+          const nextStatus = await pollOnceWithRetry(() => request.pollOnce(), {
+            interval: pollInterval,
+            signal: controller.signal,
+            startedAt,
+            timeout,
+          });
           ensureNotAborted(controller.signal);
 
           if (nextStatus.type === "confirmed") {
