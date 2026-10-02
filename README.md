@@ -13,37 +13,32 @@ IDKit is the toolkit for anonymous proof of human. Integrate the [World ID Proto
 
 ## JavaScript development
 
-The JavaScript SDKs use TypeScript protocol and cryptography implementations.
-They ship no WASM binaries and require no Rust toolchain to build or use. Native
-Rust remains the compatibility reference: checked-in fixtures run in ordinary JS
-tests, and a separate differential test gate checks the current Rust core.
-
-Use Node.js 22 and the pinned pnpm 9.15.4 for development:
+The JavaScript SDKs build and run without WASM or a Rust toolchain. Use Node.js 22
+and pnpm 9.15.4:
 
 ```bash
 corepack pnpm install --frozen-lockfile
 corepack pnpm build
 corepack pnpm test
 corepack pnpm type-check
-corepack pnpm audit:dependencies
-corepack pnpm test:packages
 ```
 
-With the repository's Rust toolchain installed, run `pnpm test:conformance` to
-compare the implementations. Published packages support Node.js 18 and newer;
-CI executes packed CommonJS and ES module consumers on Node.js 18, 22 and 24.
-React Native apps use `@worldcoin/idkit/hooks` and provide host secure randomness
-when unavailable globally.
+With the repository's Rust toolchain installed, `pnpm test:conformance` compares
+JavaScript crypto, protocol, public types and HTTP behavior directly against the
+current native Rust core. Add cases when changing the protocol; expected results
+come from Rust at test time. No generated fixtures need to be committed.
 
-The root workspace's development dependency graph is also WASM-free. Browser/Worker
-test tools and the Next example use explicit, separate installs in this same
-repository; their external tool graphs may include optional WASM packages. See
-[the runtime test setup](./tools/runtime/README.md) and
-[the packed-SDK Next example](./js/examples/nextjs/README.md).
+`pnpm audit:dependencies` checks that SDK dependencies and installed assets are
+WASM-free. `pnpm test:packages` checks packed Node.js consumers. Browser/Worker
+tools and the [Next example](./js/examples/nextjs) install separately so their
+framework dependencies stay outside the SDK graph.
 
-See the [JavaScript development guide](./js/README.md),
-[React Native integration](./js/packages/react/README.md#react-native-and-headless-react)
-and [release checklist](./docs/pure-js-sdk-release.md).
+The tsup patch makes source-map cleanup optional when using the JavaScript
+`source-map-js` implementation. Keep it aligned with the version-scoped override;
+`pnpm test:tooling` verifies source-map composition without WebAssembly.
+
+For React Native, use the [headless hooks](./js/packages/react/README.md#react-native-and-headless-react)
+and provide host secure randomness when unavailable globally.
 
 ## Swift quick local run
 

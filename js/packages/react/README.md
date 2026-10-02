@@ -175,8 +175,5 @@ do not substitute `Math.random`. An entropy module is a host integration, not a
 required native IDKit module. React Native uses the HTTP bridge flow; the World
 App Mini App transport is a separate WebView integration.
 
-For device qualification and a copy-in example, see the
-[React Native acceptance smoke](../../examples/react-native-smoke/README.md).
-CI exercises the Rust-derived protocol fixtures in the Hermes engine from React
-Native 0.79.2. Metro bundling, native linking and live backend acceptance must also
-be verified in the consuming app.
+CI checks the built core and hooks in Hermes. Metro bundling, native linking and
+live backend verification must also be tested in the consuming app.

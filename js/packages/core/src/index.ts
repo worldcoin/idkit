@@ -55,7 +55,7 @@ export type {
   AbiEncodedValue,
 } from "./types/config";
 
-// Public result types, covered by the Rust conformance manifest and fixtures.
+// Public result types, covered by the native Rust conformance tests.
 export type {
   // Uniqueness proof response types
   IDKitResult,

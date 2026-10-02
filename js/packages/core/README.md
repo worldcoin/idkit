@@ -43,7 +43,7 @@ Cryptographic primitives use `@noble/ciphers` and `@noble/hashes`; encodings use
 behavior across hosts, including hosts with incomplete URL or UTF-8 globals.
 `@worldcoin/idkit-server` provides the signing helpers. These are JavaScript
 dependencies; the portable entry does not import Node built-ins. See the
-[development guide](../../README.md) for the architecture and compatibility gates.
+[development commands](../../../README.md#javascript-development) for compatibility checks.
 
 ## Script Tag / CDN
 

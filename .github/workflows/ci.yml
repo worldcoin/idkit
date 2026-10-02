@@ -248,6 +248,9 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      - name: Check pure JavaScript source-map tooling
+        run: pnpm test:tooling
+
   js-conformance:
     name: JavaScript and Rust compatibility
     uses: ./.github/workflows/js-conformance.yml

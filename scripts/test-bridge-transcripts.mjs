@@ -149,26 +149,13 @@ function rustSession() {
     },
   };
 }
-function rust(input) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(binary, [], { cwd: root });
-    let out = "",
-      err = "";
-    child.stdout.on("data", (b) => (out += b));
-    child.stderr.on("data", (b) => (err += b));
-    child.once("error", reject);
-    child.once("close", (code) => {
-      if (code !== 0) reject(new Error(err));
-      else {
-        try {
-          resolve(JSON.parse(out));
-        } catch (e) {
-          reject(e);
-        }
-      }
-    });
-    child.stdin.end(JSON.stringify(input) + "\n");
-  });
+async function rust(input) {
+  const session = rustSession();
+  try {
+    return await session.send(input);
+  } finally {
+    await session.close();
+  }
 }
 function plaintext(body, connector) {
   const key = Buffer.from(new URL(connector).searchParams.get("k"), "base64");

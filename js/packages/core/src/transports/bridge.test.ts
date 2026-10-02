@@ -4,6 +4,8 @@ import {
   proofOfHuman,
   orbLegacy,
   configureIDKitRuntime,
+  RetryableBridgeError,
+  type RequestOptions,
 } from "../index";
 import {
   decodeBase64,
@@ -364,66 +366,6 @@ describe("encrypted bridge lifecycle", () => {
     },
   );
 
-  it.each([
-    [false, "timeout"],
-    [true, "timeout"],
-    [false, "cancelled"],
-    [true, "cancelled"],
-  ] as const)(
-    "bounds a never-settling fetch (invite=%s, outcome=%s)",
-    async (invite, outcome) => {
-      vi.useFakeTimers();
-      let resolvePoll!: (value: Response) => void;
-      let rejectPoll!: (error: Error) => void;
-      const fetch = vi.fn(async (_url: any, init?: RequestInit) => {
-        if (init?.method === "POST")
-          return json({
-            request_id: JSON.parse(init.body as string).request_id ?? "id",
-          });
-        return new Promise<Response>((resolve, reject) => {
-          resolvePoll = resolve;
-          rejectPoll = reject;
-        });
-      });
-      configureIDKitRuntime({ fetch });
-      const request = await (
-        invite ? IDKit.requestWithInviteCode(config) : IDKit.request(config)
-      ).preset(orbLegacy());
-      const controller = new AbortController();
-      const add = vi.spyOn(controller.signal, "addEventListener");
-      const remove = vi.spyOn(controller.signal, "removeEventListener");
-      let settled = false;
-      const completion = request
-        .pollUntilCompletion({ timeout: 250, signal: controller.signal })
-        .then((value) => {
-          settled = true;
-          return value;
-        });
-      await vi.advanceTimersByTimeAsync(0);
-      expect(fetch).toHaveBeenCalledTimes(2);
-      if (outcome === "cancelled") {
-        controller.abort();
-        await vi.advanceTimersByTimeAsync(0);
-      } else {
-        await vi.advanceTimersByTimeAsync(249);
-        expect(settled).toBe(false);
-        await vi.advanceTimersByTimeAsync(1);
-      }
-      expect(await completion).toEqual({ success: false, error: outcome });
-      expect(vi.getTimerCount()).toBe(0);
-      expect(remove.mock.calls).toEqual(
-        add.mock.calls.map(([name, handler]) => [name, handler]),
-      );
-      // Late settlements must not restart polling or cause unhandled rejection.
-      if (outcome === "cancelled")
-        rejectPoll(new Error("late fetch rejection"));
-      else resolvePoll(json({ status: "retrieved" }));
-      await vi.advanceTimersByTimeAsync(1000);
-      expect(fetch).toHaveBeenCalledTimes(2);
-      expect(await completion).toEqual({ success: false, error: outcome });
-    },
-  );
-
   it("trims return URLs with Rust's Unicode whitespace rules", async () => {
     configureIDKitRuntime({ fetch: async () => json({ request_id: "id" }) });
     const nel = await IDKit.request({
@@ -562,3 +504,220 @@ describe("encrypted bridge lifecycle", () => {
       expect(() => decode(body)).toThrow("unexpected_response");
   });
 });
+
+for (const invite of [false, true])
+  describe(`bridge resilience (invite=${invite})`, () => {
+    const create = (options?: RequestOptions) =>
+      (invite
+        ? IDKit.requestWithInviteCode(config)
+        : IDKit.request(config)
+      ).preset(orbLegacy(), options);
+    const setup = (poll: (signal: AbortSignal) => Promise<Response>) => {
+      const fetch = vi.fn(async (_url: any, init?: RequestInit) => {
+        if (init?.method === "POST")
+          return json({
+            request_id: JSON.parse(init.body as string).request_id ?? "id",
+          });
+        return poll(init!.signal!);
+      });
+      configureIDKitRuntime({ fetch });
+      return fetch;
+    };
+    it.each(["network", "body", 408, 429, 500, 502, 503, 504])(
+      "recovers from %s and decrypts the next successful proof",
+      async (failure) => {
+        vi.useFakeTimers();
+        let calls = 0;
+        let key: Uint8Array;
+        const fetch = setup(async () => {
+          calls++;
+          if (calls === 1) {
+            if (failure === "network")
+              throw new TypeError("Network request failed");
+            if (failure === "body")
+              return {
+                ok: true,
+                status: 200,
+                text: async () => {
+                  throw new TypeError("body interrupted");
+                },
+              } as unknown as Response;
+            return json({}, failure as number);
+          }
+          const iv = new Uint8Array(12);
+          return json({
+            status: "completed",
+            response: {
+              iv: encodeBase64(iv),
+              payload: encodeBase64(
+                encrypt(key, iv, encodeUtf8(JSON.stringify(legacy))),
+              ),
+            },
+          });
+        });
+        const request = await create();
+        key = decodeBase64(
+          new URL(request.connectorURI).searchParams.get("k")!,
+        );
+        const result = request.pollUntilCompletion({
+          timeout: 250,
+          pollInterval: 100,
+        });
+        await vi.advanceTimersByTimeAsync(100);
+        expect(await result).toMatchObject({ success: true });
+        expect(calls).toBe(2);
+        expect(fetch).toHaveBeenCalledTimes(3);
+        expect(vi.getTimerCount()).toBe(0);
+      },
+    );
+    it("does not extend the original deadline during an outage", async () => {
+      vi.useFakeTimers();
+      const fetch = setup(async () => {
+        throw new TypeError("offline");
+      });
+      const request = await create();
+      const result = request.pollUntilCompletion({
+        timeout: 250,
+        pollInterval: 100,
+      });
+      await vi.advanceTimersByTimeAsync(250);
+      expect(await result).toEqual({ success: false, error: "timeout" });
+      expect(fetch).toHaveBeenCalledTimes(4);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+    it.each([400, 401, 403, 404])("keeps HTTP %s terminal", async (status) => {
+      const fetch = setup(async () => json({}, status));
+      expect(await (await create()).pollUntilCompletion()).toEqual({
+        success: false,
+        error: "connection_failed",
+      });
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+    it("exposes retryable failures to manual pollers", async () => {
+      setup(async () => json({}, 503));
+      await expect((await create()).pollOnce()).rejects.toBeInstanceOf(
+        RetryableBridgeError,
+      );
+    });
+    it("does not retry malformed JSON", async () => {
+      const fetch = setup(async () => new Response("{broken"));
+      expect(await (await create()).pollUntilCompletion()).toMatchObject({
+        success: false,
+      });
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+    it.each(["fetch", "body"])(
+      "aborts a pending %s and ignores late settlements after timeout/cancellation",
+      async (stage) => {
+        vi.useFakeTimers();
+        for (const cancel of [false, true]) {
+          let signal: AbortSignal | undefined;
+          let resolvePending!: () => void;
+          let rejectPending!: (error: Error) => void;
+          const defer = <T>(value: T) =>
+            new Promise<T>((resolve, reject) => {
+              resolvePending = () => resolve(value);
+              rejectPending = reject;
+            });
+          const fetch = setup(async (s) => {
+            signal = s;
+            return stage === "fetch"
+              ? defer(json({ status: "retrieved" }))
+              : ({
+                  ok: true,
+                  status: 200,
+                  text: () => defer(JSON.stringify({ status: "retrieved" })),
+                } as unknown as Response);
+          });
+          const request = await create();
+          const controller = new AbortController();
+          const add = vi.spyOn(controller.signal, "addEventListener");
+          const remove = vi.spyOn(controller.signal, "removeEventListener");
+          let settled = false;
+          const completion = request
+            .pollUntilCompletion({
+              timeout: 250,
+              signal: controller.signal,
+            })
+            .then((result) => {
+              settled = true;
+              return result;
+            });
+          await vi.advanceTimersByTimeAsync(0);
+          expect(signal?.aborted).toBe(false);
+          if (cancel) controller.abort();
+          else {
+            await vi.advanceTimersByTimeAsync(249);
+            expect(settled).toBe(false);
+            await vi.advanceTimersByTimeAsync(1);
+          }
+          const expected = {
+            success: false,
+            error: cancel ? "cancelled" : "timeout",
+          };
+          expect(await completion).toEqual(expected);
+          expect(signal?.aborted).toBe(true);
+          expect(vi.getTimerCount()).toBe(0);
+          expect(remove.mock.calls).toEqual(
+            add.mock.calls.map(([name, handler]) => [name, handler]),
+          );
+          // Late settlements must not restart polling or leak rejections.
+          if (cancel) rejectPending(new Error("late response rejection"));
+          else resolvePending();
+          await vi.advanceTimersByTimeAsync(1000);
+          expect(fetch).toHaveBeenCalledTimes(2);
+          expect(await completion).toEqual(expected);
+        }
+      },
+    );
+    it.each(["fetch", "body"])(
+      "bounds request creation including a hung %s and sends abort",
+      async (stage) => {
+        vi.useFakeTimers();
+        for (const cancel of [false, true]) {
+          let signal: AbortSignal | undefined;
+          const fetch = vi.fn(async (_url: any, init?: RequestInit) => {
+            signal = init!.signal!;
+            return stage === "fetch"
+              ? new Promise<Response>(() => {})
+              : ({
+                  ok: true,
+                  status: 200,
+                  text: () => new Promise<string>(() => {}),
+                } as unknown as Response);
+          });
+          configureIDKitRuntime({ fetch });
+          const controller = new AbortController();
+          const pending = create({ timeout: 250, signal: controller.signal });
+          const assertion = expect(pending).rejects.toThrow(
+            cancel ? "cancelled" : "timeout",
+          );
+          await vi.advanceTimersByTimeAsync(0);
+          if (cancel) controller.abort();
+          else await vi.advanceTimersByTimeAsync(250);
+          await assertion;
+          expect(signal?.aborted).toBe(true);
+          expect(fetch).toHaveBeenCalledTimes(1);
+          expect(vi.getTimerCount()).toBe(0);
+        }
+      },
+    );
+    it("defaults creation to a 30-second deadline without retrying POST", async () => {
+      vi.useFakeTimers();
+      const fetch = vi.fn(() => new Promise<Response>(() => {}));
+      configureIDKitRuntime({ fetch });
+      const pending = expect(create()).rejects.toThrow("timeout");
+      await vi.advanceTimersByTimeAsync(30000);
+      await pending;
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+    it("does not start a cancelled request", async () => {
+      const fetch = setup(async () => json({}));
+      const controller = new AbortController();
+      controller.abort();
+      await expect(create({ signal: controller.signal })).rejects.toThrow(
+        "cancelled",
+      );
+      expect(fetch).not.toHaveBeenCalled();
+    });
+  });

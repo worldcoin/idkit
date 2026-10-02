@@ -4,7 +4,6 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PACKAGES, verifyArtifacts } from "./js-release.mjs";
 import {
   auditLockfile,
   auditInstalledTree,
@@ -12,6 +11,11 @@ import {
 } from "./audit-dependencies.mjs";
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const PACKAGES = {
+  server: "@worldcoin/idkit-server",
+  core: "@worldcoin/idkit-core",
+  react: "@worldcoin/idkit",
+};
 export const pnpmVersion = "9.15.4";
 export function runPnpm(args, cwd = root) {
   const cli = process.env.npm_execpath;
@@ -42,28 +46,19 @@ export function packLocal(directory) {
   return { packages };
 }
 
-// Release artifacts are always verified before extraction or installation. The
-// local mode deliberately packs the working tree, including uncommitted edits.
-export function candidatePackages(artifacts, expected = {}) {
-  const directory = artifacts
-    ? resolve(artifacts)
-    : mkdtempSync(join(tmpdir(), "idkit-tarballs-"));
-  const manifest = artifacts
-    ? verifyArtifacts(directory, expected)
-    : packLocal(directory);
-  for (const entry of Object.values(manifest.packages))
-    auditTarball(join(directory, entry.filename));
-  return { directory, manifest };
+export function candidatePackages() {
+  const directory = mkdtempSync(join(tmpdir(), "idkit-tarballs-"));
+  return { directory, manifest: packLocal(directory) };
 }
 
-export function installConsumer(candidate, { target, directory } = {}) {
-  const scratch = directory ?? mkdtempSync(join(tmpdir(), "idkit-packages-"));
+export function installConsumer(candidate) {
+  const scratch = mkdtempSync(join(tmpdir(), "idkit-packages-"));
   const dependencies = { react: "18.3.1", "react-dom": "18.3.1" };
   const overrides = {};
-  for (const [id, entry] of Object.entries(candidate.manifest.packages)) {
+  for (const entry of Object.values(candidate.manifest.packages)) {
     const tarball = `file:${join(candidate.directory, entry.filename)}`;
-    if (!target || id === target) dependencies[entry.name] = tarball;
-    if (!target) overrides[entry.name] = tarball;
+    dependencies[entry.name] = tarball;
+    overrides[entry.name] = tarball;
   }
   writeFileSync(
     join(scratch, "package.json"),
@@ -74,9 +69,7 @@ export function installConsumer(candidate, { target, directory } = {}) {
         type: "module",
         packageManager: `pnpm@${pnpmVersion}`,
         dependencies,
-        // Target-only release consumers have NO overrides: prerequisites really
-        // resolve from the registry according to the tarball's declared versions.
-        ...(!target ? { pnpm: { overrides } } : {}),
+        pnpm: { overrides },
       },
       null,
       2,

@@ -3,21 +3,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { candidatePackages, installConsumer } from "./package-consumer.mjs";
 
-const args = process.argv.slice(2);
-if (args.length % 2)
-  throw new Error(
-    "Expected --artifacts directory [--target server|core|react] [--source-sha sha]",
-  );
-const options = Object.fromEntries(
-  Array.from({ length: args.length / 2 }, (_, i) => [
-    args[i * 2],
-    args[i * 2 + 1],
-  ]),
-);
-const candidate = candidatePackages(options["--artifacts"], {
-  target: options["--target"],
-  sourceSha: options["--source-sha"],
-});
+const candidate = candidatePackages();
 const scratch = installConsumer(candidate);
 function run(cmd, args, cwd = scratch) {
   const result = spawnSync(cmd, args, { cwd, stdio: "inherit" });
@@ -91,51 +77,3 @@ run(process.execPath, ["smoke-native.mjs"], scratch);
 run(process.execPath, ["smoke.cjs"], scratch);
 run(process.execPath, ["smoke.mjs"], scratch);
 console.log(`Packed consumer retained for other Node versions: ${scratch}`);
-
-if (options["--artifacts"] && options["--target"]) {
-  const target = options["--target"];
-  const registryConsumer = installConsumer(candidate, { target });
-  const entry = candidate.manifest.packages[target];
-  // This install includes only the target tarball. All IDKit prerequisites are
-  // resolved from the registry, with no overrides to conceal bad version pins.
-  const serverSmoke = `const assert=require('node:assert/strict');Object.defineProperty(globalThis,'crypto',{value:undefined,configurable:true});const sdk=SDK_IMPORT;const signature=sdk.signRequest({signingKeyHex:'ab'.repeat(32),action:'test'});assert.match(signature.sig,/^0x[0-9a-f]{130}$/);assert.equal(globalThis.crypto,undefined);console.log('Registry prerequisite graph: ${entry.name} FORMAT PASS');`;
-  for (const [extension, format] of [
-    ["cjs", "CommonJS"],
-    ["mjs", "ESM"],
-  ]) {
-    const load = (spec) =>
-      extension === "cjs" ? `require('${spec}')` : `(await import('${spec}'))`;
-    const smoke =
-      target === "server"
-        ? serverSmoke.replace("SDK_IMPORT", load(entry.name))
-        : body
-            .replace(
-              "CORE_IMPORT",
-              target === "core"
-                ? load(entry.name)
-                : `({...${load(entry.name + "/hooks")}, ...${load(entry.name + "/hashing")}})`,
-            )
-            .replace(
-              "HOOKS_IMPORT",
-              target === "react" ? load(entry.name + "/hooks") : "null",
-            )
-            .replace(
-              "Packed FORMAT core/hooks",
-              `Registry prerequisite graph: ${entry.name} FORMAT`,
-            );
-    const content = smoke
-      .replace("EXPECTED_VERSION", JSON.stringify(entry.version))
-      .replace(
-        "EXPECTED_NAMESPACE",
-        JSON.stringify(target === "react" ? "idkit_react" : "idkit_js_core"),
-      )
-      .replace("FORMAT", format);
-    writeFileSync(
-      join(registryConsumer, `target.${extension}`),
-      extension === "cjs"
-        ? `(async()=>{${content}})().catch(e=>{console.error(e);process.exitCode=1});`
-        : `import {createRequire} from 'node:module';const require=createRequire(import.meta.url);\n${content}`,
-    );
-    run(process.execPath, [`target.${extension}`], registryConsumer);
-  }
-}

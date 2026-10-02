@@ -11,6 +11,7 @@ export type HookState<TResult> = {
   isOpen: boolean;
   status: IDKitHookStatus;
   connectorURI: string | null;
+  codeExpiresAt: number | null;
   result: TResult | null;
   errorCode: IDKitErrorCodes | null;
 };
@@ -20,6 +21,7 @@ export function createInitialHookState<TResult>(): HookState<TResult> {
     isOpen: false,
     status: "idle",
     connectorURI: null,
+    codeExpiresAt: null,
     result: null,
     errorCode: null,
   };

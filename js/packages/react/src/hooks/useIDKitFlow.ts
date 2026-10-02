@@ -7,8 +7,13 @@ import {
   isDebug,
   type IDKitDebugReport,
   type IDKitRequest,
+  type IDKitInviteCodeRequest,
 } from "@worldcoin/idkit-core";
-import type { FlowConfig, IDKitHookResult } from "../types";
+import type {
+  FlowConfig,
+  IDKitHookResult,
+  IDKitInviteCodeHookResult,
+} from "../types";
 import {
   beforeDeadline,
   createInitialHookState,
@@ -21,7 +26,21 @@ import {
 export function useIDKitFlow<TResult>(
   createFlowHandle: (options: RequestOptions) => Promise<IDKitRequest>,
   config: FlowConfig,
-): IDKitHookResult<TResult> {
+): IDKitHookResult<TResult>;
+export function useIDKitFlow<TResult>(
+  createFlowHandle: (
+    options: RequestOptions,
+  ) => Promise<IDKitInviteCodeRequest>,
+  config: FlowConfig,
+  mode: "invite",
+): IDKitInviteCodeHookResult<TResult>;
+export function useIDKitFlow<TResult>(
+  createFlowHandle: (
+    options: RequestOptions,
+  ) => Promise<IDKitRequest | IDKitInviteCodeRequest>,
+  config: FlowConfig,
+  mode?: "invite",
+): IDKitHookResult<TResult> | IDKitInviteCodeHookResult<TResult> {
   const isInWorldApp = useMemo(() => isInWorldAppCheck(), []);
 
   const [state, setState] = useState<HookState<TResult>>(
@@ -70,11 +89,9 @@ export function useIDKitFlow<TResult>(
       }
 
       return {
+        ...createInitialHookState<TResult>(),
         isOpen: true,
         status: "waiting_for_connection",
-        connectorURI: null,
-        result: null,
-        errorCode: null,
       };
     });
   }, []);
@@ -133,12 +150,21 @@ export function useIDKitFlow<TResult>(
             requestId: request.requestId,
           });
 
-        const connectorURI = isInWorldApp ? null : request.connectorURI;
+        // Invite codes always use the bridge, including inside World App.
+        const connectorURI =
+          mode !== "invite" && isInWorldApp ? null : request.connectorURI;
+        const codeExpiresAt =
+          mode === "invite" && "expiresAt" in request
+            ? request.expiresAt
+            : null;
         setState((prev) => {
-          if (prev.connectorURI === connectorURI) {
+          if (
+            prev.connectorURI === connectorURI &&
+            prev.codeExpiresAt === codeExpiresAt
+          ) {
             return prev;
           }
-          return { ...prev, connectorURI };
+          return { ...prev, connectorURI, codeExpiresAt };
         });
 
         const pollInterval = configRef.current.polling?.interval ?? 1000;
@@ -226,7 +252,7 @@ export function useIDKitFlow<TResult>(
         abortRef.current = null;
       }
     };
-  }, [state.isOpen, runId, isInWorldApp]);
+  }, [state.isOpen, runId, isInWorldApp, mode]);
 
   return {
     open,
@@ -236,6 +262,7 @@ export function useIDKitFlow<TResult>(
     isSuccess: state.status === "confirmed",
     isError: state.status === "failed",
     connectorURI: state.connectorURI,
+    ...(mode === "invite" ? { codeExpiresAt: state.codeExpiresAt } : {}),
     result: state.result,
     errorCode: state.errorCode,
     getDebugReport,

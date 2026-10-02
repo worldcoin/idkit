@@ -1,8 +1,4 @@
-/**
- * Compile-time gates on the exported declarations, using native Rust samples.
- * These check the listed fields, primitive types, and optionality; fixtures
- * separately check semantic conversion. They are not an exhaustive schema.
- */
+/** Compile-time checks instantiated with current Rust DTO samples by test:conformance. */
 import type {
   CredentialType,
   DocumentType,
@@ -18,15 +14,13 @@ import type {
   SelfieCheckResponseItemV4,
   SelfieCheckResponseItemSession,
 } from "../index";
-import type { manifest } from "./manifest.generated";
 
 type Equal<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
-type Assert<T extends true> = T;
 type OptionalKeys<T> = {
   [K in keyof T]-?: {} extends Pick<T, K> ? K : never;
 }[keyof T];
-// Full samples populate optional fields and arrays. Widen values to their
-// primitive types while checking all keys (including formerly optional ones).
+// Full native samples populate optional fields and arrays. Compare primitive
+// types and every key, including fields omitted from minimal samples.
 type Shape<T> = T extends string
   ? string
   : T extends number
@@ -38,11 +32,35 @@ type Shape<T> = T extends string
         : T extends object
           ? { -readonly [K in keyof T]-?: Shape<NonNullable<T[K]>> }
           : T;
-type Rust = typeof manifest;
-type Full = Rust["response_shapes_full"];
-type Minimal = Rust["response_shapes"];
+type UnionKeys<T> = T extends unknown ? keyof T : never;
+type UnionField<T, K extends PropertyKey> = T extends unknown
+  ? K extends keyof T
+    ? T[K]
+    : never
+  : never;
+type ResultFields = {
+  [K in Exclude<UnionKeys<IDKitResult>, "responses">]: NonNullable<
+    UnionField<IDKitResult, K>
+  >;
+};
+interface NativeContract {
+  credentials: Record<string, number>;
+  document_types: readonly string[];
+  error_codes: readonly string[];
+  integrity_signature_formats: readonly string[];
+  environments: readonly string[];
+  presets: readonly { type: string }[];
+  response_shapes: readonly [object, object, object, object, object];
+  response_shapes_full: readonly [object, object, object, object, object];
+  result_shapes: readonly [
+    object,
+    { responses: readonly unknown[]; integrity_bundle: object },
+  ];
+}
 
-type ResponseFieldsMatch = Assert<
+// A tuple of `true` is assignable only when all comparisons pass. These gates
+// check the listed fields/types/optionality, not an exhaustive protocol schema.
+export type PublicContractChecks<Rust extends NativeContract> = [
   Equal<
     [
       Shape<SelfieCheckResponseItemV4>,
@@ -52,15 +70,13 @@ type ResponseFieldsMatch = Assert<
       Shape<ResponseItemV3>,
     ],
     [
-      Shape<Full[0]>,
-      Shape<Full[1]>,
-      Shape<Full[2]>,
-      Shape<Full[3]>,
-      Shape<Full[4]>,
+      Shape<Rust["response_shapes_full"][0]>,
+      Shape<Rust["response_shapes_full"][1]>,
+      Shape<Rust["response_shapes_full"][2]>,
+      Shape<Rust["response_shapes_full"][3]>,
+      Shape<Rust["response_shapes_full"][4]>,
     ]
-  >
->;
-type ResponseOptionalityMatches = Assert<
+  >,
   Equal<
     [
       OptionalKeys<SelfieCheckResponseItemV4>,
@@ -69,19 +85,26 @@ type ResponseOptionalityMatches = Assert<
       OptionalKeys<ResponseItemSession>,
     ],
     [
-      Exclude<keyof Full[0], keyof Minimal[0]>,
-      Exclude<keyof Full[1], keyof Minimal[1]>,
-      Exclude<keyof Full[2], keyof Minimal[2]>,
-      Exclude<keyof Full[3], keyof Minimal[3]>,
+      Exclude<
+        keyof Rust["response_shapes_full"][0],
+        keyof Rust["response_shapes"][0]
+      >,
+      Exclude<
+        keyof Rust["response_shapes_full"][1],
+        keyof Rust["response_shapes"][1]
+      >,
+      Exclude<
+        keyof Rust["response_shapes_full"][2],
+        keyof Rust["response_shapes"][2]
+      >,
+      Exclude<
+        keyof Rust["response_shapes_full"][3],
+        keyof Rust["response_shapes"][3]
+      >,
     ]
-  >
->;
-// Existing public V3 declarations allow an absent signal_hash, although Rust
-// always emits it. Keep that adapter contract explicit instead of widening it.
-type LegacyOptionality = Assert<
-  Equal<OptionalKeys<ResponseItemV3>, "signal_hash">
->;
-type SelfieDiscriminants = Assert<
+  >,
+  // The established JS V3 adapter permits absent signal_hash; Rust always emits it.
+  Equal<OptionalKeys<ResponseItemV3>, "signal_hash">,
   Equal<
     [
       SelfieCheckResponseItemV4["identifier"],
@@ -95,36 +118,20 @@ type SelfieDiscriminants = Assert<
       Rust["credentials"]["selfie"],
       Rust["credentials"]["selfie"],
     ]
-  >
->;
-
-// Rust has a single result struct; JS keeps its established narrower union.
-// Compare the aggregate fields/types without making every field required on
-// every JS variant (for example, action and session_id are mutually exclusive).
-type UnionKeys<T> = T extends unknown ? keyof T : never;
-type UnionField<T, K extends PropertyKey> = T extends unknown
-  ? K extends keyof T
-    ? T[K]
-    : never
-  : never;
-type ResultFields = {
-  [K in Exclude<UnionKeys<IDKitResult>, "responses">]: NonNullable<
-    UnionField<IDKitResult, K>
-  >;
-};
-type ResultFieldsMatch = Assert<
-  Equal<Shape<ResultFields>, Shape<Omit<Rust["result_shapes"][1], "responses">>>
->;
-type ResultResponseVariantsMatch = Assert<
-  Equal<Shape<IDKitResult["responses"][number]>, Shape<Full[number]>>
->;
-type IntegrityFieldsMatch = Assert<
+  >,
+  // Rust has one result struct; JS keeps its established narrower result union.
+  Equal<
+    Shape<ResultFields>,
+    Shape<Omit<Rust["result_shapes"][1], "responses">>
+  >,
+  Equal<
+    Shape<IDKitResult["responses"][number]>,
+    Shape<Rust["response_shapes_full"][number]>
+  >,
   Equal<
     Shape<IntegrityBundle>,
     Shape<Rust["result_shapes"][1]["integrity_bundle"]>
-  >
->;
-type PublicEnumsMatch = Assert<
+  >,
   Equal<
     [
       CredentialType,
@@ -142,18 +149,5 @@ type PublicEnumsMatch = Assert<
       Rust["environments"][number],
       Rust["presets"][number]["type"],
     ]
-  >
->;
-
-// Exporting the witnesses makes this module easy to include in the same tsc
-// invocation as the runtime suite; no public package code imports this file.
-export type PublicContractChecks = [
-  ResponseFieldsMatch,
-  ResponseOptionalityMatches,
-  LegacyOptionality,
-  SelfieDiscriminants,
-  ResultFieldsMatch,
-  ResultResponseVariantsMatch,
-  IntegrityFieldsMatch,
-  PublicEnumsMatch,
+  >,
 ];

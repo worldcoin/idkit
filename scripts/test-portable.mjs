@@ -14,12 +14,7 @@ const runtimeRequire = createRequire(
 );
 const { chromium } = runtimeRequire("playwright");
 const { Miniflare } = runtimeRequire("miniflare");
-const args = process.argv.slice(2);
-if (args.length && (args[0] !== "--artifacts" || args.length !== 2))
-  throw new Error(
-    "Usage: pnpm test:portable [--artifacts release-artifacts-directory]",
-  );
-const candidate = candidatePackages(args[1]);
+const candidate = candidatePackages();
 const consumer = installConsumer(candidate);
 const coreDirectory = resolve(consumer, "node_modules/@worldcoin/idkit-core");
 const reactDirectory = resolve(consumer, "node_modules/@worldcoin/idkit");

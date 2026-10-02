@@ -325,20 +325,6 @@ fn full_response_shape(mut response: crate::ResponseItem) -> Result<Value, Failu
 }
 
 fn manifest() -> Result<Value, Failure> {
-    let protocol_version = include_str!("../../../Cargo.lock")
-        .split("[[package]]")
-        .find(|package| {
-            package
-                .lines()
-                .any(|line| line == "name = \"world-id-primitives\"")
-        })
-        .and_then(|package| {
-            package
-                .lines()
-                .find_map(|line| line.strip_prefix("version = \""))
-        })
-        .and_then(|version| version.strip_suffix('"'))
-        .ok_or_else(|| invalid("world-id-primitives version missing from Cargo.lock"))?;
     let credentials: serde_json::Map<String, Value> = crate::CredentialType::iter()
         .map(|credential| (credential.to_string(), json!(credential.issuer_schema_id())))
         .collect();
@@ -351,7 +337,7 @@ fn manifest() -> Result<Value, Failure> {
     let full_response_shapes = crate::ResponseItem::iter()
         .map(full_response_shape)
         .collect::<Result<Vec<_>, _>>()?;
-    // Explicit fields make DTO additions require an intentional fixture update.
+    // Explicit fields make DTO additions require an intentional conformance update.
     let full_result = crate::IDKitResult {
         protocol_version: "4.0".to_string(),
         nonce: "nonce".to_string(),
@@ -371,15 +357,10 @@ fn manifest() -> Result<Value, Failure> {
         }),
     };
     Ok(json!({
-        "format_version":1,
-        "rust_core_version":env!("CARGO_PKG_VERSION"),
-        "protocol_version":protocol_version,
-        "request_versions":[world_id_primitives::RequestVersion::V1],
         "credentials":credentials,
         "presets":presets,
         "error_codes":crate::error::AppError::iter().collect::<Vec<_>>(),
         "environments":bridge::Environment::iter().collect::<Vec<_>>(),
-        "verification_levels":crate::VerificationLevel::iter().collect::<Vec<_>>(),
         "document_types":crate::types::DocumentType::iter().collect::<Vec<_>>(),
         "integrity_signature_formats":crate::IntegritySignatureFormat::iter().collect::<Vec<_>>(),
         "response_shapes":response_shapes,
@@ -388,7 +369,7 @@ fn manifest() -> Result<Value, Failure> {
     }))
 }
 
-/// Runs one deterministic operation. See the binary README for the JSONL contract.
+/// Runs one deterministic operation using the production core.
 ///
 /// # Errors
 /// Returns a structured failure for invalid inputs or a production operation failure.

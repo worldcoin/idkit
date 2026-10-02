@@ -9,6 +9,7 @@ import { useIDKitSession } from "../hooks/useIDKitSession";
 
 const {
   idKitErrorCodes,
+  isInWorldAppMock,
   requestMock,
   requestWithInviteCodeMock,
   createSessionMock,
@@ -40,6 +41,7 @@ const {
 
   return {
     idKitErrorCodes,
+    isInWorldAppMock: vi.fn(() => false),
     requestMock,
     requestWithInviteCodeMock,
     createSessionMock,
@@ -56,7 +58,7 @@ const {
 vi.mock("@worldcoin/idkit-core", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@worldcoin/idkit-core")>()),
   IDKitErrorCodes: idKitErrorCodes,
-  isInWorldApp: () => false,
+  isInWorldApp: isInWorldAppMock,
   isDebug: () => false,
   createIDKitNamespace: createIDKitNamespaceMock,
 }));
@@ -85,6 +87,7 @@ function makeRequest(pollOnce: () => Promise<unknown>) {
 describe("request/session hooks", () => {
   afterEach(() => vi.useRealTimers());
   beforeEach(() => {
+    isInWorldAppMock.mockReturnValue(false);
     requestMock.mockClear();
     requestWithInviteCodeMock.mockClear();
     createSessionMock.mockClear();
@@ -690,6 +693,37 @@ describe("request/session hooks", () => {
       preset: { type: "OrbLegacy" as const },
       polling: { interval: 100, timeout: 250 },
     };
+
+    it(`${mode} preserves its connector and expiry contract inside World App`, async () => {
+      vi.useFakeTimers();
+      isInWorldAppMock.mockReturnValue(true);
+      configure(
+        vi.fn(async () => ({
+          ...makeRequest(async () => ({ type: "waiting_for_connection" })),
+          expiresAt: 1234,
+        })),
+      );
+      const { result, unmount } = renderHook(() => useRequest(config));
+      expect(result.current.connectorURI).toBeNull();
+      act(() => result.current.open());
+      await act(async () => vi.advanceTimersByTimeAsync(0));
+      expect(result.current.isInWorldApp).toBe(true);
+      expect(result.current.connectorURI).toBe(
+        mode === "invite" ? "wc://request" : null,
+      );
+      if (mode === "invite") {
+        expect(result.current).toHaveProperty("codeExpiresAt", 1234);
+      } else {
+        expect(result.current).not.toHaveProperty("codeExpiresAt");
+      }
+      act(() => result.current.reset());
+      expect(result.current.connectorURI).toBeNull();
+      if (mode === "invite") {
+        expect(result.current).toHaveProperty("codeExpiresAt", null);
+      }
+      expect(vi.getTimerCount()).toBe(0);
+      unmount();
+    });
 
     it(`${mode} preserves ordinary rejected-poll error mapping without retrying`, async () => {
       vi.useFakeTimers();

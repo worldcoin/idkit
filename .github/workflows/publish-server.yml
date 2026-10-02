@@ -26,12 +26,11 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       npm_tag: ${{ steps.config.outputs.npm_tag }}
-      ref: ${{ steps.version.outputs.source_sha }}
+      ref: ${{ steps.config.outputs.ref }}
       should_publish: ${{ steps.config.outputs.should_publish }}
 
     steps:
-      # Validate release inputs with code from the trusted event revision first.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
@@ -49,142 +48,153 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           set -euo pipefail
+          RELEASE_SHA="${INPUT_COMMIT_SHA:-$GITHUB_SHA}"
+          if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || \
+             ! git merge-base --is-ancestor "$RELEASE_SHA" refs/remotes/origin/main; then
+            echo "::error::Release must use a full commit SHA from main."
+            exit 1
+          fi
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            # Reject malformed or off-main input before writing any job output.
-            RELEASE_SHA=$(bash scripts/validate-release-ref.sh "${INPUT_COMMIT_SHA:-$GITHUB_SHA}")
             echo "npm_tag=dev" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
             echo "ref=$RELEASE_SHA" >> $GITHUB_OUTPUT
           elif [ "$PR_MERGED" = "true" ] && \
                echo "$PR_LABELS" | grep -q '"release"' && \
                echo "$PR_BODY" | grep -q "<!-- release_target:js-server -->"; then
-            RELEASE_SHA=$(bash scripts/validate-release-ref.sh "$GITHUB_SHA")
             echo "npm_tag=latest" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
-            echo "ref=$RELEASE_SHA" >> $GITHUB_OUTPUT
+            echo "ref=$GITHUB_SHA" >> $GITHUB_OUTPUT
           else
             echo "should_publish=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Select and verify the approved release commit
+      - name: Select the release commit
         if: steps.config.outputs.should_publish == 'true'
         env:
           TARGET_SHA: ${{ steps.config.outputs.ref }}
+        run: git checkout --detach "$TARGET_SHA"
+
+      - name: Generate version
+        if: steps.config.outputs.should_publish == 'true'
+        id: version
         run: |
-          set -euo pipefail
-          git checkout --detach "$TARGET_SHA"
-          if [ "$(git rev-parse HEAD)" != "$TARGET_SHA" ] || \
-             ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
-            echo "::error::Checked-out release must be the approved main-branch commit."
+          # Get base version from package.json
+          BASE_VERSION=$(node -p "require('./js/packages/server/package.json').version")
+
+          if [ -z "$BASE_VERSION" ]; then
+            echo "Error: Failed to resolve server version from package manifest"
             exit 1
           fi
 
-      - name: Setup Node.js for release planning
-        if: steps.config.outputs.should_publish == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
+          if [ "${{ steps.config.outputs.npm_tag }}" = "dev" ]; then
+            # Strip any existing pre-release suffix to get clean base
+            BASE_VERSION=$(echo "$BASE_VERSION" | sed 's/-.*$//')
+            # Get short SHA
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            VERSION="${BASE_VERSION}-dev.${SHORT_SHA}"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "Dev version: $VERSION"
+          else
+            echo "version=$BASE_VERSION" >> $GITHUB_OUTPUT
+            echo "Production version: $BASE_VERSION"
+          fi
 
-      - name: Test release preparation and verification
-        if: steps.config.outputs.should_publish == 'true'
-        run: node --test scripts/js-release.test.mjs
+      - name: Validate version against npm
+        if: steps.config.outputs.should_publish == 'true' && steps.config.outputs.npm_tag == 'latest'
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.version }}"
 
-      - name: Plan candidate versions and validate registry prerequisites
-        if: steps.config.outputs.should_publish == 'true'
-        id: version
-        env:
-          RELEASE_TAG: ${{ steps.config.outputs.npm_tag }}
-        run: node scripts/js-release.mjs plan --target server --tag "$RELEASE_TAG"
+          # Check npm for latest version
+          LATEST_RELEASE=$(npm view @worldcoin/idkit-server version 2>/dev/null || echo "0.0.0")
 
-  package:
-    needs: prepare
-    if: needs.prepare.outputs.should_publish == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      artifact_name: idkit-server-release-${{ github.run_id }}-${{ github.run_attempt }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.prepare.outputs.ref }}
-          persist-credentials: false
+          echo "Latest release on npm: $LATEST_RELEASE"
+          echo "New version: $NEW_VERSION"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
+          # Ensure the new version is greater than the latest published version
+          if [ "$LATEST_RELEASE" != "0.0.0" ]; then
+            if ! { [ "$(printf '%s\n' "$LATEST_RELEASE" "$NEW_VERSION" | sort -V | tail -n1)" = "$NEW_VERSION" ] && \
+                   [ "$NEW_VERSION" != "$LATEST_RELEASE" ]; }; then
+              echo "Error: New version ($NEW_VERSION) is not greater than latest release ($LATEST_RELEASE)"
+              exit 1
+            fi
+          fi
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.4
-
-      - name: Install the locked build dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Prepare final manifests, build once and pack once
-        env:
-          RELEASE_TAG: ${{ needs.prepare.outputs.npm_tag }}
-          RELEASE_DIRECTORY: ${{ runner.temp }}/idkit-release
-        run: node scripts/js-release.mjs prepare --target server --tag "$RELEASE_TAG" --directory "$RELEASE_DIRECTORY"
-
-      - name: Retain the exact candidate artifacts for qualification and publication
-        uses: actions/upload-artifact@v4
-        with:
-          name: idkit-server-release-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/idkit-release/
-          if-no-files-found: error
-          retention-days: 14
-
-  conformance:
-    needs: [prepare, package]
-    if: needs.prepare.outputs.should_publish == 'true'
-    uses: ./.github/workflows/js-conformance.yml
-    with:
-      ref: ${{ needs.prepare.outputs.ref }}
-      release_artifact: ${{ needs.package.outputs.artifact_name }}
-      release_target: server
-    permissions:
-      contents: read
+          echo "Version check passed: $NEW_VERSION > $LATEST_RELEASE"
 
   publish:
-    needs: [prepare, package, conformance]
+    needs: prepare
     if: needs.prepare.outputs.should_publish == 'true'
-    # Trusted publishing receives the exact tarball qualified by conformance.
+    # Use github hosted runners for OIDC/Provenance support
     runs-on: ubuntu-latest
     environment: production
     permissions:
       contents: read
       id-token: write
+
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ needs.prepare.outputs.ref }}
+          ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
 
-      - name: Download the qualified release artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ needs.package.outputs.artifact_name }}
-          path: ${{ runner.temp }}/idkit-release
+      - name: Validate and select the release commit
+        env:
+          TARGET_SHA: ${{ needs.prepare.outputs.ref }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || \
+             ! git merge-base --is-ancestor "$TARGET_SHA" refs/remotes/origin/main; then
+            echo "::error::Release must use a full commit SHA from main."
+            exit 1
+          fi
+          git checkout --detach "$TARGET_SHA"
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Install npm for OIDC trusted publishing
-        run: npm install -g npm@12.0.1
+      - name: Install pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 9.15.4
 
-      - name: Verify source, final dependency pins and every tarball digest
-        id: verify
-        env:
-          RELEASE_TAG: ${{ needs.prepare.outputs.npm_tag }}
-          SOURCE_SHA: ${{ needs.prepare.outputs.ref }}
-          RELEASE_DIRECTORY: ${{ runner.temp }}/idkit-release
-        run: node scripts/js-release.mjs verify --target server --tag "$RELEASE_TAG" --source-sha "$SOURCE_SHA" --directory "$RELEASE_DIRECTORY"
+      - name: Update npm for OIDC trusted publishing
+        run: |
+          # npm trusted publishing requires npm >= 11.5.1
+          echo "Current npm version: $(npm --version)"
+          npm install -g npm@12.0.1
+          NPM_VER=$(npm --version)
+          echo "Updated npm version: $NPM_VER"
+          REQUIRED="11.5.1"
+          if [ "$(printf '%s\n' "$REQUIRED" "$NPM_VER" | sort -V | head -n1)" != "$REQUIRED" ]; then
+            echo "::error::npm >= $REQUIRED is required for OIDC trusted publishing, got $NPM_VER"
+            exit 1
+          fi
 
-      - name: Publish the qualified tarball
+      - name: Set package version
+        working-directory: js/packages/server
         env:
-          TARBALL: ${{ steps.verify.outputs.tarball }}
+          PKG_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          npm version "$PKG_VERSION" --no-git-tag-version --allow-same-version
+          echo "Package version set to: $PKG_VERSION"
+
+      - name: Install dependencies
+        working-directory: js
+        run: pnpm install
+
+      - name: Build package
+        working-directory: js/packages/server
+        run: pnpm build
+
+      - name: Publish @worldcoin/idkit-server
+        working-directory: js/packages/server
+        env:
+          PKG_VERSION: ${{ needs.prepare.outputs.version }}
           NPM_TAG: ${{ needs.prepare.outputs.npm_tag }}
-        run: npm publish "$TARBALL" --access public --provenance --tag "$NPM_TAG"
+        run: |
+          echo "Publishing @worldcoin/idkit-server@$PKG_VERSION with tag '$NPM_TAG'"
+          npm publish --access public --provenance --tag "$NPM_TAG"

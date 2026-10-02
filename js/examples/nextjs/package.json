@@ -8,8 +8,8 @@
     "start": "next start -p 4001"
   },
   "dependencies": {
-    "@worldcoin/idkit": "file:./.idkit-candidate/idkit-react.tgz",
-    "@worldcoin/idkit-server": "file:./.idkit-candidate/idkit-server.tgz",
+    "@worldcoin/idkit": "link:../../packages/react",
+    "@worldcoin/idkit-server": "link:../../packages/server",
     "takis-minikit-js": "2.0.0-dev.1",
     "eruda": "^3.4.1",
     "i18n-iso-countries": "^7.14.0",
@@ -17,7 +17,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "viem": "^2.47.2",
-    "@worldcoin/idkit-core": "file:./.idkit-candidate/idkit-core.tgz"
+    "@worldcoin/idkit-core": "link:../../packages/core"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
@@ -25,12 +25,5 @@
     "typescript": "^5.9.3",
     "@types/node": "^20.19.30"
   },
-  "packageManager": "pnpm@9.15.4",
-  "pnpm": {
-    "overrides": {
-      "@worldcoin/idkit": "file:./.idkit-candidate/idkit-react.tgz",
-      "@worldcoin/idkit-server": "file:./.idkit-candidate/idkit-server.tgz",
-      "@worldcoin/idkit-core": "file:./.idkit-candidate/idkit-core.tgz"
-    }
-  }
+  "packageManager": "pnpm@9.15.4"
 }

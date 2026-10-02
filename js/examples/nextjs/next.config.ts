@@ -2,8 +2,8 @@ import type { NextConfig } from "next";
 import { fileURLToPath } from "node:url";
 
 const nextConfig: NextConfig = {
-  // This example installs packed SDK candidates in its own workspace.
-  outputFileTracingRoot: fileURLToPath(new URL(".", import.meta.url)),
+  // Include the locally linked SDK packages in server output tracing.
+  outputFileTracingRoot: fileURLToPath(new URL("../../../", import.meta.url)),
 };
 
 export default nextConfig;

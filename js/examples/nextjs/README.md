@@ -42,22 +42,17 @@ From repo root:
 ```bash
 corepack pnpm install --frozen-lockfile
 corepack pnpm build
-corepack pnpm prepare:next
+corepack pnpm -C js/examples/nextjs install --frozen-lockfile
 cp js/examples/nextjs/.env.example js/examples/nextjs/.env.local
 corepack pnpm -C js/examples/nextjs dev
 ```
 
 Open `http://localhost:4001`.
 
-This example is a separate pnpm workspace. Next.js and its image tooling are not
-installed by the SDK workspace. `prepare:next` packs the three locally built SDKs,
-copies them into ignored `.idkit-candidate/` files, and installs those tarballs
-with exact local overrides so no older registry SDK is accidentally used.
-Rerun it after rebuilding an SDK. Its isolated lockfile retains external versions
-and updates the local tarball integrity when the build changes. To consume a
-verified release candidate instead, use `pnpm prepare:next --artifacts <directory>`.
-The SDK itself has no WASM assets; Next's independent tool dependencies can have
-optional WASM variants.
+This example installs separately so Next.js tooling stays outside the SDK dependency
+graph. Its SDK dependencies link to the local packages; rebuild those packages
+after making changes. Next.js tooling can include optional WASM variants, while
+the SDK itself has no WASM assets.
 
 ## Eruda
 

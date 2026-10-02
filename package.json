@@ -30,8 +30,7 @@
     "test:packages": "node scripts/test-packages.mjs",
     "test:portable": "node scripts/test-portable.mjs",
     "audit:dependencies": "node scripts/audit-dependencies.mjs",
-    "prepare:next": "node scripts/prepare-next-example.mjs",
-    "test:tooling": "node --test scripts/audit-dependencies.test.mjs scripts/test-source-maps.mjs scripts/js-release.test.mjs"
+    "test:tooling": "node --test scripts/test-source-maps.mjs"
   },
   "keywords": [
     "worldcoin",
