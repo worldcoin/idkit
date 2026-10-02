@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   appendFileSync,
   copyFileSync,
@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
   PACKAGES,
@@ -25,6 +26,104 @@ import {
 const SHA = "0123456789abcdef0123456789abcdef01234567";
 const json = (path) => JSON.parse(readFileSync(path, "utf8"));
 const writeJson = (path, value) => writeFileSync(path, JSON.stringify(value));
+
+test("release workflows reject output injection and off-main revisions before writing outputs", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "idkit-release-ref-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const git = (...args) =>
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "user.name=Release Test",
+        "-c",
+        "user.email=release@example.invalid",
+        "-c",
+        "commit.gpgsign=false",
+        ...args,
+      ],
+      { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    ).trim();
+  git("init", "--quiet", "--initial-branch=main");
+  git("commit", "--allow-empty", "--quiet", "-m", "historical main commit");
+  const historical = git("rev-parse", "HEAD");
+  git("commit", "--allow-empty", "--quiet", "-m", "current main commit");
+  const current = git("rev-parse", "HEAD");
+  git("update-ref", "refs/remotes/origin/main", current);
+  git("checkout", "--quiet", "-b", "unmerged", historical);
+  git("commit", "--allow-empty", "--quiet", "-m", "unmerged commit");
+  const unmerged = git("rev-parse", "HEAD");
+  git("checkout", "--quiet", "main");
+  mkdirSync(join(root, "scripts"));
+  copyFileSync(
+    fileURLToPath(new URL("./validate-release-ref.sh", import.meta.url)),
+    join(root, "scripts/validate-release-ref.sh"),
+  );
+
+  for (const name of ["publish-js", "publish-react", "publish-server"]) {
+    const workflow = readFileSync(
+      new URL(`../.github/workflows/${name}.yml`, import.meta.url),
+      "utf8",
+    );
+    // Execute the actual workflow step, so validation cannot accidentally move
+    // after the writes to GITHUB_OUTPUT while the helper tests remain green.
+    const script = workflow
+      .split("      - name: Determine release type\n")[1]
+      .split("\n      - name: Select and verify the approved release commit")[0]
+      .split("        run: |\n")[1]
+      .split("\n")
+      .map((line) => line.replace(/^          /, ""))
+      .join("\n");
+    const output = join(root, `${name}.outputs`);
+    const invoke = (input) => {
+      writeFileSync(output, "");
+      return spawnSync("bash", ["-c", script], {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          EVENT_NAME: "workflow_dispatch",
+          INPUT_COMMIT_SHA: input,
+          GITHUB_SHA: current,
+          GITHUB_OUTPUT: output,
+          PR_MERGED: "false",
+          PR_LABELS: "[]",
+          PR_BODY: "",
+        },
+      });
+    };
+    for (const invalid of [
+      "main",
+      historical.slice(0, 12),
+      ` ${historical}`,
+      `${historical}\nnpm_tag=latest`,
+      `${historical}\r\nshould_publish=true`,
+      "f".repeat(40),
+      unmerged,
+    ]) {
+      const result = invoke(invalid);
+      assert.notEqual(result.status, 0, `${name} accepted an invalid revision`);
+      assert.equal(
+        readFileSync(output, "utf8"),
+        "",
+        `${name} wrote outputs before validation`,
+      );
+    }
+    for (const [input, expected] of [
+      [historical, historical],
+      [current, current],
+      ["", current],
+    ]) {
+      const result = invoke(input);
+      assert.equal(result.status, 0, `${name}: ${result.stderr}`);
+      assert.equal(
+        readFileSync(output, "utf8"),
+        `npm_tag=dev\nshould_publish=true\nref=${expected}\n`,
+      );
+    }
+  }
+});
+
 function manifests() {
   return {
     server: {

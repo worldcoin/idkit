@@ -5,8 +5,8 @@ differential tests, and JavaScript/React API tests in this repository. A
 maintained WASM SDK, separate compatibility repository, and new WASM comparison
 suite are not required to ship.
 
-The combined migration is being prepared as a review draft on October 2 at
-`6d6e4558`, rebased onto main `b8387bdf`. Current source checks and historical
+The combined migration is being prepared as a review draft on October 2 on
+`takis/pure-js-idkit`, rebased onto main `b8387bdf`. Current source checks and historical
 September 28–29 runtime/simulator results are recorded separately in
 [the validation report](pure-js-sdk-validation.md). The earlier tarballs do not
 qualify this draft's newer polling/cancellation behavior or future release

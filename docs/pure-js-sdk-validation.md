@@ -8,9 +8,17 @@ device acceptance remains outstanding.
 ## October 2 PR preparation
 
 The combined migration is prepared for a review draft on
-`takis/pure-js-idkit`, at commit `6d6e4558`, rebased onto main
+`takis/pure-js-idkit`, rebased onto main
 `b8387bdf8e16635301c7d2848518a57f66ea7341`. The six-PR split in the ship plan is
 a proposed review follow-up, not a committed delivery sequence.
+
+The initial migration commit is `6d6e4558`. Follow-up checks found and fixed a
+mixed-module runtime configuration bug on Node 18 and missing async lowering
+in the standalone Hermes corpus harness. Module entries now share one internal
+runtime module; the browser IIFE remains self-contained. Release workflows also
+validate full main-branch commit SHAs before writing outputs, with regression
+coverage for output injection. The isolated runtime tooling's Undici dependency
+was patched to 7.29.1.
 
 Since the September qualification, polling and cancellation behavior changed:
 transient poll failures retry within the original deadline, and cancellation
@@ -20,23 +28,28 @@ that signal. Rust and JavaScript intentionally agree that HTTP 408, 429 and 5xx
 poll responses are retryable transport errors rather than terminal connection
 failures. The wire formats are unchanged.
 
-| Current-source check                                   | October 2 result                                                                                     |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| SDK build, typecheck, JS formatting                    | Passed                                                                                               |
-| Ordinary JavaScript tests                              | 599 passed: server 74, core 469, React 56; four live-oracle cases skip without the oracle            |
-| Live native conformance                                | 304 passed, plus 11 HTTP creation scenarios and 91 polling steps across five lifecycles              |
-| SDK dependency audit                                   | 345 locked packages and 14,371 installed paths; no WASM packages/assets                              |
-| Release, dependency audit and source-map tooling tests | 11 passed                                                                                            |
-| Rust core tests with conformance feature               | 162 passed                                                                                           |
-| Rust formatting and Clippy                             | Passed, all targets/features, warnings denied                                                        |
-| Freshly packed Node 24.7.0                             | CJS/ESM passed; mixed ESM/CommonJS under the React Native export condition shares configured runtime |
-| Freshly packed Chromium ESM/hooks/IIFE and workerd     | Passed; WebAssembly absent in Chromium, no Worker Node compatibility flag                            |
+| Current-source check                                   | October 2 result                                                                                    |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| SDK build, typecheck, JS formatting                    | Passed                                                                                              |
+| Ordinary JavaScript tests                              | 599 passed: server 74, core 469, React 56; four live-oracle cases skip without the oracle           |
+| Live native conformance                                | 304 passed, plus 11 HTTP creation scenarios and 91 polling steps across five lifecycles             |
+| SDK dependency audit                                   | 345 locked packages and 14,372 installed paths; no WASM packages/assets                             |
+| Release, dependency audit and source-map tooling tests | 12 passed                                                                                           |
+| Rust core tests with conformance feature               | 162 passed                                                                                          |
+| Rust formatting and Clippy                             | Passed, all targets/features, warnings denied                                                       |
+| Freshly packed Node 18.20.8 and 24.7.0                 | CJS/ESM passed; mixed ESM/CommonJS under Node and React Native conditions shares configured runtime |
+| Freshly packed Chromium ESM/hooks/IIFE and workerd     | Passed; WebAssembly absent in Chromium, no Worker Node compatibility flag                           |
+| Hermes from React Native 0.79.2                        | 295 fixtures and built core/hooks smoke passed                                                      |
 
 The September tarball digests below are historical and do not identify or
-qualify the current draft. Node 18/22 and Hermes were not rerun on October 2;
-their results below retain their September 28 scope. Hosted-simulator proof
+qualify the current draft. Node 22 was not rerun locally on October 2;
+its results below retain their September 28 scope. Hosted-simulator proof
 acceptance and device E2E were not rerun on October 2; the recorded live results
 retain their original dates and scope.
+
+The Vercel preview is blocked before installation/build because the project
+still selects discontinued Node.js 20. No project-wide runtime setting was changed.
+The draft's GitHub CI and CodeQL checks must rerun on the final pushed revision.
 
 ## Gaps closed
 

@@ -14,13 +14,12 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   prepare:
     # Dev releases (workflow_dispatch) are only allowed from main
     if: >-
-      github.event_name == 'pull_request' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on:
       group: arc-public-large-amd64-runner
@@ -31,6 +30,13 @@ jobs:
       should_publish: ${{ steps.config.outputs.should_publish }}
 
     steps:
+      # Validate release inputs with code from the trusted event revision first.
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
       - name: Determine release type
         id: config
         # Use env vars to avoid script injection via github context interpolation
@@ -42,34 +48,34 @@ jobs:
           PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
+          set -euo pipefail
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            # Reject malformed or off-main input before writing any job output.
+            RELEASE_SHA=$(bash scripts/validate-release-ref.sh "${INPUT_COMMIT_SHA:-$GITHUB_SHA}")
             echo "npm_tag=dev" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
-            echo "ref=${INPUT_COMMIT_SHA:-$GITHUB_SHA}" >> $GITHUB_OUTPUT
+            echo "ref=$RELEASE_SHA" >> $GITHUB_OUTPUT
           elif [ "$PR_MERGED" = "true" ] && \
                echo "$PR_LABELS" | grep -q '"release"' && \
                echo "$PR_BODY" | grep -q "<!-- release_target:js-server -->"; then
+            RELEASE_SHA=$(bash scripts/validate-release-ref.sh "$GITHUB_SHA")
             echo "npm_tag=latest" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
-            echo "ref=$GITHUB_SHA" >> $GITHUB_OUTPUT
+            echo "ref=$RELEASE_SHA" >> $GITHUB_OUTPUT
           else
             echo "should_publish=false" >> $GITHUB_OUTPUT
           fi
 
-      - uses: actions/checkout@v6
+      - name: Select and verify the approved release commit
         if: steps.config.outputs.should_publish == 'true'
-        with:
-          ref: ${{ steps.config.outputs.ref }}
-          fetch-depth: 0
-
-      - name: Validate commit exists on main
-        if: steps.config.outputs.should_publish == 'true' && github.event_name == 'workflow_dispatch'
         env:
-          TARGET_REF: ${{ steps.config.outputs.ref }}
+          TARGET_SHA: ${{ steps.config.outputs.ref }}
         run: |
-          git fetch origin main
-          if ! git merge-base --is-ancestor "$TARGET_REF" origin/main; then
-            echo "::error::Commit $TARGET_REF is not on the main branch. Dev releases can only be published from merged code."
+          set -euo pipefail
+          git checkout --detach "$TARGET_SHA"
+          if [ "$(git rev-parse HEAD)" != "$TARGET_SHA" ] || \
+             ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
+            echo "::error::Checked-out release must be the approved main-branch commit."
             exit 1
           fi
 
@@ -102,6 +108,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.prepare.outputs.ref }}
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -152,6 +159,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.prepare.outputs.ref }}
+          persist-credentials: false
 
       - name: Download the qualified release artifacts
         uses: actions/download-artifact@v4
