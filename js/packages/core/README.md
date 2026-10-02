@@ -1,11 +1,121 @@
 # @worldcoin/idkit-core
 
-World ID verification SDK for JavaScript/TypeScript. Zero dependencies, WASM-powered.
+World ID verification SDK for JavaScript/TypeScript.
 
 ## Installation
 
 ```bash
 npm install @worldcoin/idkit-core
+```
+
+## Quickstart
+
+### Requirements
+
+From the [Developer Portal](https://developer.world.org): `app_id`, `rp_id`, and an RP signing key. Keep the signing key on your backend only.
+
+There are two ways you can request proofs with IDKit, and they depend on how you want to use the SDK.
+
+If you want to request a World ID session-scoped proof, use `IDKit.createSession()` and store the result `session_id`. You can then use `IDKit.proveSession` with `session_id` as a parameter to log and sync existing users with their session data.
+
+```js
+import { IDKit } from "@worldcoin/idkit-core";
+
+const rp_context = await fetch("/api/rp-signature").then((r) => r.json());
+
+// First visit — mint a session_id and store it server-side
+const IDKitSessionRequest = await IDKit.createSession({
+  app_id: "app_xxxxx",
+  rp_context, // pass through from your backend
+}).constraints(IDKit.CredentialRequest("proof_of_human")); // → IDKitRequest
+
+const result = await IDKitSessionRequest.pollUntilCompletion();
+// → { success: true, result: IDKitResultSession } | { success: false, error }
+if (!result.success) {
+  // user rejected, timeout, etc. — no result to read
+  console.error(result.error);
+  return;
+}
+// IDKitResultSession: {
+//   protocol_version: "4.0",
+//   session_id: "session_<hex>",
+//   nonce: string,
+//   responses: [{ identifier, proof, session_nullifier, ... }],
+//   environment: string,
+//   ...
+// }
+// verify on your backend first, then save result.result.session_id in your DB
+```
+
+```js
+// Return visit — look up that session_id, then prove it
+const rp_context = await fetch("/api/rp-signature").then((r) => r.json());
+
+const IDKitSessionRequest = await IDKit.proveSession(savedSessionId, {
+  app_id: "app_xxxxx",
+  rp_context, // pass through from your backend
+}).constraints(IDKit.CredentialRequest("proof_of_human")); // → IDKitRequest
+
+const result = await IDKitSessionRequest.pollUntilCompletion();
+if (!result.success) {
+  console.error(result.error);
+  return;
+}
+// same shape as createSession — result.result.session_id matches for the same user
+// verify on your backend before treating the login as complete
+```
+
+If you want to request a credential based on an action-key scope, use `IDKit.request()` and store the nullifier.
+
+```js
+// Fresh rp_context for every request creation (nonce is single-use; signature expires)
+const rp_context = await fetch("/api/rp-signature").then((r) => r.json());
+
+const request = await IDKit.request({
+  app_id: "app_xxxxx",
+  action: "my-action",
+  rp_context, // pass through from your backend
+  allow_legacy_proofs: false,
+}).constraints(IDKit.CredentialRequest("proof_of_human")); // → IDKitRequest
+
+const completion = await request.pollUntilCompletion();
+if (!completion.success) {
+  console.error(completion.error);
+  return;
+}
+// IDKitResult (v4 uniqueness): {
+//   protocol_version: "4.0",
+//   action: string,
+//   nonce: string,
+//   responses: [{ identifier, proof, nullifier, ... }],
+//   environment: string,
+//   ...
+// }
+// send completion.result to your backend → /api/v4/verify/{rp_id}
+// only then store the nullifier; same person + same action = reject on return
+```
+
+### Handling the result
+
+Result should always be handled in the backend. A good practice is to have a dedicated `/api/verify` route file where you have some form of the following:
+
+```typescript
+import type { IDKitResult } from "@worldcoin/idkit-core";
+
+// proof = completion.result from pollUntilCompletion()
+async function verifyProof(proof: IDKitResult, rpId: string) {
+  const response = await fetch(
+    `https://developer.world.org/api/v4/verify/${rpId}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(proof),
+    },
+  );
+
+  const { success } = await response.json();
+  return success;
+}
 ```
 
 ## Script Tag / CDN
@@ -33,17 +143,11 @@ browser global; generate RP signatures on your backend with
 <script src="https://cdn.jsdelivr.net/npm/@worldcoin/idkit-core"></script>
 <script>
   async function start() {
-    const sig = await fetch("/api/rp-signature").then((r) => r.json());
+    const rp_context = await fetch("/api/rp-signature").then((r) => r.json());
     const request = await IDKit.request({
       app_id: "app_xxxxx",
       action: "my-action",
-      rp_context: {
-        rp_id: "rp_xxxxx",
-        nonce: sig.nonce,
-        created_at: sig.created_at,
-        expires_at: sig.expires_at,
-        signature: sig.sig,
-      },
+      rp_context, // pass through from your backend
       allow_legacy_proofs: false,
     }).constraints(IDKit.CredentialRequest("proof_of_human"));
   }
@@ -53,50 +157,41 @@ browser global; generate RP signatures on your backend with
 
 ## Backend: Generate RP Signature
 
-The RP signature authenticates your verification requests. Generate it server-side using the `/signing` subpath (pure JS, no WASM init needed):
+That `rp_context` in the examples above comes from your backend. Generate it server-side with the `/signing` subpath (pure JS, no WASM init needed):
 
 ```typescript
 import { signRequest } from "@worldcoin/idkit-core/signing";
 
 // Never expose RP_SIGNING_KEY to clients
 const sig = signRequest({
-  action: "my-action",
+  action: "my-action", // omit for session flows
   signingKeyHex: process.env.RP_SIGNING_KEY!,
 });
 
-// Return to client
+// Return to client — this is your rp_context payload
 res.json({
-  sig: sig.sig,
+  rp_id: process.env.RP_ID!, // "rp_xxxxx"
   nonce: sig.nonce,
   created_at: sig.createdAt,
   expires_at: sig.expiresAt,
+  signature: sig.sig,
 });
 ```
 
-## Client: Create Verification Request
+## Using Presets
 
-### Using Presets
-
-For common verification scenarios with World ID 3.0 backward compatibility:
+If you need World ID 3.0 backward compatibility on `IDKit.request()`, swap `.constraints(...)` for a preset (sessions don't support presets):
 
 ```typescript
 import { IDKit, orbLegacy } from "@worldcoin/idkit-core";
 
-// Fetch signature from your backend
-const rpSig = await fetch("/api/rp-signature").then((r) => r.json());
+const rp_context = await fetch("/api/rp-signature").then((r) => r.json());
 
 const request = await IDKit.request({
   app_id: "app_xxxxx",
   action: "my-action",
-  rp_context: {
-    rp_id: "rp_xxxxx",
-    nonce: rpSig.nonce,
-    created_at: rpSig.created_at,
-    expires_at: rpSig.expires_at,
-    signature: rpSig.sig,
-  },
-  allow_legacy_proofs: false,
-  return_to: "myapp://idkit/callback",
+  rp_context, // pass through from your backend
+  allow_legacy_proofs: true,
 }).preset(orbLegacy({ signal: "user-123" }));
 
 // Display QR code for World App
@@ -144,20 +239,9 @@ const verified = await fetch("/api/verify-proof", {
 }).then((r) => r.json());
 ```
 
-On your backend, forward the result to the Developer Portal:
+**Legacy presets:** `orbLegacy`, `documentLegacy`, `secureDocumentLegacy`, `deviceLegacy`, `selfieCheckLegacy`
 
-```typescript
-const response = await fetch(
-  `https://developer.worldcoin.org/api/v4/verify/${RP_ID}`,
-  {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req.body),
-  },
-);
-
-const { success } = await response.json();
-```
+**Also available:** `proofOfHuman`, `passport`, `mnc`, `identityCheck` — these still enable legacy fallback (even with `allow_legacy_proofs: false`).
 
 ## Subpath Exports
 
