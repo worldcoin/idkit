@@ -1,10 +1,42 @@
-# Pure JavaScript SDK validation — September 29, 2026
+# Pure JavaScript SDK validation
 
-This report covers the uncommitted migration in this checkout. It records local
-and hosted-simulator qualification, not a published release or device
-acceptance. The checkout is based on `f20fea549625f981a853c39fc2ac26dec14f6663`;
-relevant changes from main `16bc527` were incorporated without rebasing the
-dirty checkout.
+Current PR-preparation status was updated on October 2, 2026. This report
+separates current source checks from historical September 28–29 packed-runtime
+and hosted-simulator qualification. No release has been published, and real
+device acceptance remains outstanding.
+
+## October 2 PR preparation
+
+The combined migration is prepared for a review draft on
+`takis/pure-js-idkit`, at commit `6d6e4558`, rebased onto main
+`b8387bdf8e16635301c7d2848518a57f66ea7341`. The six-PR split in the ship plan is
+a proposed review follow-up, not a committed delivery sequence.
+
+Since the September qualification, polling and cancellation behavior changed:
+transient poll failures retry within the original deadline, and cancellation
+and timeouts propagate an abort signal to bridge fetches, including pending
+response-body reads. Wrappers still settle if a custom fetch adapter ignores
+that signal. Rust and JavaScript intentionally agree that HTTP 408, 429 and 5xx
+poll responses are retryable transport errors rather than terminal connection
+failures. The wire formats are unchanged.
+
+| Current-source check                                   | October 2 result                                                                                     |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| SDK build, typecheck, JS formatting                    | Passed                                                                                               |
+| Ordinary JavaScript tests                              | 599 passed: server 74, core 469, React 56; four live-oracle cases skip without the oracle            |
+| Live native conformance                                | 304 passed, plus 11 HTTP creation scenarios and 91 polling steps across five lifecycles              |
+| SDK dependency audit                                   | 345 locked packages and 14,371 installed paths; no WASM packages/assets                              |
+| Release, dependency audit and source-map tooling tests | 11 passed                                                                                            |
+| Rust core tests with conformance feature               | 162 passed                                                                                           |
+| Rust formatting and Clippy                             | Passed, all targets/features, warnings denied                                                        |
+| Freshly packed Node 24.7.0                             | CJS/ESM passed; mixed ESM/CommonJS under the React Native export condition shares configured runtime |
+| Freshly packed Chromium ESM/hooks/IIFE and workerd     | Passed; WebAssembly absent in Chromium, no Worker Node compatibility flag                            |
+
+The September tarball digests below are historical and do not identify or
+qualify the current draft. Node 18/22 and Hermes were not rerun on October 2;
+their results below retain their September 28 scope. Hosted-simulator proof
+acceptance and device E2E were not rerun on October 2; the recorded live results
+retain their original dates and scope.
 
 ## Gaps closed
 
@@ -15,13 +47,14 @@ dirty checkout.
   optionality, enums and typed array elements. `test:conformance` runs
   TypeScript checking after optional manifest regeneration.
 - HTTP comparisons call real native creation and polling functions, retaining
-  each connection across its transcript: 11 creation scenarios and 66 polling
+  each connection across its transcript: 11 creation scenarios and 91 polling
   steps across five lifecycles. Coverage includes encrypted completion,
   rejection, presence failure, HTTP failures, malformed/duplicate JSON,
   connection loss, authentication failure and post-error reuse.
-- Core and React deadlines now settle hung creation/polling work, stop further
-  polling and ignore late results after cancellation. The already-running host
-  fetch is not physically aborted. Rust wire/status behavior is unchanged.
+- Core and React deadlines settle hung creation/polling work, stop further
+  polling and ignore late results after cancellation. They now propagate abort
+  signals to the host fetch. Matching Rust/JS transient-poll classification is
+  an intentional behavior change; serialized protocol formats are unchanged.
 - SDK development uses pnpm 9.15.4. Next and browser/Worker test tooling have
   separate installs and lockfiles inside this repository. A narrowly scoped tsup
   patch replaces `source-map`'s WASM implementation with `source-map-js`;
@@ -30,7 +63,7 @@ dirty checkout.
   pack once, record source SHA and SHA256 digests, qualify the exact artifacts,
   check real registry prerequisites, and publish those same tarballs.
 
-## Automated validation
+## Historical automated validation — September 28
 
 Checks below ran after the final SDK build on September 28:
 
@@ -53,12 +86,12 @@ runtime configuration between core and hooks. Hermes runs without host crypto,
 URL or UTF-8 globals; tests provide deterministic entropy only inside the
 harness.
 
-The same tarball bytes were tested by all three Node runtimes and the portable
+The same September 28 tarball bytes were tested by all three Node runtimes and the portable
 runtime gate, then copied into the isolated Next example. All 66 installed SDK
 files matched those archives byte-for-byte, with the same React → core → server
 dependency closure. They are retained in `/private/tmp/idkit-final-candidate`
-with `sha256.json`. These working versions and digests identify a local
-dirty-tree build; they are not published candidates.
+with `sha256.json`. These working versions and digests identify that historical
+dirty-tree build; they are neither published candidates nor the current PR build.
 
 | Package                   | Version | SHA256                                                             |
 | ------------------------- | ------- | ------------------------------------------------------------------ |
@@ -66,10 +99,10 @@ dirty-tree build; they are not published candidates.
 | `@worldcoin/idkit-core`   | 4.3.0   | `a16daedb3f8cfc40a8afd6c8d04f91e7dc55a33a56be136d5faf17b98efd849e` |
 | `@worldcoin/idkit`        | 4.3.0   | `37eb41c90fc96e214187241caa32622384a3dffd42f18df372b0a66e9a6b07c8` |
 
-## Local Next.js and hosted simulator
+## Historical local Next.js and hosted simulator — September 28–29
 
 The Next.js 15.5.25 production build, typecheck and static generation passed.
-The production server at `http://127.0.0.1:4001` uses the exact packed SDK
+The production server at `http://127.0.0.1:4001` used the exact packed SDK
 candidates above and the existing, ignored `.env.local` configuration. The
 corrected app is `app_75c2486e930cb8c0026266335c869b7a`, with RP
 `rp_9b6853dacd0dbcb1`. No private signing key is copied into tracked files or
@@ -191,8 +224,9 @@ inactive test RP.
 
 ## Remaining release acceptance
 
-- Prepare and validate the PR stack against current main; choose actual release
-  versions. The working versions are not newly published release candidates.
+- Review the combined draft against current main and decide whether to split
+  follow-up PRs; choose actual release versions. The working versions are not
+  newly published release candidates.
 - Obtain protocol/crypto review of the Rust-to-JavaScript translation.
 - Activate required status checks after the new workflows exist remotely. Main
   currently has no required status-check contexts; changing this to unpublished
