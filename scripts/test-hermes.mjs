@@ -75,6 +75,11 @@ if (failures.length) throw new Error("Hermes compatibility failures: " + failure
     splitting: false,
     treeshake: true,
     silent: true,
+    esbuildOptions(options) {
+      // BridgeRequest retains async transport methods even when the corpus
+      // calls only synchronous helpers. Lower their syntax as Metro does.
+      options.supported = { ...options.supported, "async-await": false };
+    },
   });
   const bundle = join(directory, "compatibility.global.js");
   // Metro lowers classes and per-iteration lexical bindings before invoking

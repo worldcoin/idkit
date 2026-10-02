@@ -79,7 +79,7 @@ esm.configureIDKitRuntime({getRandomValues:randomFillSync,fetch:async (_url,init
 }});
 await cjs.IDKit.request({app_id:'app_staging_test',action:'test',allow_legacy_proofs:false,rp_context:{rp_id:'rp_1234567890abcdef',nonce:'0x'+'00'.repeat(31)+'01',created_at:1,expires_at:2,signature:'0x'+'00'.repeat(64)+'1b'}}).preset(cjs.proofOfHuman());
 assert.equal(creates,1);
-console.log('Packed React Native condition: mixed ESM/CommonJS core/hooks share configured runtime PASS');
+console.log('Packed ' + (process.execArgv.includes('--conditions=react-native') ? 'React Native' : 'Node') + ' condition: mixed ESM/CommonJS core/hooks share configured runtime PASS');
 `,
 );
 run(
@@ -87,6 +87,7 @@ run(
   ["--conditions=react-native", "smoke-native.mjs"],
   scratch,
 );
+run(process.execPath, ["smoke-native.mjs"], scratch);
 run(process.execPath, ["smoke.cjs"], scratch);
 run(process.execPath, ["smoke.mjs"], scratch);
 console.log(`Packed consumer retained for other Node versions: ${scratch}`);

@@ -11,7 +11,10 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "react-native": "./dist/index.js",
+      "react-native": {
+        "import": "./dist/index.js",
+        "require": "./dist/index.cjs"
+      },
       "node": {
         "import": "./dist/node.js",
         "require": "./dist/node.cjs"
