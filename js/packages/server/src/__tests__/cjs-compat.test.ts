@@ -1,35 +1,62 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 import { describe, it, expect } from "vitest";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const cjsPath = resolve(__dirname, "../../dist/index.cjs");
+const packageDir = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const dist = (file: string) =>
+  readFileSync(resolve(packageDir, "dist", file), "utf8");
 
-/**
- * @noble/secp256k1 v2+ is intentionally ESM-only (see https://github.com/paulmillr/noble-secp256k1/issues/115).
- * Our CJS consumers (e.g. bundlers outputting CommonJS) hit ERR_REQUIRE_ESM if the dep is left as an
- * external require(). We solve this via `noExternal` in tsup.config.ts to inline the code at build time.
- * These tests guard against regressions.
- */
-describe("CJS bundle compatibility", () => {
-  it("should not contain require() calls to ESM-only @noble/secp256k1", () => {
-    const content = readFileSync(cjsPath, "utf-8");
-    expect(content).not.toMatch(/require\(["']@noble\/secp256k1["']\)/);
+describe("published entry compatibility", () => {
+  it("bundles the ESM-only signing dependency into both CommonJS entries", () => {
+    for (const file of ["index.cjs", "node.cjs"]) {
+      expect(dist(file)).not.toMatch(/require\(["']@noble\//);
+    }
   });
 
-  it("should be loadable via require()", async () => {
-    const mod = await import(cjsPath);
-    expect(mod).toBeDefined();
-    expect(typeof mod.signRequest).toBe("function");
+  it("loads the portable entry without Node, DOM, TextEncoder or crypto globals", () => {
+    const module = { exports: {} as Record<string, (...args: any[]) => any> };
+    runInNewContext(dist("index.cjs"), { module, exports: module.exports });
+    expect(
+      module.exports.getSessionCommitment(`session_${"11".repeat(64)}`),
+    ).toBe(BigInt(`0x${"11".repeat(32)}`));
+    expect(() =>
+      module.exports.signRequest({ signingKeyHex: "aa".repeat(32) }),
+    ).toThrow("should never be called from browser/client-side code");
+    for (const file of ["index.js", "index.cjs"]) {
+      expect(dist(file)).not.toMatch(
+        /(?:require\(|from\s*)["'](?:node:|crypto["'])/,
+      );
+    }
   });
 
-  it("should call signRequest without crypto errors", async () => {
-    const mod = await import(cjsPath);
-    const result = mod.signRequest({ signingKeyHex: "aa".repeat(32) });
-    expect(result.sig).toMatch(/^0x[0-9a-f]{130}$/);
-    expect(result.nonce).toMatch(/^0x[0-9a-f]{64}$/);
-    expect(result.createdAt).toBeTypeOf("number");
-    expect(result.expiresAt).toBeTypeOf("number");
-  });
+  it.each(["commonjs", "module"])(
+    "resolves the Node %s entry and signs without changing global crypto",
+    (format) => {
+      const load =
+        format === "commonjs"
+          ? 'const { signRequest } = require("@worldcoin/idkit-server");'
+          : 'const { signRequest } = await import("@worldcoin/idkit-server");';
+      const output = execFileSync(
+        process.execPath,
+        [
+          `--input-type=${format}`,
+          "-e",
+          `delete globalThis.crypto;
+        ${load}
+        if (globalThis.crypto !== undefined) throw new Error("Import changed crypto");
+        const result = signRequest({ signingKeyHex: "aa".repeat(32) });
+        if (globalThis.crypto !== undefined) throw new Error("Signing changed crypto");
+        process.stdout.write(JSON.stringify(result));`,
+        ],
+        { cwd: packageDir, encoding: "utf8" },
+      );
+      const result = JSON.parse(output);
+      expect(result.sig).toMatch(/^0x[0-9a-f]{130}$/);
+      expect(result.nonce).toMatch(/^0x[0-9a-f]{64}$/);
+      expect(result.expiresAt - result.createdAt).toBe(300);
+    },
+  );
 });

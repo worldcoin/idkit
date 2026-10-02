@@ -62,6 +62,7 @@ pub enum Error {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "conformance", derive(strum::EnumIter))]
 pub enum AppError {
     /// User rejected the request
     #[error("User rejected the request")]

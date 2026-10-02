@@ -1,0 +1,268 @@
+name: JavaScript and Rust compatibility
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Exact source revision to compare
+        type: string
+        required: false
+        default: ""
+      release_artifact:
+        description: Prepared tarballs from the release package job
+        type: string
+        required: false
+        default: ""
+      release_target:
+        description: Package whose actual registry prerequisite graph must pass
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    name: Native Rust differential tests
+    runs-on:
+      group: arc-public-large-amd64-runner
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Read rust-toolchain
+        id: rust-version
+        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust-version.outputs.toolchain }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit SDK workspace dependency graph
+        run: pnpm audit:dependencies
+
+      - name: Download prepared release artifacts
+        if: inputs.release_artifact != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.release_artifact }}
+          path: release-artifacts
+
+      - name: Build JavaScript packages
+        if: inputs.release_artifact == ''
+        run: pnpm build
+
+      - name: Load verified release builds
+        if: inputs.release_artifact != ''
+        env:
+          RELEASE_TARGET: ${{ inputs.release_target }}
+        run: node scripts/use-package-artifacts.mjs release-artifacts "$RELEASE_TARGET" "$(git rev-parse HEAD)"
+
+      - name: Test dependency and release tooling
+        run: pnpm test:tooling
+
+      - name: Run JavaScript contract tests
+        run: pnpm test
+
+      - name: Compare JavaScript with production Rust
+        run: pnpm test:conformance
+
+      - name: Test native Rust conformance helpers
+        run: cargo test --locked -p idkit-core --features conformance
+
+  packages:
+    name: Published package consumption (Node ${{ matrix.node }})
+    runs-on:
+      group: arc-public-large-amd64-runner
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["18", "22", "24"]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Setup build Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit SDK workspace dependency graph
+        run: pnpm audit:dependencies
+
+      - name: Download prepared release artifacts
+        if: inputs.release_artifact != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.release_artifact }}
+          path: release-artifacts
+
+      - name: Build JavaScript packages
+        if: inputs.release_artifact == ''
+        run: pnpm build
+
+      - name: Load verified release builds
+        if: inputs.release_artifact != ''
+        env:
+          RELEASE_TARGET: ${{ inputs.release_target }}
+        run: node scripts/use-package-artifacts.mjs release-artifacts "$RELEASE_TARGET" "$(git rev-parse HEAD)"
+
+      - name: Setup consumer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # The smoke script executes real packed-package CJS and ESM consumers using
+      # process.execPath. Node 18 does not run the development test framework.
+      - name: Test packed packages in CommonJS and ES modules
+        env:
+          RELEASE_ARTIFACT: ${{ inputs.release_artifact }}
+          RELEASE_TARGET: ${{ inputs.release_target }}
+        run: |
+          if [ -n "$RELEASE_ARTIFACT" ]; then
+            pnpm test:packages --artifacts release-artifacts --target "$RELEASE_TARGET" --source-sha "$(git rev-parse HEAD)"
+          else
+            pnpm test:packages
+          fi
+
+  portable:
+    name: Browser and Worker runtime compatibility
+    runs-on:
+      group: arc-public-large-amd64-runner
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit SDK workspace dependency graph
+        run: pnpm audit:dependencies
+
+      - name: Download prepared release artifacts
+        if: inputs.release_artifact != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.release_artifact }}
+          path: release-artifacts
+
+      - name: Build JavaScript packages
+        if: inputs.release_artifact == ''
+        run: pnpm build
+
+      - name: Load verified release builds
+        if: inputs.release_artifact != ''
+        env:
+          RELEASE_TARGET: ${{ inputs.release_target }}
+        run: node scripts/use-package-artifacts.mjs release-artifacts "$RELEASE_TARGET" "$(git rev-parse HEAD)"
+
+      - name: Install isolated runtime test dependencies
+        run: pnpm -C tools/runtime install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm -C tools/runtime exec playwright install --with-deps chromium
+
+      - name: Test browser and Worker runtimes
+        env:
+          RELEASE_ARTIFACT: ${{ inputs.release_artifact }}
+        run: |
+          if [ -n "$RELEASE_ARTIFACT" ]; then
+            pnpm test:portable --artifacts release-artifacts
+          else
+            pnpm test:portable
+          fi
+
+  hermes:
+    name: Hermes engine compatibility (RN 0.79.2)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit SDK workspace dependency graph
+        run: pnpm audit:dependencies
+
+      - name: Download prepared release artifacts
+        if: inputs.release_artifact != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.release_artifact }}
+          path: release-artifacts
+
+      - name: Build JavaScript packages
+        if: inputs.release_artifact == ''
+        run: pnpm build
+
+      - name: Load verified release builds
+        if: inputs.release_artifact != ''
+        env:
+          RELEASE_TARGET: ${{ inputs.release_target }}
+        run: node scripts/use-package-artifacts.mjs release-artifacts "$RELEASE_TARGET" "$(git rev-parse HEAD)"
+
+      - name: Extract the pinned React Native Hermes VM
+        # npm pack fetches the published package without installing RN's dependency tree.
+        run: |
+          HERMES_DIRECTORY="$RUNNER_TEMP/idkit-hermes"
+          mkdir -p "$HERMES_DIRECTORY"
+          TARBALL=$(npm pack react-native@0.79.2 --ignore-scripts --json --registry=https://registry.npmjs.org --pack-destination "$HERMES_DIRECTORY" | jq -er '.[0].filename')
+          tar -xzf "$HERMES_DIRECTORY/$TARBALL" -C "$HERMES_DIRECTORY" package/sdks/hermesc/osx-bin/hermes
+          echo "HERMES_BIN=$HERMES_DIRECTORY/package/sdks/hermesc/osx-bin/hermes" >> "$GITHUB_ENV"
+
+      - name: Run Rust-derived fixtures in the Hermes VM
+        run: node scripts/test-hermes.mjs
+
+      - name: Run built core and hooks in the Hermes VM
+        run: node scripts/test-hermes-entry.mjs

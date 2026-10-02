@@ -4,41 +4,22 @@ import packageJson from "../../package.json";
 const {
   createNativeRequestMock,
   getWorldAppVerifyVersionMock,
-  initIDKitMock,
   isInWorldAppMock,
   requestMock,
-  rpContextWasmMock,
-  wasmBuilderMock,
-  wasmRequestMock,
+  bridgeRequestMock,
 } = vi.hoisted(() => ({
   createNativeRequestMock: vi.fn(),
   getWorldAppVerifyVersionMock: vi.fn(() => 2),
-  initIDKitMock: vi.fn(async () => undefined),
   isInWorldAppMock: vi.fn(() => false),
   requestMock: vi.fn(),
-  rpContextWasmMock: vi.fn(),
-  wasmBuilderMock: {
-    preset: vi.fn(),
-  },
-  wasmRequestMock: {
+  bridgeRequestMock: {
     connectUrl: vi.fn(() => "wc://request"),
     requestId: vi.fn(() => "request-id"),
     pollForStatus: vi.fn(),
     getDebugReport: vi.fn(),
   },
 }));
-
-vi.mock("../lib/wasm", () => ({
-  initIDKit: initIDKitMock,
-  WasmModule: {
-    RpContextWasm: class {
-      constructor(...args: unknown[]) {
-        rpContextWasmMock(...args);
-      }
-    },
-    request: requestMock,
-  },
-}));
+vi.mock("../transports/bridge", () => ({ createBridgeRequest: requestMock }));
 
 vi.mock("../transports/native", () => ({
   createNativeRequest: createNativeRequestMock,
@@ -56,13 +37,12 @@ describe("debug reports", () => {
 
   it("exposes a debugReport via getDebugReport() regardless of debug mode", async () => {
     setDebug(false);
-    requestMock.mockReturnValue(wasmBuilderMock);
-    wasmBuilderMock.preset.mockResolvedValue(wasmRequestMock);
-    wasmRequestMock.pollForStatus.mockResolvedValue({
+    requestMock.mockResolvedValue(bridgeRequestMock);
+    bridgeRequestMock.pollForStatus.mockResolvedValue({
       type: "failed",
       error: IDKitErrorCodes.ConnectionFailed,
     });
-    wasmRequestMock.getDebugReport.mockReturnValue({
+    bridgeRequestMock.getDebugReport.mockReturnValue({
       transport: "bridge",
       generated_at: "2026-06-17T00:00:00Z",
       request_id: "request-id",
@@ -84,18 +64,17 @@ describe("debug reports", () => {
     }).preset(orbLegacy());
 
     expect(requestMock).toHaveBeenCalledWith(
-      "app_test",
-      "idkit_js_core",
-      packageJson.version,
-      "test-action",
-      expect.anything(),
-      null,
-      null,
-      true,
+      expect.objectContaining({
+        app_id: "app_test",
+        package_name: "idkit_js_core",
+        package_version: packageJson.version,
+        action: "test-action",
+        allow_legacy_proofs: true,
+        require_user_presence: false,
+      }),
+      { preset: orbLegacy() },
       false,
-      null,
-      null,
-      null,
+      undefined,
     );
 
     const completion = await request.pollUntilCompletion({ pollInterval: 0 });
@@ -116,6 +95,6 @@ describe("debug reports", () => {
       response_payload: { bridge_status: "retrieved" },
       package_version: packageJson.version,
     });
-    expect(wasmRequestMock.getDebugReport).toHaveBeenCalledTimes(1);
+    expect(bridgeRequestMock.getDebugReport).toHaveBeenCalledTimes(1);
   });
 });

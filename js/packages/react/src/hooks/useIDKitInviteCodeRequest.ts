@@ -9,7 +9,7 @@ import { useIDKitInviteCodeFlow } from "./useIDKitInviteCodeFlow";
 export function useIDKitInviteCodeRequest(
   config: IDKitInviteCodeRequestHookConfig,
 ): UseIDKitInviteCodeRequestHookResult {
-  return useIDKitInviteCodeFlow<IDKitResult>(() => {
+  return useIDKitInviteCodeFlow<IDKitResult>((options) => {
     const builder = IDKit.requestWithInviteCode({
       app_id: config.app_id,
       action: config.action,
@@ -23,8 +23,8 @@ export function useIDKitInviteCodeRequest(
       environment: config.environment,
     });
     if ("constraints" in config && config.constraints) {
-      return builder.constraints(config.constraints);
+      return builder.constraints(config.constraints, options);
     }
-    return builder.preset(config.preset!);
+    return builder.preset(config.preset!, options);
   }, config);
 }

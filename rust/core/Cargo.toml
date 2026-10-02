@@ -16,6 +16,11 @@ name = "rp-sign-vectors"
 path = "src/bin/rp_sign_vectors.rs"
 required-features = ["rp-signature"]
 
+[[bin]]
+name = "idkit-conformance"
+path = "src/bin/idkit_conformance.rs"
+required-features = ["conformance"]
+
 [dependencies]
 world-id-primitives = { workspace = true }
 serde = { workspace = true }
@@ -56,6 +61,7 @@ reqwest = { workspace = true, features = ["json"], optional = true }
 
 [features]
 default = ["native-crypto", "bridge"]
+conformance = ["native-crypto", "bridge", "rp-signature"]
 
 # Cryptography implementations
 native-crypto = ["aes-gcm", "hkdf", "sha2"]  # AES-256-GCM + HKDF-SHA256 for native platforms

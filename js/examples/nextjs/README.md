@@ -6,6 +6,9 @@ This example demonstrates end-to-end World ID verification with:
 - `@worldcoin/idkit-core` server RP signature generation
 - Next.js API routes for RP signature + proof verification
 
+The SDK builds are JavaScript-only. Next.js does not need WASM asset tracing,
+custom loaders or an IDKit-specific `serverExternalPackages` setting.
+
 The UI includes request buttons matching the browser example presets:
 
 - Orb Legacy
@@ -37,14 +40,24 @@ and 4.0 error handling.
 From repo root:
 
 ```bash
-pnpm install
-pnpm build
-cd js/examples/nextjs
-cp .env.example .env.local
-pnpm dev
+corepack pnpm install --frozen-lockfile
+corepack pnpm build
+corepack pnpm prepare:next
+cp js/examples/nextjs/.env.example js/examples/nextjs/.env.local
+corepack pnpm -C js/examples/nextjs dev
 ```
 
 Open `http://localhost:4001`.
+
+This example is a separate pnpm workspace. Next.js and its image tooling are not
+installed by the SDK workspace. `prepare:next` packs the three locally built SDKs,
+copies them into ignored `.idkit-candidate/` files, and installs those tarballs
+with exact local overrides so no older registry SDK is accidentally used.
+Rerun it after rebuilding an SDK. Its isolated lockfile retains external versions
+and updates the local tarball integrity when the build changes. To consume a
+verified release candidate instead, use `pnpm prepare:next --artifacts <directory>`.
+The SDK itself has no WASM assets; Next's independent tool dependencies can have
+optional WASM variants.
 
 ## Eruda
 

@@ -1,4 +1,4 @@
-import { IDKitErrorCodes } from "@worldcoin/idkit-core";
+import { IDKitErrorCodes, type RequestOptions } from "@worldcoin/idkit-core";
 
 type IDKitHookStatus =
   | "idle"
@@ -31,7 +31,54 @@ export function ensureNotAborted(signal?: AbortSignal): void {
   }
 }
 
+/** Bound both request creation and polling by the same flow deadline. */
+export async function beforeDeadline<T>(
+  operation: (options: RequestOptions) => Promise<T>,
+  deadline: number,
+  signal: AbortSignal,
+): Promise<T | null> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
+  try {
+    // Do not catch operation failures: the existing hook error mapper owns them.
+    // Promise.race also observes late rejections after cancellation or timeout.
+    const result = await Promise.race([
+      Promise.resolve().then(() =>
+        signal.aborted || Date.now() >= deadline
+          ? null
+          : operation({
+              signal: controller.signal,
+              timeout: Math.max(0, deadline - Date.now()),
+            }),
+      ),
+      new Promise<null>((resolve) => {
+        if (Number.isFinite(deadline))
+          timer = setTimeout(
+            () => {
+              resolve(null);
+              controller.abort();
+            },
+            Math.max(0, deadline - Date.now()),
+          );
+        onAbort = () => {
+          resolve(null);
+          controller.abort();
+        };
+        signal.addEventListener("abort", onAbort, { once: true });
+        if (signal.aborted) onAbort();
+      }),
+    ]);
+    ensureNotAborted(signal);
+    return Date.now() >= deadline ? null : result;
+  } finally {
+    clearTimeout(timer);
+    if (onAbort) signal.removeEventListener("abort", onAbort);
+  }
+}
+
 export async function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  ensureNotAborted(signal);
   if (!signal) {
     await new Promise((resolve) => setTimeout(resolve, ms));
     return;
@@ -121,7 +168,8 @@ export function toErrorCode(error: unknown): IDKitErrorCodes {
 
   const message = getErrorMessage(error);
   if (message) {
-    const messageCode = errorCodeFromMessage(message);
+    const messageCode =
+      asKnownErrorCode(message) ?? errorCodeFromMessage(message);
     if (messageCode) {
       return messageCode;
     }

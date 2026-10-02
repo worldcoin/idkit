@@ -1,20 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   IDKitErrorCodes,
+  isRetryableBridgeError,
+  type RequestOptions,
   isInWorldApp as isInWorldAppCheck,
   isDebug,
   type IDKitDebugReport,
   type IDKitInviteCodeRequest,
 } from "@worldcoin/idkit-core";
 import type { FlowConfig, IDKitInviteCodeHookResult } from "../types";
-import { delay, ensureNotAborted, toErrorCode } from "./common";
+import { beforeDeadline, delay, ensureNotAborted, toErrorCode } from "./common";
 import {
   createInitialInviteCodeHookState,
   type InviteCodeHookState,
 } from "./inviteCodeCommon";
 
 export function useIDKitInviteCodeFlow<TResult>(
-  createFlowHandle: () => Promise<IDKitInviteCodeRequest>,
+  createFlowHandle: (
+    options: RequestOptions,
+  ) => Promise<IDKitInviteCodeRequest>,
   config: FlowConfig,
 ): IDKitInviteCodeHookResult<TResult> {
   const isInWorldApp = useMemo(() => isInWorldAppCheck(), []);
@@ -85,6 +89,8 @@ export function useIDKitInviteCodeFlow<TResult>(
 
     const controller = new AbortController();
     abortRef.current = controller;
+    const timeout = configRef.current.polling?.timeout ?? 900_000;
+    const deadline = Date.now() + timeout;
 
     const setFailed = (errorCode: IDKitErrorCodes) => {
       // Capture the report now, while `requestRef` is still populated — a later
@@ -112,12 +118,19 @@ export function useIDKitInviteCodeFlow<TResult>(
       try {
         if (isDebug())
           console.debug("[IDKit] Creating invite-code flow handle…");
-        const request = await createFlowHandleRef.current();
-        requestRef.current = request;
+        const request = await beforeDeadline(
+          (options) => createFlowHandleRef.current(options),
+          deadline,
+          controller.signal,
+        );
         ensureNotAborted(controller.signal);
+        if (request === null) {
+          setFailed(IDKitErrorCodes.Timeout);
+          return;
+        }
+        requestRef.current = request;
         if (isDebug())
           console.debug("[IDKit] Invite-code flow created", {
-            connectorURI: request.connectorURI,
             expiresAt: request.expiresAt,
             requestId: request.requestId,
           });
@@ -135,19 +148,37 @@ export function useIDKitInviteCodeFlow<TResult>(
         });
 
         const pollInterval = configRef.current.polling?.interval ?? 1000;
-        const timeout = configRef.current.polling?.timeout ?? 900_000;
-        const startedAt = Date.now();
 
         while (true) {
           ensureNotAborted(controller.signal);
 
-          if (Date.now() - startedAt > timeout) {
+          if (Date.now() >= deadline) {
             setFailed(IDKitErrorCodes.Timeout);
             return;
           }
 
-          const nextStatus = await request.pollOnce();
+          const nextStatus = await beforeDeadline(
+            (options) =>
+              request.pollOnce(options).catch((error: unknown) => {
+                if (isRetryableBridgeError(error)) return undefined;
+                throw error;
+              }),
+            deadline,
+            controller.signal,
+          );
           ensureNotAborted(controller.signal);
+          if (nextStatus === null || Date.now() >= deadline) {
+            setFailed(IDKitErrorCodes.Timeout);
+            return;
+          }
+
+          if (nextStatus === undefined) {
+            await delay(
+              Math.min(pollInterval, Math.max(0, deadline - Date.now())),
+              controller.signal,
+            );
+            continue;
+          }
 
           if (nextStatus.type === "confirmed") {
             const confirmedResult = nextStatus.result;
@@ -182,7 +213,10 @@ export function useIDKitInviteCodeFlow<TResult>(
             return { ...prev, status: nextStatus.type };
           });
 
-          await delay(pollInterval, controller.signal);
+          await delay(
+            Math.min(pollInterval, Math.max(0, deadline - Date.now())),
+            controller.signal,
+          );
         }
       } catch (error) {
         if (controller.signal.aborted) {

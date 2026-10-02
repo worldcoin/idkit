@@ -1,6 +1,6 @@
 /**
  * Smoke tests to ensure basic functionality works
- * These tests verify that the WASM integration and core APIs are functional
+ * These tests verify that the protocol integration and core APIs are functional
  */
 
 import { describe, it, expect, vi } from "vitest";
@@ -22,7 +22,7 @@ import {
   signRequest,
   hashSignal,
 } from "../index";
-import { initIDKit, WasmModule } from "../lib/wasm";
+import { compileRequest } from "../protocol";
 
 const TEST_SESSION_ID = `session_${"11".repeat(64)}` as const;
 const TEST_SESSION_CONFIG = {
@@ -191,8 +191,8 @@ describe("IDKitRequest API", () => {
     ).not.toThrow();
   });
 
-  it("should allow any() with no items (validation happens in WASM)", () => {
-    // any() returns an empty constraint object - validation happens in WASM layer
+  it("should allow any() with no items (validation happens in protocol)", () => {
+    // any() returns an empty constraint object - validation happens in protocol layer
     const emptyConstraint = any();
     expect(emptyConstraint).toHaveProperty("any");
     expect(emptyConstraint.any).toHaveLength(0);
@@ -283,7 +283,7 @@ describe("IDKitRequest API", () => {
   //     signature: validSignature,
   //   });
 
-  //   // Empty any() constraint should fail validation in WASM layer
+  //   // Empty any() constraint should fail validation in protocol layer
   //   const builder = await IDKit.request({
   //     app_id: "app_staging_test",
   //     action: "test-action",
@@ -293,38 +293,29 @@ describe("IDKitRequest API", () => {
   //   await expect(builder.constraints({ any: [] })).rejects.toThrow();
   // });
 
-  it("should hash address-shaped legacy preset signals as raw bytes in WASM payloads", async () => {
-    await initIDKit();
-
+  it("should hash address-shaped legacy preset signals as raw bytes in protocol payloads", async () => {
     const signal = "0x3df41d9d0ba00d8fbe5a9896bb01efc4b3787b7c";
     const utf8SignalHash = hashSignal(new TextEncoder().encode(signal));
     const rawAddressSignalHash = hashSignal(signal);
-    const rpContext = new WasmModule.RpContextWasm(
-      "rp_1234567890abcdef",
-      "0x0000000000000000000000000000000000000000000000000000000000000001",
-      1_700_000_000n,
-      1_700_003_600n,
-      "0x" + "00".repeat(64) + "1b",
+    const result = compileRequest(
+      {
+        type: "request",
+        app_id: "app_test",
+        package_name: "idkit_js_core",
+        package_version: packageJson.version,
+        action: "test-action",
+        allow_legacy_proofs: true,
+        rp_context: {
+          rp_id: "rp_1234567890abcdef",
+          nonce: "0x" + "00".repeat(31) + "01",
+          created_at: 1700000000,
+          expires_at: 1700003600,
+          signature: "0x" + "00".repeat(64) + "1b",
+        },
+      },
+      { preset: orbLegacy({ signal }) },
+      { nativeVersion: 2, requestId: "00000000-0000-4000-8000-000000000000" },
     );
-    const builder = new WasmModule.IDKitBuilder(
-      "app_test",
-      "idkit_js_core",
-      packageJson.version,
-      "test-action",
-      rpContext,
-      null,
-      null,
-      true,
-      false,
-      null,
-      null,
-      "production",
-    );
-
-    const result = builder.nativePayloadFromPreset(orbLegacy({ signal })) as {
-      payload: { signal: string };
-      legacy_signal_hash: string;
-    };
 
     expect(rawAddressSignalHash).not.toBe(utf8SignalHash);
     expect(result.payload.signal).toBe(rawAddressSignalHash);
@@ -332,42 +323,32 @@ describe("IDKitRequest API", () => {
   });
 
   it("should include identity attributes in native payload from preset", () => {
-    const rpContext = new WasmModule.RpContextWasm(
-      "rp_123456789abcdef0",
-      "0x0000000000000000000000000000000000000000000000000000000000000001",
-      1n,
-      2n,
-      "0x" + "00".repeat(64) + "1b",
+    const result = compileRequest(
+      {
+        type: "request",
+        app_id: "app_staging_test",
+        package_name: "idkit_js_core",
+        package_version: packageJson.version,
+        action: "test-action",
+        allow_legacy_proofs: false,
+        rp_context: {
+          rp_id: "rp_123456789abcdef0",
+          nonce: "0x" + "00".repeat(31) + "01",
+          created_at: 1,
+          expires_at: 2,
+          signature: "0x" + "00".repeat(64) + "1b",
+        },
+      },
+      {
+        preset: identityCheck({
+          attributes: [
+            { type: "minimum_age", value: 21 },
+            { type: "nationality", value: "JPN" },
+          ],
+        }),
+      },
+      { nativeVersion: 2, requestId: "00000000-0000-4000-8000-000000000000" },
     );
-    const builder = WasmModule.request(
-      "app_staging_test",
-      "idkit_js_core",
-      packageJson.version,
-      "test-action",
-      rpContext,
-      null,
-      null,
-      false,
-      false,
-      null,
-      null,
-      null,
-    );
-
-    const result = builder.nativePayloadFromPreset(
-      identityCheck({
-        attributes: [
-          { type: "minimum_age", value: 21 },
-          { type: "nationality", value: "JPN" },
-        ],
-      }),
-    ) as {
-      payload: {
-        package_name: string;
-        package_version: string;
-        identity_attributes: Array<{ type: string; value: number | string }>;
-      };
-    };
 
     expect(result.payload.package_name).toBe("idkit_js_core");
     expect(result.payload.package_version).toBe(packageJson.version);

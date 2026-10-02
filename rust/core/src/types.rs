@@ -548,6 +548,7 @@ impl<'de> Deserialize<'de> for IdentityAttribute {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
+#[cfg_attr(feature = "conformance", derive(strum::EnumIter))]
 pub enum DocumentType {
     /// Biometric passport (ICAO 9303)
     Passport,
@@ -618,6 +619,7 @@ impl<'de> Deserialize<'de> for BridgeResponseV1 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "conformance", derive(strum::EnumIter))]
 pub enum IntegritySignatureFormat {
     /// iOS App Attest signature format.
     AppleAppAttest,
@@ -653,6 +655,7 @@ pub struct IntegrityBundle {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(untagged)]
+#[cfg_attr(feature = "conformance", derive(strum::EnumIter))]
 pub enum ResponseItem {
     /// Self Check response for a World ID v4 uniqueness proof.
     SelfieV4 {
@@ -1107,6 +1110,24 @@ impl RpContext {
 
         #[cfg(target_arch = "wasm32")]
         let now = (js_sys::Date::now() / 1000.0) as u64;
+        Self::new_at(
+            rp_id,
+            nonce.into(),
+            created_at,
+            expires_at,
+            signature.into(),
+            now,
+        )
+    }
+
+    pub(crate) fn new_at(
+        rp_id: RpId,
+        nonce: String,
+        created_at: u64,
+        expires_at: u64,
+        signature: String,
+        now: u64,
+    ) -> crate::Result<Self> {
         if created_at > now + CLOCK_SKEW_ALLOWANCE_SECS {
             return Err(crate::Error::InvalidConfiguration(
                 "created_at cannot be in the future".to_string(),
@@ -1122,10 +1143,10 @@ impl RpContext {
 
         Ok(Self {
             rp_id,
-            nonce: nonce.into(),
+            nonce,
             created_at,
             expires_at,
-            signature: signature.into(),
+            signature,
         })
     }
 }
@@ -1195,6 +1216,7 @@ impl RpContext {
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
+#[cfg_attr(feature = "conformance", derive(strum::EnumIter))]
 pub enum VerificationLevel {
     /// Orb-only verification
     Orb,

@@ -1,3 +1,4 @@
+import { encodeUtf8 } from "./encoding";
 import { keccak_256 } from "@noble/hashes/sha3";
 import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
 
@@ -28,7 +29,7 @@ export function hashSignal(signal: string | Uint8Array): string {
   } else if (signal.startsWith("0x") && isValidHex(signal.slice(2))) {
     input = hexToBytes(signal.slice(2));
   } else {
-    input = new TextEncoder().encode(signal);
+    input = encodeUtf8(signal);
   }
 
   return "0x" + bytesToHex(hashToField(input));

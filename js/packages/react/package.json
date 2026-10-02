@@ -26,6 +26,11 @@
       "types": "./dist/session.d.ts",
       "import": "./dist/session.js",
       "require": "./dist/session.cjs"
+    },
+    "./hooks": {
+      "types": "./dist/hooks.d.ts",
+      "import": "./dist/hooks.js",
+      "require": "./dist/hooks.cjs"
     }
   },
   "typesVersions": {
@@ -38,6 +43,9 @@
       ],
       "session": [
         "./dist/session.d.ts"
+      ],
+      "hooks": [
+        "./dist/hooks.d.ts"
       ]
     }
   },
@@ -86,5 +94,10 @@
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
+  },
+  "peerDependenciesMeta": {
+    "react-dom": {
+      "optional": true
+    }
   }
 }

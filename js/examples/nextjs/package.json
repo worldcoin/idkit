@@ -8,19 +8,29 @@
     "start": "next start -p 4001"
   },
   "dependencies": {
-    "@worldcoin/idkit": "workspace:*",
-    "@worldcoin/idkit-server": "workspace:*",
+    "@worldcoin/idkit": "file:./.idkit-candidate/idkit-react.tgz",
+    "@worldcoin/idkit-server": "file:./.idkit-candidate/idkit-server.tgz",
     "takis-minikit-js": "2.0.0-dev.1",
     "eruda": "^3.4.1",
     "i18n-iso-countries": "^7.14.0",
     "next": "^15.5.24",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "viem": "^2.47.2"
+    "viem": "^2.47.2",
+    "@worldcoin/idkit-core": "file:./.idkit-candidate/idkit-core.tgz"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "@types/node": "^20.19.30"
+  },
+  "packageManager": "pnpm@9.15.4",
+  "pnpm": {
+    "overrides": {
+      "@worldcoin/idkit": "file:./.idkit-candidate/idkit-react.tgz",
+      "@worldcoin/idkit-server": "file:./.idkit-candidate/idkit-server.tgz",
+      "@worldcoin/idkit-core": "file:./.idkit-candidate/idkit-core.tgz"
+    }
   }
 }

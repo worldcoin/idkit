@@ -1,10 +1,8 @@
 /**
- * Result types - re-exported from WASM bindings
- *
- * Source of truth: rust/core/src/wasm_bindings.rs (typescript_custom_section)
+ * Public result types, checked against native Rust protocol fixtures.
  */
 
-// Re-export types from WASM
+// Re-export the standalone protocol declarations.
 export type {
   // Uniqueness proof response types
   IDKitResult,
@@ -24,7 +22,7 @@ export type {
   CredentialType,
   ConstraintNode,
   CredentialRequestType,
-} from "../lib/wasm";
+} from "./protocol";
 
 /** Mini-app (World App native transport) diagnostics. All fields optional — they are filled in as the request progresses. */
 export type MiniAppDebugInfo = {

@@ -20,6 +20,11 @@ pub mod preset;
 pub mod rp_signature;
 pub mod types;
 
+#[cfg(feature = "conformance")]
+pub mod conformance;
+#[cfg(any(feature = "wasm-bindings", feature = "conformance"))]
+mod request_config;
+
 #[cfg(feature = "wasm-bindings")]
 pub mod wasm_bindings;
 

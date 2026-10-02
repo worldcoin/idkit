@@ -1,0 +1,15 @@
+diff --git a/dist/index.js b/dist/index.js
+index 9f77b89..2ff260c 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -781,8 +781,8 @@
+                 const generator = _sourcemap.SourceMapGenerator.fromSourceMap(newConsumer);
+                 generator.applySourceMap(originalConsumer, info.path);
+                 info.map = generator.toJSON();
+-                originalConsumer.destroy();
+-                newConsumer.destroy();
++                originalConsumer.destroy?.();
++                newConsumer.destroy?.();
+               }
+             }
+           }

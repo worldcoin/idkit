@@ -1,27 +1,16 @@
+import { resolve } from "node:path";
+import { portableUrlPlugin } from "./build-plugins.mjs";
 import { defineConfig } from "tsup";
-import { copyFileSync, existsSync } from "fs";
-import { resolve, dirname } from "path";
-import { fileURLToPath } from "url";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const moduleCleanPaths = [
-  "index.*",
-  "internal.*",
-  "signing.*",
-  "hashing.*",
-  "session.*",
+const noExternal = [
+  "@noble/hashes",
+  "@noble/ciphers",
+  "@scure/base",
+  "@stablelib/utf8",
+  "whatwg-url",
+  "tr46",
+  "punycode",
 ];
-
-function copyWasmToDist(): void {
-  // Copy WASM file to dist folder so it can be resolved by ESM imports and the
-  // script-tag build when published to a CDN.
-  const wasmSrc = resolve(__dirname, "wasm/idkit_wasm_bg.wasm");
-  const wasmDst = resolve(__dirname, "dist/idkit_wasm_bg.wasm");
-  if (existsSync(wasmSrc)) {
-    copyFileSync(wasmSrc, wasmDst);
-    console.log("Copied idkit_wasm_bg.wasm to dist/");
-  }
-}
 
 export default defineConfig([
   {
@@ -32,28 +21,55 @@ export default defineConfig([
       "src/session.ts",
     ],
     format: ["esm", "cjs"],
+    platform: "browser",
+    target: "es2020",
+    noExternal,
+    esbuildPlugins: [portableUrlPlugin(resolve("src/lib/url-encoding.ts"))],
     dts: true,
     splitting: false,
     sourcemap: false,
-    clean: moduleCleanPaths,
+    // Separate entry builds run concurrently. Each cleans only its own outputs.
+    clean: [
+      "index.*",
+      "signing.*",
+      "hashing.*",
+      "session.*",
+      "*.wasm",
+      "idkit_wasm*",
+    ],
     treeshake: true,
     outDir: "dist",
-    onSuccess: copyWasmToDist,
+  },
+  {
+    entry: ["src/node.ts"],
+    clean: ["node.*"],
+    format: ["esm", "cjs"],
+    platform: "browser",
+    external: ["node:crypto"],
+    target: "es2020",
+    noExternal,
+    esbuildPlugins: [portableUrlPlugin(resolve("src/lib/url-encoding.ts"))],
+    dts: false,
+    splitting: false,
+    sourcemap: false,
+    treeshake: true,
+    outDir: "dist",
   },
   {
     entry: { idkit: "src/browser.ts" },
+    clean: ["idkit.global.*"],
     format: ["iife"],
     globalName: "IDKitBundle",
     platform: "browser",
     target: "es2020",
+    noExternal,
+    esbuildPlugins: [portableUrlPlugin(resolve("src/lib/url-encoding.ts"))],
     dts: false,
     splitting: false,
     sourcemap: false,
-    clean: ["idkit.global.js"],
     treeshake: true,
     minify: true,
     outDir: "dist",
     outExtension: () => ({ js: ".global.js" }),
-    onSuccess: copyWasmToDist,
   },
 ]);

@@ -5,15 +5,20 @@ React SDK for World ID built on top of `@worldcoin/idkit-core`.
 ## Highlights
 
 - Headless hooks for custom UI
+- DOM-free `@worldcoin/idkit/hooks` entry for React Native
 - Built-in controlled widgets with shadow DOM isolation
 - Separate request and session APIs
-- Pure JS `/signing` and `/hashing` subpath exports for server-side use
+- JavaScript core with no WASM build or runtime dependency
+- `/signing` and `/hashing` subpath exports for server-side use
 
 ## Installation
 
 ```bash
 npm install @worldcoin/idkit
 ```
+
+React is a peer dependency. Install React DOM when using the web widgets; it is
+optional for applications that only import `@worldcoin/idkit/hooks`.
 
 ## Basic usage
 
@@ -109,3 +114,69 @@ Pure JS subpath exports for server-side use (no WASM or React required):
 import { signRequest } from "@worldcoin/idkit/signing";
 import { hashSignal } from "@worldcoin/idkit/hashing";
 ```
+
+## React Native and headless React
+
+Import hooks from `@worldcoin/idkit/hooks` to avoid loading the web widgets or
+React DOM. The core and hooks use JavaScript implementations, with no WASM
+loader. Your app owns its UI and opens the connector URL using its platform's
+linking API. The existing widgets from `@worldcoin/idkit` render web UI.
+
+The runtime must provide `fetch`, timers, `AbortController` and cryptographically
+secure randomness. If secure randomness is missing, configure a host provider
+before creating a request. For an Expo app with `expo-crypto` installed:
+
+```tsx
+import * as Crypto from "expo-crypto";
+import { Linking, Button } from "react-native";
+import {
+  configureIDKitRuntime,
+  useIDKitRequest,
+  type IDKitRequestHookConfig,
+} from "@worldcoin/idkit/hooks";
+
+configureIDKitRuntime({
+  getRandomValues: (bytes) => Crypto.getRandomValues(bytes),
+});
+
+// Fetch rp_context from your backend; signing keys belong on the server.
+export function VerifyButton({ config }: { config: IDKitRequestHookConfig }) {
+  const request = useIDKitRequest(config);
+
+  return (
+    <Button
+      title={request.connectorURI ? "Open World App" : "Start verification"}
+      onPress={() => {
+        if (request.connectorURI) {
+          void Linking.openURL(request.connectorURI);
+        } else {
+          request.open();
+        }
+      }}
+    />
+  );
+}
+```
+
+Pass an app-owned callback URL in `config.return_to` and configure the matching
+URL scheme or universal/app link in your app. Observe `request.result` and send
+it to your backend for verification before accepting it. The session and invite
+code hooks are available from the same entry.
+
+Hook `polling.timeout` covers creation, polling and retries together. Temporary
+network errors and HTTP 408/429/5xx retry within that deadline. Timeout, reset,
+and unmount abort pending bridge fetches; late results cannot update a newer run.
+With Metro package exports enabled, mixed `import` and `require` calls resolve
+the same core runtime, including the adapter configured through the hooks entry.
+
+Bare React Native apps can provide their existing secure entropy implementation
+through the same adapter. JavaScript cannot create secure entropy by itself;
+do not substitute `Math.random`. An entropy module is a host integration, not a
+required native IDKit module. React Native uses the HTTP bridge flow; the World
+App Mini App transport is a separate WebView integration.
+
+For device qualification and a copy-in example, see the
+[React Native acceptance smoke](../../examples/react-native-smoke/README.md).
+CI exercises the Rust-derived protocol fixtures in the Hermes engine from React
+Native 0.79.2. Metro bundling, native linking and live backend acceptance must also
+be verified in the consuming app.

@@ -4,9 +4,19 @@
 //! and apply the compatibility behavior defined by each preset.
 
 use crate::types::IdentityAttribute;
-#[cfg(any(test, feature = "ffi", feature = "wasm-bindings"))]
+#[cfg(any(
+    test,
+    feature = "ffi",
+    feature = "wasm-bindings",
+    feature = "conformance"
+))]
 use crate::types::{CredentialRequest, CredentialType, VerificationLevel};
-#[cfg(any(test, feature = "ffi", feature = "wasm-bindings"))]
+#[cfg(any(
+    test,
+    feature = "ffi",
+    feature = "wasm-bindings",
+    feature = "conformance"
+))]
 use crate::{ConstraintNode, Signal};
 use serde::{Deserialize, Serialize};
 
@@ -17,6 +27,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(tag = "type")]
+#[cfg_attr(feature = "conformance", derive(strum::EnumIter))]
 pub enum Preset {
     /// Orb-only verification (highest assurance level)
     ///
@@ -131,7 +142,12 @@ pub enum Preset {
     },
 }
 
-#[cfg(any(test, feature = "ffi", feature = "wasm-bindings"))]
+#[cfg(any(
+    test,
+    feature = "ffi",
+    feature = "wasm-bindings",
+    feature = "conformance"
+))]
 pub(crate) struct BridgeParams {
     pub constraints: Option<ConstraintNode>,
     pub legacy_verification_level: Option<VerificationLevel>,
@@ -140,7 +156,12 @@ pub(crate) struct BridgeParams {
     pub allow_legacy_proofs_override: Option<bool>,
 }
 
-#[cfg(any(test, feature = "ffi", feature = "wasm-bindings"))]
+#[cfg(any(
+    test,
+    feature = "ffi",
+    feature = "wasm-bindings",
+    feature = "conformance"
+))]
 fn selfie_check_constraint(signal: Option<&String>) -> ConstraintNode {
     ConstraintNode::item(CredentialRequest::new(
         CredentialType::Selfie,
@@ -229,7 +250,12 @@ impl Preset {
     /// - `Option<bool>` - override for `allow_legacy_proofs` (`None` = let caller decide)
     // TODO: This should be removed it was introduced to keep legacy preset compatible with proof_request
     // TODO: but we decided to keep legacy presets only 3.0, will tackle separately
-    #[cfg(any(test, feature = "ffi", feature = "wasm-bindings"))]
+    #[cfg(any(
+        test,
+        feature = "ffi",
+        feature = "wasm-bindings",
+        feature = "conformance"
+    ))]
     #[must_use]
     pub(crate) fn into_bridge_params(self) -> BridgeParams {
         match self {
