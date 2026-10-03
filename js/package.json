@@ -9,7 +9,8 @@
     "format": "prettier --write .",
     "lint": "pnpm -r lint",
     "lint:format": "prettier --check .",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test && pnpm test:nullifier-exports",
+    "test:nullifier-exports": "node scripts/test-nullifier-exports.mjs"
   },
   "devDependencies": {
     "prettier": "^3.3",

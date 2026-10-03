@@ -79,3 +79,5 @@ export type {
   MncPreset,
   SelfieCheckPreset,
 } from "@worldcoin/idkit-core";
+
+export { Nullifier } from "./nullifier";

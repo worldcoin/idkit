@@ -10,6 +10,7 @@ const moduleCleanPaths = [
   "signing.*",
   "hashing.*",
   "session.*",
+  "nullifier.*",
 ];
 
 function copyWasmToDist(): void {
@@ -30,6 +31,7 @@ export default defineConfig([
       "src/signing.ts",
       "src/hashing.ts",
       "src/session.ts",
+      "src/nullifier.ts",
     ],
     format: ["esm", "cjs"],
     dts: true,

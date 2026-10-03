@@ -95,3 +95,5 @@ export type { RpSignature, SignRequestParams } from "./signing";
 
 // Hashing utilities
 export { hashSignal } from "./lib/hashing";
+
+export { Nullifier } from "./nullifier";
