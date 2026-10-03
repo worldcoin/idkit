@@ -22,6 +22,9 @@ for (const [directory, name] of [
           : `const { Nullifier } = require(${JSON.stringify(specifier)});`;
       const check = `${load}
         if (Nullifier.fromHex("0x01A").toBigInt() !== 26n) throw new Error("Wrong number");
+        const canonical = "nil_" + "0".repeat(62) + "1a";
+        if (Nullifier.fromHex("0x1a").toCanonicalString() !== canonical) throw new Error("Wrong canonical string");
+        if (Nullifier.fromCanonicalString(canonical).toBigInt() !== 26n) throw new Error("Wrong canonical number");
         if (JSON.stringify(Nullifier.fromHex("0x1a")) !== JSON.stringify("0x" + "0".repeat(62) + "1a")) throw new Error("Wrong JSON");
       `;
       execFileSync(
@@ -60,6 +63,15 @@ const code = readFileSync(
 const context = vm.createContext({ TextEncoder, TextDecoder, URL, console });
 vm.runInContext(code, context);
 assert.equal(context.IDKit.Nullifier.fromHex("0x1A").toBigInt(), 26n);
+const canonical = "nil_" + "0".repeat(62) + "1a";
+assert.equal(
+  context.IDKit.Nullifier.fromHex("0x1a").toCanonicalString(),
+  canonical,
+);
+assert.equal(
+  context.IDKit.Nullifier.fromCanonicalString(canonical).toBigInt(),
+  26n,
+);
 assert.equal(typeof context.IDKit.request, "function");
 console.log(
   "Nullifier root/subpath exports passed in ESM, CommonJS, and browser without WASM initialization.",

@@ -15,7 +15,7 @@ pub mod bridge;
 pub mod constraints;
 pub mod crypto;
 pub mod error;
-pub mod nullifier;
+mod nullifier;
 pub mod preset;
 #[cfg(feature = "rp-signature")]
 pub mod rp_signature;

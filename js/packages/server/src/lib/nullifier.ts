@@ -27,6 +27,26 @@ export class Nullifier {
     return new Nullifier(BigInt(`0x${digits}`));
   }
 
+  /** Reads the protocol's strict nil_ prefix and 64 lowercase hex digits. */
+  static fromCanonicalString(value: string): Nullifier {
+    if (typeof value !== "string") {
+      throw new TypeError("Nullifier must be a canonical string");
+    }
+    if (
+      value.length !== 68 ||
+      !value.startsWith("nil_") ||
+      /[^0-9a-f]/.test(value.slice(4))
+    ) {
+      throw new RangeError("Invalid nullifier canonical string");
+    }
+    return Nullifier.fromHex(value.slice(4));
+  }
+
+  /** Returns the protocol's nil_ prefix and 64 lowercase hex digits. */
+  toCanonicalString(): string {
+    return `nil_${this.toHex().slice(2)}`;
+  }
+
   /** Compare these numbers; === between Nullifier objects compares references. */
   toBigInt(): bigint {
     return this.#value;

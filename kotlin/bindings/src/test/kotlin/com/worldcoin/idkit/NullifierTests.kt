@@ -20,7 +20,14 @@ class NullifierTests {
             val decimal = vector.getValue("decimal").jsonPrimitive.content
             assertEquals(vector.getValue("hex").jsonPrimitive.content, value.toHex())
             assertEquals(BigInteger(decimal), value.toBigInteger())
+            assertEquals(vector.getValue("canonical").jsonPrimitive.content, value.toCanonicalString())
+            val restored = Nullifier.fromCanonicalString(value.toCanonicalString())
+            assertEquals(value.toHex(), restored.toHex())
+            assertEquals(value.toBigInteger(), restored.toBigInteger())
             assertEquals(decimal, Nullifier.fromHex(value.toHex()).toDecimalString())
+        }
+        for (input in vectors.getValue("invalid_canonical").jsonArray) {
+            assertFails { Nullifier.fromCanonicalString(input.jsonPrimitive.content) }
         }
         for (input in vectors.getValue("invalid").jsonArray) {
             assertFails { Nullifier.fromHex(input.jsonPrimitive.content) }

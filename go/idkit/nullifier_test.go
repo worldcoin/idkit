@@ -13,8 +13,9 @@ func TestNullifierVectors(t *testing.T) {
 		t.Fatal(err)
 	}
 	var vectors struct {
-		Valid   []struct{ Input, Hex, Decimal string }
-		Invalid []string
+		Valid            []struct{ Input, Hex, Decimal, Canonical string }
+		Invalid          []string
+		InvalidCanonical []string `json:"invalid_canonical"`
 	}
 	if err := json.Unmarshal(data, &vectors); err != nil {
 		t.Fatal(err)
@@ -27,6 +28,13 @@ func TestNullifierVectors(t *testing.T) {
 			}
 			if value.ToHex() != v.Hex || value.BigInt().String() != v.Decimal {
 				t.Fatalf("wrong value for %q", v.Input)
+			}
+			if value.ToCanonicalString() != v.Canonical {
+				t.Fatal("wrong canonical string")
+			}
+			canonical, err := NullifierFromCanonicalString(value.ToCanonicalString())
+			if err != nil || canonical != value {
+				t.Fatalf("canonical round trip failed: %v", err)
 			}
 			encoded, err := json.Marshal(value)
 			if err != nil {
@@ -44,6 +52,11 @@ func TestNullifierVectors(t *testing.T) {
 				t.Fatal("caller changed the stored number")
 			}
 		})
+	}
+	for _, input := range vectors.InvalidCanonical {
+		if _, err := NullifierFromCanonicalString(input); err == nil {
+			t.Errorf("accepted canonical %q", input)
+		}
 	}
 	for _, input := range vectors.Invalid {
 		if _, err := NullifierFromHex(input); err == nil {

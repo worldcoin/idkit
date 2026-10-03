@@ -41,6 +41,26 @@ func NullifierFromHex(value string) (Nullifier, error) {
 	return result, nil
 }
 
+// NullifierFromCanonicalString reads the protocol's nil_ prefix and 64 lowercase hex digits.
+// It rejects noncanonical and out-of-field values.
+func NullifierFromCanonicalString(value string) (Nullifier, error) {
+	if len(value) != 68 || !strings.HasPrefix(value, "nil_") {
+		return Nullifier{}, errors.New("invalid nullifier canonical string")
+	}
+	digits := value[4:]
+	for _, c := range digits {
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return Nullifier{}, errors.New("invalid nullifier canonical string")
+		}
+	}
+	return NullifierFromHex(digits)
+}
+
+// ToCanonicalString returns the protocol's nil_ prefix and 64 lowercase hex digits.
+func (n Nullifier) ToCanonicalString() string {
+	return "nil_" + hex.EncodeToString(n.value[:])
+}
+
 // BigInt returns a fresh copy of the number, safe for the caller to modify.
 func (n Nullifier) BigInt() *big.Int {
 	return new(big.Int).SetBytes(n.value[:])
