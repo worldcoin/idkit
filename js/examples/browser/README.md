@@ -22,16 +22,22 @@ pnpm dev
 
 Open http://localhost:4000 in your browser (Vite will auto-open it).
 
-The browser page loads the latest release CDN build by default. The URL points
-at the 4.2.0 package root, so unpkg resolves it through the core package's
-`unpkg` entry (`./dist/idkit.global.js`):
+The page loads this checkout's `js/packages/core/dist/idkit.global.js` through
+`/idkit.global.js`. Vite serves the current built file during development and
+copies it into the example's production build. Rebuild core after changing its
+source. This exercises the candidate browser global, exposed as `window.IDKit`,
+without downloading any WASM asset.
+
+To test a published CDN release, change both the script tag URL and
+`IDKIT_SCRIPT_URL` in `index.html` to the same explicit candidate version:
 
 ```text
-https://unpkg.com/@worldcoin/idkit-core@4.2.0
+https://unpkg.com/@worldcoin/idkit-core@<candidate-version>
 ```
 
-This verifies the package was published with `dist/idkit.global.js`, exposes
-`window.IDKit`, and can fetch the sibling `dist/idkit_wasm_bg.wasm` file.
+The package root resolves through the `unpkg` field to `dist/idkit.global.js`.
+Existing releases before the JavaScript migration still use their original WASM
+implementation; loading them does not validate the code in this checkout.
 
 #### Production
 

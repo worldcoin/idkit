@@ -2,25 +2,31 @@
   "name": "idkit-nextjs-example",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "next dev -p 4001",
     "build": "next build",
     "start": "next start -p 4001"
   },
   "dependencies": {
-    "@worldcoin/idkit": "workspace:*",
-    "@worldcoin/idkit-server": "workspace:*",
+    "@worldcoin/idkit": "link:../../packages/react",
+    "@worldcoin/idkit-server": "link:../../packages/server",
     "takis-minikit-js": "2.0.0-dev.1",
     "eruda": "^3.4.1",
     "i18n-iso-countries": "^7.14.0",
     "next": "^15.5.24",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "viem": "^2.47.2"
+    "viem": "^2.47.2",
+    "@worldcoin/idkit-core": "link:../../packages/core"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "typescript": "^5.9.3"
-  }
+    "typescript": "^5.9.3",
+    "@types/node": "^20.19.30"
+  },
+  "packageManager": "pnpm@9.15.4"
 }

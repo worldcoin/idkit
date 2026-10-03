@@ -2,13 +2,21 @@
   "name": "idkit",
   "version": "4.0.0",
   "private": true,
-  "description": "IDKit - World ID SDK with Rust Core",
+  "description": "IDKit - World ID SDK with Rust and portable TypeScript implementations",
   "devDependencies": {
-    "prettier": "^3.8.1"
+    "@babel/core": "^7.29.7",
+    "@babel/plugin-transform-block-scoping": "^7.29.7",
+    "@babel/plugin-transform-classes": "^7.29.7",
+    "prettier": "^3.8.1",
+    "yaml": "2.8.1"
   },
   "pnpm": {
     "overrides": {
-      "happy-dom": ">=20.0.0"
+      "happy-dom": ">=20.0.0",
+      "tsup@8.5.1>source-map": "npm:source-map-js@1.2.1"
+    },
+    "patchedDependencies": {
+      "tsup@8.5.1": "patches/tsup@8.5.1.patch"
     }
   },
   "scripts": {
@@ -17,18 +25,24 @@
     "type-check": "pnpm -r type-check",
     "format:js": "pnpm -C js format",
     "lint:js": "pnpm -C js lint:format",
-    "lint:rust": "cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings"
+    "lint:rust": "cargo fmt --all -- --check && cargo clippy --all-targets --all-features -- -D warnings",
+    "test:conformance": "node scripts/run-conformance.mjs",
+    "test:packages": "node scripts/test-packages.mjs",
+    "test:portable": "node scripts/test-portable.mjs",
+    "audit:dependencies": "node scripts/audit-dependencies.mjs",
+    "test:tooling": "node --test scripts/test-source-maps.mjs"
   },
   "keywords": [
     "worldcoin",
     "world-id",
     "idkit",
     "rust",
-    "wasm"
+    "typescript"
   ],
   "repository": {
     "type": "git",
     "url": "https://github.com/worldcoin/idkit.git"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "packageManager": "pnpm@9.15.4"
 }

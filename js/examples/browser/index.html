@@ -417,10 +417,9 @@
       updateToggleText();
     </script>
 
-    <script src="https://unpkg.com/@worldcoin/idkit-core@4.2.0"></script>
+    <script src="/idkit.global.js" vite-ignore></script>
     <script>
-      const CDN_IDKIT_SCRIPT_URL =
-        "https://unpkg.com/@worldcoin/idkit-core@4.2.0";
+      const IDKIT_SCRIPT_URL = "/idkit.global.js";
       const idkit = window.IDKit;
 
       // Format V4 verify response with visual indicators
@@ -532,7 +531,7 @@
       const useInviteCodeToggle = document.getElementById("cfgUseInviteCode");
       const cdnUrl = document.getElementById("cfgCdnUrl");
 
-      cdnUrl.textContent = CDN_IDKIT_SCRIPT_URL;
+      cdnUrl.textContent = IDKIT_SCRIPT_URL;
 
       const hideAll = () => {
         qrDiv.hidden = true;
@@ -573,7 +572,7 @@
 
           if (!idkit) {
             throw new Error(
-              `CDN script loaded without window.IDKit: ${CDN_IDKIT_SCRIPT_URL}`,
+              `Script loaded without window.IDKit: ${IDKIT_SCRIPT_URL}`,
             );
           }
 

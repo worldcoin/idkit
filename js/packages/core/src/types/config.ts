@@ -1,8 +1,8 @@
 /**
  * Configuration types for IDKit
  *
- * Note: CredentialType, CredentialRequestType, and ConstraintNode are now
- * re-exported from WASM (source of truth: rust/core/src/wasm_bindings.rs)
+ * Credential and constraint types live in protocol.ts and are covered by
+ * the native Rust conformance suite.
  */
 
 declare const brand: unique symbol;

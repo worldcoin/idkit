@@ -2,10 +2,10 @@
  * Native transport for World App
  *
  * When running inside World App, verification requests are sent via
- * WebView postMessage instead of the WASM bridge (QR + polling).
+ * WebView postMessage instead of the HTTP bridge (QR + polling).
  *
- * The payload is built by the WASM module (same as the bridge path) to ensure
- * a single source of truth. This module wraps it in a postMessage envelope
+ * The shared protocol compiler builds the payload for both transports.
+ * This module wraps it in a postMessage envelope
  * and handles World App responses.
  *
  * Security notes:
@@ -27,9 +27,13 @@ import type {
   MiniAppDebugInfo,
 } from "../types/result";
 import { IDKitErrorCodes } from "../types/result";
-import type { IDKitResultV3, IntegrityBundle } from "../lib/wasm";
-import { WasmModule } from "../lib/wasm";
+import type { IDKitResultV3, IntegrityBundle } from "../types/protocol";
+import {
+  normalizeBuilderConfig,
+  proofResponseToIDKitResult,
+} from "../protocol";
 import { isDebug, buildDebugReport } from "../lib/debug";
+import { randomRequestId } from "../lib/runtime";
 
 const MINIAPP_VERIFY_ACTION = "miniapp-verify-action";
 
@@ -109,28 +113,13 @@ export function getWorldAppVerifyVersion(): 1 | 2 {
 // Builder config types (shared with request.ts)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface BuilderConfig {
-  type: "request" | "createSession" | "proveSession";
-  app_id: string;
-  package_name: string;
-  package_version: string;
-  action?: string;
-  session_id?: `session_${string}`;
-  rp_context?: import("../types/config").RpContext;
-  action_description?: string;
-  bridge_url?: string;
-  return_to?: string;
-  allow_legacy_proofs?: boolean;
-  require_user_presence?: boolean;
-  override_connect_base_url?: string;
-  environment?: string;
-}
+export type { BuilderConfig } from "../types/protocol";
+import type { BuilderConfig } from "../types/protocol";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Native IDKit request
 // ─────────────────────────────────────────────────────────────────────────────
 
-let _requestCounter = 0;
 let _activeNativeRequest: NativeIDKitRequest | null = null;
 
 /**
@@ -143,13 +132,13 @@ let _activeNativeRequest: NativeIDKitRequest | null = null;
  * request removes its listener and resolves as `cancelled` even though World
  * App later posts a successful response.
  *
- * @param wasmPayload - Pre-built payload from the WASM module (same format as bridge)
+ * @param compiledPayload - Pre-built payload from the protocol compiler (same format as bridge)
  * @param config - Builder config (used for response normalization)
  * @param signalHashes - Pre-computed signal hashes keyed by identifier (credential type)
  * @param version - Verify command version to send in the postMessage envelope (1 or 2, default 2)
  */
 export function createNativeRequest(
-  wasmPayload: unknown,
+  compiledPayload: unknown,
   config: BuilderConfig,
   signalHashes: Record<string, string> = {},
   legacySignalHash: string,
@@ -163,7 +152,7 @@ export function createNativeRequest(
     return _activeNativeRequest;
   }
   const request = new NativeIDKitRequest(
-    wasmPayload,
+    compiledPayload,
     config,
     signalHashes,
     legacySignalHash,
@@ -187,15 +176,15 @@ class NativeIDKitRequest implements IDKitRequest {
   private debugState: MiniAppDebugInfo;
 
   constructor(
-    wasmPayload: unknown,
+    compiledPayload: unknown,
     config: BuilderConfig,
     signalHashes: Record<string, string> = {},
     legacySignalHash: string,
     version: 1 | 2 = 2,
   ) {
-    this.requestId =
-      crypto.randomUUID?.() ?? `native-${Date.now()}-${++_requestCounter}`;
-    this.requestPayload = wasmPayload;
+    config = normalizeBuilderConfig(config);
+    this.requestId = randomRequestId();
+    this.requestPayload = compiledPayload;
     this.responsePayload = undefined;
     this.debugState = {
       verify_version: version,
@@ -305,11 +294,11 @@ class NativeIDKitRequest implements IDKitRequest {
       }
       this.debugState.minikit_subscribed = miniKitSubscribed;
 
-      // Wrap the WASM-built payload in the postMessage envelope
+      // Wrap the protocol-built payload in the postMessage envelope
       const sendPayload = {
         command: "verify",
         version,
-        payload: wasmPayload,
+        payload: compiledPayload,
       };
 
       try {
@@ -485,11 +474,14 @@ function nativeResultToIDKitResult(
         ),
       });
 
-    const result = WasmModule.proofResponseToIDKitResult(proof_response, {
+    const result = proofResponseToIDKitResult(proof_response, {
       nonce: rpNonce,
       action: config.action,
       action_description: config.action_description,
-      environment: config.environment ?? "production",
+      environment: (config.environment ?? "production") as
+        | "production"
+        | "staging"
+        | "sandbox",
       signal_hashes: signalHashes,
       identity_attested: p.identity_attested,
       ...(config.require_user_presence === true
@@ -540,7 +532,10 @@ function nativeResultToIDKitResult(
       ...(config.require_user_presence === true
         ? { user_presence_completed: userPresenceCompleted }
         : {}),
-      environment: config.environment ?? "production",
+      environment: (config.environment ?? "production") as
+        | "production"
+        | "staging"
+        | "sandbox",
       integrity_bundle,
     } satisfies IDKitResultV3;
   }
@@ -569,7 +564,10 @@ function nativeResultToIDKitResult(
     ...(config.require_user_presence === true
       ? { user_presence_completed: userPresenceCompleted }
       : {}),
-    environment: config.environment ?? "production",
+    environment: (config.environment ?? "production") as
+      | "production"
+      | "staging"
+      | "sandbox",
     integrity_bundle,
   } satisfies IDKitResultV3;
 }
