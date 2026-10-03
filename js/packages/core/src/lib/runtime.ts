@@ -6,18 +6,18 @@ export interface IDKitRuntimeOptions {
 }
 
 let options: IDKitRuntimeOptions = {};
-let nodeRandomValues: IDKitRuntimeOptions["getRandomValues"];
+let defaultRandomValues: IDKitRuntimeOptions["getRandomValues"];
 
 /** Configure host capabilities, e.g. Expo Crypto.getRandomValues. Pass {} to reset. */
 export function configureIDKitRuntime(runtime: IDKitRuntimeOptions): void {
   options = { ...runtime };
 }
 
-/** Called only by the Node entry; never loaded by Metro/browser consumers. */
-export function setNodeRandomValues(
+/** Platform entries supply a fallback without changing explicit configuration. */
+export function setDefaultRandomValues(
   provider: NonNullable<IDKitRuntimeOptions["getRandomValues"]>,
 ): void {
-  nodeRandomValues = provider;
+  defaultRandomValues = provider;
 }
 
 export function randomBytes(length: number): Uint8Array {
@@ -26,7 +26,7 @@ export function randomBytes(length: number): Uint8Array {
     options.getRandomValues ??
     (globalThis.crypto?.getRandomValues
       ? (value: Uint8Array) => globalThis.crypto.getRandomValues(value)
-      : nodeRandomValues);
+      : defaultRandomValues);
   if (!provider) {
     throw new Error(
       "IDKit requires cryptographically secure randomness. Supply getRandomValues using configureIDKitRuntime().",

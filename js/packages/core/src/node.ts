@@ -1,5 +1,5 @@
 import { webcrypto } from "node:crypto";
-import { setNodeRandomValues } from "./lib/runtime";
+import { setDefaultRandomValues } from "./lib/runtime";
 
-setNodeRandomValues((bytes) => webcrypto.getRandomValues(bytes));
+setDefaultRandomValues((bytes) => webcrypto.getRandomValues(bytes));
 export * from "./index";

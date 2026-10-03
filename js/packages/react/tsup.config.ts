@@ -7,6 +7,7 @@ export default defineConfig({
     "src/hashing.ts",
     "src/session.ts",
     "src/hooks.ts",
+    "src/expo.ts",
   ],
   format: ["esm", "cjs"],
   dts: true,

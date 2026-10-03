@@ -20,6 +20,10 @@ secure randomness. Node's package entry supplies secure randomness without
 modifying `globalThis.crypto`. Browser environments normally provide it through
 `crypto.getRandomValues`.
 
+Expo SDK 57 apps can install `expo-crypto` and import from
+`@worldcoin/idkit-core/expo` (or `@worldcoin/idkit/expo` for React hooks) to
+provide secure randomness automatically. Ordinary imports do not load Expo.
+
 For a host without those capabilities, configure the missing providers before
 creating requests:
 

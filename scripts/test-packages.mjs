@@ -12,6 +12,7 @@ function run(cmd, args, cwd = scratch) {
 }
 const body = `
 const assert = require('node:assert/strict');
+assert.throws(() => require.resolve('expo-crypto'), {code:'MODULE_NOT_FOUND'}, 'Ordinary consumers must not install Expo Crypto');
 Object.defineProperty(globalThis, 'crypto', {value: undefined, configurable: true});
 const core = CORE_IMPORT;
 const hooks = HOOKS_IMPORT;

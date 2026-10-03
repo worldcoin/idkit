@@ -85,6 +85,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.0.18
         version: 4.0.18(vitest@4.0.18(@types/node@20.19.30)(happy-dom@20.0.0)(tsx@4.21.0)(yaml@2.8.1))
+      expo-crypto:
+        specifier: 57.0.3
+        version: 57.0.3
       fast-check:
         specifier: ^4.3.0
         version: 4.10.0
@@ -977,6 +980,11 @@ packages:
   expect-type@1.3.0:
     resolution: {integrity: sha512-knvyeauYhqjOYvQ66MznSMs83wmHrCycNEN6Ao+2AeYEfxUIkuiVxdEa1qlGEPK+We3n0THiDciYSsCcgW/DoA==}
     engines: {node: '>=12.0.0'}
+
+  expo-crypto@57.0.3:
+    resolution: {integrity: sha512-SAWqEfF37nc8ot7bXsVmu9AFYwQdC2kGvH/eNAHiR3bmlcf1Vv8wu9AnGKT+a90r3T8YfwMpZP4QAYlo4vCn9w==}
+    peerDependencies:
+      expo: '*'
 
   express@5.2.1:
     resolution: {integrity: sha512-hIS4idWWai69NezIdRt2xFVofaF4j+6INOpJlVOLDO8zXGpUVEVzIYk12UUi2JzjEzWL3IOAxcTubgz9Po0yXw==}
@@ -2418,6 +2426,8 @@ snapshots:
   etag@1.8.1: {}
 
   expect-type@1.3.0: {}
+
+  expo-crypto@57.0.3: {}
 
   express@5.2.1:
     dependencies:

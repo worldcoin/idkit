@@ -36,6 +36,11 @@
       "types": "./dist/session.d.ts",
       "import": "./dist/session.js",
       "require": "./dist/session.cjs"
+    },
+    "./expo": {
+      "types": "./dist/expo.d.ts",
+      "import": "./dist/expo.js",
+      "require": "./dist/expo.cjs"
     }
   },
   "typesVersions": {
@@ -48,6 +53,9 @@
       ],
       "session": [
         "./dist/session.d.ts"
+      ],
+      "expo": [
+        "./dist/expo.d.ts"
       ]
     }
   },
@@ -91,6 +99,15 @@
     "fast-check": "^4.3.0",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "expo-crypto": "57.0.3"
+  },
+  "peerDependencies": {
+    "expo-crypto": "^57.0.3"
+  },
+  "peerDependenciesMeta": {
+    "expo-crypto": {
+      "optional": true
+    }
   }
 }

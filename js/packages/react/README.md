@@ -122,22 +122,21 @@ React DOM. The core and hooks use JavaScript implementations, with no WASM
 loader. Your app owns its UI and opens the connector URL using its platform's
 linking API. The existing widgets from `@worldcoin/idkit` render web UI.
 
-The runtime must provide `fetch`, timers, `AbortController` and cryptographically
-secure randomness. If secure randomness is missing, configure a host provider
-before creating a request. For an Expo app with `expo-crypto` installed:
+For Expo SDK 57, install `expo-crypto` and import from `@worldcoin/idkit/expo`.
+This entry provides secure randomness automatically, without a polyfill or
+`configureIDKitRuntime()` call. Expo Crypto is an optional peer dependency;
+ordinary core/hooks imports do not load it.
+
+```sh
+npx expo install expo-crypto
+```
 
 ```tsx
-import * as Crypto from "expo-crypto";
 import { Linking, Button } from "react-native";
 import {
-  configureIDKitRuntime,
   useIDKitRequest,
   type IDKitRequestHookConfig,
-} from "@worldcoin/idkit/hooks";
-
-configureIDKitRuntime({
-  getRandomValues: (bytes) => Crypto.getRandomValues(bytes),
-});
+} from "@worldcoin/idkit/expo";
 
 // Fetch rp_context from your backend; signing keys belong on the server.
 export function VerifyButton({ config }: { config: IDKitRequestHookConfig }) {
@@ -169,8 +168,12 @@ and unmount abort pending bridge fetches; late results cannot update a newer run
 With Metro package exports enabled, mixed `import` and `require` calls resolve
 the same core runtime, including the adapter configured through the hooks entry.
 
-Bare React Native apps can provide their existing secure entropy implementation
-through the same adapter. JavaScript cannot create secure entropy by itself;
+Bare React Native apps can use `@worldcoin/idkit/hooks` and provide their secure
+entropy implementation through `configureIDKitRuntime({ getRandomValues })`
+when `globalThis.crypto.getRandomValues` is unavailable. The host must also
+provide `fetch`, timers and `AbortController`. Explicit runtime configuration
+takes precedence over the Expo default; resetting it restores host defaults.
+JavaScript cannot create secure entropy by itself;
 do not substitute `Math.random`. An entropy module is a host integration, not a
 required native IDKit module. React Native uses the HTTP bridge flow; the World
 App Mini App transport is a separate WebView integration.
