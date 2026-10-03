@@ -218,7 +218,6 @@ jobs:
     name: JavaScript - Build & Test
     runs-on:
       group: arc-public-large-amd64-runner
-    needs: rust-core
     permissions:
       contents: read
     steps:
@@ -227,30 +226,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
-
-      - name: Read rust-toolchain
-        id: rust-version
-        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: ${{ steps.rust-version.outputs.toolchain }}
-
-      - name: Cache dependencies
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install wasm-pack
-        run: cargo install wasm-pack --locked
+          version: 9.15.4
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Audit SDK workspace dependency graph
+        run: pnpm audit:dependencies
 
       - name: Check formatting
         run: pnpm lint:js
@@ -260,6 +247,13 @@ jobs:
 
       - name: Run tests
         run: pnpm test
+
+      - name: Check pure JavaScript source-map tooling
+        run: pnpm test:tooling
+
+  js-conformance:
+    name: JavaScript and Rust compatibility
+    uses: ./.github/workflows/js-conformance.yml
 
   kotlin-bindings:
     name: Kotlin Bindings - Build (multi-ABI)

@@ -1,13 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   IDKitErrorCodes,
+  isRetryableBridgeError,
+  type RequestOptions,
   isInWorldApp as isInWorldAppCheck,
   isDebug,
   type IDKitDebugReport,
   type IDKitRequest,
+  type IDKitInviteCodeRequest,
 } from "@worldcoin/idkit-core";
-import type { FlowConfig, IDKitHookResult } from "../types";
+import type {
+  FlowConfig,
+  IDKitHookResult,
+  IDKitInviteCodeHookResult,
+} from "../types";
 import {
+  beforeDeadline,
   createInitialHookState,
   delay,
   ensureNotAborted,
@@ -16,9 +24,23 @@ import {
 } from "./common";
 
 export function useIDKitFlow<TResult>(
-  createFlowHandle: () => Promise<IDKitRequest>,
+  createFlowHandle: (options: RequestOptions) => Promise<IDKitRequest>,
   config: FlowConfig,
-): IDKitHookResult<TResult> {
+): IDKitHookResult<TResult>;
+export function useIDKitFlow<TResult>(
+  createFlowHandle: (
+    options: RequestOptions,
+  ) => Promise<IDKitInviteCodeRequest>,
+  config: FlowConfig,
+  mode: "invite",
+): IDKitInviteCodeHookResult<TResult>;
+export function useIDKitFlow<TResult>(
+  createFlowHandle: (
+    options: RequestOptions,
+  ) => Promise<IDKitRequest | IDKitInviteCodeRequest>,
+  config: FlowConfig,
+  mode?: "invite",
+): IDKitHookResult<TResult> | IDKitInviteCodeHookResult<TResult> {
   const isInWorldApp = useMemo(() => isInWorldAppCheck(), []);
 
   const [state, setState] = useState<HookState<TResult>>(
@@ -67,11 +89,9 @@ export function useIDKitFlow<TResult>(
       }
 
       return {
+        ...createInitialHookState<TResult>(),
         isOpen: true,
         status: "waiting_for_connection",
-        connectorURI: null,
-        result: null,
-        errorCode: null,
       };
     });
   }, []);
@@ -86,6 +106,8 @@ export function useIDKitFlow<TResult>(
 
     const controller = new AbortController();
     abortRef.current = controller;
+    const timeout = configRef.current.polling?.timeout ?? 900_000;
+    const deadline = Date.now() + timeout;
 
     const setFailed = (errorCode: IDKitErrorCodes) => {
       // Capture the report now, while `requestRef` is still populated — a later
@@ -112,37 +134,71 @@ export function useIDKitFlow<TResult>(
     void (async () => {
       try {
         if (isDebug()) console.debug("[IDKit] Creating flow handle…");
-        const request = await createFlowHandleRef.current();
-        requestRef.current = request;
+        const request = await beforeDeadline(
+          (options) => createFlowHandleRef.current(options),
+          deadline,
+          controller.signal,
+        );
         ensureNotAborted(controller.signal);
+        if (request === null) {
+          setFailed(IDKitErrorCodes.Timeout);
+          return;
+        }
+        requestRef.current = request;
         if (isDebug())
           console.debug("[IDKit] Flow created", {
-            connectorURI: request.connectorURI,
             requestId: request.requestId,
           });
 
-        const connectorURI = isInWorldApp ? null : request.connectorURI;
+        // Invite codes always use the bridge, including inside World App.
+        const connectorURI =
+          mode !== "invite" && isInWorldApp ? null : request.connectorURI;
+        const codeExpiresAt =
+          mode === "invite" && "expiresAt" in request
+            ? request.expiresAt
+            : null;
         setState((prev) => {
-          if (prev.connectorURI === connectorURI) {
+          if (
+            prev.connectorURI === connectorURI &&
+            prev.codeExpiresAt === codeExpiresAt
+          ) {
             return prev;
           }
-          return { ...prev, connectorURI };
+          return { ...prev, connectorURI, codeExpiresAt };
         });
 
         const pollInterval = configRef.current.polling?.interval ?? 1000;
-        const timeout = configRef.current.polling?.timeout ?? 900_000;
-        const startedAt = Date.now();
 
         while (true) {
           ensureNotAborted(controller.signal);
 
-          if (Date.now() - startedAt > timeout) {
+          if (Date.now() >= deadline) {
             setFailed(IDKitErrorCodes.Timeout);
             return;
           }
 
-          const nextStatus = await request.pollOnce();
+          const nextStatus = await beforeDeadline(
+            (options) =>
+              request.pollOnce(options).catch((error: unknown) => {
+                if (isRetryableBridgeError(error)) return undefined;
+                throw error;
+              }),
+            deadline,
+            controller.signal,
+          );
           ensureNotAborted(controller.signal);
+          if (nextStatus === null || Date.now() >= deadline) {
+            setFailed(IDKitErrorCodes.Timeout);
+            return;
+          }
+
+          if (nextStatus === undefined) {
+            await delay(
+              Math.min(pollInterval, Math.max(0, deadline - Date.now())),
+              controller.signal,
+            );
+            continue;
+          }
 
           if (nextStatus.type === "confirmed") {
             const confirmedResult = nextStatus.result;
@@ -174,7 +230,10 @@ export function useIDKitFlow<TResult>(
             return { ...prev, status: nextStatus.type };
           });
 
-          await delay(pollInterval, controller.signal);
+          await delay(
+            Math.min(pollInterval, Math.max(0, deadline - Date.now())),
+            controller.signal,
+          );
         }
       } catch (error) {
         if (controller.signal.aborted) {
@@ -193,7 +252,7 @@ export function useIDKitFlow<TResult>(
         abortRef.current = null;
       }
     };
-  }, [state.isOpen, runId, isInWorldApp]);
+  }, [state.isOpen, runId, isInWorldApp, mode]);
 
   return {
     open,
@@ -203,6 +262,7 @@ export function useIDKitFlow<TResult>(
     isSuccess: state.status === "confirmed",
     isError: state.status === "failed",
     connectorURI: state.connectorURI,
+    ...(mode === "invite" ? { codeExpiresAt: state.codeExpiresAt } : {}),
     result: state.result,
     errorCode: state.errorCode,
     getDebugReport,

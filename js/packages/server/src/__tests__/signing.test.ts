@@ -1,18 +1,10 @@
-import { readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { describe, it, expect, vi, afterEach, beforeAll } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   getPublicKey,
   Signature as SecpSignature,
   etc,
 } from "@noble/secp256k1";
 import { keccak_256 } from "@noble/hashes/sha3";
-import initWasm, {
-  computeRpSignatureMessage as wasmComputeRpSignatureMessage,
-  hashSignal as wasmHashSignal,
-  signRequest as wasmSignRequest,
-} from "../../../core/wasm/idkit_wasm.js";
 import {
   signRequest,
   computeRpSignatureMessage,
@@ -56,7 +48,7 @@ const TEST_SIGNER_ADDRESS = ethereumAddressFromPublicKey(
   getPublicKey(hexToBytes(TEST_KEY.slice(2)), false),
 );
 
-// Stubs clock and randomness so JS and WASM no-action signRequest produce identical outputs.
+// Uses synthetic entropy and a fixed clock for deterministic signing vectors.
 const stubDeterministicRuntime = () => {
   vi.spyOn(Date, "now").mockReturnValue(FIXED_NOW_MS);
   vi.stubGlobal("crypto", {
@@ -68,40 +60,6 @@ const stubDeterministicRuntime = () => {
     },
   } satisfies RandomValuesCrypto);
 };
-
-beforeAll(async () => {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  const wasmPath = join(__dirname, "../../../core/wasm/idkit_wasm_bg.wasm");
-  const wasmBuffer = await readFile(wasmPath);
-  await initWasm({ module_or_path: wasmBuffer });
-});
-
-describe("hashToField parity (server JS vs Rust WASM)", () => {
-  it("should match for fixed vectors", () => {
-    const inputs = [
-      new TextEncoder().encode(""),
-      new TextEncoder().encode("test_signal"),
-      new Uint8Array([0x01, 0x02, 0x03]),
-      hexToBytes("68656c6c6f"),
-    ];
-
-    for (const input of inputs) {
-      expect("0x" + bytesToHex(hashToField(input))).toBe(wasmHashSignal(input));
-    }
-  });
-
-  it("should match for deterministic generated inputs", () => {
-    for (let len = 0; len <= 512; len += 1) {
-      const input = new Uint8Array(len);
-      for (let i = 0; i < len; i += 1) {
-        input[i] = (i * 31 + len * 17) % 256;
-      }
-
-      expect("0x" + bytesToHex(hashToField(input))).toBe(wasmHashSignal(input));
-    }
-  });
-});
 
 describe("hashToField", () => {
   it("should hash empty string bytes to expected field element", () => {
@@ -141,37 +99,6 @@ describe("computeRpSignatureMessage", () => {
     expect(msg1).toEqual(msg2);
   });
 
-  it("should match Rust WASM for representative message vectors", () => {
-    const cases = [
-      {
-        nonce: new Uint8Array(32),
-        createdAt: 0,
-        expiresAt: 0,
-      },
-      {
-        nonce: hashToField(new Uint8Array(32).fill(0xaa)),
-        createdAt: 1000,
-        expiresAt: 1300,
-      },
-      {
-        nonce: hashToField(Uint8Array.from({ length: 32 }, (_, i) => i)),
-        createdAt: 1700000000,
-        expiresAt: 1700000300,
-      },
-    ];
-
-    for (const { nonce, createdAt, expiresAt } of cases) {
-      const jsMsg = computeRpSignatureMessage(nonce, createdAt, expiresAt);
-      const wasmMsg = wasmComputeRpSignatureMessage(
-        "0x" + bytesToHex(nonce),
-        BigInt(createdAt),
-        BigInt(expiresAt),
-      );
-
-      expect(wasmMsg).toEqual(jsMsg);
-    }
-  });
-
   it("should append the hashed action field when provided", () => {
     const nonce = hashToField(new Uint8Array(32).fill(0x11));
     const createdAt = 1700000000;
@@ -193,14 +120,6 @@ describe("computeRpSignatureMessage", () => {
     expect(msg.slice(49)).toEqual(
       hashToField(new TextEncoder().encode(TEST_ACTION)),
     );
-
-    const wasmMsg = wasmComputeRpSignatureMessage(
-      "0x" + bytesToHex(nonce),
-      BigInt(createdAt),
-      BigInt(expiresAt),
-      TEST_ACTION,
-    );
-    expect(wasmMsg).toEqual(msg);
   });
 
   it("should append the hashed empty action when explicitly provided", () => {
@@ -323,27 +242,6 @@ describe("signRequest", () => {
     expect(sigWithAction.sig).not.toBe(sigWithoutAction.sig);
   });
 
-  it("should match Rust WASM for deterministic signature generation", () => {
-    stubDeterministicRuntime();
-
-    const jsSig = signRequest({ signingKeyHex: TEST_KEY });
-    const wasmSig = wasmSignRequest(TEST_KEY).toJSON();
-
-    expect(wasmSig).toEqual(jsSig);
-  });
-
-  it("should match Rust WASM for deterministic signature generation with action", () => {
-    stubDeterministicRuntime();
-
-    const jsSig = signRequest({
-      action: TEST_ACTION,
-      signingKeyHex: TEST_KEY,
-    });
-    const wasmSig = wasmSignRequest(TEST_KEY, undefined, TEST_ACTION).toJSON();
-
-    expect(wasmSig).toEqual(jsSig);
-  });
-
   it("should recover the expected signer address for session proofs", () => {
     stubDeterministicRuntime();
 
@@ -375,18 +273,17 @@ describe("signRequest", () => {
     );
   });
 
-  it("should serialize sig as a single string in WASM JSON output", () => {
+  it("fails explicitly if the portable entry has no secure random source", () => {
+    vi.stubGlobal("crypto", undefined);
+    expect(() => signRequest({ signingKeyHex: TEST_KEY })).toThrow(
+      "A cryptographically secure random source is required",
+    );
+  });
+
+  it("serializes the signature as one string", () => {
     stubDeterministicRuntime();
-
-    const wasmSig = wasmSignRequest(TEST_KEY);
-    expect(typeof wasmSig.sig).toBe("string");
-
-    const jsonValue = wasmSig.toJSON();
-    expect(typeof jsonValue.sig).toBe("string");
-    expect(jsonValue.sig).toBe(wasmSig.sig);
-
-    const serialized = JSON.parse(JSON.stringify(wasmSig));
-    expect(typeof serialized.sig).toBe("string");
-    expect(serialized.sig).toBe(wasmSig.sig);
+    const signature = signRequest({ signingKeyHex: TEST_KEY });
+    expect(JSON.parse(JSON.stringify(signature))).toEqual(signature);
+    expect(typeof signature.sig).toBe("string");
   });
 });

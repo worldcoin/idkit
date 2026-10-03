@@ -28,7 +28,7 @@ function assertSessionId(
 export function useIDKitSession(
   config: IDKitSessionHookConfig,
 ): UseIDKitSessionHookResult {
-  return useIDKitFlow<IDKitResultSession>(() => {
+  return useIDKitFlow<IDKitResultSession>((options) => {
     const existingSessionId = assertSessionId(config.existing_session_id);
     const builder = existingSessionId
       ? IDKit.proveSession(existingSessionId, {
@@ -51,6 +51,6 @@ export function useIDKitSession(
           return_to: config.return_to,
           environment: config.environment,
         });
-    return builder.constraints(config.constraints);
+    return builder.constraints(config.constraints, options);
   }, config);
 }

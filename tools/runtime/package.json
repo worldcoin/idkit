@@ -1,0 +1,15 @@
+{
+  "name": "idkit-runtime-tests",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "devDependencies": {
+    "miniflare": "4.20260730.0",
+    "playwright": "1.63.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "miniflare@4.20260730.0>undici": "7.29.1"
+    }
+  }
+}

@@ -26,6 +26,16 @@
       "types": "./dist/session.d.ts",
       "import": "./dist/session.js",
       "require": "./dist/session.cjs"
+    },
+    "./hooks": {
+      "types": "./dist/hooks.d.ts",
+      "import": "./dist/hooks.js",
+      "require": "./dist/hooks.cjs"
+    },
+    "./expo": {
+      "types": "./dist/expo.d.ts",
+      "import": "./dist/expo.js",
+      "require": "./dist/expo.cjs"
     }
   },
   "typesVersions": {
@@ -38,6 +48,12 @@
       ],
       "session": [
         "./dist/session.d.ts"
+      ],
+      "hooks": [
+        "./dist/hooks.d.ts"
+      ],
+      "expo": [
+        "./dist/expo.d.ts"
       ]
     }
   },
@@ -67,7 +83,8 @@
   },
   "peerDependencies": {
     "react": ">=18",
-    "react-dom": ">=18"
+    "react-dom": ">=18",
+    "expo-crypto": "^57.0.3"
   },
   "dependencies": {
     "@worldcoin/idkit-core": "workspace:*",
@@ -86,5 +103,13 @@
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
+  },
+  "peerDependenciesMeta": {
+    "react-dom": {
+      "optional": true
+    },
+    "expo-crypto": {
+      "optional": true
+    }
   }
 }
