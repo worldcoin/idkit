@@ -1,6 +1,6 @@
 {
   "name": "@worldcoin/idkit-core",
-  "version": "4.3.0",
+  "version": "4.4.0",
   "description": "Portable TypeScript SDK for World ID",
   "type": "module",
   "main": "./dist/index.cjs",
