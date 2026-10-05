@@ -8,5 +8,3 @@ export type {
   IDKitInviteCodeRequestWidgetProps,
   IDKitSessionWidgetProps,
 } from "./types/widget";
-
-export { Nullifier } from "./nullifier";

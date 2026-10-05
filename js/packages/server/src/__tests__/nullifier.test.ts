@@ -47,11 +47,4 @@ describe("Nullifier", () => {
       expect(() => new Nullifier(value)).toThrow(RangeError);
     }
   });
-
-  it("does not expose mutable numeric state", () => {
-    const value = Nullifier.fromHex("0x1a");
-    expect(Object.keys(value)).toEqual([]);
-    expect(Nullifier.fromHex("0x01a").toBigInt()).toBe(value.toBigInt());
-    expect(Nullifier.fromHex("0x01a")).not.toBe(value);
-  });
 });

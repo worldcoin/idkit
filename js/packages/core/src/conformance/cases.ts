@@ -1,4 +1,5 @@
 /** Synthetic, deterministic protocol inputs. Never use real proof or biometric data here. */
+import nullifierVectors from "../../../../../test-vectors/nullifier.json";
 import { encrypt, encodeBase64 } from "../lib/crypto";
 import { encodeUtf8 } from "../lib/encoding";
 export const NOW = 1_700_000_000;
@@ -247,6 +248,19 @@ for (const [name, patch] of Object.entries({
     now: NOW,
   });
 }
+for (const [kind, values] of Object.entries({
+  valid: [...new Set(nullifierVectors.valid.map(({ canonical }) => canonical))],
+  invalid: nullifierVectors.invalid_canonical,
+})) {
+  for (const [index, nullifier] of values.entries()) {
+    add(`response/nullifier/${kind}/${index}`, {
+      op: "response",
+      response: { ...response, responses: [{ ...item, nullifier }] },
+      context,
+    });
+  }
+}
+
 const responses = {
   bare: response,
   wrapped: {

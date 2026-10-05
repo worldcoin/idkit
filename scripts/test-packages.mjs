@@ -14,6 +14,22 @@ const body = `
 const assert = require('node:assert/strict');
 assert.throws(() => require.resolve('expo-crypto'), {code:'MODULE_NOT_FOUND'}, 'Ordinary consumers must not install Expo Crypto');
 Object.defineProperty(globalThis, 'crypto', {value: undefined, configurable: true});
+const loadNullifier = NULLIFIER_IMPORT;
+for (const specifier of [
+  '@worldcoin/idkit-server', '@worldcoin/idkit-server/nullifier',
+  '@worldcoin/idkit-core', '@worldcoin/idkit-core/nullifier',
+  '@worldcoin/idkit', '@worldcoin/idkit/nullifier', '@worldcoin/idkit/hooks',
+]) {
+  const {Nullifier} = await loadNullifier(specifier);
+  const value = Nullifier.fromHex('0x01A');
+  assert.equal(value.toBigInt(), 26n, specifier);
+  const hex = '0x' + '0'.repeat(62) + '1a';
+  const canonical = 'nil_' + hex.slice(2);
+  assert.equal(value.toHex(), hex);
+  assert.equal(value.toCanonicalString(), canonical);
+  assert.equal(Nullifier.fromCanonicalString(canonical).toBigInt(), 26n);
+  assert.equal(JSON.stringify({nullifier:value}), JSON.stringify({nullifier:hex}));
+}
 const core = CORE_IMPORT;
 const hooks = HOOKS_IMPORT;
 if (hooks) { assert.equal(typeof hooks.useIDKitRequest, 'function'); assert.equal(hooks.configureIDKitRuntime, core.configureIDKitRuntime); }
@@ -40,11 +56,11 @@ console.log('Packed FORMAT core/hooks: import, hashing, signing, bridge and invi
 `;
 writeFileSync(
   join(scratch, "smoke.cjs"),
-  `(async()=>{${body.replace("CORE_IMPORT", "require('@worldcoin/idkit-core')").replace("HOOKS_IMPORT", "require('@worldcoin/idkit/hooks')").replace("EXPECTED_VERSION", JSON.stringify(candidate.manifest.packages.core.version)).replace("EXPECTED_NAMESPACE", JSON.stringify("idkit_js_core")).replace("FORMAT", "CommonJS")}})().catch(e=>{console.error(e);process.exitCode=1});`,
+  `(async()=>{${body.replace("NULLIFIER_IMPORT", "require").replace("CORE_IMPORT", "require('@worldcoin/idkit-core')").replace("HOOKS_IMPORT", "require('@worldcoin/idkit/hooks')").replace("EXPECTED_VERSION", JSON.stringify(candidate.manifest.packages.core.version)).replace("EXPECTED_NAMESPACE", JSON.stringify("idkit_js_core")).replace("FORMAT", "CommonJS")}})().catch(e=>{console.error(e);process.exitCode=1});`,
 );
 writeFileSync(
   join(scratch, "smoke.mjs"),
-  `import {createRequire} from 'node:module';const require=createRequire(import.meta.url);\n${body.replace("CORE_IMPORT", "await import('@worldcoin/idkit-core')").replace("HOOKS_IMPORT", "await import('@worldcoin/idkit/hooks')").replace("EXPECTED_VERSION", JSON.stringify(candidate.manifest.packages.core.version)).replace("EXPECTED_NAMESPACE", JSON.stringify("idkit_js_core")).replace("FORMAT", "ESM")}`,
+  `import {createRequire} from 'node:module';const require=createRequire(import.meta.url);\n${body.replace("NULLIFIER_IMPORT", "(specifier) => import(specifier)").replace("CORE_IMPORT", "await import('@worldcoin/idkit-core')").replace("HOOKS_IMPORT", "await import('@worldcoin/idkit/hooks')").replace("EXPECTED_VERSION", JSON.stringify(candidate.manifest.packages.core.version)).replace("EXPECTED_NAMESPACE", JSON.stringify("idkit_js_core")).replace("FORMAT", "ESM")}`,
 );
 writeFileSync(
   join(scratch, "smoke-native.mjs"),

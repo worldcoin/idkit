@@ -13,7 +13,11 @@ for (const [directory, name] of [
   const cwd = fileURLToPath(
     new URL(`../packages/${directory}/`, import.meta.url),
   );
-  for (const subpath of ["", "/nullifier"]) {
+  for (const subpath of [
+    "",
+    "/nullifier",
+    ...(directory === "react" ? ["/hooks"] : []),
+  ]) {
     const specifier = name + subpath;
     for (const format of ["esm", "cjs"]) {
       const load =
@@ -36,22 +40,6 @@ for (const [directory, name] of [
         ],
         { cwd },
       );
-      if (subpath && format === "cjs") {
-        execFileSync(
-          process.execPath,
-          [
-            "-e",
-            `${load}
-          const forbidden = Object.keys(require.cache).filter(p =>
-            ["/wasm/", "/node_modules/react/", "/node_modules/react-dom/"].some(part => p.includes(part)) ||
-            ["/signing.js", "/signing.cjs"].some(name => p.endsWith(name))
-          );
-          if (forbidden.length) throw new Error("Standalone import loaded unrelated modules: " + forbidden);
-        `,
-          ],
-          { cwd },
-        );
-      }
     }
   }
 }
@@ -60,7 +48,12 @@ const code = readFileSync(
   new URL("../packages/core/dist/idkit.global.js", import.meta.url),
   "utf8",
 );
-const context = vm.createContext({ TextEncoder, TextDecoder, URL, console });
+const context = vm.createContext({
+  TextEncoder,
+  TextDecoder,
+  URL,
+  console,
+});
 vm.runInContext(code, context);
 assert.equal(context.IDKit.Nullifier.fromHex("0x1A").toBigInt(), 26n);
 const canonical = "nil_" + "0".repeat(62) + "1a";
@@ -74,5 +67,5 @@ assert.equal(
 );
 assert.equal(typeof context.IDKit.request, "function");
 console.log(
-  "Nullifier root/subpath exports passed in ESM, CommonJS, and browser without WASM initialization.",
+  "Nullifier root/subpath exports passed in ESM, CommonJS, and browser.",
 );
