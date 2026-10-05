@@ -1,6 +1,7 @@
 packages:
   - js/packages/*
   - js/examples/*
+  - "!js/examples/nextjs"
 
 onlyBuiltDependencies:
   - esbuild

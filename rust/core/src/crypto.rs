@@ -133,7 +133,7 @@ pub fn decrypt(key: &[u8], nonce: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
 // port in world-app-ios must be kept in lockstep.
 
 #[cfg(any(feature = "native-crypto", feature = "wasm-crypto"))]
-mod invite_code {
+pub(crate) mod invite_code {
     use super::{Hkdf, Sha256};
 
     /// Crockford Base32 alphabet — same set used for data digits and the check
@@ -178,6 +178,11 @@ mod invite_code {
             crate::Error::Crypto(format!("Failed to generate invite code entropy: {e}"))
         })?;
 
+        Ok(code_from_entropy(rng_bytes))
+    }
+
+    /// Deterministic code construction; entropy always comes from the CSPRNG in production.
+    pub fn code_from_entropy(rng_bytes: [u8; DATA_LEN]) -> String {
         let mut values = [0u32; DATA_LEN];
         let mut code = String::with_capacity(TOTAL_LEN);
         for (i, byte) in rng_bytes.iter().enumerate() {
@@ -187,7 +192,7 @@ mod invite_code {
             code.push(CROCKFORD[v as usize] as char);
         }
         code.push(CROCKFORD[checksum(&values) as usize] as char);
-        Ok(code)
+        code
     }
 
     /// Parses user input back to canonical form, validating the check digit.

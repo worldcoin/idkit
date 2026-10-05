@@ -46,6 +46,7 @@ use std::{
 #[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
+#[cfg_attr(feature = "conformance", derive(strum::EnumIter))]
 pub enum Environment {
     #[default]
     Production,
@@ -724,6 +725,49 @@ pub struct BridgeConnection {
     pub(crate) code_expires_at: Option<u64>,
 }
 
+/// Supplies deterministic connection state to the native oracle without HTTP or entropy.
+/// Response parsing and connector formatting still run through production methods.
+#[cfg(feature = "conformance")]
+pub(crate) fn conformance_connection(
+    context: crate::conformance::ConnectionContext,
+) -> Result<BridgeConnection> {
+    let key_bytes =
+        hex::decode(&context.key_hex).map_err(|error| Error::Crypto(error.to_string()))?;
+    let key: [u8; 32] = key_bytes
+        .as_slice()
+        .try_into()
+        .map_err(|_| Error::Crypto("Key must be 32 bytes".to_string()))?;
+    let app_id = AppId::new(context.app_id)?;
+    let bridge_url = context
+        .bridge_url
+        .map(|url| BridgeUrl::new(url, &app_id))
+        .transpose()?
+        .unwrap_or_default();
+    Ok(BridgeConnection {
+        bridge_url,
+        key: CryptoKey::new(key, [0; 12]),
+        key_bytes,
+        request_id: context.request_id,
+        app_id: app_id.to_string(),
+        client: reqwest::Client::new(),
+        cached_signal_hashes: CachedSignalHashes {
+            signal_hashes: context.signal_hashes,
+            legacy_signal_hash: context.legacy_signal_hash,
+        },
+        action: context.action,
+        action_description: context.action_description,
+        nonce: context.nonce,
+        override_connect_base_url: context.override_connect_base_url,
+        return_to: context.return_to,
+        environment: context.environment,
+        require_user_presence: context.require_user_presence,
+        request_payload: serde_json::Value::Null,
+        latest_bridge_payload: Mutex::new(None),
+        invite_code: context.invite_code,
+        code_expires_at: None,
+    })
+}
+
 /// Builds a `BridgeRequestPayload` from params without connecting to the bridge.
 ///
 /// This is the single source of truth for payload construction, used by both
@@ -735,6 +779,14 @@ pub struct BridgeConnection {
 fn build_request_payload(
     params: &BridgeConnectionParams,
     native: bool,
+) -> Result<BridgeRequestPayload> {
+    build_request_payload_with_id(params, native, None)
+}
+
+fn build_request_payload_with_id(
+    params: &BridgeConnectionParams,
+    native: bool,
+    request_id: Option<&str>,
 ) -> Result<BridgeRequestPayload> {
     if let Some(ref constraints) = params.constraints {
         constraints.validate()?;
@@ -787,7 +839,7 @@ fn build_request_payload(
                 .map_err(|_| Error::InvalidConfiguration("Invalid nonce format".to_string()))?;
 
             Ok(ProofRequest {
-                id: uuid::Uuid::new_v4().to_string(),
+                id: request_id.map_or_else(|| uuid::Uuid::new_v4().to_string(), str::to_owned),
                 version: world_id_primitives::RequestVersion::V1,
                 proof_type,
                 created_at: params.rp_context.created_at,
@@ -857,6 +909,20 @@ pub fn build_request_payload_json(
 ) -> Result<serde_json::Value> {
     let payload = build_request_payload(params, native)?;
     serde_json::to_value(&payload).map_err(Into::into)
+}
+
+/// Deterministic payload seam; production and the oracle execute the same builder.
+#[cfg(feature = "conformance")]
+pub(crate) fn conformance_request_payload(
+    params: &BridgeConnectionParams,
+    native: bool,
+    request_id: &str,
+) -> Result<serde_json::Value> {
+    Ok(serde_json::to_value(build_request_payload_with_id(
+        params,
+        native,
+        Some(request_id),
+    )?)?)
 }
 
 /// Builds a v1 (`MiniKit` legacy) native payload from `BridgeConnectionParams`.
@@ -1146,12 +1212,31 @@ impl BridgeConnection {
             .send()
             .await?;
 
+        let status = response.status();
+        if status == reqwest::StatusCode::REQUEST_TIMEOUT
+            || status == reqwest::StatusCode::TOO_MANY_REQUESTS
+            || status.is_server_error()
+        {
+            return Err(Error::BridgeError(format!(
+                "Polling bridge returned HTTP {status}"
+            )));
+        }
+
         if !response.status().is_success() {
             return Ok(Status::Failed(AppError::ConnectionFailed));
         }
 
         let poll_response: BridgePollResponse = response.json().await?;
 
+        self.handle_poll_response(poll_response)
+    }
+
+    #[cfg(feature = "conformance")]
+    pub(crate) fn conformance_poll_response(&self, response: &[u8]) -> Result<Status> {
+        self.handle_poll_response(serde_json::from_slice(response)?)
+    }
+
+    fn handle_poll_response(&self, poll_response: BridgePollResponse) -> Result<Status> {
         match poll_response.status.as_str() {
             "initialized" => Ok(Status::WaitingForConnection),
             "retrieved" => Ok(Status::AwaitingConfirmation),
@@ -1175,104 +1260,108 @@ impl BridgeConnection {
                 // response is both decoded and decrypted successfully.
                 self.store_bridge_payload(String::from_utf8_lossy(&plaintext).into_owned());
 
-                let bridge_response: BridgeResponse = serde_json::from_slice(&plaintext)?;
-
-                match bridge_response {
-                    BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
-                    BridgeResponse::ResponseV2(response) => {
-                        let user_presence_completed = response.user_presence_completed;
-                        self.handle_bridge_v2_response(
-                            response.into_proof_response(),
-                            None,
-                            None,
-                            user_presence_completed,
-                        )
-                    }
-                    BridgeResponse::ResponseV2_1 {
-                        proof_response,
-                        identity_attested,
-                        user_presence_completed,
-                        integrity_bundle,
-                    } => self.handle_bridge_v2_response(
-                        proof_response,
-                        identity_attested,
-                        integrity_bundle,
-                        user_presence_completed,
-                    ),
-                    BridgeResponse::MultiLegacyResponse {
-                        legacy_responses,
-                        user_presence_completed,
-                        integrity_bundle,
-                        identity_attested,
-                    } => {
-                        if let Some(status) = user_presence_failure_status(
-                            self.require_user_presence,
-                            user_presence_completed,
-                        ) {
-                            return Ok(status);
-                        }
-                        let responses: Vec<ResponseItem> = legacy_responses
-                            .into_iter()
-                            .map(|item| {
-                                // Search the `signal_hashes` or fallback to legacy signal hash for v3 responses since the bridge does not return signal hashes
-                                let signal_hash = self
-                                    .cached_signal_hashes
-                                    .get(item.verification_level.as_ref())
-                                    .unwrap_or_else(|| self.cached_signal_hashes.legacy());
-                                item.into_response_item(signal_hash)
-                            })
-                            .collect();
-
-                        let mut result = IDKitResult::new(
-                            "3.0",
-                            self.nonce.clone(),
-                            self.action.clone(),
-                            self.action_description.clone(),
-                            responses,
-                            self.require_user_presence
-                                .then_some(user_presence_completed),
-                            self.environment.as_ref(),
-                        );
-                        result.identity_attested = identity_attested;
-                        result.integrity_bundle = integrity_bundle;
-
-                        Ok(Status::Confirmed(result))
-                    }
-                    BridgeResponse::ResponseV1 {
-                        response,
-                        user_presence_completed,
-                        integrity_bundle,
-                        identity_attested,
-                    } => {
-                        if let Some(status) = user_presence_failure_status(
-                            self.require_user_presence,
-                            user_presence_completed,
-                        ) {
-                            return Ok(status);
-                        }
-
-                        // V1 responses are always protocol 3.0
-                        // For V1 we don't have identifier, use verification_level as key
-                        let signal_hash = self.cached_signal_hashes.legacy();
-                        let item = response.into_response_item(signal_hash);
-                        let mut result = IDKitResult::new(
-                            "3.0",
-                            self.nonce.clone(),
-                            self.action.clone(),
-                            self.action_description.clone(),
-                            vec![item],
-                            self.require_user_presence
-                                .then_some(user_presence_completed),
-                            self.environment.as_ref(),
-                        );
-                        result.identity_attested = identity_attested;
-                        result.integrity_bundle = integrity_bundle;
-
-                        Ok(Status::Confirmed(result))
-                    }
-                }
+                self.handle_decrypted_response(&plaintext)
             }
             _ => Err(Error::UnexpectedResponse),
+        }
+    }
+
+    pub(crate) fn handle_decrypted_response(&self, plaintext: &[u8]) -> Result<Status> {
+        let bridge_response: BridgeResponse = serde_json::from_slice(plaintext)?;
+
+        match bridge_response {
+            BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
+            BridgeResponse::ResponseV2(response) => {
+                let user_presence_completed = response.user_presence_completed;
+                self.handle_bridge_v2_response(
+                    response.into_proof_response(),
+                    None,
+                    None,
+                    user_presence_completed,
+                )
+            }
+            BridgeResponse::ResponseV2_1 {
+                proof_response,
+                identity_attested,
+                user_presence_completed,
+                integrity_bundle,
+            } => self.handle_bridge_v2_response(
+                proof_response,
+                identity_attested,
+                integrity_bundle,
+                user_presence_completed,
+            ),
+            BridgeResponse::MultiLegacyResponse {
+                legacy_responses,
+                user_presence_completed,
+                integrity_bundle,
+                identity_attested,
+            } => {
+                if let Some(status) = user_presence_failure_status(
+                    self.require_user_presence,
+                    user_presence_completed,
+                ) {
+                    return Ok(status);
+                }
+                let responses: Vec<ResponseItem> = legacy_responses
+                    .into_iter()
+                    .map(|item| {
+                        // Search the `signal_hashes` or fallback to legacy signal hash for v3 responses since the bridge does not return signal hashes
+                        let signal_hash = self
+                            .cached_signal_hashes
+                            .get(item.verification_level.as_ref())
+                            .unwrap_or_else(|| self.cached_signal_hashes.legacy());
+                        item.into_response_item(signal_hash)
+                    })
+                    .collect();
+
+                let mut result = IDKitResult::new(
+                    "3.0",
+                    self.nonce.clone(),
+                    self.action.clone(),
+                    self.action_description.clone(),
+                    responses,
+                    self.require_user_presence
+                        .then_some(user_presence_completed),
+                    self.environment.as_ref(),
+                );
+                result.identity_attested = identity_attested;
+                result.integrity_bundle = integrity_bundle;
+
+                Ok(Status::Confirmed(result))
+            }
+            BridgeResponse::ResponseV1 {
+                response,
+                user_presence_completed,
+                integrity_bundle,
+                identity_attested,
+            } => {
+                if let Some(status) = user_presence_failure_status(
+                    self.require_user_presence,
+                    user_presence_completed,
+                ) {
+                    return Ok(status);
+                }
+
+                // V1 responses are always protocol 3.0
+                // For V1 we don't have identifier, use verification_level as key
+                let signal_hash = self.cached_signal_hashes.legacy();
+                let item = response.into_response_item(signal_hash);
+                let mut result = IDKitResult::new(
+                    "3.0",
+                    self.nonce.clone(),
+                    self.action.clone(),
+                    self.action_description.clone(),
+                    vec![item],
+                    self.require_user_presence
+                        .then_some(user_presence_completed),
+                    self.environment.as_ref(),
+                );
+                result.identity_attested = identity_attested;
+                result.integrity_bundle = integrity_bundle;
+
+                Ok(Status::Confirmed(result))
+            }
         }
     }
 
@@ -4446,7 +4535,8 @@ mod tests {
         }
     }
 
-    fn serve_bridge_response(body: String) -> BridgeUrl {
+    fn serve_bridge_http_response(status: &str, body: String) -> BridgeUrl {
+        let status = status.to_string();
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         std::thread::spawn(move || {
@@ -4455,7 +4545,7 @@ mod tests {
             let _ = stream.read(&mut request_buffer);
             write!(
                 stream,
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+                "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
                 body.len(),
                 body
             )
@@ -4464,6 +4554,39 @@ mod tests {
 
         let app_id = AppId::new("app_staging_test").unwrap();
         BridgeUrl::new(format!("http://{addr}"), &app_id).unwrap()
+    }
+
+    fn serve_bridge_response(body: String) -> BridgeUrl {
+        serve_bridge_http_response("200 OK", body)
+    }
+
+    #[test]
+    fn test_poll_distinguishes_transient_http_errors() {
+        for status in [
+            "400 Bad Request",
+            "401 Unauthorized",
+            "403 Forbidden",
+            "404 Not Found",
+        ] {
+            let mut connection = sample_connection(None);
+            connection.bridge_url = serve_bridge_http_response(status, String::new());
+            assert_eq!(
+                poll_once(&connection).unwrap(),
+                Status::Failed(AppError::ConnectionFailed)
+            );
+        }
+        for status in [
+            "408 Request Timeout",
+            "429 Too Many Requests",
+            "500 Internal Server Error",
+            "502 Bad Gateway",
+            "503 Service Unavailable",
+            "504 Gateway Timeout",
+        ] {
+            let mut connection = sample_connection(None);
+            connection.bridge_url = serve_bridge_http_response(status, String::new());
+            assert!(matches!(poll_once(&connection), Err(Error::BridgeError(_))));
+        }
     }
 
     fn poll_once(connection: &BridgeConnection) -> Result<Status> {

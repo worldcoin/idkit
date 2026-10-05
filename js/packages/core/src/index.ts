@@ -1,7 +1,7 @@
 /**
  * @worldcoin/idkit-core
- * Core bridge logic for IDKit powered by Rust/WASM
- * Pure TypeScript - no dependencies
+ * Portable TypeScript protocol and bridge implementation for IDKit.
+ * Compatibility is checked against the native Rust core.
  */
 
 // Main API (IDKit namespace)
@@ -31,6 +31,7 @@ export {
   type IDKitNamespaceOptions,
   type IDKitCompletionResult,
   type WaitOptions,
+  type RequestOptions,
   type RpContext,
   type Preset,
   type IdentityAttribute,
@@ -54,7 +55,7 @@ export type {
   AbiEncodedValue,
 } from "./types/config";
 
-// Result types (re-exported from WASM - source of truth in rust/core/src/wasm_bindings.rs)
+// Public result types, covered by the native Rust conformance tests.
 export type {
   // Uniqueness proof response types
   IDKitResult,
@@ -95,5 +96,12 @@ export type { RpSignature, SignRequestParams } from "./signing";
 
 // Hashing utilities
 export { hashSignal } from "./lib/hashing";
+
+export { configureIDKitRuntime, type IDKitRuntimeOptions } from "./lib/runtime";
+
+export {
+  RetryableBridgeError,
+  isRetryableBridgeError,
+} from "./transports/bridge";
 
 export { Nullifier } from "./nullifier";

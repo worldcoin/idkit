@@ -6,6 +6,8 @@ export default defineConfig({
     "src/signing.ts",
     "src/hashing.ts",
     "src/session.ts",
+    "src/hooks.ts",
+    "src/expo.ts",
     "src/nullifier.ts",
   ],
   format: ["esm", "cjs"],

@@ -5,12 +5,6 @@ import { sha256 } from "@noble/hashes/sha2";
 import { sign, etc } from "@noble/secp256k1";
 import { isServerEnvironment } from "./platform";
 
-// Node <19 CJS doesn't expose globalThis.crypto; polyfill it so @noble libs and our code can use it
-if (typeof globalThis.crypto === "undefined") {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  globalThis.crypto = require("node:crypto").webcrypto;
-}
-
 // Configure @noble/secp256k1 with synchronous HMAC-SHA256 from @noble/hashes
 etc.hmacSha256Sync = (key: Uint8Array, ...msgs: Uint8Array[]) =>
   hmac(sha256, key, etc.concatBytes(...msgs));
@@ -19,7 +13,6 @@ const DEFAULT_TTL_SEC = 300;
 const RP_SIGNATURE_MSG_VERSION = 0x01;
 // Prefix for Ethereum signed messages as per EIP-191: "\x19Ethereum Signed Message:\n" + message.length
 const ETHEREUM_MESSAGE_PREFIX = "\x19Ethereum Signed Message:\n";
-const textEncoder = new TextEncoder();
 
 export function hashToField(input: Uint8Array): Uint8Array {
   const hash = BigInt("0x" + bytesToHex(keccak_256(input))) >> 8n;
@@ -60,7 +53,9 @@ export function computeRpSignatureMessage(
   action?: string,
 ): Uint8Array {
   const actionBytes =
-    action === undefined ? undefined : hashToField(textEncoder.encode(action));
+    action === undefined
+      ? undefined
+      : hashToField(new TextEncoder().encode(action));
   const message = new Uint8Array(49 + (actionBytes?.length ?? 0));
   message[0] = RP_SIGNATURE_MSG_VERSION;
   message.set(nonceBytes, 1);
@@ -80,7 +75,7 @@ export function computeRpSignatureMessage(
 // Copied from viem: https://github.com/wevm/viem/commit/main/src/constants/strings.ts
 // In any case we have setup parity tests with the Rust implementation to ensure the message hashing and signing is correct
 function hashEthereumMessage(message: Uint8Array): Uint8Array {
-  const prefix = textEncoder.encode(
+  const prefix = new TextEncoder().encode(
     `${ETHEREUM_MESSAGE_PREFIX}${message.length}`,
   );
   return keccak_256(etc.concatBytes(prefix, message));
@@ -101,6 +96,19 @@ function hashEthereumMessage(message: Uint8Array): Uint8Array {
  * @returns RpSignature object with sig, nonce, createdAt, expiresAt
  */
 export function signRequest(params: SignRequestParams): RpSignature {
+  return signRequestWithEntropy(params, () => {
+    if (!globalThis.crypto?.getRandomValues) {
+      throw new Error("A cryptographically secure random source is required");
+    }
+    return globalThis.crypto.getRandomValues(new Uint8Array(32));
+  });
+}
+
+/** Internal seam for the Node entry; never installs globals in the host. */
+export function signRequestWithEntropy(
+  params: SignRequestParams,
+  randomBytes: () => Uint8Array,
+): RpSignature {
   if (!isServerEnvironment()) {
     throw new Error(
       "signRequest can only be used in Node.js environments. " +
@@ -142,8 +150,7 @@ export function signRequest(params: SignRequestParams): RpSignature {
   const privKey = etc.hexToBytes(keyHex);
 
   // 2. Generate nonce: keccak256(random) >> 8 (from_arbitrary_raw_bytes)
-  const randomBytes = crypto.getRandomValues(new Uint8Array(32));
-  const nonceBytes = hashToField(randomBytes);
+  const nonceBytes = hashToField(randomBytes());
 
   // 3. Timestamps
   const createdAt = Math.floor(Date.now() / 1000);

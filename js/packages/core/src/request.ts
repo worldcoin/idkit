@@ -17,8 +17,19 @@ import type {
   CredentialRequestType,
 } from "./types/result";
 import { IDKitErrorCodes } from "./types/result";
-import type { NativePayloadResult } from "./lib/wasm";
-import { WasmModule, initIDKit } from "./lib/wasm";
+import type { NativePayloadResult } from "./types/protocol";
+import { compileRequest } from "./protocol";
+import {
+  checkRequestOptions,
+  type RequestOptions,
+} from "./lib/request-options";
+export type { RequestOptions } from "./lib/request-options";
+import {
+  createBridgeRequest,
+  isRetryableBridgeError,
+  type BridgeRequest,
+} from "./transports/bridge";
+import { randomRequestId } from "./lib/runtime";
 import { type DebugReportWithoutVersion, buildDebugReport } from "./lib/debug";
 import {
   isInWorldApp,
@@ -81,11 +92,55 @@ export interface IDKitRequest {
   /** Unique request ID for this verification */
   readonly requestId: string;
   /** Poll once for current status (for manual polling) */
-  pollOnce(): Promise<Status>;
+  pollOnce(options?: RequestOptions): Promise<Status>;
   /** Poll continuously until completion or timeout */
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult>;
   /** Debug report for the latest request state. Always available, independent of debug mode. */
   getDebugReport(): IDKitDebugReport;
+}
+
+// Bound a pending fetch/body read and forward cancellation to the transport.
+async function beforeDeadline<T>(
+  operation: (options: RequestOptions) => Promise<T>,
+  deadline: number,
+  signal?: AbortSignal,
+): Promise<T | null> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(() =>
+        signal?.aborted || Date.now() >= deadline
+          ? null
+          : operation({
+              signal: controller.signal,
+              timeout: Math.max(0, deadline - Date.now()),
+            }),
+      ),
+      new Promise<null>((resolve) => {
+        if (Number.isFinite(deadline))
+          timer = setTimeout(
+            () => {
+              resolve(null);
+              controller.abort();
+            },
+            Math.max(0, deadline - Date.now()),
+          );
+        if (signal) {
+          onAbort = () => {
+            resolve(null);
+            controller.abort();
+          };
+          signal.addEventListener("abort", onAbort, { once: true });
+          if (signal.aborted) onAbort();
+        }
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+    if (onAbort) signal?.removeEventListener("abort", onAbort);
+  }
 }
 
 /**
@@ -94,29 +149,53 @@ export interface IDKitRequest {
  * `Status` shape is mode-agnostic.
  */
 async function pollUntilCompletionLoop(
-  pollOnce: () => Promise<Status>,
+  pollOnce: (options: RequestOptions) => Promise<Status>,
   options?: WaitOptions,
 ): Promise<IDKitCompletionResult> {
   const pollInterval = options?.pollInterval ?? 1000;
   const timeout = options?.timeout ?? 900_000; // 15 minutes default
-  const startTime = Date.now();
+  const deadline = Date.now() + timeout;
 
   while (true) {
     if (options?.signal?.aborted) {
       return { success: false, error: IDKitErrorCodes.Cancelled };
     }
 
-    if (Date.now() - startTime > timeout) {
+    if (Date.now() >= deadline) {
       return { success: false, error: IDKitErrorCodes.Timeout };
     }
 
-    const status = await pollOnce();
+    let status: Status | null;
+    try {
+      status = await beforeDeadline(pollOnce, deadline, options?.signal);
+    } catch (error) {
+      if (options?.signal?.aborted)
+        return { success: false, error: IDKitErrorCodes.Cancelled };
+      if (Date.now() >= deadline)
+        return { success: false, error: IDKitErrorCodes.Timeout };
+      if (!isRetryableBridgeError(error)) {
+        const code = error instanceof Error ? error.message : error;
+        return {
+          success: false,
+          error: Object.values(IDKitErrorCodes).includes(
+            code as IDKitErrorCodes,
+          )
+            ? (code as IDKitErrorCodes)
+            : IDKitErrorCodes.GenericError,
+        };
+      }
+      status = null;
+    }
+    if (options?.signal?.aborted)
+      return { success: false, error: IDKitErrorCodes.Cancelled };
+    if (Date.now() >= deadline)
+      return { success: false, error: IDKitErrorCodes.Timeout };
 
-    if (status.type === "confirmed" && status.result) {
+    if (status?.type === "confirmed" && status.result) {
       return { success: true, result: status.result };
     }
 
-    if (status.type === "failed") {
+    if (status?.type === "failed") {
       return {
         success: false,
         error:
@@ -124,32 +203,44 @@ async function pollUntilCompletionLoop(
       };
     }
 
-    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    let intervalTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await beforeDeadline(
+        () =>
+          new Promise<void>((resolve) => {
+            intervalTimer = setTimeout(resolve, pollInterval);
+          }),
+        deadline,
+        options?.signal,
+      );
+    } finally {
+      clearTimeout(intervalTimer);
+    }
   }
 }
 
-type WasmDebugReportSource = {
+type BridgeDebugReportSource = {
   getDebugReport(): RustBridgeDebugReport;
 };
 
-function getBridgeDebugReport(wasmRequest: unknown): IDKitDebugReport {
+function getBridgeDebugReport(bridgeRequest: unknown): IDKitDebugReport {
   return buildDebugReport(
-    (wasmRequest as WasmDebugReportSource).getDebugReport(),
+    (bridgeRequest as BridgeDebugReportSource).getDebugReport(),
   );
 }
 
 /**
- * Internal request implementation (bridge/WASM path)
+ * Internal request implementation (bridge path)
  */
 class IDKitRequestImpl implements IDKitRequest {
-  private wasmRequest: WasmModule.IDKitRequest;
+  private bridgeRequest: BridgeRequest;
   private _connectorURI: string;
   private _requestId: string;
 
-  constructor(wasmRequest: WasmModule.IDKitRequest) {
-    this.wasmRequest = wasmRequest;
-    this._connectorURI = wasmRequest.connectUrl();
-    this._requestId = wasmRequest.requestId();
+  constructor(bridgeRequest: BridgeRequest) {
+    this.bridgeRequest = bridgeRequest;
+    this._connectorURI = bridgeRequest.connectUrl();
+    this._requestId = bridgeRequest.requestId();
   }
 
   get connectorURI(): string {
@@ -160,16 +251,19 @@ class IDKitRequestImpl implements IDKitRequest {
     return this._requestId;
   }
 
-  async pollOnce(): Promise<Status> {
-    return (await this.wasmRequest.pollForStatus()) as Status;
+  async pollOnce(options?: RequestOptions): Promise<Status> {
+    return (await this.bridgeRequest.pollForStatus(options)) as Status;
   }
 
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult> {
-    return pollUntilCompletionLoop(() => this.pollOnce(), options);
+    return pollUntilCompletionLoop(
+      (pollOptions) => this.pollOnce(pollOptions),
+      options,
+    );
   }
 
   getDebugReport(): IDKitDebugReport {
-    return getBridgeDebugReport(this.wasmRequest);
+    return getBridgeDebugReport(this.bridgeRequest);
   }
 }
 
@@ -190,7 +284,7 @@ export interface IDKitInviteCodeRequest {
   /** Unique request ID for this verification */
   readonly requestId: string;
   /** Poll once for current status (for manual polling) */
-  pollOnce(): Promise<Status>;
+  pollOnce(options?: RequestOptions): Promise<Status>;
   /** Poll continuously until completion or timeout */
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult>;
   /** Debug report for the latest request state. Always available, independent of debug mode. */
@@ -198,21 +292,21 @@ export interface IDKitInviteCodeRequest {
 }
 
 /**
- * Internal invite-code request implementation (bridge/WASM only — code mode
+ * Internal invite-code request implementation (bridge only — code mode
  * has no in-app native postMessage path by design; the user is on a different
  * device than World App).
  */
 class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
-  private wasmRequest: WasmModule.IDKitInviteCodeRequest;
+  private bridgeRequest: BridgeRequest;
   private _connectorURI: string;
   private _expiresAt: number;
   private _requestId: string;
 
-  constructor(wasmRequest: WasmModule.IDKitInviteCodeRequest) {
-    this.wasmRequest = wasmRequest;
-    this._connectorURI = wasmRequest.connectUrl();
-    this._expiresAt = wasmRequest.expiresAt();
-    this._requestId = wasmRequest.requestId();
+  constructor(bridgeRequest: BridgeRequest) {
+    this.bridgeRequest = bridgeRequest;
+    this._connectorURI = bridgeRequest.connectUrl();
+    this._expiresAt = bridgeRequest.expiresAt();
+    this._requestId = bridgeRequest.requestId();
   }
 
   get connectorURI(): string {
@@ -227,16 +321,19 @@ class IDKitInviteCodeRequestImpl implements IDKitInviteCodeRequest {
     return this._requestId;
   }
 
-  async pollOnce(): Promise<Status> {
-    return (await this.wasmRequest.pollForStatus()) as Status;
+  async pollOnce(options?: RequestOptions): Promise<Status> {
+    return (await this.bridgeRequest.pollForStatus(options)) as Status;
   }
 
   pollUntilCompletion(options?: WaitOptions): Promise<IDKitCompletionResult> {
-    return pollUntilCompletionLoop(() => this.pollOnce(), options);
+    return pollUntilCompletionLoop(
+      (pollOptions) => this.pollOnce(pollOptions),
+      options,
+    );
   }
 
   getDebugReport(): IDKitDebugReport {
-    return getBridgeDebugReport(this.wasmRequest);
+    return getBridgeDebugReport(this.bridgeRequest);
   }
 }
 
@@ -328,10 +425,10 @@ export function enumerate(...nodes: ConstraintNode[]): {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Preset helpers - re-export types from WASM, provide JS convenience functions
+// Preset helpers - re-export types from the portable protocol, provide JS convenience functions
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Re-export preset types from WASM (source of truth in rust/core/src/wasm_bindings.rs)
+// Preset declarations are checked against the native Rust contract manifest.
 export type {
   Preset,
   IdentityAttribute,
@@ -346,9 +443,9 @@ export type {
   PassportPreset,
   IdentityCheckPreset,
   MncPreset,
-} from "./lib/wasm";
+} from "./types/protocol";
 
-// Import WASM preset type for function return types
+// Import protocol preset type for function return types
 import type {
   Preset,
   IdentityAttribute,
@@ -362,7 +459,7 @@ import type {
   PassportPreset,
   IdentityCheckPreset,
   MncPreset,
-} from "./lib/wasm";
+} from "./types/protocol";
 
 /**
  * Creates an OrbLegacy preset for World ID 3.0 legacy support
@@ -555,88 +652,28 @@ export function identityCheck(params: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// WASM builder factory (used for both native and bridge paths)
+// Protocol compilation (used for both native and bridge paths)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function createWasmBuilderFromConfig(
-  config: BuilderConfig,
-): WasmModule.IDKitBuilder {
-  if (!config.rp_context) {
-    throw new Error("rp_context is required for WASM bridge transport");
-  }
-
-  const rpContext = new WasmModule.RpContextWasm(
-    config.rp_context.rp_id,
-    config.rp_context.nonce,
-    BigInt(config.rp_context.created_at),
-    BigInt(config.rp_context.expires_at),
-    config.rp_context.signature,
-  );
-
-  if (config.type === "request") {
-    return WasmModule.request(
-      config.app_id,
-      config.package_name,
-      config.package_version,
-      String(config.action ?? ""),
-      rpContext,
-      config.action_description ?? null,
-      config.bridge_url ?? null,
-      config.allow_legacy_proofs ?? false,
-      config.require_user_presence ?? false,
-      config.override_connect_base_url ?? null,
-      config.return_to ?? null,
-      config.environment ?? null,
-    );
-  }
-
-  if (config.type === "proveSession") {
-    return WasmModule.proveSession(
-      config.session_id!,
-      config.app_id,
-      config.package_name,
-      config.package_version,
-      rpContext,
-      config.action_description ?? null,
-      config.bridge_url ?? null,
-      config.require_user_presence ?? false,
-      config.override_connect_base_url ?? null,
-      config.return_to ?? null,
-      config.environment ?? null,
-    );
-  }
-
-  // type === "session"
-  return WasmModule.createSession(
-    config.app_id,
-    config.package_name,
-    config.package_version,
-    rpContext,
-    config.action_description ?? null,
-    config.bridge_url ?? null,
-    config.require_user_presence ?? false,
-    config.override_connect_base_url ?? null,
-    config.return_to ?? null,
-    config.environment ?? null,
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// IDKitBuilder (transport-aware: native postMessage vs WASM bridge)
+// IDKitBuilder (transport-aware: native postMessage vs HTTP bridge)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Builder for IDKit requests
  *
  * Stores configuration and defers transport selection to `.preset()` / `.constraints()`.
- * In World App: uses native postMessage transport (no WASM needed).
- * On web: uses WASM bridge transport (QR code + polling).
+ * In World App: uses native postMessage transport (no HTTP bridge needed).
+ * On web: uses HTTP bridge transport (QR code + polling).
  */
 class IDKitBuilder {
   private config: BuilderConfig;
 
   constructor(config: BuilderConfig) {
-    this.config = config;
+    this.config = {
+      ...config,
+      rp_context: config.rp_context && { ...config.rp_context },
+    };
   }
 
   /**
@@ -651,9 +688,11 @@ class IDKitBuilder {
    *   .constraints(any(CredentialRequest('proof_of_human'), CredentialRequest('selfie')));
    * ```
    */
-  async constraints(constraints: ConstraintNode): Promise<IDKitRequest> {
-    await initIDKit();
-
+  async constraints(
+    constraints: ConstraintNode,
+    options?: RequestOptions,
+  ): Promise<IDKitRequest> {
+    checkRequestOptions(options);
     if (isInWorldApp()) {
       const verifyVersion = getWorldAppVerifyVersion();
 
@@ -665,24 +704,28 @@ class IDKitBuilder {
         );
       }
 
-      const wasmBuilder = createWasmBuilderFromConfig(this.config);
-      const wasmResult: NativePayloadResult =
-        wasmBuilder.nativePayload(constraints);
-      return createNativeRequest(
-        wasmResult.payload,
+      const compiled: NativePayloadResult = compileRequest(
         this.config,
-        wasmResult.signal_hashes ?? {},
-        wasmResult.legacy_signal_hash,
+        { constraints },
+        { nativeVersion: 2, requestId: randomRequestId() },
+      );
+      return createNativeRequest(
+        compiled.payload,
+        this.config,
+        compiled.signal_hashes ?? {},
+        compiled.legacy_signal_hash,
         2,
       );
     }
 
-    // Bridge path — WASM
-    const wasmBuilder = createWasmBuilderFromConfig(this.config);
-    const wasmRequest = (await wasmBuilder.constraints(
-      constraints,
-    )) as unknown as WasmModule.IDKitRequest;
-    return new IDKitRequestImpl(wasmRequest);
+    // Bridge path
+    const request = await createBridgeRequest(
+      this.config,
+      { constraints },
+      false,
+      options,
+    );
+    return new IDKitRequestImpl(request);
   }
 
   /**
@@ -700,7 +743,11 @@ class IDKitBuilder {
    *   .preset(orbLegacy({ signal: 'user-123' }));
    * ```
    */
-  async preset(preset: Preset): Promise<IDKitRequest> {
+  async preset(
+    preset: Preset,
+    options?: RequestOptions,
+  ): Promise<IDKitRequest> {
+    checkRequestOptions(options);
     if (
       this.config.type === "createSession" ||
       this.config.type === "proveSession"
@@ -710,34 +757,36 @@ class IDKitBuilder {
       );
     }
 
-    await initIDKit();
-
     if (isInWorldApp()) {
       const verifyVersion = getWorldAppVerifyVersion();
 
       if (verifyVersion === 2) {
-        const wasmBuilder = createWasmBuilderFromConfig(this.config);
-        const wasmResult: NativePayloadResult =
-          wasmBuilder.nativePayloadFromPreset(preset);
-        return createNativeRequest(
-          wasmResult.payload,
+        const compiled: NativePayloadResult = compileRequest(
           this.config,
-          wasmResult.signal_hashes ?? {},
-          wasmResult.legacy_signal_hash,
+          { preset },
+          { nativeVersion: 2, requestId: randomRequestId() },
+        );
+        return createNativeRequest(
+          compiled.payload,
+          this.config,
+          compiled.signal_hashes ?? {},
+          compiled.legacy_signal_hash,
           2,
         );
       }
 
       // v1 — presets always have valid legacy fields, so this should succeed
       try {
-        const wasmBuilder = createWasmBuilderFromConfig(this.config);
-        const wasmResult: NativePayloadResult =
-          wasmBuilder.nativePayloadV1FromPreset(preset);
-        return createNativeRequest(
-          wasmResult.payload,
+        const compiled: NativePayloadResult = compileRequest(
           this.config,
-          wasmResult.signal_hashes ?? {},
-          wasmResult.legacy_signal_hash,
+          { preset },
+          { nativeVersion: 1, requestId: randomRequestId() },
+        );
+        return createNativeRequest(
+          compiled.payload,
+          this.config,
+          compiled.signal_hashes ?? {},
+          compiled.legacy_signal_hash,
           1,
         );
       } catch (err) {
@@ -756,12 +805,14 @@ class IDKitBuilder {
       }
     }
 
-    // Bridge path — WASM
-    const wasmBuilder = createWasmBuilderFromConfig(this.config);
-    const wasmRequest = (await wasmBuilder.preset(
-      preset,
-    )) as unknown as WasmModule.IDKitRequest;
-    return new IDKitRequestImpl(wasmRequest);
+    // Bridge path
+    const request = await createBridgeRequest(
+      this.config,
+      { preset },
+      false,
+      options,
+    );
+    return new IDKitRequestImpl(request);
   }
 }
 
@@ -777,7 +828,10 @@ class IDKitInviteCodeBuilder {
   private config: BuilderConfig;
 
   constructor(config: BuilderConfig) {
-    this.config = config;
+    this.config = {
+      ...config,
+      rp_context: config.rp_context && { ...config.rp_context },
+    };
   }
 
   /**
@@ -795,14 +849,15 @@ class IDKitInviteCodeBuilder {
    */
   async constraints(
     constraints: ConstraintNode,
+    options?: RequestOptions,
   ): Promise<IDKitInviteCodeRequest> {
-    await initIDKit();
-
-    const wasmBuilder = createWasmBuilderFromConfig(this.config);
-    const wasmRequest = (await wasmBuilder.constraintsWithInviteCode(
-      constraints,
-    )) as unknown as WasmModule.IDKitInviteCodeRequest;
-    return new IDKitInviteCodeRequestImpl(wasmRequest);
+    const request = await createBridgeRequest(
+      this.config,
+      { constraints },
+      true,
+      options,
+    );
+    return new IDKitInviteCodeRequestImpl(request);
   }
 
   /**
@@ -811,7 +866,10 @@ class IDKitInviteCodeBuilder {
    * @param preset - A preset object from orbLegacy(), secureDocumentLegacy(), documentLegacy(), selfieCheckLegacy(), selfieCheck(), deviceLegacy(), proofOfHuman(), or passport()
    * @returns A new IDKitInviteCodeRequest instance
    */
-  async preset(preset: Preset): Promise<IDKitInviteCodeRequest> {
+  async preset(
+    preset: Preset,
+    options?: RequestOptions,
+  ): Promise<IDKitInviteCodeRequest> {
     if (
       this.config.type === "createSession" ||
       this.config.type === "proveSession"
@@ -821,13 +879,13 @@ class IDKitInviteCodeBuilder {
       );
     }
 
-    await initIDKit();
-
-    const wasmBuilder = createWasmBuilderFromConfig(this.config);
-    const wasmRequest = (await wasmBuilder.presetWithInviteCode(
-      preset,
-    )) as unknown as WasmModule.IDKitInviteCodeRequest;
-    return new IDKitInviteCodeRequestImpl(wasmRequest);
+    const request = await createBridgeRequest(
+      this.config,
+      { preset },
+      true,
+      options,
+    );
+    return new IDKitInviteCodeRequestImpl(request);
   }
 }
 

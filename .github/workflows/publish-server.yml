@@ -14,13 +14,12 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   prepare:
     # Dev releases (workflow_dispatch) are only allowed from main
     if: >-
-      github.event_name == 'pull_request' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on:
       group: arc-public-large-amd64-runner
@@ -31,6 +30,12 @@ jobs:
       should_publish: ${{ steps.config.outputs.should_publish }}
 
     steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
       - name: Determine release type
         id: config
         # Use env vars to avoid script injection via github context interpolation
@@ -42,10 +47,17 @@ jobs:
           PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
+          set -euo pipefail
+          RELEASE_SHA="${INPUT_COMMIT_SHA:-$GITHUB_SHA}"
+          if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || \
+             ! git merge-base --is-ancestor "$RELEASE_SHA" refs/remotes/origin/main; then
+            echo "::error::Release must use a full commit SHA from main."
+            exit 1
+          fi
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "npm_tag=dev" >> $GITHUB_OUTPUT
             echo "should_publish=true" >> $GITHUB_OUTPUT
-            echo "ref=${INPUT_COMMIT_SHA:-$GITHUB_SHA}" >> $GITHUB_OUTPUT
+            echo "ref=$RELEASE_SHA" >> $GITHUB_OUTPUT
           elif [ "$PR_MERGED" = "true" ] && \
                echo "$PR_LABELS" | grep -q '"release"' && \
                echo "$PR_BODY" | grep -q "<!-- release_target:js-server -->"; then
@@ -56,22 +68,11 @@ jobs:
             echo "should_publish=false" >> $GITHUB_OUTPUT
           fi
 
-      - uses: actions/checkout@v6
+      - name: Select the release commit
         if: steps.config.outputs.should_publish == 'true'
-        with:
-          ref: ${{ steps.config.outputs.ref }}
-          fetch-depth: 0
-
-      - name: Validate commit exists on main
-        if: steps.config.outputs.should_publish == 'true' && github.event_name == 'workflow_dispatch'
         env:
-          TARGET_REF: ${{ steps.config.outputs.ref }}
-        run: |
-          git fetch origin main
-          if ! git merge-base --is-ancestor "$TARGET_REF" origin/main; then
-            echo "::error::Commit $TARGET_REF is not on the main branch. Dev releases can only be published from merged code."
-            exit 1
-          fi
+          TARGET_SHA: ${{ steps.config.outputs.ref }}
+        run: git checkout --detach "$TARGET_SHA"
 
       - name: Generate version
         if: steps.config.outputs.should_publish == 'true'
@@ -131,20 +132,34 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ needs.prepare.outputs.ref }}
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate and select the release commit
+        env:
+          TARGET_SHA: ${{ needs.prepare.outputs.ref }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || \
+             ! git merge-base --is-ancestor "$TARGET_SHA" refs/remotes/origin/main; then
+            echo "::error::Release must use a full commit SHA from main."
+            exit 1
+          fi
+          git checkout --detach "$TARGET_SHA"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
-          version: 9
+          version: 9.15.4
 
       - name: Update npm for OIDC trusted publishing
         run: |

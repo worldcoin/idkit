@@ -10,6 +10,7 @@ node_modules/
 
 # Generated files
 *.min.js
+pnpm-lock.yaml
 
 # Other
 coverage/

@@ -9,7 +9,7 @@ import { useIDKitFlow } from "./useIDKitFlow";
 export function useIDKitRequest(
   config: IDKitRequestHookConfig,
 ): UseIDKitRequestHookResult {
-  return useIDKitFlow<IDKitResult>(() => {
+  return useIDKitFlow<IDKitResult>((options) => {
     const builder = IDKit.request({
       app_id: config.app_id,
       action: config.action,
@@ -23,8 +23,8 @@ export function useIDKitRequest(
       environment: config.environment,
     });
     if ("constraints" in config && config.constraints) {
-      return builder.constraints(config.constraints);
+      return builder.constraints(config.constraints, options);
     }
-    return builder.preset(config.preset!);
+    return builder.preset(config.preset!, options);
   }, config);
 }
