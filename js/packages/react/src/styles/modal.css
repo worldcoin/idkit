@@ -1,0 +1,145 @@
+/* Animations */
+@keyframes idkit-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes idkit-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes idkit-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Backdrop */
+.idkit-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2147483646;
+  padding: 16px;
+  animation: idkit-fade-in 0.2s ease-out;
+}
+
+@media (max-width: 1024px) {
+  .idkit-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+}
+
+/* Modal */
+.idkit-modal {
+  position: relative;
+  width: 100%;
+  max-width: 448px;
+  min-height: 35rem;
+  background: var(--idkit-bg);
+  border-radius: 24px;
+  box-shadow:
+    0 24px 60px rgba(15, 23, 42, 0.28),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+  font-family: var(--idkit-font);
+  color: var(--idkit-text);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: idkit-scale-in 0.25s ease-out;
+}
+
+@media (max-width: 1024px) {
+  .idkit-modal {
+    max-width: 100%;
+    min-height: auto;
+    max-height: 95vh;
+    border-radius: 24px 24px 0 0;
+    animation: idkit-slide-up 0.3s ease-out;
+  }
+}
+
+/* Close button */
+.idkit-close {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1.2px solid var(--idkit-border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--idkit-text);
+  cursor: pointer;
+  padding: 0;
+  z-index: 1;
+  transition: background 0.15s ease;
+}
+
+.idkit-close:hover {
+  background: var(--idkit-surface);
+}
+
+.idkit-close svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Content area */
+.idkit-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 24px 24px;
+  text-align: center;
+}
+
+/* Footer */
+.idkit-footer {
+  border-top: 1px solid #f5f5f7;
+  padding: 28px 32px;
+  text-align: center;
+}
+
+:host(.dark) .idkit-footer {
+  border-top-color: rgba(245, 245, 247, 0.15);
+}
+
+.idkit-footer a {
+  color: var(--idkit-text-muted);
+  font-size: 14px;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.idkit-footer a:hover {
+  color: var(--idkit-text);
+}
