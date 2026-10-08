@@ -194,10 +194,11 @@
     justify-content: safe center;
     overflow-y: auto;
     overscroll-behavior: contain;
+    scrollbar-width: none;
   }
 
-  .idkit-content:has(.idkit-error-state) {
-    overflow: hidden;
+  .idkit-content::-webkit-scrollbar {
+    display: none;
   }
 
   .idkit-error-state {
@@ -208,8 +209,6 @@
   .idkit-error-state .idkit-state-content {
     min-height: 0;
     justify-content: safe center;
-    overflow-y: auto;
-    overscroll-behavior: contain;
   }
 
   .idkit-retry-btn,
