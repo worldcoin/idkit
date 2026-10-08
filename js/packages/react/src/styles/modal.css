@@ -56,9 +56,11 @@
 /* Modal */
 .idkit-modal {
   position: relative;
+  box-sizing: border-box;
   width: 100%;
   max-width: 448px;
   min-height: 35rem;
+  padding: 32px;
   background: var(--idkit-bg);
   border-radius: 24px;
   box-shadow:
@@ -85,30 +87,20 @@
 /* Close button */
 .idkit-close {
   position: absolute;
-  top: 24px;
-  right: 24px;
+  top: 32px;
+  right: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 1.2px solid var(--idkit-border);
-  border-radius: 50%;
-  background: transparent;
-  color: var(--idkit-text);
+  width: 44px;
+  height: 44px;
   cursor: pointer;
   padding: 0;
   z-index: 1;
-  transition: background 0.15s ease;
-}
-
-.idkit-close:hover {
-  background: var(--idkit-surface);
 }
 
 .idkit-close svg {
-  width: 16px;
-  height: 16px;
+  color: var(--idkit-text);
 }
 
 /* Content area */
@@ -118,15 +110,29 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 24px 24px 24px;
+  padding: 0;
   text-align: center;
 }
 
 /* Footer */
 .idkit-footer {
   border-top: 1px solid #f5f5f7;
-  padding: 28px 32px;
+  padding: 28px 0 0;
   text-align: center;
+}
+
+/* Keep spare height outside the QR content/footer stack. */
+.idkit-modal:has(.idkit-worldid-state) {
+  justify-content: center;
+  gap: 32px;
+}
+
+.idkit-content:has(.idkit-worldid-state) {
+  flex: none;
+}
+
+.idkit-modal:has(.idkit-worldid-state) > .idkit-footer {
+  padding-top: 32px;
 }
 
 :host(.dark) .idkit-footer {

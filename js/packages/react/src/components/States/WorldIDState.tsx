@@ -33,17 +33,16 @@ export function WorldIDState({
         <HumanBadgeIcon />
       </div>
 
-      {/* Heading */}
-      <h2 className="idkit-heading">{__("Connect your World ID")}</h2>
-
-      {/* Subtext: different for mobile vs desktop */}
-      <p className="idkit-subtext">
-        {media === "mobile"
-          ? __(
-              "You will be redirected to the app, please return to this page once you're done",
-            )
-          : __("Use phone camera to scan the QR code")}
-      </p>
+      <div className="idkit-instructions">
+        <h2 className="headline-h2">{__("Connect your World ID")}</h2>
+        <p className="body-b1">
+          {media === "mobile"
+            ? __(
+                "You will be redirected to the app, please return to this page once you're done",
+              )
+            : __("Use phone camera to scan the QR code")}
+        </p>
+      </div>
 
       {/* QR Container */}
       <div className="idkit-qr-container">

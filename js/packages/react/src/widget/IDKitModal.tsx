@@ -31,7 +31,7 @@ function ModalContent({
           {/* Close button */}
           <button
             type="button"
-            className="idkit-close"
+            className="idkit-close glass-container"
             onClick={() => onOpenChange(false)}
             aria-label="Close"
           >

@@ -1,0 +1,98 @@
+/* Shared material from Figma nodes 1:3345 and 1:2993.
+ * Glass: frost 6px, refraction 70%, depth 30, light 0deg / 25%,
+ * dispersion 20%, splay 20%. Content and layout belong to other classes.
+ * ponytail: CSS approximates refraction; actual backdrop warping needs an SVG
+ * displacement filter with a fallback for browsers that cannot render it.
+ */
+.glass-container {
+  position: relative;
+  isolation: isolate;
+  border: 0;
+  border-radius: 1000px;
+  background: transparent;
+}
+
+.glass-container::before,
+.glass-container::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border-radius: inherit;
+  pointer-events: none;
+  transform: scale(1);
+  transition: transform 420ms cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+.glass-container::before {
+  z-index: -2;
+  /* Neutral approximation of black/25%, white/25%, #444/60% Plus Lighter
+   * and #f8f8f8/20% Luminosity, without blending the contents.
+   */
+  background: rgba(242, 242, 242, 0.55);
+  -webkit-backdrop-filter: blur(6px) saturate(80%);
+  backdrop-filter: blur(6px) saturate(80%);
+  /* Keep the contour on the surface so it follows the hover expansion. */
+  box-shadow:
+    1.25px 0 0 -0.75px #d0d0d0,
+    -1.25px 0 0 -0.75px #d0d0d0,
+    0 0 0 0.5px #e8e8e8,
+    0 8px 15px rgba(0, 0, 0, 0.02),
+    inset 0 1px 1px rgba(255, 255, 255, 0.8),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.9),
+    inset 0 -40px 10px -40px #ffffff,
+    inset 0 40px 10px -40px #ffffff,
+    inset 0 40px 30px -40px rgba(0, 0, 0, 0.1);
+}
+
+.glass-container::after {
+  z-index: -1;
+  /* Leave the rim outside the glow so it stays visible on white. */
+  inset: 2px;
+  background: radial-gradient(
+    ellipse at 30% 20%,
+    rgba(255, 255, 255, 0.35) 0%,
+    rgba(255, 255, 255, 0.12) 45%,
+    rgba(255, 255, 255, 0) 75%
+  );
+  opacity: 0;
+  transition:
+    opacity 360ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 420ms cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+@media (min-width: 1025px) and (hover: hover) {
+  .glass-container:hover::before {
+    transform: scale(1.035);
+  }
+
+  .glass-container:hover::after {
+    opacity: 1;
+    transform: scale(1.035);
+  }
+}
+
+.glass-container:active::before,
+.glass-container:active::after {
+  transform: scale(0.98);
+  transition-duration: 140ms;
+}
+
+.glass-container:active::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-container,
+  .glass-container::before,
+  .glass-container::after {
+    transition: none;
+  }
+
+  .glass-container::before,
+  .glass-container::after,
+  .glass-container:is(:hover, :active)::before,
+  .glass-container:is(:hover, :active)::after {
+    transform: none;
+  }
+}

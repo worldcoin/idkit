@@ -29,7 +29,7 @@ export function HostAppVerificationState({ onVerify }: Props): ReactElement {
       <div className="idkit-spinner">
         <LoadingIcon />
       </div>
-      <p className="idkit-subtext">
+      <p className="body-b1 idkit-host-app-message">
         {__("Transmitting verification to host app. Please wait...")}
       </p>
     </div>

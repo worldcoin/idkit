@@ -4,6 +4,21 @@
   min-width: 0;
 }
 
+.idkit-instructions {
+  display: flex;
+  width: 100%;
+  max-width: 329px;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--idkit-foreground-primary);
+  text-align: center;
+}
+
+.idkit-instructions .body-b1 {
+  color: var(--idkit-foreground-secondary);
+}
+
 .idkit-worldid-icon {
   display: flex;
   align-items: center;
@@ -19,11 +34,19 @@
   height: 100%;
 }
 
+.idkit-worldid-state > .idkit-worldid-icon {
+  margin-bottom: 24px;
+}
+
 /* QR Container */
 .idkit-qr-container {
   position: relative;
   width: 100%;
   margin-top: 40px;
+}
+
+.idkit-worldid-state > .idkit-qr-container {
+  margin-top: 32px;
 }
 
 .idkit-qr-overlay {

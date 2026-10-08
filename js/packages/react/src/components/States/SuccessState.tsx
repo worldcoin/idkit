@@ -15,10 +15,12 @@ export function SuccessState(): ReactElement {
       <div className="idkit-success-icon">
         <CheckIcon />
       </div>
-      <h2 className="idkit-heading">{__("All set!")}</h2>
-      <p className="idkit-subtext" style={{ maxWidth: 260 }}>
-        {__("Your World ID is now connected")}
-      </p>
+      <div className="idkit-instructions">
+        <h2 className="headline-h2">{__("All set!")}</h2>
+        <p className="body-b1" style={{ maxWidth: 260 }}>
+          {__("Your World ID is now connected")}
+        </p>
+      </div>
     </div>
   );
 }

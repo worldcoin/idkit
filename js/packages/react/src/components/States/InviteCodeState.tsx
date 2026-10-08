@@ -48,15 +48,16 @@ export function InviteCodeState({
         <HumanBadgeIcon />
       </div>
 
-      <h2 className="idkit-heading">{__("Connect your World ID")}</h2>
-
-      <p className="idkit-subtext">
-        {media === "mobile"
-          ? __(
-              "You will be redirected to the app, please return to this page once you're done",
-            )
-          : __("Scan with your phone to continue verifying")}
-      </p>
+      <div className="idkit-instructions">
+        <h2 className="headline-h2">{__("Connect your World ID")}</h2>
+        <p className="body-b1">
+          {media === "mobile"
+            ? __(
+                "You will be redirected to the app, please return to this page once you're done",
+              )
+            : __("Scan with your phone to continue verifying")}
+        </p>
+      </div>
 
       {/* Mobile: deep-link button */}
       <div className="idkit-mobile-only">

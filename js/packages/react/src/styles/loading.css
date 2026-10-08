@@ -17,3 +17,14 @@
   width: 24px;
   height: 24px;
 }
+
+.idkit-host-app-message {
+  margin-top: 12px;
+  color: var(--idkit-text-muted);
+}
+
+@media (min-width: 1025px) {
+  .idkit-host-app-message {
+    margin-top: 8px;
+  }
+}
