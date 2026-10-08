@@ -106,6 +106,29 @@ function WidgetExample() {
 }
 ```
 
+## Developing widget styles
+
+Edit the CSS files in `src/styles`. `widget.css` imports them in cascade order;
+PostCSS combines them into the JavaScript bundle. The widgets apply that CSS
+inside their shadow roots, so applications do not need a separate CSS import.
+
+Keep each component's base rules, variants, media queries, and keyframes together:
+
+- `variables.css`: shared variables and theme values.
+- `fonts.css`: font-face declarations.
+- `modal.css`: backdrop, dialog, close button, content layout, and footer.
+- `typography.css`: headings and descriptive text shared by the screens.
+- `connection.css`: World ID badge, QR display, connection overlay, copy toast,
+  simulator link, and mobile app handoff.
+- `loading.css`: loading indicator shared by QR and host verification.
+- `success.css` and `error.css`: the corresponding verification screens.
+
+Put media queries beside the rules they modify. Keep a blank line between rules.
+
+Run `pnpm -C js/packages/react dev` from the repository root alongside your
+application's dev server. It watches all source files and keeps `dist` available
+during rebuilds.
+
 ## Subpath Exports
 
 Pure JS subpath exports for server-side use (no WASM or React required):

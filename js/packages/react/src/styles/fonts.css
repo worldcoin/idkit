@@ -1,0 +1,44 @@
+@font-face {
+  font-family: "TWK Lausanne";
+  src: url("https://world-id-assets.com/fonts/TWKLausanne-200.woff2")
+    format("woff2");
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "TWK Lausanne";
+  src: url("https://world-id-assets.com/fonts/TWKLausanne-300.woff2")
+    format("woff2");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "TWK Lausanne";
+  src: url("https://world-id-assets.com/fonts/TWKLausanne-400.woff2")
+    format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "TWK Lausanne";
+  src: url("https://world-id-assets.com/fonts/TWKLausanne-500.woff2")
+    format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "TWK Lausanne";
+  src: url("https://world-id-assets.com/fonts/TWKLausanne-600.woff2")
+    format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
