@@ -3,6 +3,7 @@ import { __ } from "../../lang";
 import { IDKitErrorCodes } from "@worldcoin/idkit-core";
 import { ErrorIcon } from "../Icons/ErrorIcon";
 import { WarningIcon } from "../Icons/WarningIcon";
+import { useMedia } from "../../hooks/useMedia";
 
 type ErrorStateProps = {
   errorCode: IDKitErrorCodes | null;
@@ -112,29 +113,40 @@ function getVariant(errorCode: IDKitErrorCodes | null): ErrorVariant {
   return errorCodeVariants[errorCode] ?? "generic";
 }
 
+export function ErrorStateIcon({
+  errorCode,
+}: Pick<ErrorStateProps, "errorCode">): ReactElement {
+  const { Icon } = variantConfig[getVariant(errorCode)];
+  return <Icon />;
+}
+
 export function ErrorState({
   errorCode,
   onClose,
   onRetry,
 }: ErrorStateProps): ReactElement {
+  const media = useMedia();
   const variant = getVariant(errorCode);
   const { title, message, Icon, action, actionLabel } = variantConfig[variant];
   const handleAction = action === "close" ? onClose : onRetry;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        textAlign: "center",
-      }}
-    >
-      <div className="idkit-error-icon">
-        <Icon />
+    <div className="idkit-error-state">
+      <div className="idkit-state-content">
+        {media === "desktop" && (
+          <div className="idkit-error-icon">
+            <Icon />
+          </div>
+        )}
+        <div className="idkit-instructions">
+          <p
+            className={`idkit-error-title ${media === "mobile" ? "headline-h3" : "headline-h2"}`}
+          >
+            {__(title)}
+          </p>
+          <p className="idkit-error-message body-b1">{__(message)}</p>
+        </div>
       </div>
-      <p className="idkit-error-title">{__(title)}</p>
-      <p className="idkit-error-message">{__(message)}</p>
       <button type="button" className="idkit-retry-btn" onClick={handleAction}>
         {__(actionLabel)}
       </button>

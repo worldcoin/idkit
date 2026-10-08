@@ -8,11 +8,15 @@ type IDKitModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: ReactNode;
+  headerContent?: ReactNode;
+  closePosition?: "left" | "right";
 };
 
 function ModalContent({
   onOpenChange,
   children,
+  headerContent,
+  closePosition,
 }: Omit<IDKitModalProps, "open">): ReactElement {
   return (
     <>
@@ -28,29 +32,35 @@ function ModalContent({
           aria-modal="true"
           onClick={(event) => event.stopPropagation()}
         >
-          {/* Close button */}
-          <button
-            type="button"
-            className="idkit-close"
-            onClick={() => onOpenChange(false)}
-            aria-label="Close"
+          <header
+            className={`idkit-modal-header${closePosition === "left" ? " idkit-modal-header--close-left" : ""}`}
           >
-            <XMarkIcon />
-          </button>
-
-          {/* Content area */}
-          <div className="idkit-content">{children}</div>
-
-          {/* Footer */}
-          <footer className="idkit-footer">
-            <a
-              href="https://developer.world.org/privacy-statement"
-              target="_blank"
-              rel="noopener noreferrer"
+            {headerContent && (
+              <div className="idkit-modal-header-content">{headerContent}</div>
+            )}
+            <button
+              type="button"
+              className="idkit-close glass-container"
+              onClick={() => onOpenChange(false)}
+              aria-label="Close"
             >
-              {__("Terms & Privacy")}
-            </a>
-          </footer>
+              <XMarkIcon />
+            </button>
+          </header>
+
+          <div className="idkit-modal-body">
+            <main className="idkit-content">{children}</main>
+
+            <footer className="idkit-footer">
+              <a
+                href="https://developer.world.org/privacy-statement"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {__("Terms & Privacy")}
+              </a>
+            </footer>
+          </div>
         </section>
       </div>
     </>
@@ -61,6 +71,8 @@ export function IDKitModal({
   open,
   onOpenChange,
   children,
+  headerContent,
+  closePosition = "right",
 }: IDKitModalProps): ReactElement | null {
   useEffect(() => {
     if (!open || typeof document === "undefined") {
@@ -82,7 +94,13 @@ export function IDKitModal({
   }
 
   const content = (
-    <ModalContent onOpenChange={onOpenChange}>{children}</ModalContent>
+    <ModalContent
+      onOpenChange={onOpenChange}
+      headerContent={headerContent}
+      closePosition={closePosition}
+    >
+      {children}
+    </ModalContent>
   );
 
   return <ShadowHost>{content}</ShadowHost>;
