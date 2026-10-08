@@ -28,6 +28,11 @@
   margin-bottom: 16px;
 }
 
+.idkit-worldid-icon--large {
+  width: 64px;
+  height: 64px;
+}
+
 .idkit-worldid-icon img {
   display: block;
   width: 100%;
@@ -66,14 +71,14 @@
 
 .idkit-connecting-text p:first-child {
   font-weight: 500;
-  color: var(--idkit-text-muted);
+  color: var(--idkit-foreground-secondary);
   margin: 0;
 }
 
 .idkit-connecting-text p:last-child {
   font-size: 14px;
   font-weight: 300;
-  color: var(--idkit-text-muted);
+  color: var(--idkit-foreground-secondary);
   margin: 4px 0 0;
 }
 
@@ -92,13 +97,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 16px;
-  border: 1px solid var(--idkit-border-light);
-  padding: 12px;
+  border-radius: 32px;
+  border: 2px solid #f1f1f1;
+  padding: 0;
+  background: #ffffff;
 }
 
 .idkit-qr-inner {
-  color: var(--idkit-text);
+  color: #000000;
 }
 
 /* QR Code SVG colors for finder patterns */
@@ -120,10 +126,6 @@
 
 .idkit-qr-inner .qr-dot {
   color: #000000;
-}
-
-:host(.dark) .idkit-qr-inner .qr-dot {
-  color: #ffffff;
 }
 
 /* QR Placeholder */
@@ -152,6 +154,14 @@
   animation: idkit-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+@media (max-width: 1024px) {
+  .idkit-mobile-qr .idkit-qr-placeholder,
+  .idkit-mobile-qr .idkit-qr-placeholder svg {
+    width: 160px;
+    height: 160px;
+  }
+}
+
 /* Copy toast — absolutely positioned so it never shifts layout */
 .idkit-copy-toast {
   position: absolute;
@@ -176,19 +186,19 @@
   border: 1px solid var(--idkit-border-light);
   padding: 4px 8px;
   font-size: 14px;
-  color: var(--idkit-text-secondary);
+  color: var(--idkit-foreground-secondary);
 }
 
 /* Simulator callout (staging only) */
 .idkit-simulator-callout {
   margin: 12px 0 0;
   font-size: 14px;
-  color: var(--idkit-text-secondary);
+  color: var(--idkit-foreground-secondary);
   text-align: center;
 }
 
 .idkit-simulator-callout a {
-  color: var(--idkit-text-muted);
+  color: var(--idkit-foreground-secondary);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -201,19 +211,22 @@
 .idkit-deeplink-btn {
   box-sizing: border-box;
   display: inline-flex;
+  min-height: 44px;
   width: auto;
   max-width: 100%;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: 16px;
-  border: 1px solid transparent;
+  border-radius: 24px;
+  border: 0;
   background: var(--idkit-btn-bg);
   color: var(--idkit-btn-text);
-  padding: 16px 32px;
+  padding: 12px 24px;
   font-family: var(--idkit-font);
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
   text-decoration: none;
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -247,7 +260,7 @@
   width: 100%;
   align-items: center;
   gap: 16px;
-  color: var(--idkit-text-muted);
+  color: var(--idkit-foreground-secondary);
   font-size: 12px;
   font-weight: 500;
 }
@@ -261,15 +274,18 @@
 
 .idkit-qr-toggle-btn {
   box-sizing: border-box;
+  min-height: 44px;
   width: 100%;
   border: 1px solid var(--idkit-border);
-  border-radius: 16px;
+  border-radius: 24px;
   background: transparent;
   color: var(--idkit-text);
-  padding: 16px 32px;
+  padding: 12px 24px;
   font-family: var(--idkit-font);
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
   cursor: pointer;
 }
 

@@ -70,6 +70,7 @@
   color: var(--idkit-text);
   display: flex;
   flex-direction: column;
+  gap: 16px;
   overflow: hidden;
   animation: idkit-scale-in 0.25s ease-out;
 }
@@ -82,13 +83,23 @@
     border-radius: 24px 24px 0 0;
     animation: idkit-slide-up 0.3s ease-out;
   }
+
+  .idkit-modal:has(.idkit-error-state),
+  .idkit-modal:has(.idkit-success-state) {
+    min-height: min(35rem, 95vh);
+  }
 }
 
 /* Close button */
+.idkit-modal-header {
+  display: flex;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+}
+
 .idkit-close {
-  position: absolute;
-  top: 32px;
-  right: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -96,7 +107,6 @@
   height: 44px;
   cursor: pointer;
   padding: 0;
-  z-index: 1;
 }
 
 .idkit-close svg {
@@ -104,6 +114,13 @@
 }
 
 /* Content area */
+.idkit-modal-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .idkit-content {
   flex: 1;
   display: flex;
@@ -122,7 +139,7 @@
 }
 
 /* Keep spare height outside the QR content/footer stack. */
-.idkit-modal:has(.idkit-worldid-state) {
+.idkit-modal-body:has(.idkit-worldid-state) {
   justify-content: center;
   gap: 32px;
 }
@@ -131,7 +148,7 @@
   flex: none;
 }
 
-.idkit-modal:has(.idkit-worldid-state) > .idkit-footer {
+.idkit-modal-body:has(.idkit-worldid-state) > .idkit-footer {
   padding-top: 32px;
 }
 
@@ -140,7 +157,7 @@
 }
 
 .idkit-footer a {
-  color: var(--idkit-text-muted);
+  color: var(--idkit-foreground-secondary);
   font-size: 14px;
   text-decoration: none;
   transition: color 0.15s ease;

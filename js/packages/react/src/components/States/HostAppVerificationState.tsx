@@ -19,11 +19,13 @@ export function HostAppVerificationState({ onVerify }: Props): ReactElement {
 
   return (
     <div
+      className="idkit-host-app-verification"
       style={{
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         textAlign: "center",
+        gap: 24,
       }}
     >
       <div className="idkit-spinner">

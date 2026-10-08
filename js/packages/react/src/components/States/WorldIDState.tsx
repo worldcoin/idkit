@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { __ } from "../../lang";
 import { useMedia } from "../../hooks/useMedia";
-import { HumanBadgeIcon } from "../Icons/HumanBadgeIcon";
+import { WorldIDBadgeIcon } from "../Icons/WorldIDBadgeIcon";
 import { LoadingIcon } from "../Icons/LoadingIcon";
 import { QRState } from "./QRState";
 
@@ -29,8 +29,8 @@ export function WorldIDState({
       }}
     >
       {/* Verified-human badge */}
-      <div className="idkit-worldid-icon">
-        <HumanBadgeIcon />
+      <div className="idkit-worldid-icon idkit-worldid-icon--large">
+        <WorldIDBadgeIcon />
       </div>
 
       <div className="idkit-instructions">

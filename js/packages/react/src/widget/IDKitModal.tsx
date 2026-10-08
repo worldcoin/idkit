@@ -28,29 +28,30 @@ function ModalContent({
           aria-modal="true"
           onClick={(event) => event.stopPropagation()}
         >
-          {/* Close button */}
-          <button
-            type="button"
-            className="idkit-close glass-container"
-            onClick={() => onOpenChange(false)}
-            aria-label="Close"
-          >
-            <XMarkIcon />
-          </button>
-
-          {/* Content area */}
-          <div className="idkit-content">{children}</div>
-
-          {/* Footer */}
-          <footer className="idkit-footer">
-            <a
-              href="https://developer.world.org/privacy-statement"
-              target="_blank"
-              rel="noopener noreferrer"
+          <header className="idkit-modal-header">
+            <button
+              type="button"
+              className="idkit-close glass-container"
+              onClick={() => onOpenChange(false)}
+              aria-label="Close"
             >
-              {__("Terms & Privacy")}
-            </a>
-          </footer>
+              <XMarkIcon />
+            </button>
+          </header>
+
+          <div className="idkit-modal-body">
+            <main className="idkit-content">{children}</main>
+
+            <footer className="idkit-footer">
+              <a
+                href="https://developer.world.org/privacy-statement"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {__("Terms & Privacy")}
+              </a>
+            </footer>
+          </div>
         </section>
       </div>
     </>

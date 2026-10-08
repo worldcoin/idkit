@@ -8,6 +8,16 @@
   letter-spacing: -0.015em;
 }
 
+/* Headline/H3 */
+.headline-h3 {
+  margin: 0;
+  font-family: var(--idkit-font);
+  font-size: 24px;
+  font-weight: 450;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
 /* Body/B1 */
 .body-b1 {
   margin: 0;
@@ -15,5 +25,5 @@
   font-size: 17px;
   font-weight: 350;
   line-height: 1.3;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.5px;
 }

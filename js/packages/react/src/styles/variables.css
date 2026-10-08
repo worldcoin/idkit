@@ -4,31 +4,33 @@
     "World Pro MVP", "TWK Lausanne", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
   --idkit-bg: #ffffff;
-  --idkit-text: #0d151d;
-  --idkit-text-muted: #657080;
-  --idkit-text-secondary: #9eafc0;
   --idkit-foreground-primary: #1f1f1f;
   --idkit-foreground-secondary: #7d7d7d;
-  --idkit-border: #ebecef;
+  --idkit-foreground-disabled: #b8b8b8;
+  --idkit-text: var(--idkit-foreground-primary);
+  --idkit-text-secondary: var(--idkit-foreground-secondary);
+  --idkit-text-muted: var(--idkit-foreground-secondary);
+  --idkit-border: #f1f1f1;
   --idkit-border-light: #f1f1f1;
-  --idkit-surface: #f8fafc;
+  --idkit-surface: #f7f7f7;
   --idkit-success: #00c230;
   --idkit-error: #9ba3ae;
   --idkit-warning: #ffae00;
-  --idkit-btn-bg: #0d151d;
+  --idkit-btn-bg: #1f1f1f;
   --idkit-btn-text: #ffffff;
 }
 
 :host(.dark) {
-  --idkit-bg: #0d151d;
-  --idkit-text: #ffffff;
-  --idkit-text-muted: #9eafc0;
-  --idkit-text-secondary: #657080;
-  --idkit-foreground-primary: var(--idkit-text);
-  --idkit-foreground-secondary: var(--idkit-text-muted);
-  --idkit-border: rgba(235, 236, 239, 0.15);
-  --idkit-border-light: rgba(241, 245, 248, 0.1);
-  --idkit-surface: rgba(255, 255, 255, 0.05);
+  --idkit-bg: #1f1f1f;
+  --idkit-foreground-primary: #ffffff;
+  --idkit-foreground-secondary: #7d7d7d;
+  --idkit-foreground-disabled: #b8b8b8;
+  --idkit-text: var(--idkit-foreground-primary);
+  --idkit-text-secondary: var(--idkit-foreground-secondary);
+  --idkit-text-muted: var(--idkit-foreground-secondary);
+  --idkit-border: rgba(255, 255, 255, 0.12);
+  --idkit-border-light: rgba(255, 255, 255, 0.1);
+  --idkit-surface: #1f1f1f;
   --idkit-btn-bg: #ffffff;
-  --idkit-btn-text: #0d151d;
+  --idkit-btn-text: #1f1f1f;
 }

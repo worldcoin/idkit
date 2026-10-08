@@ -105,7 +105,7 @@ export function InviteCodeState({
             borderRadius: 8,
             border: "1px solid var(--idkit-border, rgba(0,0,0,0.1))",
             background: "var(--idkit-surface, transparent)",
-            color: "var(--idkit-text-primary)",
+            color: "var(--idkit-text)",
             fontSize: 14,
             textDecoration: "none",
             cursor: "pointer",
@@ -129,7 +129,7 @@ export function InviteCodeState({
             style={{
               margin: 0,
               fontSize: 14,
-              color: "var(--idkit-text-secondary)",
+              color: "var(--idkit-foreground-secondary)",
             }}
           >
             {__("Or enter this code in World ID App")}
@@ -150,8 +150,8 @@ export function InviteCodeState({
                 letterSpacing: "0.1em",
                 padding: "8px 16px",
                 borderRadius: 8,
-                background: "var(--idkit-surface-muted, rgba(0,0,0,0.04))",
-                color: "var(--idkit-text-primary)",
+                background: "var(--idkit-surface)",
+                color: "var(--idkit-text)",
                 userSelect: "all",
               }}
             >
@@ -169,7 +169,7 @@ export function InviteCodeState({
                 borderRadius: 6,
                 border: "1px solid var(--idkit-border, rgba(0,0,0,0.1))",
                 background: "var(--idkit-surface, transparent)",
-                color: "var(--idkit-text-primary)",
+                color: "var(--idkit-text)",
                 fontSize: 12,
                 cursor: "pointer",
               }}
@@ -185,7 +185,7 @@ export function InviteCodeState({
           style={{
             marginTop: 12,
             fontSize: 14,
-            color: "var(--idkit-text-secondary)",
+            color: "var(--idkit-foreground-secondary)",
           }}
         >
           {__("Expires in")} {secondsRemaining}s

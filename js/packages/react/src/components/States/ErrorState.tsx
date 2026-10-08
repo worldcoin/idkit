@@ -122,19 +122,14 @@ export function ErrorState({
   const handleAction = action === "close" ? onClose : onRetry;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        textAlign: "center",
-      }}
-    >
-      <div className="idkit-error-icon">
-        <Icon />
+    <div className="idkit-error-state">
+      <div className="idkit-state-content">
+        <div className="idkit-error-icon">
+          <Icon />
+        </div>
+        <p className="idkit-error-title headline-h3">{__(title)}</p>
+        <p className="idkit-error-message body-b1">{__(message)}</p>
       </div>
-      <p className="idkit-error-title">{__(title)}</p>
-      <p className="idkit-error-message">{__(message)}</p>
       <button type="button" className="idkit-retry-btn" onClick={handleAction}>
         {__(actionLabel)}
       </button>

@@ -85,7 +85,7 @@ export function QRState({
           style={{
             textAlign: "center",
             fontSize: "14px",
-            color: "var(--idkit-text-secondary)",
+            color: "var(--idkit-foreground-secondary)",
           }}
         >
           <span>{__("QR Code copied")}</span>
