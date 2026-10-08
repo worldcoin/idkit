@@ -213,7 +213,7 @@ export function IDKitWidgetBase<TResult>({
   }
 
   const stage = getVisualStage(isSuccess, isError, isHostVerifying);
-  
+
   return (
     <IDKitModal
       open={open}

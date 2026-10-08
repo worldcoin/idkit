@@ -165,10 +165,8 @@
   .idkit-backdrop {
     box-sizing: border-box;
     align-items: flex-end;
-    padding:
-      max(6px, env(safe-area-inset-top))
-      max(6px, env(safe-area-inset-right))
-      6px
+    padding: max(6px, env(safe-area-inset-top))
+      max(6px, env(safe-area-inset-right)) 6px
       max(6px, env(safe-area-inset-left));
   }
 
