@@ -139,7 +139,11 @@ export function ErrorState({
           </div>
         )}
         <div className="idkit-instructions">
-          <p className="idkit-error-title headline-h3">{__(title)}</p>
+          <p
+            className={`idkit-error-title ${media === "mobile" ? "headline-h3" : "headline-h2"}`}
+          >
+            {__(title)}
+          </p>
           <p className="idkit-error-message body-b1">{__(message)}</p>
         </div>
       </div>

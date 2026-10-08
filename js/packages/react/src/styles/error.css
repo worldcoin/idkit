@@ -49,6 +49,10 @@
   color: var(--idkit-foreground-disabled);
 }
 
+.idkit-warning-svg {
+  color: var(--idkit-warning);
+}
+
 .idkit-error-title {
   color: var(--idkit-text);
 }
