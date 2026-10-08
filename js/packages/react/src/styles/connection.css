@@ -63,6 +63,7 @@
   border: 0;
   background: transparent;
   color: var(--idkit-foreground-primary);
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: 0.12em;
 }
