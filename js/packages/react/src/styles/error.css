@@ -46,8 +46,6 @@
 }
 
 .idkit-error-icon .idkit-error-svg {
-  width: 46px;
-  height: 46px;
   color: var(--idkit-foreground-disabled);
 }
 
@@ -55,8 +53,12 @@
   color: var(--idkit-text);
 }
 
+.idkit-error-state .idkit-instructions {
+  max-width: none;
+}
+
 .idkit-error-message {
-  margin: 12px auto 0;
+  margin: 0;
   max-width: 224px;
   color: var(--idkit-foreground-secondary);
 }
@@ -79,4 +81,31 @@
   letter-spacing: -0.01em;
   color: var(--idkit-btn-text);
   cursor: pointer;
+}
+
+@media (max-width: 1024px) {
+  .idkit-content:has(.idkit-error-state, .idkit-success-state) {
+    justify-content: flex-start;
+  }
+
+  .idkit-error-state,
+  .idkit-success-state {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+  }
+
+  .idkit-error-state .idkit-state-content,
+  .idkit-success-state .idkit-state-content {
+    flex: none;
+    width: 100%;
+    align-items: stretch;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .idkit-error-message,
+  .idkit-success-message {
+    max-width: none;
+  }
 }

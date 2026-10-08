@@ -8,11 +8,15 @@ type IDKitModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: ReactNode;
+  headerContent?: ReactNode;
+  closePosition?: "left" | "right";
 };
 
 function ModalContent({
   onOpenChange,
   children,
+  headerContent,
+  closePosition,
 }: Omit<IDKitModalProps, "open">): ReactElement {
   return (
     <>
@@ -28,7 +32,12 @@ function ModalContent({
           aria-modal="true"
           onClick={(event) => event.stopPropagation()}
         >
-          <header className="idkit-modal-header">
+          <header
+            className={`idkit-modal-header${closePosition === "left" ? " idkit-modal-header--close-left" : ""}`}
+          >
+            {headerContent && (
+              <div className="idkit-modal-header-content">{headerContent}</div>
+            )}
             <button
               type="button"
               className="idkit-close glass-container"
@@ -62,6 +71,8 @@ export function IDKitModal({
   open,
   onOpenChange,
   children,
+  headerContent,
+  closePosition = "right",
 }: IDKitModalProps): ReactElement | null {
   useEffect(() => {
     if (!open || typeof document === "undefined") {
@@ -83,7 +94,13 @@ export function IDKitModal({
   }
 
   const content = (
-    <ModalContent onOpenChange={onOpenChange}>{children}</ModalContent>
+    <ModalContent
+      onOpenChange={onOpenChange}
+      headerContent={headerContent}
+      closePosition={closePosition}
+    >
+      {children}
+    </ModalContent>
   );
 
   return <ShadowHost>{content}</ShadowHost>;

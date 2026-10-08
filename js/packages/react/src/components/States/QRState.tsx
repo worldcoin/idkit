@@ -32,11 +32,6 @@ export function QRState({
             <HumanBadgeIcon />
             <span>{__("Open World ID App")}</span>
           </a>
-          <div className="idkit-handoff-divider">
-            <span aria-hidden="true" />
-            <span>{__("or")}</span>
-            <span aria-hidden="true" />
-          </div>
           <button
             type="button"
             className="idkit-qr-toggle-btn"

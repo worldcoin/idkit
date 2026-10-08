@@ -19,22 +19,18 @@ export function WorldIDState({
   const media = useMedia();
 
   return (
-    <div
-      className="idkit-worldid-state"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        textAlign: "center",
-      }}
-    >
+    <div className="idkit-worldid-state">
       {/* Verified-human badge */}
-      <div className="idkit-worldid-icon idkit-worldid-icon--large">
-        <WorldIDBadgeIcon />
-      </div>
+      {media === "desktop" && (
+        <div className="idkit-worldid-icon idkit-worldid-icon--large">
+          <WorldIDBadgeIcon />
+        </div>
+      )}
 
       <div className="idkit-instructions">
-        <h2 className="headline-h2">{__("Connect your World ID")}</h2>
+        <h2 className={media === "mobile" ? "headline-h3" : "headline-h2"}>
+          {__("Connect your World ID")}
+        </h2>
         <p className="body-b1">
           {media === "mobile"
             ? __(

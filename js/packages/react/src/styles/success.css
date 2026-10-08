@@ -3,3 +3,7 @@
   height: 48px;
   margin-bottom: 24px;
 }
+
+.idkit-success-message {
+  max-width: 260px;
+}

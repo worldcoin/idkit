@@ -1,7 +1,95 @@
 /* World ID State */
-.idkit-worldid-state {
+.idkit-worldid-state,
+.idkit-invite-code-state {
+  display: flex;
   width: 100%;
   min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.idkit-invite-code-content,
+.idkit-invite-code-intro,
+.idkit-invite-code-actions,
+.idkit-invite-code-details {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+
+.idkit-invite-code-content,
+.idkit-invite-code-intro {
+  gap: 32px;
+}
+
+.idkit-invite-code-actions {
+  gap: 8px;
+}
+
+.idkit-invite-code-details {
+  gap: 12px;
+}
+
+.idkit-invite-code-expiry {
+  font-size: 14px;
+  color: var(--idkit-foreground-secondary);
+}
+
+.idkit-invite-code-entry {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.idkit-invite-code-field {
+  box-sizing: border-box;
+  display: flex;
+  height: 56px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px 6px 16px;
+  border-radius: 12px;
+  background: var(--idkit-input-bg);
+  color: var(--idkit-foreground-tertiary);
+}
+
+.idkit-invite-code-field input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--idkit-foreground-primary);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.idkit-invite-code-copy {
+  display: flex;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--idkit-foreground-primary);
+  cursor: pointer;
+}
+
+.idkit-invite-code-copy svg {
+  display: block;
+}
+
+.idkit-invite-code-field input:focus-visible,
+.idkit-invite-code-copy:focus-visible {
+  outline: 2px solid var(--idkit-foreground-primary);
+  outline-offset: 2px;
 }
 
 .idkit-instructions {
@@ -248,45 +336,43 @@
   width: 100%;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
 }
 
-.idkit-mobile-handoff .idkit-deeplink-btn {
+.idkit-mobile-handoff .idkit-deeplink-btn,
+.idkit-invite-code-state .idkit-deeplink-btn {
+  height: 48px;
+  min-height: 48px;
   width: 100%;
+  font-weight: 600;
+  letter-spacing: normal;
+  box-shadow: none;
 }
 
-.idkit-handoff-divider {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  gap: 16px;
-  color: var(--idkit-foreground-secondary);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.idkit-handoff-divider > span:first-child,
-.idkit-handoff-divider > span:last-child {
-  height: 1px;
-  flex: 1;
-  background: var(--idkit-border-light);
-}
-
-.idkit-qr-toggle-btn {
+.idkit-qr-toggle-btn,
+.idkit-connector-btn {
   box-sizing: border-box;
-  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  min-height: 48px;
   width: 100%;
-  border: 1px solid var(--idkit-border);
+  border: 0;
   border-radius: 24px;
-  background: transparent;
-  color: var(--idkit-text);
+  background: var(--idkit-btn-secondary-bg);
+  color: var(--idkit-foreground-primary);
   padding: 12px 24px;
   font-family: var(--idkit-font);
   font-size: 17px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1.2;
-  letter-spacing: -0.01em;
+  letter-spacing: normal;
   cursor: pointer;
+}
+
+.idkit-connector-btn {
+  text-decoration: none;
 }
 
 .idkit-mobile-qr {
@@ -300,6 +386,52 @@
 }
 
 @media (max-width: 1024px) {
+  .idkit-modal:has(.idkit-screen-header-icon) {
+    gap: 20px;
+  }
+
+  .idkit-screen-header-icon {
+    width: 44px;
+    height: 44px;
+    margin: 0;
+  }
+
+  .idkit-screen-header-icon svg {
+    width: 44px;
+    height: 44px;
+  }
+
+  .idkit-screen-header-icon .idkit-error-svg {
+    color: var(--idkit-foreground-disabled);
+  }
+
+  .idkit-modal-header:has(.idkit-screen-header-icon) {
+    align-items: flex-start;
+  }
+
+  .idkit-worldid-state {
+    align-items: stretch;
+    text-align: left;
+  }
+
+  .idkit-worldid-state .idkit-instructions,
+  .idkit-invite-code-state .idkit-instructions,
+  .idkit-success-state .idkit-instructions,
+  .idkit-error-state .idkit-instructions {
+    box-sizing: border-box;
+    max-width: none;
+    padding-left: 4px;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .idkit-worldid-state .body-b1,
+  .idkit-invite-code-state .body-b1,
+  .idkit-success-state .body-b1,
+  .idkit-error-state .body-b1 {
+    letter-spacing: -0.005em;
+  }
+
   .idkit-desktop-only {
     display: none;
   }
@@ -312,6 +444,10 @@
 }
 
 @media (min-width: 1025px) {
+  .idkit-invite-code-intro .idkit-qr-container {
+    margin-top: 0;
+  }
+
   .idkit-mobile-only {
     display: none;
   }

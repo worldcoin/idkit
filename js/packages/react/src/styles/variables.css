@@ -6,6 +6,7 @@
   --idkit-bg: #ffffff;
   --idkit-foreground-primary: #1f1f1f;
   --idkit-foreground-secondary: #7d7d7d;
+  --idkit-foreground-tertiary: #9c9c9c;
   --idkit-foreground-disabled: #b8b8b8;
   --idkit-text: var(--idkit-foreground-primary);
   --idkit-text-secondary: var(--idkit-foreground-secondary);
@@ -13,11 +14,13 @@
   --idkit-border: #f1f1f1;
   --idkit-border-light: #f1f1f1;
   --idkit-surface: #f7f7f7;
+  --idkit-input-bg: #f5f5f5;
   --idkit-success: #00c230;
   --idkit-error: #9ba3ae;
   --idkit-warning: #ffae00;
   --idkit-btn-bg: #1f1f1f;
   --idkit-btn-text: #ffffff;
+  --idkit-btn-secondary-bg: var(--idkit-surface);
 }
 
 :host(.dark) {
@@ -31,6 +34,8 @@
   --idkit-border: rgba(255, 255, 255, 0.12);
   --idkit-border-light: rgba(255, 255, 255, 0.1);
   --idkit-surface: #1f1f1f;
+  --idkit-input-bg: #333333;
   --idkit-btn-bg: #ffffff;
   --idkit-btn-text: #1f1f1f;
+  --idkit-btn-secondary-bg: #333333;
 }

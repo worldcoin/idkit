@@ -46,13 +46,6 @@
   animation: idkit-fade-in 0.2s ease-out;
 }
 
-@media (max-width: 1024px) {
-  .idkit-backdrop {
-    align-items: flex-end;
-    padding: 0;
-  }
-}
-
 /* Modal */
 .idkit-modal {
   position: relative;
@@ -75,32 +68,32 @@
   animation: idkit-scale-in 0.25s ease-out;
 }
 
-@media (max-width: 1024px) {
-  .idkit-modal {
-    max-width: 100%;
-    min-height: auto;
-    max-height: 95vh;
-    border-radius: 24px 24px 0 0;
-    animation: idkit-slide-up 0.3s ease-out;
-  }
-
-  .idkit-modal:has(.idkit-error-state),
-  .idkit-modal:has(.idkit-success-state) {
-    min-height: min(35rem, 95vh);
-  }
-}
-
 /* Close button */
 .idkit-modal-header {
   display: flex;
-  flex: 0 0 44px;
+  flex: 0 0 auto;
+  min-height: 44px;
   align-items: center;
   justify-content: flex-end;
+  gap: 8px;
   width: 100%;
+}
+
+.idkit-modal-header--close-left {
+  flex-direction: row-reverse;
+}
+
+.idkit-modal-header-content {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
 }
 
 .idkit-close {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   width: 44px;
@@ -165,4 +158,72 @@
 
 .idkit-footer a:hover {
   color: var(--idkit-text);
+}
+
+/* Mobile sheets: 6px outside, 32px inside, asymmetric corners. */
+@media (max-width: 1024px) {
+  .idkit-backdrop {
+    box-sizing: border-box;
+    align-items: flex-end;
+    padding:
+      max(6px, env(safe-area-inset-top))
+      max(6px, env(safe-area-inset-right))
+      6px
+      max(6px, env(safe-area-inset-left));
+  }
+
+  .idkit-modal {
+    max-width: 100%;
+    min-height: 0;
+    max-height: calc(100dvh - max(6px, env(safe-area-inset-top)) - 6px);
+    padding-bottom: max(32px, calc(env(safe-area-inset-bottom) - 6px));
+    border-radius: 34px 34px 58px 58px;
+    animation: idkit-slide-up 0.3s ease-out;
+  }
+
+  .idkit-modal-body,
+  .idkit-modal-body:has(.idkit-worldid-state) {
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    gap: 24px;
+  }
+
+  .idkit-content,
+  .idkit-content:has(.idkit-worldid-state) {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    justify-content: safe center;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .idkit-content:has(.idkit-error-state) {
+    overflow: hidden;
+  }
+
+  .idkit-error-state {
+    min-height: 0;
+    gap: 32px;
+  }
+
+  .idkit-error-state .idkit-state-content {
+    min-height: 0;
+    justify-content: safe center;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .idkit-retry-btn,
+  .idkit-deeplink-btn,
+  .idkit-qr-toggle-btn {
+    flex-shrink: 0;
+    min-height: 48px;
+  }
+
+  .idkit-footer,
+  .idkit-modal-body:has(.idkit-worldid-state) > .idkit-footer {
+    flex-shrink: 0;
+    padding-top: 16px;
+  }
 }
