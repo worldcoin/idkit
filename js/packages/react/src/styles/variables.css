@@ -1,8 +1,8 @@
 /* Shared variables: light defaults and dark overrides. */
 :host {
   --idkit-font:
-    "World Pro MVP", "TWK Lausanne", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
+    "World Pro MVP", "TWK Lausanne", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --idkit-bg: #ffffff;
   --idkit-foreground-primary: #1f1f1f;
   --idkit-foreground-secondary: #7d7d7d;

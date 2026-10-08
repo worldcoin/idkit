@@ -76,9 +76,9 @@ describe("modal styles and lifecycle", () => {
     view.rerender(modal(false, "Reset content"));
     expect(hosts()[0]).toBe(host);
     expect(root.querySelector("p")?.textContent).toBe("Updated");
-    expect(root.querySelector(".idkit-modal")?.getAttribute("aria-hidden")).toBe(
-      "true",
-    );
+    expect(
+      root.querySelector(".idkit-modal")?.getAttribute("aria-hidden"),
+    ).toBe("true");
     fireEvent.click(root.querySelector(".idkit-backdrop")!);
     expect(onOpenChange.mock.calls).toHaveLength(3);
     fireEvent(
