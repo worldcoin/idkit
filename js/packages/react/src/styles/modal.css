@@ -31,6 +31,38 @@
   }
 }
 
+@keyframes idkit-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes idkit-scale-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes idkit-slide-down {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(calc(100% + 6px));
+  }
+}
+
 /* Backdrop */
 .idkit-backdrop {
   position: fixed;
@@ -66,6 +98,15 @@
   gap: 16px;
   overflow: hidden;
   animation: idkit-scale-in 0.25s ease-out;
+}
+
+.idkit-backdrop--closing {
+  animation: idkit-fade-out 0.3s ease-in forwards;
+}
+
+.idkit-backdrop--closing .idkit-modal {
+  pointer-events: none;
+  animation: idkit-scale-out 0.3s ease-in forwards;
 }
 
 /* Close button */
@@ -181,6 +222,10 @@
     animation: idkit-slide-up 0.3s ease-out;
   }
 
+  .idkit-backdrop--closing .idkit-modal {
+    animation: idkit-slide-down 0.3s cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+
   .idkit-modal-body,
   .idkit-modal-body:has(.idkit-worldid-state) {
     flex: 1 1 auto;
@@ -225,5 +270,17 @@
   .idkit-modal-body:has(.idkit-worldid-state) > .idkit-footer {
     flex-shrink: 0;
     padding-top: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .idkit-backdrop,
+  .idkit-modal {
+    animation-duration: 0.01ms;
+  }
+
+  .idkit-backdrop--closing,
+  .idkit-backdrop--closing .idkit-modal {
+    animation-duration: 0.01ms;
   }
 }

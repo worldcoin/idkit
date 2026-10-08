@@ -73,7 +73,20 @@ describe("modal styles and lifecycle", () => {
     );
     expect(onOpenChange.mock.calls).toEqual([[false], [false], [false]]);
 
-    view.rerender(modal(false));
+    view.rerender(modal(false, "Reset content"));
+    expect(hosts()[0]).toBe(host);
+    expect(root.querySelector("p")?.textContent).toBe("Updated");
+    expect(root.querySelector(".idkit-modal")?.getAttribute("aria-hidden")).toBe(
+      "true",
+    );
+    fireEvent.click(root.querySelector(".idkit-backdrop")!);
+    expect(onOpenChange.mock.calls).toHaveLength(3);
+    fireEvent(
+      root.querySelector(".idkit-modal")!,
+      Object.assign(new Event("animationend", { bubbles: true }), {
+        animationName: "idkit-scale-out",
+      }),
+    );
     expect(hosts()).toHaveLength(0);
     expect(host.isConnected).toBe(false);
     onOpenChange.mockClear();
@@ -94,6 +107,31 @@ describe("modal styles and lifecycle", () => {
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })),
     );
     expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("cancels pending removal on reopening and removes the host without animationend", () => {
+    vi.useFakeTimers();
+    const modal = (open: boolean, text: string) => (
+      <IDKitModal open={open} onOpenChange={() => {}}>
+        <p>{text}</p>
+      </IDKitModal>
+    );
+    const view = render(modal(true, "First"));
+    try {
+      const host = hosts()[0];
+      view.rerender(modal(false, "Reset"));
+      act(() => vi.advanceTimersByTime(100));
+      view.rerender(modal(true, "Reopened"));
+      act(() => vi.advanceTimersByTime(400));
+      expect(hosts()[0]).toBe(host);
+      expect(host.shadowRoot?.querySelector("p")?.textContent).toBe("Reopened");
+      view.rerender(modal(false, "Reset again"));
+      act(() => vi.advanceTimersByTime(350));
+      expect(hosts()).toHaveLength(0);
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
+    }
   });
 
   it("removes only the unmounted modal when two roots are open", () => {
