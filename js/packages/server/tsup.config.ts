@@ -14,9 +14,9 @@ const common: Options = {
 export default defineConfig([
   {
     ...common,
-    entry: ["src/index.ts"],
+    entry: { index: "src/index.ts", nullifier: "src/lib/nullifier.ts" },
     platform: "browser",
-    clean: ["index.*"],
+    clean: ["index.*", "nullifier.*"],
   },
   {
     ...common,

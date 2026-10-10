@@ -20,3 +20,5 @@ export function signRequest(params: SignRequestParams): RpSignature {
       : new Uint8Array(randomBytes(32)),
   );
 }
+
+export { Nullifier } from "./lib/nullifier";

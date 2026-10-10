@@ -36,6 +36,11 @@
       "types": "./dist/expo.d.ts",
       "import": "./dist/expo.js",
       "require": "./dist/expo.cjs"
+    },
+    "./nullifier": {
+      "types": "./dist/nullifier.d.ts",
+      "import": "./dist/nullifier.js",
+      "require": "./dist/nullifier.cjs"
     }
   },
   "typesVersions": {
@@ -54,6 +59,9 @@
       ],
       "expo": [
         "./dist/expo.d.ts"
+      ],
+      "nullifier": [
+        "./dist/nullifier.d.ts"
       ]
     }
   },

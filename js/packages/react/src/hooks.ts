@@ -23,6 +23,7 @@ export type {
 export type { SupportedLanguage } from "./lang/types";
 
 export {
+  Nullifier,
   getSessionCommitment,
   CredentialRequest,
   any,

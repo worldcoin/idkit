@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import nullifierVectors from "../../../../../test-vectors/nullifier.json";
 import { hashSignal } from "../lib/hashing";
 import { parseUrl, resolveBridgeEndpoint } from "../lib/url";
 import type { BuilderConfig, Preset } from "../types/protocol";
@@ -315,6 +316,34 @@ describe("portable URL parsing", () => {
 });
 
 describe("protocol response boundaries", () => {
+  const canonicalVectors = [
+    ...new Map(
+      nullifierVectors.valid.map((vector) => [vector.canonical, vector]),
+    ).values(),
+  ];
+  it.each(canonicalVectors)(
+    "converts canonical nullifier $canonical to the existing hex result",
+    ({ canonical, hex }) => {
+      const payload = {
+        ...response,
+        responses: [{ ...item, nullifier: canonical }],
+      };
+      const result = proofResponseToIDKitResult(payload, context);
+      expect(result.responses[0]).toHaveProperty("nullifier", hex);
+    },
+  );
+  it.each(nullifierVectors.invalid_canonical)(
+    "rejects invalid protocol nullifier %j through the response error path",
+    (nullifier) => {
+      const payload = {
+        ...response,
+        responses: [{ ...item, nullifier }],
+      };
+      expect(() => proofResponseToIDKitResult(payload, context)).toThrow(
+        "unexpected_response",
+      );
+    },
+  );
   it("rejects isolated surrogate escapes from JSON wire values and keys", () => {
     expect(() =>
       validateWireStrings(JSON.parse('{"nested":["\\ud800"]}')),
@@ -385,15 +414,6 @@ describe("protocol response boundaries", () => {
     expect(() =>
       proofResponseToIDKitResult(
         { ...response, responses: [{ ...item, proof: `0x${proof}` }] },
-        context,
-      ),
-    ).toThrow();
-    expect(() =>
-      proofResponseToIDKitResult(
-        {
-          ...response,
-          responses: [{ ...item, nullifier: `nil_${"F".repeat(64)}` }],
-        },
         context,
       ),
     ).toThrow();
