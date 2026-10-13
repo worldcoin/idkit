@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import { DemoClient } from "./ui";
+import { WidgetPreview } from "./widget-preview";
 
 export default function HomePage(): ReactElement {
   return (
@@ -14,6 +15,7 @@ export default function HomePage(): ReactElement {
           Open Arena
         </a>
       </p>
+      <WidgetPreview />
       <DemoClient />
     </main>
   );
