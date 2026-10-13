@@ -1,0 +1,284 @@
+/* World ID State */
+.idkit-worldid-state {
+  width: 100%;
+  min-width: 0;
+}
+
+.idkit-worldid-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+}
+
+.idkit-worldid-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* QR Container */
+.idkit-qr-container {
+  position: relative;
+  width: 100%;
+  margin-top: 40px;
+}
+
+.idkit-qr-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  z-index: 2;
+}
+
+.idkit-connecting-text {
+  text-align: center;
+}
+
+.idkit-connecting-text p:first-child {
+  font-weight: 500;
+  color: var(--idkit-text-muted);
+  margin: 0;
+}
+
+.idkit-connecting-text p:last-child {
+  font-size: 14px;
+  font-weight: 300;
+  color: var(--idkit-text-muted);
+  margin: 4px 0 0;
+}
+
+.idkit-qr-blur {
+  transition:
+    filter 0.5s ease-in-out,
+    opacity 0.5s ease-in-out;
+}
+
+.idkit-qr-blur.blurred {
+  filter: blur(16px);
+  opacity: 0.4;
+}
+
+.idkit-qr-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  border: 1px solid var(--idkit-border-light);
+  padding: 12px;
+}
+
+.idkit-qr-inner {
+  color: var(--idkit-text);
+}
+
+/* QR Code SVG colors for finder patterns */
+.idkit-qr-inner .qr-finder-dark {
+  color: #000000;
+}
+
+.idkit-qr-inner .qr-finder-light {
+  color: #ffffff;
+}
+
+:host(.dark) .idkit-qr-inner .qr-finder-dark {
+  color: #000000;
+}
+
+:host(.dark) .idkit-qr-inner .qr-finder-light {
+  color: #ffffff;
+}
+
+.idkit-qr-inner .qr-dot {
+  color: #000000;
+}
+
+:host(.dark) .idkit-qr-inner .qr-dot {
+  color: #ffffff;
+}
+
+/* QR Placeholder */
+@keyframes idkit-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.idkit-qr-placeholder {
+  width: 200px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.idkit-qr-placeholder svg {
+  width: 200px;
+  height: 200px;
+  animation: idkit-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Copy toast — absolutely positioned so it never shifts layout */
+.idkit-copy-toast {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  opacity: 0;
+  transition: opacity 0.25s ease-in-out;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.idkit-copy-toast.visible {
+  opacity: 1;
+  transition: opacity 0.2s ease-in-out 0.05s;
+}
+
+.idkit-copy-toast > span {
+  display: inline-block;
+  border-radius: 8px;
+  border: 1px solid var(--idkit-border-light);
+  padding: 4px 8px;
+  font-size: 14px;
+  color: var(--idkit-text-secondary);
+}
+
+/* Simulator callout (staging only) */
+.idkit-simulator-callout {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: var(--idkit-text-secondary);
+  text-align: center;
+}
+
+.idkit-simulator-callout a {
+  color: var(--idkit-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.idkit-simulator-callout a:hover {
+  color: var(--idkit-text);
+}
+
+/* Mobile deep-link button */
+.idkit-deeplink-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  width: auto;
+  max-width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  background: var(--idkit-btn-bg);
+  color: var(--idkit-btn-text);
+  padding: 16px 32px;
+  font-family: var(--idkit-font);
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.idkit-deeplink-btn img {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.idkit-deeplink-btn span {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.idkit-mobile-handoff {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.idkit-mobile-handoff .idkit-deeplink-btn {
+  width: 100%;
+}
+
+.idkit-handoff-divider {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 16px;
+  color: var(--idkit-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.idkit-handoff-divider > span:first-child,
+.idkit-handoff-divider > span:last-child {
+  height: 1px;
+  flex: 1;
+  background: var(--idkit-border-light);
+}
+
+.idkit-qr-toggle-btn {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--idkit-border);
+  border-radius: 16px;
+  background: transparent;
+  color: var(--idkit-text);
+  padding: 16px 32px;
+  font-family: var(--idkit-font);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.idkit-mobile-qr {
+  position: relative;
+}
+
+.idkit-mobile-qr .idkit-copy-toast {
+  top: 100%;
+  bottom: auto;
+  margin: 8px 0 0;
+}
+
+@media (max-width: 1024px) {
+  .idkit-desktop-only {
+    display: none;
+  }
+
+  .idkit-mobile-only {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+@media (min-width: 1025px) {
+  .idkit-mobile-only {
+    display: none;
+  }
+
+  .idkit-desktop-only {
+    display: block;
+    position: relative;
+  }
+}

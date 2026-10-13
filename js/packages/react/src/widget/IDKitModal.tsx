@@ -1,5 +1,5 @@
 import { useEffect, type ReactElement, type ReactNode } from "react";
-import { WIDGET_STYLES } from "../styles/widgetStyles";
+import WIDGET_STYLES from "../styles/widget.css?inline";
 import { ShadowHost } from "./ShadowHost";
 import { XMarkIcon } from "../components/Icons/XMarkIcon";
 import { __ } from "../lang";

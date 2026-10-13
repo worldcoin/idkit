@@ -1,0 +1,17 @@
+.idkit-success-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.idkit-success-icon svg {
+  width: 96px;
+  height: 96px;
+}
+
+/* Success subtext: old SDK used text-lg (18px) */
+.idkit-success-icon ~ .idkit-subtext {
+  font-size: 18px;
+  line-height: 1.56;
+}

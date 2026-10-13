@@ -1,2 +1,10 @@
-/* Optional host-app import for non-shadow setups. */
-/* Runtime widget uses injected styles from widgetStyles.ts. */
+/* Widget styles, bundled and applied inside the modal's shadow root. */
+
+@import "./fonts.css";
+@import "./variables.css";
+@import "./modal.css";
+@import "./typography.css";
+@import "./connection.css";
+@import "./loading.css";
+@import "./success.css";
+@import "./error.css";

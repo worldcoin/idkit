@@ -1,6 +1,6 @@
 import { defineConfig } from "tsup";
 
-export default defineConfig({
+export default defineConfig((options) => ({
   entry: [
     "src/index.ts",
     "src/signing.ts",
@@ -14,11 +14,12 @@ export default defineConfig({
   dts: true,
   splitting: false,
   sourcemap: true,
-  clean: true,
+  clean: !options.watch,
   treeshake: true,
   loader: {
+    ".css": "text",
     ".svg": "dataurl",
   },
   outDir: "dist",
   external: ["react", "react-dom"],
-});
+}));

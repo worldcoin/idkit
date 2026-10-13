@@ -1,0 +1,46 @@
+.idkit-error-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.idkit-error-icon svg {
+  width: 96px;
+  height: 96px;
+}
+
+.idkit-error-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--idkit-text);
+}
+
+.idkit-error-message {
+  margin: 8px auto 0;
+  max-width: 224px;
+  font-size: 16px;
+  color: var(--idkit-text-muted);
+  line-height: 1.4;
+}
+
+.idkit-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1.2px solid var(--idkit-border);
+  background: transparent;
+  padding: 12px 32px;
+  font-family: var(--idkit-font);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--idkit-text);
+  cursor: pointer;
+  transition: box-shadow 0.3s ease;
+  margin-top: 32px;
+}
+
+.idkit-retry-btn:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}

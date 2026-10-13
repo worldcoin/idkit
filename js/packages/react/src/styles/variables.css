@@ -1,0 +1,30 @@
+/* Shared variables: light defaults and dark overrides. */
+:host {
+  --idkit-font:
+    "TWK Lausanne", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --idkit-bg: #ffffff;
+  --idkit-text: #0d151d;
+  --idkit-text-muted: #657080;
+  --idkit-text-secondary: #9eafc0;
+  --idkit-border: #ebecef;
+  --idkit-border-light: #f1f5f8;
+  --idkit-surface: #f8fafc;
+  --idkit-success: #00c230;
+  --idkit-error: #9ba3ae;
+  --idkit-warning: #ffae00;
+  --idkit-btn-bg: #0d151d;
+  --idkit-btn-text: #ffffff;
+}
+
+:host(.dark) {
+  --idkit-bg: #0d151d;
+  --idkit-text: #ffffff;
+  --idkit-text-muted: #9eafc0;
+  --idkit-text-secondary: #657080;
+  --idkit-border: rgba(235, 236, 239, 0.15);
+  --idkit-border-light: rgba(241, 245, 248, 0.1);
+  --idkit-surface: rgba(255, 255, 255, 0.05);
+  --idkit-btn-bg: #ffffff;
+  --idkit-btn-text: #0d151d;
+}
