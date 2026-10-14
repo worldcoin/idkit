@@ -201,6 +201,28 @@ function identityAttributes(values: IdentityAttribute[]): IdentityAttribute[] {
   });
 }
 
+export const SESSION_LEGACY_PRESET_ERROR =
+  "Legacy presets are not supported for session flows. Use a World ID 4.0 preset or .constraints() instead.";
+export const SESSION_IDENTITY_CHECK_PRESET_ERROR =
+  "IdentityCheck presets are not supported for session flows.";
+
+/**
+ * Sessions are World ID 4.0 only, so legacy-only presets are rejected.
+ * IdentityCheck is not supported for session flows.
+ */
+function validateSessionPreset(preset: Preset): void {
+  switch (preset?.type) {
+    case "OrbLegacy":
+    case "SecureDocumentLegacy":
+    case "DocumentLegacy":
+    case "SelfieCheckLegacy":
+    case "DeviceLegacy":
+      throw new Error(SESSION_LEGACY_PRESET_ERROR);
+    case "IdentityCheck":
+      throw new Error(SESSION_IDENTITY_CHECK_PRESET_ERROR);
+  }
+}
+
 export function compileRequest(
   config: BuilderConfig,
   selection: RequestSelection,
@@ -216,11 +238,8 @@ export function compileRequest(
     config.type === "request" && (config.allow_legacy_proofs ?? false);
   const presetMode = "preset" in selection;
   if (presetMode) {
-    if (config.type !== "request")
-      throw new Error(
-        "Presets are not supported for session flows. Use .constraints() instead.",
-      );
     const preset = selection.preset;
+    if (config.type !== "request") validateSessionPreset(preset);
     if (options.nativeVersion === 1 && preset.type === "SelfieCheck") {
       throw new Error(
         "The SelfieCheck preset is not supported by nativePayloadV1FromPreset. Use nativePayloadFromPreset instead.",
@@ -285,6 +304,8 @@ export function compileRequest(
       default:
         return invalidConfiguration("Invalid preset");
     }
+    // Sessions are World ID 4.0 only, so a preset's legacy fallback never applies.
+    if (config.type !== "request") allowLegacy = false;
   } else constraints = selection.constraints;
   const hashes: Record<string, string> = {};
   const legacyHash = hashSignal(legacySignal);

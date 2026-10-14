@@ -2057,17 +2057,18 @@ impl IDKitConfig {
         }
     }
 
-    /// Converts config + preset to `BridgeConnectionParams` (works for requests only)
+    /// Converts config + preset to `BridgeConnectionParams`
     #[allow(clippy::needless_pass_by_value, clippy::too_many_lines)]
     fn to_params_from_preset(
         &self,
         preset: Preset,
     ) -> std::result::Result<BridgeConnectionParams, crate::error::IdkitError> {
         if matches!(self, Self::CreateSession(_) | Self::ProveSession { .. }) {
-            return Err(crate::error::IdkitError::BridgeError {
-                details: "Presets are not supported for session flows. Use .constraints() instead."
-                    .to_string(),
-            });
+            preset.validate_session_support().map_err(|details| {
+                crate::error::IdkitError::InvalidConfiguration {
+                    details: details.to_string(),
+                }
+            })?;
         }
 
         let bridge_params = preset.into_bridge_params();
@@ -2376,7 +2377,7 @@ impl IDKitBuilder {
     /// # Errors
     ///
     /// Returns an error if the request cannot be created or the request type
-    /// doesn't support presets (sessions only support `constraints()`).
+    /// doesn't support the preset (sessions only support World ID 4.0 presets).
     #[allow(clippy::needless_pass_by_value)]
     pub fn preset_with_invite_code(
         &self,
@@ -3921,6 +3922,114 @@ mod tests {
                 BridgeResponse::Error { error_code } => assert_eq!(error_code, expected),
                 other => panic!("Expected error response for {code}, got: {other:?}"),
             }
+        }
+    }
+
+    #[cfg(feature = "ffi")]
+    fn test_session_config() -> IDKitSessionConfig {
+        let signature = "0x".to_string() + &"00".repeat(64) + "1b";
+        let now = u64::try_from(time::OffsetDateTime::now_utc().unix_timestamp()).unwrap();
+        let rp_context = RpContext::new(
+            "rp_1234567890abcdef",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+            now,
+            now + 300,
+            &signature,
+        )
+        .unwrap();
+        IDKitSessionConfig {
+            app_id: "app_test".to_string(),
+            package_name: "idkit_test".to_string(),
+            package_version: "1.0.0".to_string(),
+            rp_context: std::sync::Arc::new(rp_context),
+            action_description: None,
+            bridge_url: None,
+            require_user_presence: None,
+            override_connect_base_url: None,
+            return_to: None,
+            environment: None,
+        }
+    }
+
+    #[cfg(feature = "ffi")]
+    #[test]
+    fn test_session_builders_accept_world_id_4_presets_without_legacy_fallback() {
+        let session_id = serde_json::to_value(SessionId::default())
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
+        let builders = [
+            ("create", create_session(test_session_config())),
+            (
+                "existing",
+                prove_session(session_id.clone(), test_session_config()),
+            ),
+        ];
+
+        for (expected_session_id, builder) in &builders {
+            for (preset, identifier) in [
+                (
+                    Preset::proof_of_human(Some("signal".into())),
+                    "proof_of_human",
+                ),
+                (Preset::passport(None), "passport"),
+                (Preset::mnc(None), "mnc"),
+                (Preset::selfie_check(None), "selfie"),
+            ] {
+                let payload: serde_json::Value = serde_json::from_str(
+                    &builder
+                        .bridge_request_payload_json_from_preset(preset)
+                        .unwrap(),
+                )
+                .unwrap();
+
+                assert_eq!(payload["action"], serde_json::json!(""));
+                assert_eq!(payload["allow_legacy_proofs"], serde_json::json!(false));
+                let proof_request = &payload["proof_request"];
+                assert_eq!(proof_request["proof_type"], serde_json::json!("session"));
+                assert_eq!(proof_request["action"], serde_json::Value::Null);
+                if *expected_session_id == "create" {
+                    assert_eq!(proof_request["session_id"], serde_json::json!("create"));
+                } else {
+                    assert_eq!(proof_request["session_id"], serde_json::json!(session_id));
+                }
+                assert_eq!(
+                    proof_request["proof_requests"][0]["identifier"],
+                    serde_json::json!(identifier)
+                );
+            }
+        }
+    }
+
+    #[cfg(feature = "ffi")]
+    #[test]
+    fn test_session_builders_reject_legacy_and_identity_check_presets() {
+        let builder = create_session(test_session_config());
+
+        for preset in [
+            Preset::orb_legacy(None),
+            Preset::secure_document_legacy(None),
+            Preset::document_legacy(None),
+            Preset::selfie_check_legacy(None),
+            Preset::device_legacy(None),
+        ] {
+            match builder.bridge_request_payload_json_from_preset(preset) {
+                Err(crate::error::IdkitError::InvalidConfiguration { details }) => {
+                    assert_eq!(details, crate::preset::SESSION_LEGACY_PRESET_ERROR);
+                }
+                other => panic!("expected invalid configuration, got {other:?}"),
+            }
+        }
+
+        match builder.bridge_request_payload_json_from_preset(Preset::identity_check(
+            vec![crate::types::IdentityAttribute::MinimumAge(18)],
+            None,
+        )) {
+            Err(crate::error::IdkitError::InvalidConfiguration { details }) => {
+                assert_eq!(details, crate::preset::SESSION_IDENTITY_CHECK_PRESET_ERROR);
+            }
+            other => panic!("expected invalid configuration, got {other:?}"),
         }
     }
 

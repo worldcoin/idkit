@@ -63,24 +63,86 @@ func idkitEntrypoints() throws {
         requireUserPresence: true,
     )
 
-    // TODO: Re-enable when World ID 4.0 is live
-    // let sessionConfig = IDKitSessionConfig(
-    //     appId: "app_staging_1234567890abcdef",
-    //     rpContext: try sampleRpContext(),
-    //     actionDescription: nil,
-    //     bridgeUrl: nil,
-    //     requireUserPresence: false,
-    //     overrideConnectBaseUrl: nil,
-    //     returnTo: nil,
-    //     environment: nil
-    // )
+    let sessionConfig = IDKitSessionConfig(
+        appId: "app_staging_1234567890abcdef",
+        rpContext: try sampleRpContext(),
+        actionDescription: nil,
+        bridgeUrl: nil,
+        requireUserPresence: false,
+        overrideConnectBaseUrl: nil,
+        returnTo: nil,
+        environment: nil
+    )
 
     _ = IDKit.request(config: requestConfig)
-    // TODO: Re-enable when World ID 4.0 is live
-    // _ = IDKit.createSession(config: sessionConfig)
-    // _ = IDKit.proveSession(sessionId: "0x01", config: sessionConfig)
+    _ = IDKit.createSession(config: sessionConfig)
+    _ = IDKit.proveSession(sessionId: sampleSessionId, config: sessionConfig)
 
     #expect(Bool(true))
+}
+
+private let sampleSessionId =
+    "session_" + String(repeating: "00", count: 31) + "01" + String(repeating: "01", count: 32)
+
+@Test("session bridge payloads accept World ID 4.0 presets without legacy fallback")
+func sessionBridgePayloadFromPresets() throws {
+    let sessionConfig = IDKitSessionConfig(
+        appId: "app_staging_1234567890abcdef",
+        rpContext: try sampleRpContext()
+    )
+    let presets: [(Preset, String)] = [
+        (.proofOfHuman(signal: "signal"), "proof_of_human"),
+        (.passport(signal: nil), "passport"),
+        (.mnc(signal: nil), "mnc"),
+        (selfieCheck(), "selfie"),
+    ]
+
+    for sessionId in [nil, sampleSessionId] {
+        for (preset, identifier) in presets {
+            let payload = try IDKit.createSessionBridgePayloadFromPreset(
+                config: sessionConfig,
+                sessionId: sessionId,
+                preset: preset
+            )
+
+            #expect(payload.action == "")
+            #expect(payload.allowLegacyProofs == false)
+
+            let proofRequest = try #require(payload.proofRequest)
+            #expect(proofRequest.proofType == "session")
+            #expect(proofRequest.action == nil)
+            if let sessionId {
+                #expect(proofRequest.sessionId == sessionId)
+            }
+            #expect(proofRequest.credentialIdentifiers == [identifier])
+        }
+    }
+}
+
+@Test("session bridge payloads reject legacy and identity check presets")
+func sessionBridgePayloadRejectsUnsupportedPresets() throws {
+    let sessionConfig = IDKitSessionConfig(
+        appId: "app_staging_1234567890abcdef",
+        rpContext: try sampleRpContext()
+    )
+
+    for preset in [orbLegacy(), secureDocumentLegacy(), documentLegacy(), deviceLegacy(), selfieCheckLegacy()] {
+        #expect(throws: IdkitError.InvalidConfiguration(
+            details: "Legacy presets are not supported for session flows. Use a World ID 4.0 preset or .constraints() instead."
+        )) {
+            try IDKit.createSessionBridgePayloadFromPreset(config: sessionConfig, preset: preset)
+        }
+    }
+
+    #expect(throws: IdkitError.InvalidConfiguration(
+        details: "IdentityCheck presets are not supported for session flows."
+    )) {
+        try IDKit.createSessionBridgePayloadFromPreset(
+            config: sessionConfig,
+            sessionId: sampleSessionId,
+            preset: identityCheck(attributes: [.minimumAge(18)])
+        )
+    }
 }
 
 @Test("bridge request payload exposes identity check contract fields")

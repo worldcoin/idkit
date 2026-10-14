@@ -748,15 +748,6 @@ class IDKitBuilder {
     options?: RequestOptions,
   ): Promise<IDKitRequest> {
     checkRequestOptions(options);
-    if (
-      this.config.type === "createSession" ||
-      this.config.type === "proveSession"
-    ) {
-      throw new Error(
-        "Presets are not supported for session flows. Use .constraints() instead.",
-      );
-    }
-
     if (isInWorldApp()) {
       const verifyVersion = getWorldAppVerifyVersion();
 
@@ -772,6 +763,14 @@ class IDKitBuilder {
           compiled.signal_hashes ?? {},
           compiled.legacy_signal_hash,
           2,
+        );
+      }
+
+      if (this.config.type !== "request") {
+        // Sessions are World ID 4.0 only and can't be represented as v1 payloads.
+        throw new Error(
+          "verify v2 is not supported by this World App version. " +
+            "Sessions require World ID 4.0, please update the World App.",
         );
       }
 
@@ -870,15 +869,6 @@ class IDKitInviteCodeBuilder {
     preset: Preset,
     options?: RequestOptions,
   ): Promise<IDKitInviteCodeRequest> {
-    if (
-      this.config.type === "createSession" ||
-      this.config.type === "proveSession"
-    ) {
-      throw new Error(
-        "Presets are not supported for session flows. Use .constraints() instead.",
-      );
-    }
-
     const request = await createBridgeRequest(
       this.config,
       { preset },

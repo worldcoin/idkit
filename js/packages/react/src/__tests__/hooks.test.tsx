@@ -271,6 +271,63 @@ describe("request/session hooks", () => {
     expect(result.current.result?.session_id).toBe(SESSION_ID_2);
   });
 
+  it("session hooks forward presets to createSession and proveSession", async () => {
+    const preset = { type: "ProofOfHuman" as const, signal: "signal" };
+    const makeSessionBuilder = (sessionId: string) => {
+      const builder = {
+        constraints: vi.fn(),
+        preset: vi.fn(async () => ({
+          connectorURI: "wc://session-preset",
+          pollOnce: vi.fn(async () => ({
+            type: "confirmed",
+            result: { session_id: sessionId, responses: [] },
+          })),
+        })),
+      };
+      return builder;
+    };
+    const createBuilder = makeSessionBuilder(SESSION_ID_1);
+    const proveBuilder = makeSessionBuilder(SESSION_ID_2);
+    createSessionMock.mockReturnValue(createBuilder);
+    proveSessionMock.mockReturnValue(proveBuilder);
+
+    const { result: create } = renderHook(() =>
+      useIDKitSession({
+        app_id: "app_test",
+        rp_context: baseRpContext,
+        preset,
+      }),
+    );
+    const { result: prove } = renderHook(() =>
+      useIDKitSession({
+        app_id: "app_test",
+        rp_context: baseRpContext,
+        existing_session_id: SESSION_ID_2,
+        preset,
+      }),
+    );
+
+    act(() => {
+      create.current.open();
+      prove.current.open();
+    });
+
+    await waitFor(() => {
+      expect(create.current.isSuccess).toBe(true);
+      expect(prove.current.isSuccess).toBe(true);
+    });
+
+    expect(createBuilder.preset).toHaveBeenCalledWith(
+      preset,
+      expect.anything(),
+    );
+    expect(proveBuilder.preset).toHaveBeenCalledWith(preset, expect.anything());
+    expect(createBuilder.constraints).not.toHaveBeenCalled();
+    expect(proveBuilder.constraints).not.toHaveBeenCalled();
+    expect(create.current.result?.session_id).toBe(SESSION_ID_1);
+    expect(prove.current.result?.session_id).toBe(SESSION_ID_2);
+  });
+
   it("request hook forwards return_to to core", async () => {
     requestMock.mockReturnValue({
       preset: vi.fn(async () =>
