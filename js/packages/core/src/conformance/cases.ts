@@ -4,7 +4,7 @@ import { encodeUtf8 } from "../lib/encoding";
 export const NOW = 1_700_000_000;
 export const REQUEST_ID = "00000000-0000-4000-8000-000000000001";
 export const FIELD = `0x${"00".repeat(31)}01`;
-export const SESSION = `session_${"00".repeat(31)}01${"01".repeat(32)}`;
+export const SESSION: `session_${string}` = `session_${"00".repeat(31)}01${"01".repeat(32)}`;
 // SessionAction is a prefixed field element; an ordinary uniqueness action
 // would make this response invalid before result conversion is exercised.
 export const SESSION_NULLIFIER = `snil_${FIELD.slice(2)}02${"00".repeat(30)}01`;
@@ -192,6 +192,25 @@ for (const type of presets)
       now: NOW,
       native: nativeVersion === 2,
       native_v1: nativeVersion === 1,
+    });
+  }
+for (const type of presets)
+  for (const kind of ["create_session", "prove_session"]) {
+    const preset =
+      type === "IdentityCheck"
+        ? { type, attributes: [{ type: "minimum_age", value: 21 }] }
+        : { type, signal: "0x01" };
+    add(`compile/session-preset/${type}/${kind}`, {
+      op: "compile",
+      config: {
+        ...config,
+        kind,
+        allow_legacy_proofs: true,
+        ...(kind === "prove_session" ? { session_id: SESSION } : {}),
+      },
+      selection: { preset },
+      request_id: REQUEST_ID,
+      now: NOW,
     });
   }
 const constraints = [

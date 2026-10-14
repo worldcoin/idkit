@@ -4,6 +4,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -14,6 +15,7 @@ import uniffi.idkit_core.ConnectUrlMode
 import uniffi.idkit_core.DocumentType
 import uniffi.idkit_core.Environment
 import uniffi.idkit_core.IdentityAttribute
+import uniffi.idkit_core.IdkitException
 import uniffi.idkit_core.Preset
 import uniffi.idkit_core.ResponseItem
 import uniffi.idkit_core.RpContext
@@ -23,6 +25,8 @@ import uniffi.idkit_core.ConstraintKindWrapper
 import uniffi.idkit_core.ConstraintNode
 import uniffi.idkit_core.CredentialRequest
 import uniffi.idkit_core.CredentialType
+
+private val SAMPLE_SESSION_ID = "session_" + "00".repeat(31) + "01" + "01".repeat(32)
 
 class IDKitTests {
     private fun sampleResult(
@@ -69,22 +73,87 @@ class IDKitTests {
             connectUrlMode = ConnectUrlMode.DEFAULT,
         )
 
-        // TODO: Re-enable when World ID 4.0 is live
-        // val sessionConfig = IDKitSessionConfig(
-        //     appId = "app_staging_1234567890abcdef",
-        //     rpContext = sampleRpContext(),
-        //     actionDescription = null,
-        //     bridgeUrl = null,
-        //     requireUserPresence = false,
-        //     overrideConnectBaseUrl = null,
-        //     returnTo = null,
-        //     environment = Environment.STAGING,
-        // )
+        val sessionConfig = IDKitSessionConfig(
+            appId = "app_staging_1234567890abcdef",
+            rpContext = sampleRpContext(),
+            actionDescription = null,
+            bridgeUrl = null,
+            requireUserPresence = false,
+            overrideConnectBaseUrl = null,
+            returnTo = null,
+            environment = Environment.STAGING,
+        )
 
         IDKit.request(requestConfig)
-        // TODO: Re-enable when World ID 4.0 is live
-        // IDKit.createSession(sessionConfig)
-        // IDKit.proveSession("0x01", sessionConfig)
+        IDKit.createSession(sessionConfig)
+        IDKit.proveSession(SAMPLE_SESSION_ID, sessionConfig)
+    }
+
+    @Test
+    fun `session bridge payloads accept World ID 4 presets without legacy fallback`() {
+        val sessionConfig = IDKitSessionConfig(
+            appId = "app_staging_1234567890abcdef",
+            rpContext = sampleRpContext(),
+        )
+        val presets = listOf(
+            Preset.ProofOfHuman(signal = "signal") to "proof_of_human",
+            Preset.Passport(signal = null) to "passport",
+            Preset.Mnc(signal = null) to "mnc",
+            selfieCheck() to "selfie",
+        )
+
+        for (sessionId in listOf(null, SAMPLE_SESSION_ID)) {
+            for ((preset, identifier) in presets) {
+                val payload = IDKit.createSessionBridgePayloadFromPreset(
+                    sessionConfig,
+                    preset,
+                    sessionId,
+                )
+
+                assertEquals("", payload.action)
+                assertEquals(false, payload.allowLegacyProofs)
+                val proofRequest = payload.proofRequest!!
+                assertEquals("session", proofRequest.proofType)
+                assertNull(proofRequest.action)
+                if (sessionId != null) {
+                    assertEquals(sessionId, proofRequest.sessionId)
+                }
+                assertEquals(listOf(identifier), proofRequest.credentialIdentifiers)
+            }
+        }
+    }
+
+    @Test
+    fun `session bridge payloads reject legacy and identity check presets`() {
+        val sessionConfig = IDKitSessionConfig(
+            appId = "app_staging_1234567890abcdef",
+            rpContext = sampleRpContext(),
+        )
+
+        for (preset in listOf(
+            orbLegacy(),
+            secureDocumentLegacy(),
+            documentLegacy(),
+            deviceLegacy(),
+            selfieCheckLegacy(),
+        )) {
+            val error = assertFailsWith<IdkitException.InvalidConfiguration> {
+                IDKit.createSessionBridgePayloadFromPreset(sessionConfig, preset)
+            }
+            assertEquals(
+                "Legacy presets are not supported for session flows. Use a World ID 4.0 preset or .constraints() instead.",
+                error.details,
+            )
+        }
+
+        val error = assertFailsWith<IdkitException.InvalidConfiguration> {
+            IDKit.createSessionBridgePayloadFromPreset(
+                sessionConfig,
+                identityCheck(attributes = listOf(IdentityAttribute.MinimumAge(18u))),
+                SAMPLE_SESSION_ID,
+            )
+        }
+        assertEquals("IdentityCheck presets are not supported for session flows.", error.details)
     }
 
     @Test

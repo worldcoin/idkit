@@ -144,16 +144,33 @@ public enum IDKit {
             .bridgeRequestPayload(constraints: constraints)
     }
 
-    // TODO: Re-enable when World ID 4.0 is live
-    // /// Creates a builder for creating a new session.
-    // public static func createSession(config: IDKitSessionConfig) -> IDKitBuilder {
-    //     IDKitBuilder(inner: IdKitBuilder.fromCreateSession(config: config.native))
-    // }
+    /// Creates a builder for creating a new session.
+    ///
+    /// Use `.constraints(_:)` or a World ID 4.0 preset (e.g. `selfieCheck()` or `.proofOfHuman`).
+    /// Legacy (World ID 3.0) and identity check presets are not supported for sessions.
+    public static func createSession(config: IDKitSessionConfig) -> IDKitBuilder {
+        IDKitBuilder(inner: IdKitBuilder.fromCreateSession(config: config.native))
+    }
 
-    // /// Creates a builder for proving an existing session.
-    // public static func proveSession(sessionId: String, config: IDKitSessionConfig) -> IDKitBuilder {
-    //     IDKitBuilder(inner: IdKitBuilder.fromProveSession(sessionId: sessionId, config: config.native))
-    // }
+    /// Creates a builder for proving an existing session.
+    ///
+    /// Use `.constraints(_:)` or a World ID 4.0 preset (e.g. `selfieCheck()` or `.proofOfHuman`).
+    /// Legacy (World ID 3.0) and identity check presets are not supported for sessions.
+    public static func proveSession(sessionId: String, config: IDKitSessionConfig) -> IDKitBuilder {
+        IDKitBuilder(inner: IdKitBuilder.fromProveSession(sessionId: sessionId, config: config.native))
+    }
+
+    /// Builds the session bridge request payload from a preset without opening a
+    /// network connection. Pass `sessionId` to prove an existing session.
+    /// Intended for building test fixtures.
+    public static func createSessionBridgePayloadFromPreset(
+        config: IDKitSessionConfig, sessionId: String? = nil, preset: Preset
+    ) throws -> BridgeRequestPayload {
+        let builder = sessionId.map {
+            IdKitBuilder.fromProveSession(sessionId: $0, config: config.native)
+        } ?? IdKitBuilder.fromCreateSession(config: config.native)
+        return try builder.bridgeRequestPayloadFromPreset(preset: preset)
+    }
 
     /// Hashes a string signal to the canonical 0x-prefixed field element string.
     public static func hashSignal(_ signal: String) -> String {

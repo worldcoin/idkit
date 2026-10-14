@@ -208,11 +208,9 @@ impl RequestConfig {
         &self,
         preset: Preset,
     ) -> Result<crate::bridge::BridgeConnectionParams, String> {
-        if matches!(self, Self::CreateSession { .. } | Self::ProveSession { .. }) {
-            return Err(
-                "Presets are not supported for session flows. Use .constraints() instead."
-                    .to_string(),
-            );
+        let is_session = matches!(self, Self::CreateSession { .. } | Self::ProveSession { .. });
+        if is_session {
+            preset.validate_session_support()?;
         }
         let bridge_params = preset.into_bridge_params();
         let mut params = self.to_params(bridge_params.constraints)?;
@@ -221,7 +219,8 @@ impl RequestConfig {
             .unwrap_or(crate::VerificationLevel::Device);
         params.legacy_signal = bridge_params.legacy_signal.unwrap_or_default();
         params.identity_attributes = bridge_params.identity_attributes;
-        if let Some(v) = bridge_params.allow_legacy_proofs_override {
+        // Sessions are World ID 4.0 only, so a preset's legacy fallback never applies.
+        if let (false, Some(v)) = (is_session, bridge_params.allow_legacy_proofs_override) {
             params.allow_legacy_proofs = v;
         }
         Ok(params)

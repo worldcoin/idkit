@@ -51,6 +51,9 @@ export function useIDKitSession(
           return_to: config.return_to,
           environment: config.environment,
         });
-    return builder.constraints(config.constraints, options);
+    if ("constraints" in config && config.constraints) {
+      return builder.constraints(config.constraints, options);
+    }
+    return builder.preset(config.preset!, options);
   }, config);
 }

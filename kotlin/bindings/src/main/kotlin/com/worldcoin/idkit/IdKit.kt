@@ -20,14 +20,13 @@ import uniffi.idkit_core.IdKitSessionConfig as NativeIDKitSessionConfig
 import uniffi.idkit_core.Preset
 import uniffi.idkit_core.Signal
 import uniffi.idkit_core.StatusWrapper
+import uniffi.idkit_core.createSession as nativeCreateSession
 // TODO: Re-enable when World ID 4.0 is live
-// import uniffi.idkit_core.createSession as nativeCreateSession
 // import uniffi.idkit_core.credentialToString
 import uniffi.idkit_core.hashSignalFfi
 import uniffi.idkit_core.idkitResultFromJson as nativeIdkitResultFromJson
 import uniffi.idkit_core.idkitResultToJson as nativeIdkitResultToJson
-// TODO: Re-enable when World ID 4.0 is live
-// import uniffi.idkit_core.proveSession as nativeProveSession
+import uniffi.idkit_core.proveSession as nativeProveSession
 import uniffi.idkit_core.request as nativeRequest
 
 typealias IDKitResult = IdKitResult
@@ -293,17 +292,46 @@ object IDKit {
     ): BridgeRequestPayload =
         nativeRequest(config.toNative()).bridgeRequestPayload(constraints)
 
-    // TODO: Re-enable when World ID 4.0 is live
-    // fun createSession(config: IDKitSessionConfig): IDKitBuilder {
-    //     require(config.appId.isNotBlank()) { "app_id is required" }
-    //     return IDKitBuilder(nativeCreateSession(config.toNative()))
-    // }
+    /**
+     * Creates a builder for creating a new session.
+     *
+     * Use `constraints()` or a World ID 4.0 preset (e.g. `selfieCheck()` or `Preset.ProofOfHuman`).
+     * Legacy (World ID 3.0) and identity check presets are not supported for sessions.
+     */
+    fun createSession(config: IDKitSessionConfig): IDKitBuilder {
+        require(config.appId.isNotBlank()) { "app_id is required" }
+        return IDKitBuilder(nativeCreateSession(config.toNative()))
+    }
 
-    // fun proveSession(sessionId: String, config: IDKitSessionConfig): IDKitBuilder {
-    //     require(sessionId.isNotBlank()) { "session_id is required" }
-    //     require(config.appId.isNotBlank()) { "app_id is required" }
-    //     return IDKitBuilder(nativeProveSession(sessionId, config.toNative()))
-    // }
+    /**
+     * Creates a builder for proving an existing session.
+     *
+     * Use `constraints()` or a World ID 4.0 preset (e.g. `selfieCheck()` or `Preset.ProofOfHuman`).
+     * Legacy (World ID 3.0) and identity check presets are not supported for sessions.
+     */
+    fun proveSession(sessionId: String, config: IDKitSessionConfig): IDKitBuilder {
+        require(sessionId.isNotBlank()) { "session_id is required" }
+        require(config.appId.isNotBlank()) { "app_id is required" }
+        return IDKitBuilder(nativeProveSession(sessionId, config.toNative()))
+    }
+
+    /**
+     * Builds the session bridge request payload from a preset without opening a
+     * network connection. Pass [sessionId] to prove an existing session.
+     * Intended for building test fixtures.
+     */
+    fun createSessionBridgePayloadFromPreset(
+        config: IDKitSessionConfig,
+        preset: Preset,
+        sessionId: String? = null,
+    ): BridgeRequestPayload {
+        val builder = if (sessionId == null) {
+            nativeCreateSession(config.toNative())
+        } else {
+            nativeProveSession(sessionId, config.toNative())
+        }
+        return builder.bridgeRequestPayloadFromPreset(preset)
+    }
 
     fun hashSignal(signal: String): String = hashSignalFfi(Signal.fromString(signal))
 
