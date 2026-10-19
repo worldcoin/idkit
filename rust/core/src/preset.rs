@@ -20,6 +20,14 @@ use crate::types::{CredentialRequest, CredentialType, VerificationLevel};
 use crate::{ConstraintNode, Signal};
 use serde::{Deserialize, Serialize};
 
+/// Error returned when a legacy-only (World ID 3.0) preset is used for a session flow.
+pub const SESSION_LEGACY_PRESET_ERROR: &str =
+    "Legacy presets are not supported for session flows. Use a World ID 4.0 preset or .constraints() instead.";
+
+/// Error returned when an `IdentityCheck` preset is used for a session flow.
+pub const SESSION_IDENTITY_CHECK_PRESET_ERROR: &str =
+    "IdentityCheck presets are not supported for session flows.";
+
 /// Credential presets for World ID verification
 ///
 /// Each preset defines a pre-configured set of credential requests with sensible defaults.
@@ -240,6 +248,30 @@ impl Preset {
         }
     }
 
+    /// Validates that the preset can be used for `createSession` / `proveSession`.
+    ///
+    /// Sessions are World ID 4.0 only, so presets that produce only World ID 3.0
+    /// proofs are rejected. `IdentityCheck` is not supported for session flows.
+    /// Supported presets never fall back to legacy proofs in a session.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error message if the preset is not supported for sessions.
+    pub fn validate_session_support(&self) -> Result<(), &'static str> {
+        match self {
+            Self::OrbLegacy { .. }
+            | Self::SecureDocumentLegacy { .. }
+            | Self::DocumentLegacy { .. }
+            | Self::SelfieCheckLegacy { .. }
+            | Self::DeviceLegacy { .. } => Err(SESSION_LEGACY_PRESET_ERROR),
+            Self::IdentityCheck { .. } => Err(SESSION_IDENTITY_CHECK_PRESET_ERROR),
+            Self::SelfieCheck { .. }
+            | Self::ProofOfHuman { .. }
+            | Self::Passport { .. }
+            | Self::Mnc { .. } => Ok(()),
+        }
+    }
+
     /// Converts the preset to bridge session parameters
     ///
     /// Returns a tuple of:
@@ -367,6 +399,38 @@ impl Preset {
 mod tests {
     use super::*;
     use crate::Signal;
+
+    #[test]
+    fn session_support_allows_world_id_4_presets_only() {
+        for preset in [
+            Preset::selfie_check(None),
+            Preset::proof_of_human(None),
+            Preset::passport(None),
+            Preset::mnc(None),
+        ] {
+            assert_eq!(preset.validate_session_support(), Ok(()), "{preset:?}");
+        }
+
+        for preset in [
+            Preset::orb_legacy(None),
+            Preset::secure_document_legacy(None),
+            Preset::document_legacy(None),
+            Preset::selfie_check_legacy(None),
+            Preset::device_legacy(None),
+        ] {
+            assert_eq!(
+                preset.validate_session_support(),
+                Err(SESSION_LEGACY_PRESET_ERROR),
+                "{preset:?}"
+            );
+        }
+
+        assert_eq!(
+            Preset::identity_check(vec![IdentityAttribute::MinimumAge(18)], None)
+                .validate_session_support(),
+            Err(SESSION_IDENTITY_CHECK_PRESET_ERROR)
+        );
+    }
 
     #[test]
     fn selfie_check_legacy_preset_builds_face_only_constraints_and_face_legacy_level() {

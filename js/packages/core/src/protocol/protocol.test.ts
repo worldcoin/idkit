@@ -8,6 +8,10 @@ import {
   proofResponseToIDKitResult,
   validateWireStrings,
 } from "./index";
+import {
+  SESSION_IDENTITY_CHECK_PRESET_ERROR,
+  SESSION_LEGACY_PRESET_ERROR,
+} from "./request";
 import { FIELD_MODULUS, validateBridgeUrl } from "./validation";
 
 const field = (number: bigint) => `0x${number.toString(16).padStart(64, "0")}`;
@@ -26,6 +30,7 @@ const config: BuilderConfig = {
   },
 };
 const options = { now: 100, requestId: "fixed-request-id" };
+const SESSION_ID: `session_${string}` = `session_${"00".repeat(31)}01${"01".repeat(32)}`;
 const proof = [1n, 2n, 3n, 4n, (1n << 256n) - 1n]
   .map((v) => v.toString(16).padStart(64, "0"))
   .join("");
@@ -228,13 +233,65 @@ describe("protocol request boundaries", () => {
         proof_type: "session",
       },
     });
+  });
+  it("compiles World ID 4.0 presets for sessions without legacy fallback", () => {
+    const sessionConfigs: BuilderConfig[] = [
+      { ...config, type: "createSession" },
+      { ...config, type: "proveSession", session_id: SESSION_ID },
+    ];
+    const presets = [
+      [{ type: "ProofOfHuman", signal: "poh" }, "proof_of_human"],
+      [{ type: "Passport" }, "passport"],
+      [{ type: "Mnc" }, "mnc"],
+      [{ type: "SelfieCheck" }, "selfie"],
+    ] as const;
+    for (const sessionConfig of sessionConfigs)
+      for (const [preset, identifier] of presets) {
+        const { payload } = compileRequest(
+          sessionConfig,
+          { preset },
+          { ...options, nativeVersion: 2 },
+        );
+        expect(payload).toMatchObject({
+          action: "",
+          allow_legacy_proofs: false,
+          proof_request: {
+            action: null,
+            proof_type: "session",
+            session_id:
+              sessionConfig.type === "createSession" ? "create" : SESSION_ID,
+            proof_requests: [expect.objectContaining({ identifier })],
+          },
+        });
+      }
+  });
+  it("rejects legacy-only and IdentityCheck presets for sessions", () => {
+    for (const type of [
+      "OrbLegacy",
+      "SecureDocumentLegacy",
+      "DocumentLegacy",
+      "SelfieCheckLegacy",
+      "DeviceLegacy",
+    ] as const)
+      expect(() =>
+        compileRequest(
+          { ...config, type: "createSession" },
+          { preset: { type } },
+          options,
+        ),
+      ).toThrow(SESSION_LEGACY_PRESET_ERROR);
     expect(() =>
       compileRequest(
-        { ...config, type: "createSession" },
-        { preset: { type: "OrbLegacy" } },
+        { ...config, type: "proveSession", session_id: SESSION_ID },
+        {
+          preset: {
+            type: "IdentityCheck",
+            attributes: [{ type: "minimum_age", value: 18 }],
+          },
+        },
         options,
       ),
-    ).toThrow("Presets are not supported for session flows");
+    ).toThrow(SESSION_IDENTITY_CHECK_PRESET_ERROR);
   });
   it("enforces field modulus, session prefix, clock skew and empty recursive constraints", () => {
     expect(() =>

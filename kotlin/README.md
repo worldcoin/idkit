@@ -183,6 +183,11 @@ val sessionRequest = IDKit
     .constraints(anyOf(CredentialRequest(CredentialType.ORB)))
 
 val completion = sessionRequest.pollUntilCompletion()
+
+// World ID 4.0 presets also work for sessions. Legacy and identityCheck presets are rejected.
+val presetSessionRequest = IDKit
+    .proveSession(savedSessionId, sessionConfig)
+    .preset(selfieCheck())
 ```
 
 ## Android sample app

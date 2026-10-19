@@ -54,7 +54,8 @@ export function classifyConformanceError(
       "InvalidChar",
       "BadCheckDigit",
       "Invite code requires 5 random bytes",
-      "Presets are not supported for session flows. Use .constraints() instead.",
+      "Legacy presets are not supported for session flows. Use a World ID 4.0 preset or .constraints() instead.",
+      "IdentityCheck presets are not supported for session flows.",
       "The SelfieCheck preset is not supported by nativePayloadV1FromPreset. Use nativePayloadFromPreset instead.",
       "IdentityCheck presets are not supported for nativePayloadV1FromPreset. Use nativePayloadFromPreset with a World ID 4.0-compatible client instead.",
     ].includes(message)

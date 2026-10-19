@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   IDKit,
   proofOfHuman,
+  passport,
+  identityCheck,
   orbLegacy,
   configureIDKitRuntime,
   RetryableBridgeError,
@@ -20,6 +22,7 @@ import {
   context,
   legacy,
   response as protocolResponse,
+  SESSION,
 } from "../conformance/cases";
 import { decodeBridgePollResponse } from "./bridge";
 import type { BridgeResponseContext } from "../protocol";
@@ -160,6 +163,69 @@ describe("bridge raw JSON compatibility", () => {
 });
 
 describe("encrypted bridge lifecycle", () => {
+  it("sends World ID 4.0 session presets without legacy fallback", async () => {
+    const posts: any[] = [];
+    configureIDKitRuntime({
+      fetch: vi.fn(async (_url: any, init?: RequestInit) => {
+        if (init?.method === "POST")
+          posts.push(JSON.parse(init.body as string));
+        return json({ request_id: "request-id" });
+      }),
+    });
+    const sessionConfig = {
+      app_id: config.app_id,
+      rp_context: { ...config.rp_context },
+    };
+    const builders = [
+      IDKit.createSession(sessionConfig),
+      IDKit.proveSession(SESSION, sessionConfig),
+    ];
+    for (const [index, builder] of builders.entries()) {
+      const request = await builder.preset(passport({ signal: "signal" }));
+      const key = decodeBase64(
+        new URL(request.connectorURI).searchParams.get("k")!,
+      );
+      const post = posts[index];
+      const payload = JSON.parse(
+        decodeUtf8(
+          decrypt(key, decodeBase64(post.iv), decodeBase64(post.payload)),
+        ),
+      );
+      expect(payload).toMatchObject({
+        action: "",
+        allow_legacy_proofs: false,
+        proof_request: {
+          proof_type: "session",
+          action: null,
+          session_id: index === 0 ? "create" : SESSION,
+          proof_requests: [
+            { identifier: "passport", signal: "0x7369676e616c" },
+          ],
+        },
+      });
+    }
+  });
+
+  it("rejects legacy presets for sessions before contacting the bridge", async () => {
+    const fetch = vi.fn();
+    configureIDKitRuntime({ fetch });
+    const sessionConfig = {
+      app_id: config.app_id,
+      rp_context: { ...config.rp_context },
+    };
+    await expect(
+      IDKit.createSession(sessionConfig).preset(orbLegacy()),
+    ).rejects.toThrow("Legacy presets are not supported for session flows");
+    await expect(
+      IDKit.proveSession(SESSION, sessionConfig).preset(
+        identityCheck({ attributes: [{ type: "minimum_age", value: 18 }] }),
+      ),
+    ).rejects.toThrow(
+      "IdentityCheck presets are not supported for session flows",
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("sends an encrypted request and decrypts the app's independently chosen response IV", async () => {
     const posts: any[] = [];
     let pollBody: unknown = { status: "initialized" };
