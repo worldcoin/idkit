@@ -230,22 +230,23 @@
 }
 
 .idkit-qr-placeholder {
+  box-sizing: border-box;
   width: 200px;
   height: 200px;
+  padding: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .idkit-qr-placeholder svg {
-  width: 200px;
-  height: 200px;
+  width: 100%;
+  height: 100%;
   animation: idkit-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 @media (max-width: 1024px) {
-  .idkit-mobile-qr .idkit-qr-placeholder,
-  .idkit-mobile-qr .idkit-qr-placeholder svg {
+  .idkit-mobile-qr .idkit-qr-placeholder {
     width: 160px;
     height: 160px;
   }
