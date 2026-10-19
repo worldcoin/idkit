@@ -103,3 +103,5 @@ export {
   RetryableBridgeError,
   isRetryableBridgeError,
 } from "./transports/bridge";
+
+export { Nullifier } from "./nullifier";

@@ -8,6 +8,7 @@ export default defineConfig((options) => ({
     "src/session.ts",
     "src/hooks.ts",
     "src/expo.ts",
+    "src/nullifier.ts",
   ],
   format: ["esm", "cjs"],
   dts: true,

@@ -5,3 +5,5 @@ export {
   type SignRequestParams,
 } from "./lib/signing";
 export { getSessionCommitment } from "./lib/session";
+
+export { Nullifier } from "./lib/nullifier";

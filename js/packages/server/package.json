@@ -17,6 +17,11 @@
         "import": "./dist/index.js",
         "require": "./dist/index.cjs"
       }
+    },
+    "./nullifier": {
+      "types": "./dist/nullifier.d.ts",
+      "import": "./dist/nullifier.js",
+      "require": "./dist/nullifier.cjs"
     }
   },
   "files": [
@@ -58,5 +63,12 @@
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
+  },
+  "typesVersions": {
+    "*": {
+      "nullifier": [
+        "./dist/nullifier.d.ts"
+      ]
+    }
   }
 }

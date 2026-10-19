@@ -6,8 +6,10 @@
  * not placed on the browser global.
  */
 
-import { IDKit } from "./request";
+import { IDKit as clientIDKit } from "./request";
+import { Nullifier } from "./nullifier";
 
+const IDKit = Object.assign(clientIDKit, { Nullifier });
 type IDKitGlobal = typeof IDKit;
 
 declare global {

@@ -1,4 +1,5 @@
 import { normalizeUtf16 } from "../lib/encoding";
+import { Nullifier } from "../nullifier";
 import {
   assertJsonIntegerFields,
   assertUniqueJsonFields,
@@ -140,9 +141,11 @@ function parseProof(value: unknown): string[] {
 }
 function parseNullifier(value: unknown): string | undefined {
   if (value == null) return undefined;
-  if (typeof value !== "string" || !/^nil_[\da-f]{64}$/.test(value))
+  try {
+    return Nullifier.fromCanonicalString(string(value)).toHex();
+  } catch {
     return unexpected();
-  return field(value.slice(4));
+  }
 }
 function parseSessionNullifier(value: unknown): string[] | undefined {
   if (value == null) return undefined;
