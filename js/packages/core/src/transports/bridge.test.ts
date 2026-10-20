@@ -18,6 +18,7 @@ import { decodeUtf8, encodeUtf8 } from "../lib/encoding";
 import {
   config as oracleConfig,
   context,
+  SESSION,
   legacy,
   response as protocolResponse,
 } from "../conformance/cases";
@@ -160,6 +161,60 @@ describe("bridge raw JSON compatibility", () => {
 });
 
 describe("encrypted bridge lifecycle", () => {
+  it.each([false, true])(
+    "creates and validates a bound uniqueness proof over the encrypted bridge (invite=%s)",
+    async (invite) => {
+      let pollBody: unknown = { status: "initialized" };
+      configureIDKitRuntime({
+        fetch: async (_url, init) => {
+          if (init?.method === "POST") {
+            return json({
+              request_id:
+                JSON.parse(init.body as string).request_id ?? "request-id",
+            });
+          }
+          return json(pollBody);
+        },
+      });
+      const boundConfig = { ...config, session_id: "create" as const };
+      const request = await (invite
+        ? IDKit.requestWithInviteCode(boundConfig).preset(proofOfHuman())
+        : IDKit.request(boundConfig).constraints({ type: "proof_of_human" }));
+      const key = decodeBase64(
+        new URL(request.connectorURI).searchParams.get("k")!,
+      );
+      expect(request.getDebugReport().request_payload).toMatchObject({
+        action: config.action,
+        allow_legacy_proofs: false,
+        proof_request: { proof_type: "uniqueness", session_id: "create" },
+      });
+      const reply = (response: unknown) => {
+        const iv = new Uint8Array(12).fill(7);
+        pollBody = {
+          status: "completed",
+          response: {
+            iv: encodeBase64(iv),
+            payload: encodeBase64(
+              encrypt(key, iv, encodeUtf8(JSON.stringify(response))),
+            ),
+          },
+        };
+      };
+      reply(protocolResponse);
+      await expect(request.pollOnce()).rejects.toThrow("unexpected_response");
+      reply({ ...protocolResponse, session_id: SESSION });
+      expect(await request.pollOnce()).toMatchObject({
+        type: "confirmed",
+        result: {
+          protocol_version: "4.0",
+          action: config.action,
+          session_id: SESSION,
+          responses: [{ nullifier: context.nonce }],
+        },
+      });
+    },
+  );
+
   it("sends an encrypted request and decrypts the app's independently chosen response IV", async () => {
     const posts: any[] = [];
     let pollBody: unknown = { status: "initialized" };
