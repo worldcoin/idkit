@@ -229,6 +229,7 @@ function responseOptions(
   const normalized = {
     nonce: string(options.nonce),
     action: optionalString(options.action),
+    session_id: options.session_id,
     action_description: optionalString(options.action_description),
     environment: options.environment ?? "production",
     signal_hashes: Object.fromEntries(
@@ -239,6 +240,8 @@ function responseOptions(
     identity_attested: optionalBool(options.identity_attested),
     user_presence_completed: optionalBool(options.user_presence_completed),
   };
+  if (normalized.session_id !== undefined && normalized.session_id !== "create")
+    return unexpected();
   if (!["production", "staging", "sandbox"].includes(normalized.environment))
     return unexpected();
   for (const hash of Object.values(object(normalized.signal_hashes)))
@@ -252,6 +255,21 @@ function convertProtocolResponse(
 ): IDKitResult {
   if (response.error != null) throw new Error(appErrorCode(response.error));
   const context = responseOptions(options);
+  const bindSession = context.session_id === "create";
+  if (bindSession) {
+    // This is a JS-only opt-in. Keep the existing Rust-conformant conversion
+    // unchanged for requests that did not ask to bind a new session.
+    if (
+      context.action == null ||
+      response.session_id == null ||
+      BigInt(`0x${response.session_id.slice(8, 72)}`) === 0n ||
+      response.responses.length === 0 ||
+      response.responses.some(
+        (item) => item.nullifier == null || item.session_nullifier != null,
+      )
+    )
+      return unexpected();
+  }
   const responses = response.responses.map((item) => {
     const selfie = item.issuer_schema_id === 11;
     const identifier =
@@ -284,11 +302,13 @@ function convertProtocolResponse(
   return {
     protocol_version: "4.0",
     nonce: context.nonce,
-    ...(response.session_id == null
-      ? context.action == null
-        ? {}
-        : { action: context.action }
-      : { session_id: response.session_id }),
+    ...(bindSession
+      ? { action: context.action!, session_id: response.session_id! }
+      : response.session_id == null
+        ? context.action == null
+          ? {}
+          : { action: context.action }
+        : { session_id: response.session_id }),
     ...(context.action_description == null
       ? {}
       : { action_description: context.action_description }),
@@ -297,7 +317,8 @@ function convertProtocolResponse(
       ? {}
       : { user_presence_completed: context.user_presence_completed }),
     environment: context.environment!,
-    ...(response.session_id == null && context.identity_attested != null
+    ...((bindSession || response.session_id == null) &&
+    context.identity_attested != null
       ? { identity_attested: context.identity_attested }
       : {}),
   } as IDKitResult;
@@ -483,6 +504,8 @@ export function bridgeResponseToResult(
   if (parsed.kind === "error") return { type: "failed", error: parsed.error };
   if (parsed.kind === "protocol" && parsed.response.error != null)
     return { type: "failed", error: appErrorCode(parsed.response.error) };
+  if (context.session_id === "create" && parsed.kind !== "protocol")
+    return unexpected();
   if (context.require_user_presence === true && !parsed.presence)
     return { type: "failed", error: "user_presence_failed" };
   const options = {

@@ -118,6 +118,14 @@ export function validateConfig(
     invalidConfiguration("Invalid request kind");
   if (config.type === "request" && typeof config.action !== "string")
     invalidConfiguration("action must be a string");
+  if (config.type === "request" && config.session_id !== undefined) {
+    if (config.session_id !== "create")
+      invalidConfiguration('Uniqueness session_id must be "create"');
+    if (config.allow_legacy_proofs === true)
+      invalidConfiguration(
+        "Session-bound uniqueness requires allow_legacy_proofs: false",
+      );
+  }
   for (const [name, value] of Object.entries({
     action_description: config.action_description,
     bridge_url: config.bridge_url,

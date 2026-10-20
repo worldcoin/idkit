@@ -130,7 +130,8 @@ let _activeNativeRequest: NativeIDKitRequest | null = null;
  * If another request is created while one is still pending, we reuse the
  * active request instead of cancelling it. This avoids a race where the first
  * request removes its listener and resolves as `cancelled` even though World
- * App later posts a successful response.
+ * App later posts a successful response. Changing session binding while a
+ * request is pending is rejected so a bound request cannot reuse an unbound result.
  *
  * @param compiledPayload - Pre-built payload from the protocol compiler (same format as bridge)
  * @param config - Builder config (used for response normalization)
@@ -145,6 +146,14 @@ export function createNativeRequest(
   version: 1 | 2 = 2,
 ): IDKitRequest {
   if (_activeNativeRequest?.isPending()) {
+    if (
+      _activeNativeRequest.bindsSession !==
+      (config.type === "request" && config.session_id === "create")
+    ) {
+      throw new Error(
+        "Cannot change session binding while a native request is pending",
+      );
+    }
     if (isDebug())
       console.warn(
         "[IDKit] Native: request already in flight, reusing active request",
@@ -165,6 +174,7 @@ export function createNativeRequest(
 class NativeIDKitRequest implements IDKitRequest {
   readonly connectorURI: string = ""; // No QR needed in World App
   readonly requestId: string;
+  readonly bindsSession: boolean;
   private resultPromise: Promise<IDKitCompletionResult>;
   // Non-null once the request is done (success, error, cancel, or timeout).
   private completionResult: IDKitCompletionResult | null = null;
@@ -183,6 +193,8 @@ class NativeIDKitRequest implements IDKitRequest {
     version: 1 | 2 = 2,
   ) {
     config = normalizeBuilderConfig(config);
+    this.bindsSession =
+      config.type === "request" && config.session_id === "create";
     this.requestId = randomRequestId();
     this.requestPayload = compiledPayload;
     this.responsePayload = undefined;
@@ -477,6 +489,10 @@ function nativeResultToIDKitResult(
     const result = proofResponseToIDKitResult(proof_response, {
       nonce: rpNonce,
       action: config.action,
+      session_id:
+        config.type === "request" && config.session_id === "create"
+          ? "create"
+          : undefined,
       action_description: config.action_description,
       environment: (config.environment ?? "production") as
         | "production"
@@ -498,6 +514,10 @@ function nativeResultToIDKitResult(
     Array.isArray(p.responses) &&
     ("id" in p || "version" in p || "error" in p)
   ) {
+    throw new Error(IDKitErrorCodes.UnexpectedResponse);
+  }
+
+  if (config.type === "request" && config.session_id === "create") {
     throw new Error(IDKitErrorCodes.UnexpectedResponse);
   }
 

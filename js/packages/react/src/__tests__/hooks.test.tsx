@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IDKitErrorCodes, RetryableBridgeError } from "@worldcoin/idkit-core";
 import packageJson from "../../package.json";
+import type { IDKitResultV4WithSession } from "../hooks";
 import { toErrorCode } from "../hooks/common";
 import { useIDKitRequest } from "../hooks/useIDKitRequest";
 import { useIDKitInviteCodeRequest } from "../hooks/useIDKitInviteCodeRequest";
@@ -175,6 +176,7 @@ describe("request/session hooks", () => {
     expect(requestMock).toHaveBeenCalledWith({
       app_id: "app_test",
       action: "test-action",
+      session_id: undefined,
       rp_context: baseRpContext,
       action_description: undefined,
       bridge_url: undefined,
@@ -187,6 +189,74 @@ describe("request/session hooks", () => {
     expect(result.current.connectorURI).toBe("wc://request");
     expect(result.current.result).toEqual({ proof: "ok" });
   });
+
+  it.each([
+    ["request", "preset"],
+    ["request", "constraints"],
+    ["invite", "preset"],
+    ["invite", "constraints"],
+  ] as const)(
+    "%s forwards session creation with a uniqueness action through %s",
+    async (mode, selector) => {
+      const boundResult: IDKitResultV4WithSession = {
+        protocol_version: "4.0",
+        nonce: baseRpContext.nonce,
+        action: "signup",
+        session_id: SESSION_ID_1,
+        responses: [
+          {
+            identifier: "selfie",
+            nullifier: "123",
+            proof: ["1", "2", "3", "4", "5"],
+            issuer_schema_id: 11,
+            expires_at_min: 2,
+            sybil_score: 100,
+          },
+        ],
+        environment: "production",
+      };
+      const build = vi.fn(async () =>
+        makeRequest(async () => ({ type: "confirmed", result: boundResult })),
+      );
+      const request =
+        mode === "request" ? requestMock : requestWithInviteCodeMock;
+      request.mockReturnValue({ [selector]: build });
+      const useRequest =
+        mode === "request" ? useIDKitRequest : useIDKitInviteCodeRequest;
+      const preset = { type: "SelfieCheck" as const };
+      const constraints = { any: [{ type: "selfie" as const }] };
+      const selection = selector === "preset" ? { preset } : { constraints };
+      const { result } = renderHook(() =>
+        useRequest({
+          app_id: "app_test",
+          action: "signup",
+          session_id: "create",
+          rp_context: baseRpContext,
+          allow_legacy_proofs: false,
+          ...selection,
+        }),
+      );
+
+      act(() => result.current.open());
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "signup",
+          session_id: "create",
+          rp_context: baseRpContext,
+          allow_legacy_proofs: false,
+        }),
+      );
+      expect(build).toHaveBeenCalledWith(
+        selector === "preset" ? preset : constraints,
+        expect.anything(),
+      );
+      expect(createSessionMock).not.toHaveBeenCalled();
+      expect(proveSessionMock).not.toHaveBeenCalled();
+      expect(result.current.result).toEqual(boundResult);
+    },
+  );
 
   it("session hook uses createSession when existing_session_id is absent", async () => {
     createSessionMock.mockReturnValue({
@@ -303,6 +373,7 @@ describe("request/session hooks", () => {
     expect(requestMock).toHaveBeenCalledWith({
       app_id: "app_test",
       action: "test-action",
+      session_id: undefined,
       rp_context: baseRpContext,
       action_description: undefined,
       bridge_url: undefined,

@@ -107,6 +107,7 @@ const DEFAULT_IDENTITY_ATTRIBUTES: IdentityAttributesConfig = {
 
 type SharedDemoState = {
   action: string;
+  createSession: boolean;
   environment: "production" | "staging" | "sandbox";
   flowMode: FlowMode;
   genesisDate: string;
@@ -203,6 +204,7 @@ function cloneIdentityAttributes(
 function createDefaultSharedDemoState(): SharedDemoState {
   return {
     action: "test-action",
+    createSession: false,
     environment: "production",
     flowMode: "request",
     genesisDate: "",
@@ -345,6 +347,7 @@ function normalizeSharedDemoState(value: unknown): SharedDemoState | null {
 
   const state: SharedDemoState = {
     action: coerceString(value.action, fallback.action, 200),
+    createSession: coerceBoolean(value.createSession, fallback.createSession),
     environment,
     flowMode,
     genesisDate: coerceString(value.genesisDate, fallback.genesisDate, 100),
@@ -393,6 +396,10 @@ function normalizeSharedDemoState(value: unknown): SharedDemoState | null {
     ) {
       state.v4CredentialType = "proof_of_human";
     }
+  }
+
+  if (state.flowMode !== "request" || state.worldIdVersion !== "4.0") {
+    state.createSession = false;
   }
 
   if (state.flowMode !== "session") {
@@ -675,6 +682,7 @@ async function fetchRpContext(
 async function verifyProof(
   payload: IDKitResult,
   devPortalBaseUrl?: string,
+  onResponse?: (response: unknown) => void,
 ): Promise<unknown> {
   if (!RP_ID) {
     throw new Error("Missing NEXT_PUBLIC_RP_ID");
@@ -698,6 +706,7 @@ async function verifyProof(
     payload: json,
   });
 
+  onResponse?.({ status: response.status, body: json });
   if (!response.ok) {
     throw new Error(json.error ?? "Verification failed");
   }
@@ -744,6 +753,7 @@ export function DemoClient(): ReactElement {
   const [genesisDate, setGenesisDate] = useState("");
   const [isGenesisTooltipOpen, setIsGenesisTooltipOpen] = useState(false);
   const [sessionId, setSessionId] = useState("");
+  const [createSession, setCreateSession] = useState(false);
   const [widgetSessionResult, setWidgetSessionResult] =
     useState<IDKitResultSession | null>(null);
   const [useReturnTo, setUseReturnTo] = useState(false);
@@ -764,6 +774,8 @@ export function DemoClient(): ReactElement {
   const isSessionFlow = flowMode !== "request";
   const isCreateSessionFlow = flowMode === "create_session";
   const isProveSessionFlow = flowMode === "session";
+  const shouldCreateSession =
+    !isSessionFlow && worldIdVersion === "4.0" && createSession;
   const sessionCredentialType: SessionCredentialType =
     v4CredentialType === "identity_check" ? "proof_of_human" : v4CredentialType;
 
@@ -796,7 +808,8 @@ export function DemoClient(): ReactElement {
   // MNC + genesis (alone or inside a multi-credential request) uses constraints().
   // Keep this branch v4-only to avoid a legacy fallback being interpreted as
   // device-level when the request is document-scoped.
-  const shouldAllowLegacyProofs = !isMncGenesisConstraintsRequest;
+  const shouldAllowLegacyProofs =
+    !isMncGenesisConstraintsRequest && !shouldCreateSession;
 
   const requestConstraintsOrPreset:
     | { constraints: ConstraintNode }
@@ -931,6 +944,7 @@ export function DemoClient(): ReactElement {
   const createSharedState = useCallback(
     (): SharedDemoState => ({
       action,
+      createSession: shouldCreateSession,
       environment,
       flowMode,
       genesisDate,
@@ -961,6 +975,7 @@ export function DemoClient(): ReactElement {
       requireUserPresence,
       returnTo,
       sessionId,
+      shouldCreateSession,
       useInviteCode,
       useReturnTo,
       useStagingDevPortalUrl,
@@ -971,6 +986,7 @@ export function DemoClient(): ReactElement {
 
   const applySharedState = useCallback((state: SharedDemoState) => {
     setAction(state.action);
+    setCreateSession(state.createSession);
     setEnvironment(state.environment);
     setFlowMode(state.flowMode);
     setGenesisDate(state.genesisDate);
@@ -1357,6 +1373,23 @@ export function DemoClient(): ReactElement {
             <option value="4.0">4.0</option>
           </select>
         </div>
+
+        {!isSessionFlow && worldIdVersion === "4.0" && (
+          <div className="config-row">
+            <label htmlFor="cfgCreateSession">Create Session</label>
+            <input
+              type="checkbox"
+              id="cfgCreateSession"
+              checked={createSession}
+              onChange={(event) => setCreateSession(event.target.checked)}
+              aria-describedby="create-session-note"
+            />
+            <span id="create-session-note" className="config-note">
+              Return a new session bound to this uniqueness proof. Requires
+              World ID 4.0; legacy fallback is disabled.
+            </span>
+          </div>
+        )}
 
         {!isSessionFlow && worldIdVersion === "3.0" && (
           <div className="config-row">
@@ -1935,6 +1968,7 @@ export function DemoClient(): ReactElement {
             app_id={APP_ID}
             // allow empty string action as input
             action={action ?? "test-action"}
+            session_id={shouldCreateSession ? "create" : undefined}
             rp_context={widgetRpContext}
             allow_legacy_proofs={shouldAllowLegacyProofs}
             require_user_presence={requireUserPresence}
@@ -1942,11 +1976,11 @@ export function DemoClient(): ReactElement {
             onSuccess={() => {}}
             handleVerify={async (result) => {
               setWidgetIdkitResult(result);
-              const verified = await verifyProof(
+              await verifyProof(
                 result,
                 overrideDevPortalBaseUrl,
+                setWidgetVerifyResult,
               );
-              setWidgetVerifyResult(verified);
             }}
             onError={handleWidgetError}
             environment={environment}
@@ -1959,6 +1993,7 @@ export function DemoClient(): ReactElement {
             app_id={APP_ID}
             // allow empty string action as input
             action={action ?? "test-action"}
+            session_id={shouldCreateSession ? "create" : undefined}
             rp_context={widgetRpContext}
             allow_legacy_proofs={shouldAllowLegacyProofs}
             require_user_presence={requireUserPresence}
@@ -1966,11 +2001,11 @@ export function DemoClient(): ReactElement {
             onSuccess={() => {}}
             handleVerify={async (result) => {
               setWidgetIdkitResult(result);
-              const verified = await verifyProof(
+              await verifyProof(
                 result,
                 overrideDevPortalBaseUrl,
+                setWidgetVerifyResult,
               );
-              setWidgetVerifyResult(verified);
             }}
             onError={handleWidgetError}
             environment={environment}
@@ -1993,11 +2028,11 @@ export function DemoClient(): ReactElement {
           onSuccess={() => {}}
           handleVerify={async (result) => {
             setWidgetSessionResult(result);
-            const verified = await verifyProof(
-              result as unknown as IDKitResult,
+            await verifyProof(
+              result,
               overrideDevPortalBaseUrl,
+              setWidgetVerifyResult,
             );
-            setWidgetVerifyResult(verified);
           }}
           onError={handleWidgetError}
           environment={environment}
@@ -2009,7 +2044,7 @@ export function DemoClient(): ReactElement {
         <>
           <h3>IDKit response</h3>
           {widgetIdkitResult.protocol_version === "4.0" &&
-            !("session_id" in widgetIdkitResult) &&
+            "action" in widgetIdkitResult &&
             (wasIdentityCheck ||
               widgetIdkitResult.identity_attested !== undefined) && (
               <p

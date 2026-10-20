@@ -157,6 +157,12 @@ export interface IDKitResultV4 {
   integrity_bundle?: IntegrityBundle;
 }
 
+/** V4 uniqueness proof that also creates a session for later continuity checks. */
+export interface IDKitResultV4WithSession extends IDKitResultV4 {
+  /** Opaque session identifier; keep the action/nullifier for enrollment deduplication. */
+  session_id: `session_${string}`;
+}
+
 /** V4 result for session proofs */
 export interface IDKitResultSession {
   /** Protocol version 4.0 */
@@ -179,16 +185,22 @@ export interface IDKitResultSession {
 
 /**
  * The unified result structure for all proof types.
- * Check `session_id` to determine if this is a session proof:
- * - session_id !== undefined → session proof
- * - session_id === undefined → uniqueness proof
+ * A v4 result with `action` is a uniqueness proof and can also have `session_id`.
+ * A session-only result has `session_id`, no `action`, and session_nullifier items.
+ * Do not use the presence of session_id alone to distinguish these proof types.
  */
-export type IDKitResult = IDKitResultV3 | IDKitResultV4 | IDKitResultSession;
+export type IDKitResult =
+  | IDKitResultV3
+  | IDKitResultV4
+  | IDKitResultV4WithSession
+  | IDKitResultSession;
 
 /** Options used to convert a protocol ProofResponse into IDKitResult */
 export interface ProofResponseToIDKitResultOptions {
   nonce: string;
   action?: string;
+  /** The JS-only opt-in to a uniqueness proof with a newly bound session. */
+  session_id?: "create";
   action_description?: string;
   environment?: "production" | "staging" | "sandbox";
   signal_hashes?: Record<string, string>;
@@ -379,7 +391,7 @@ export interface BuilderConfig {
   package_name: string;
   package_version: string;
   action?: string;
-  session_id?: `session_${string}`;
+  session_id?: "create" | `session_${string}`;
   rp_context?: import("../types/config").RpContext;
   action_description?: string;
   bridge_url?: string;

@@ -286,6 +286,20 @@ export function compileRequest(
         return invalidConfiguration("Invalid preset");
     }
   } else constraints = selection.constraints;
+  const bindSession =
+    config.type === "request" && config.session_id === "create";
+  if (bindSession) {
+    if (!constraints)
+      return invalidConfiguration(
+        "Session-bound uniqueness requires a World ID v4 credential",
+      );
+    if (options.nativeVersion === 1)
+      return invalidConfiguration(
+        "Session-bound uniqueness requires a World ID v4-compatible client",
+      );
+    // Modern presets normally enable legacy fallback. Binding must remain v4-only.
+    allowLegacy = false;
+  }
   const hashes: Record<string, string> = {};
   const legacyHash = hashSignal(legacySignal);
   const rp = config.rp_context!;
@@ -311,7 +325,7 @@ export function compileRequest(
   const session =
     config.type === "proveSession"
       ? sessionId(config.session_id)
-      : config.type === "createSession"
+      : config.type === "createSession" || bindSession
         ? "create"
         : null;
   const payload: Record<string, unknown> = {

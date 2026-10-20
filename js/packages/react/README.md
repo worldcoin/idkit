@@ -66,6 +66,30 @@ const config: IDKitRequestHookConfig = {
 };
 ```
 
+To create a session bound to a uniqueness proof, add `session_id: "create"`
+to the request configuration. Keep the signup `action` and set
+`allow_legacy_proofs: false`:
+
+```tsx
+const enrollment = useIDKitRequest({
+  app_id: "app_xxxxx",
+  action: "signup",
+  session_id: "create",
+  rp_context,
+  allow_legacy_proofs: false,
+  preset: selfieCheck({ signal: "user-123" }),
+});
+```
+
+The V4 result retains the action and uniqueness nullifier and includes the new
+`session_id`. Verify the bound proof on your backend, enforce signup uniqueness,
+and save the session ID for later proofs with `useIDKitSession`. Existing session
+IDs cannot be attached to a uniqueness request.
+
+The same option is available on `useIDKitInviteCodeRequest`, both request widgets,
+and the `@worldcoin/idkit/hooks` and `@worldcoin/idkit/expo` entries. Wallet and
+verifier support for bound uniqueness proofs is required.
+
 ## Widget usage
 
 ```tsx

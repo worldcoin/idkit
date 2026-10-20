@@ -53,6 +53,7 @@ export type {
   Preset,
   ConstraintNode,
   IDKitResult,
+  IDKitResultV4WithSession,
   IntegrityBundle,
   IntegritySignatureFormat,
   IDKitDebugReport,

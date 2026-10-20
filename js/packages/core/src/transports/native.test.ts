@@ -69,6 +69,96 @@ describe("native transport request lifecycle", () => {
     delete (globalThis as any).window;
   });
 
+  it.each([false, true])(
+    "refuses to reuse an in-flight request with different session binding (bound first=%s)",
+    (boundFirst) => {
+      const bound = { ...baseConfig, session_id: "create" as const };
+      activeRequest = createNativeRequest(
+        {},
+        boundFirst ? bound : baseConfig,
+        {},
+        "",
+      );
+      expect(() =>
+        createNativeRequest({}, boundFirst ? baseConfig : bound, {}, ""),
+      ).toThrow("Cannot change session binding");
+      expect(activeRequest.isPending()).toBe(true);
+    },
+  );
+
+  it.each(["bound", "missing-session", "session-only", "legacy"])(
+    "validates bound uniqueness through the native event channel (%s)",
+    async (variant) => {
+      const session = `session_${"00".repeat(31)}01${"01".repeat(32)}`;
+      const req = createNativeRequest(
+        { proof_request: { proof_type: "uniqueness", session_id: "create" } },
+        { ...baseConfig, session_id: "create" },
+        {},
+        "",
+      );
+      activeRequest = req;
+      expect(
+        JSON.parse((window as any).Android.postMessage.mock.calls[0][0]),
+      ).toMatchObject({
+        version: 2,
+        payload: {
+          proof_request: { proof_type: "uniqueness", session_id: "create" },
+        },
+      });
+      const completion = req.pollUntilCompletion({ timeout: 1000 });
+      miniKitHandlers["miniapp-verify-action"]?.(
+        variant === "legacy"
+          ? {
+              status: "success",
+              protocol_version: "3.0",
+              verification_level: "orb",
+              proof: "0x01",
+              merkle_root: "0x02",
+              nullifier_hash: "0x03",
+            }
+          : {
+              status: "success",
+              proof_response: {
+                id: "req_bound",
+                version: 1,
+                ...(variant === "missing-session"
+                  ? {}
+                  : { session_id: session }),
+                responses: [
+                  {
+                    identifier: "proof_of_human",
+                    proof: proofResponseProof,
+                    ...(variant === "session-only"
+                      ? {
+                          session_nullifier: `snil_${"00".repeat(31)}0102${"00".repeat(31)}`,
+                        }
+                      : { nullifier: proofResponseNullifier("a") }),
+                    issuer_schema_id: 1,
+                    expires_at_min: 0,
+                  },
+                ],
+              },
+            },
+      );
+      if (variant === "bound") {
+        await expect(completion).resolves.toMatchObject({
+          success: true,
+          result: {
+            protocol_version: "4.0",
+            action: baseConfig.action,
+            session_id: session,
+            responses: [{ nullifier: `0x${"a".padStart(64, "0")}` }],
+          },
+        });
+      } else {
+        await expect(completion).resolves.toEqual({
+          success: false,
+          error: IDKitErrorCodes.UnexpectedResponse,
+        });
+      }
+    },
+  );
+
   it("reuses the in-flight native request instead of cancelling it", async () => {
     const req1 = createNativeRequest({ payload: 1 }, baseConfig, {}, "");
     activeRequest = req1;
