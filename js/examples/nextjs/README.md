@@ -31,20 +31,6 @@ The request is built with IDKit's `any()`, `all()` and `enumerate()` helpers
 around `CredentialRequest(...)` (see `app/multi-constraints.ts`), and the exact
 constraint tree is previewed in the configuration panel before you start.
 
-For a World ID 4.0 uniqueness proof, keep `Flow` set to `Request` and check
-`Create Session`. The request adds `session_id: "create"` while keeping its action
-and uniqueness proof type. The returned IDKit response should include the action,
-a new session ID, and each credential's uniqueness nullifier. Legacy fallback is
-disabled for this option. The checkbox is also saved by `Share config` and works
-with invite codes.
-
-This is an SDK experiment: the Developer Portal verifier also needs to accept
-and verify uniqueness proofs bound to a session. The demo displays the IDKit
-response and the Portal HTTP status/body separately, including on verification
-failure. A returned session ID alone does not mean the backend verified the
-binding. After validating enrollment, use the returned ID in the existing
-`Session` flow to test continuity.
-
 The `/arena` route includes grouped mobile implementation test cases for
 World ID 3.0 presets, World ID 4.0 constraints, migration fallback behavior,
 and 4.0 error handling.

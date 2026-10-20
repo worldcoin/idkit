@@ -398,10 +398,6 @@ function normalizeSharedDemoState(value: unknown): SharedDemoState | null {
     }
   }
 
-  if (state.flowMode !== "request" || state.worldIdVersion !== "4.0") {
-    state.createSession = false;
-  }
-
   if (state.flowMode !== "session") {
     state.sessionId = "";
   }
@@ -682,7 +678,6 @@ async function fetchRpContext(
 async function verifyProof(
   payload: IDKitResult,
   devPortalBaseUrl?: string,
-  onResponse?: (response: unknown) => void,
 ): Promise<unknown> {
   if (!RP_ID) {
     throw new Error("Missing NEXT_PUBLIC_RP_ID");
@@ -706,7 +701,6 @@ async function verifyProof(
     payload: json,
   });
 
-  onResponse?.({ status: response.status, body: json });
   if (!response.ok) {
     throw new Error(json.error ?? "Verification failed");
   }
@@ -1382,12 +1376,7 @@ export function DemoClient(): ReactElement {
               id="cfgCreateSession"
               checked={createSession}
               onChange={(event) => setCreateSession(event.target.checked)}
-              aria-describedby="create-session-note"
             />
-            <span id="create-session-note" className="config-note">
-              Return a new session bound to this uniqueness proof. Requires
-              World ID 4.0; legacy fallback is disabled.
-            </span>
           </div>
         )}
 
@@ -1976,11 +1965,11 @@ export function DemoClient(): ReactElement {
             onSuccess={() => {}}
             handleVerify={async (result) => {
               setWidgetIdkitResult(result);
-              await verifyProof(
+              const verified = await verifyProof(
                 result,
                 overrideDevPortalBaseUrl,
-                setWidgetVerifyResult,
               );
+              setWidgetVerifyResult(verified);
             }}
             onError={handleWidgetError}
             environment={environment}
@@ -2001,11 +1990,11 @@ export function DemoClient(): ReactElement {
             onSuccess={() => {}}
             handleVerify={async (result) => {
               setWidgetIdkitResult(result);
-              await verifyProof(
+              const verified = await verifyProof(
                 result,
                 overrideDevPortalBaseUrl,
-                setWidgetVerifyResult,
               );
+              setWidgetVerifyResult(verified);
             }}
             onError={handleWidgetError}
             environment={environment}
@@ -2028,11 +2017,11 @@ export function DemoClient(): ReactElement {
           onSuccess={() => {}}
           handleVerify={async (result) => {
             setWidgetSessionResult(result);
-            await verifyProof(
-              result,
+            const verified = await verifyProof(
+              result as unknown as IDKitResult,
               overrideDevPortalBaseUrl,
-              setWidgetVerifyResult,
             );
+            setWidgetVerifyResult(verified);
           }}
           onError={handleWidgetError}
           environment={environment}

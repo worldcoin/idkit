@@ -91,35 +91,6 @@ generate RP signatures on your backend with `@worldcoin/idkit-core/signing`.
 </script>
 ```
 
-## Create a session with a uniqueness proof
-
-Add `session_id: "create"` to a uniqueness request to enroll a unique person and
-create a session in the same proof:
-
-```typescript
-import { IDKit, CredentialRequest } from "@worldcoin/idkit-core";
-
-const request = await IDKit.request({
-  app_id: "app_xxxxx",
-  action: "signup",
-  session_id: "create",
-  rp_context,
-  allow_legacy_proofs: false,
-}).constraints(CredentialRequest("selfie"));
-```
-
-The v4 result includes both `action` and `session_id`, with a uniqueness
-`nullifier` in each credential response. Your backend must verify the proof with
-its session binding, enforce uniqueness for the signup action, and save the
-session ID for `IDKit.proveSession(...)`. The presence of `session_id` alone no
-longer distinguishes a session-only result; those results have no `action` and
-use `session_nullifier` in their credential responses.
-
-This option also works with `requestWithInviteCode` and modern presets. Legacy
-presets, v1 native clients, and v3 fallback responses are rejected. Wallet and
-backend verifier support are required; enabling this SDK option does not update
-the Developer Portal verifier.
-
 ## Backend: Generate RP Signature
 
 The RP signature authenticates your verification requests. Generate it server-side using the `/signing` subpath:

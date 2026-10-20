@@ -256,20 +256,19 @@ function convertProtocolResponse(
   if (response.error != null) throw new Error(appErrorCode(response.error));
   const context = responseOptions(options);
   const bindSession = context.session_id === "create";
-  if (bindSession) {
-    // This is a JS-only opt-in. Keep the existing Rust-conformant conversion
-    // unchanged for requests that did not ask to bind a new session.
-    if (
-      context.action == null ||
+  // A bound request must not succeed with an unbound or session-only proof.
+  if (
+    bindSession &&
+    (context.action == null ||
       response.session_id == null ||
       BigInt(`0x${response.session_id.slice(8, 72)}`) === 0n ||
       response.responses.length === 0 ||
       response.responses.some(
         (item) => item.nullifier == null || item.session_nullifier != null,
-      )
-    )
-      return unexpected();
-  }
+      ))
+  )
+    return unexpected();
+  const isUniqueness = bindSession || response.session_id == null;
   const responses = response.responses.map((item) => {
     const selfie = item.issuer_schema_id === 11;
     const identifier =
@@ -302,13 +301,10 @@ function convertProtocolResponse(
   return {
     protocol_version: "4.0",
     nonce: context.nonce,
-    ...(bindSession
-      ? { action: context.action!, session_id: response.session_id! }
-      : response.session_id == null
-        ? context.action == null
-          ? {}
-          : { action: context.action }
-        : { session_id: response.session_id }),
+    ...(isUniqueness && context.action != null
+      ? { action: context.action }
+      : {}),
+    ...(response.session_id == null ? {} : { session_id: response.session_id }),
     ...(context.action_description == null
       ? {}
       : { action_description: context.action_description }),
@@ -317,8 +313,7 @@ function convertProtocolResponse(
       ? {}
       : { user_presence_completed: context.user_presence_completed }),
     environment: context.environment!,
-    ...((bindSession || response.session_id == null) &&
-    context.identity_attested != null
+    ...(isUniqueness && context.identity_attested != null
       ? { identity_attested: context.identity_attested }
       : {}),
   } as IDKitResult;

@@ -6,8 +6,6 @@
 export type {
   // Uniqueness proof response types
   IDKitResult,
-  IDKitResultV4,
-  IDKitResultV4WithSession,
   ResponseItemV4,
   SelfieCheckResponseItemV4,
   ResponseItemV3,

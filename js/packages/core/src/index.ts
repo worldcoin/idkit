@@ -59,8 +59,6 @@ export type {
 export type {
   // Uniqueness proof response types
   IDKitResult,
-  IDKitResultV4,
-  IDKitResultV4WithSession,
   IntegrityBundle,
   IntegritySignatureFormat,
   ResponseItemV4,

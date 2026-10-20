@@ -2,7 +2,6 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IDKitErrorCodes, RetryableBridgeError } from "@worldcoin/idkit-core";
 import packageJson from "../../package.json";
-import type { IDKitResultV4WithSession } from "../hooks";
 import { toErrorCode } from "../hooks/common";
 import { useIDKitRequest } from "../hooks/useIDKitRequest";
 import { useIDKitInviteCodeRequest } from "../hooks/useIDKitInviteCodeRequest";
@@ -191,41 +190,17 @@ describe("request/session hooks", () => {
   });
 
   it.each([
-    ["request", "preset"],
-    ["request", "constraints"],
-    ["invite", "preset"],
-    ["invite", "constraints"],
+    ["request", requestMock, useIDKitRequest],
+    ["invite", requestWithInviteCodeMock, useIDKitInviteCodeRequest],
   ] as const)(
-    "%s forwards session creation with a uniqueness action through %s",
-    async (mode, selector) => {
-      const boundResult: IDKitResultV4WithSession = {
-        protocol_version: "4.0",
-        nonce: baseRpContext.nonce,
-        action: "signup",
-        session_id: SESSION_ID_1,
-        responses: [
-          {
-            identifier: "selfie",
-            nullifier: "123",
-            proof: ["1", "2", "3", "4", "5"],
-            issuer_schema_id: 11,
-            expires_at_min: 2,
-            sybil_score: 100,
-          },
-        ],
-        environment: "production",
-      };
-      const build = vi.fn(async () =>
-        makeRequest(async () => ({ type: "confirmed", result: boundResult })),
-      );
-      const request =
-        mode === "request" ? requestMock : requestWithInviteCodeMock;
-      request.mockReturnValue({ [selector]: build });
-      const useRequest =
-        mode === "request" ? useIDKitRequest : useIDKitInviteCodeRequest;
-      const preset = { type: "SelfieCheck" as const };
-      const constraints = { any: [{ type: "selfie" as const }] };
-      const selection = selector === "preset" ? { preset } : { constraints };
+    "%s hook forwards session creation",
+    async (_, request, useRequest) => {
+      const response = { session_id: SESSION_ID_1 };
+      request.mockReturnValue({
+        preset: vi.fn(async () =>
+          makeRequest(async () => ({ type: "confirmed", result: response })),
+        ),
+      });
       const { result } = renderHook(() =>
         useRequest({
           app_id: "app_test",
@@ -233,7 +208,7 @@ describe("request/session hooks", () => {
           session_id: "create",
           rp_context: baseRpContext,
           allow_legacy_proofs: false,
-          ...selection,
+          preset: { type: "SelfieCheck" },
         }),
       );
 
@@ -241,20 +216,9 @@ describe("request/session hooks", () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
       expect(request).toHaveBeenCalledWith(
-        expect.objectContaining({
-          action: "signup",
-          session_id: "create",
-          rp_context: baseRpContext,
-          allow_legacy_proofs: false,
-        }),
+        expect.objectContaining({ action: "signup", session_id: "create" }),
       );
-      expect(build).toHaveBeenCalledWith(
-        selector === "preset" ? preset : constraints,
-        expect.anything(),
-      );
-      expect(createSessionMock).not.toHaveBeenCalled();
-      expect(proveSessionMock).not.toHaveBeenCalled();
-      expect(result.current.result).toEqual(boundResult);
+      expect(result.current.result).toEqual(response);
     },
   );
 

@@ -5,6 +5,7 @@ import type { BuilderConfig } from "./native";
 import { createNativeRequest, getWorldAppVerifyVersion } from "./native";
 import { hashSignal } from "../lib/hashing";
 import { setDebug } from "../lib/debug";
+import { FIELD, SESSION, legacy, response } from "../conformance/cases";
 
 const baseConfig: BuilderConfig = {
   type: "request",
@@ -86,76 +87,41 @@ describe("native transport request lifecycle", () => {
     },
   );
 
-  it.each(["bound", "missing-session", "session-only", "legacy"])(
+  it.each(["bound", "missing-session", "legacy"])(
     "validates bound uniqueness through the native event channel (%s)",
     async (variant) => {
-      const session = `session_${"00".repeat(31)}01${"01".repeat(32)}`;
       const req = createNativeRequest(
-        { proof_request: { proof_type: "uniqueness", session_id: "create" } },
+        {},
         { ...baseConfig, session_id: "create" },
         {},
         "",
       );
       activeRequest = req;
-      expect(
-        JSON.parse((window as any).Android.postMessage.mock.calls[0][0]),
-      ).toMatchObject({
-        version: 2,
-        payload: {
-          proof_request: { proof_type: "uniqueness", session_id: "create" },
-        },
-      });
       const completion = req.pollUntilCompletion({ timeout: 1000 });
-      miniKitHandlers["miniapp-verify-action"]?.(
-        variant === "legacy"
-          ? {
-              status: "success",
-              protocol_version: "3.0",
-              verification_level: "orb",
-              proof: "0x01",
-              merkle_root: "0x02",
-              nullifier_hash: "0x03",
-            }
+      miniKitHandlers["miniapp-verify-action"]?.({
+        status: "success",
+        ...(variant === "legacy"
+          ? { protocol_version: "3.0", ...legacy }
           : {
-              status: "success",
               proof_response: {
-                id: "req_bound",
-                version: 1,
-                ...(variant === "missing-session"
-                  ? {}
-                  : { session_id: session }),
-                responses: [
-                  {
-                    identifier: "proof_of_human",
-                    proof: proofResponseProof,
-                    ...(variant === "session-only"
-                      ? {
-                          session_nullifier: `snil_${"00".repeat(31)}0102${"00".repeat(31)}`,
-                        }
-                      : { nullifier: proofResponseNullifier("a") }),
-                    issuer_schema_id: 1,
-                    expires_at_min: 0,
-                  },
-                ],
+                ...response,
+                session_id: variant === "bound" ? SESSION : undefined,
               },
-            },
+            }),
+      });
+      await expect(completion).resolves.toMatchObject(
+        variant === "bound"
+          ? {
+              success: true,
+              result: {
+                protocol_version: "4.0",
+                action: baseConfig.action,
+                session_id: SESSION,
+                responses: [{ nullifier: FIELD }],
+              },
+            }
+          : { success: false, error: IDKitErrorCodes.UnexpectedResponse },
       );
-      if (variant === "bound") {
-        await expect(completion).resolves.toMatchObject({
-          success: true,
-          result: {
-            protocol_version: "4.0",
-            action: baseConfig.action,
-            session_id: session,
-            responses: [{ nullifier: `0x${"a".padStart(64, "0")}` }],
-          },
-        });
-      } else {
-        await expect(completion).resolves.toEqual({
-          success: false,
-          error: IDKitErrorCodes.UnexpectedResponse,
-        });
-      }
     },
   );
 

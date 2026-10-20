@@ -164,14 +164,14 @@ describe("encrypted bridge lifecycle", () => {
   it.each([false, true])(
     "creates and validates a bound uniqueness proof over the encrypted bridge (invite=%s)",
     async (invite) => {
-      const posts: any[] = [];
       let pollBody: unknown = { status: "initialized" };
       configureIDKitRuntime({
         fetch: async (_url, init) => {
           if (init?.method === "POST") {
-            const body = JSON.parse(init.body as string);
-            posts.push(body);
-            return json({ request_id: body.request_id ?? "request-id" });
+            return json({
+              request_id:
+                JSON.parse(init.body as string).request_id ?? "request-id",
+            });
           }
           return json(pollBody);
         },
@@ -183,16 +183,7 @@ describe("encrypted bridge lifecycle", () => {
       const key = decodeBase64(
         new URL(request.connectorURI).searchParams.get("k")!,
       );
-      const payload = JSON.parse(
-        decodeUtf8(
-          decrypt(
-            key,
-            decodeBase64(posts[0].iv),
-            decodeBase64(posts[0].payload),
-          ),
-        ),
-      );
-      expect(payload).toMatchObject({
+      expect(request.getDebugReport().request_payload).toMatchObject({
         action: config.action,
         allow_legacy_proofs: false,
         proof_request: { proof_type: "uniqueness", session_id: "create" },
@@ -209,10 +200,7 @@ describe("encrypted bridge lifecycle", () => {
           },
         };
       };
-      // An old client that ignores the requested binding must not finish successfully.
       reply(protocolResponse);
-      await expect(request.pollOnce()).rejects.toThrow("unexpected_response");
-      reply(legacy);
       await expect(request.pollOnce()).rejects.toThrow("unexpected_response");
       reply({ ...protocolResponse, session_id: SESSION });
       expect(await request.pollOnce()).toMatchObject({

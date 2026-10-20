@@ -143,6 +143,8 @@ export interface IDKitResultV4 {
   nonce: string;
   /** Action identifier (required for uniqueness proofs) */
   action: string;
+  /** Present when the uniqueness request also creates a session. */
+  session_id?: `session_${string}`;
   /** Action description (only if provided in input) */
   action_description?: string;
   /** Array of V4 credential responses */
@@ -155,12 +157,6 @@ export interface IDKitResultV4 {
   identity_attested?: boolean;
   /** Optional World App integrity bundle for this proof request */
   integrity_bundle?: IntegrityBundle;
-}
-
-/** V4 uniqueness proof that also creates a session for later continuity checks. */
-export interface IDKitResultV4WithSession extends IDKitResultV4 {
-  /** Opaque session identifier; keep the action/nullifier for enrollment deduplication. */
-  session_id: `session_${string}`;
 }
 
 /** V4 result for session proofs */
@@ -185,15 +181,10 @@ export interface IDKitResultSession {
 
 /**
  * The unified result structure for all proof types.
- * A v4 result with `action` is a uniqueness proof and can also have `session_id`.
- * A session-only result has `session_id`, no `action`, and session_nullifier items.
- * Do not use the presence of session_id alone to distinguish these proof types.
+ * V4 uniqueness results have `action` and may also include `session_id`.
+ * Session-only results have `session_id` without `action`.
  */
-export type IDKitResult =
-  | IDKitResultV3
-  | IDKitResultV4
-  | IDKitResultV4WithSession
-  | IDKitResultSession;
+export type IDKitResult = IDKitResultV3 | IDKitResultV4 | IDKitResultSession;
 
 /** Options used to convert a protocol ProofResponse into IDKitResult */
 export interface ProofResponseToIDKitResultOptions {
