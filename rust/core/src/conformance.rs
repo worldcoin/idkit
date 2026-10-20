@@ -94,6 +94,7 @@ fn mapped(message: String) -> Failure {
 pub(crate) struct ConnectionContext {
     pub nonce: String,
     pub action: Option<String>,
+    pub session_id: Option<String>,
     pub action_description: Option<String>,
     pub environment: bridge::Environment,
     pub signal_hashes: HashMap<String, String>,
@@ -113,6 +114,7 @@ impl Default for ConnectionContext {
         Self {
             nonce: String::new(),
             action: None,
+            session_id: None,
             action_description: None,
             environment: bridge::Environment::Production,
             signal_hashes: HashMap::new(),
@@ -133,6 +135,7 @@ impl Default for ConnectionContext {
 struct ConversionContext {
     nonce: String,
     action: Option<String>,
+    session_id: Option<String>,
     action_description: Option<String>,
     environment: Option<bridge::Environment>,
     #[serde(default)]
@@ -455,6 +458,7 @@ pub fn execute(input: &Value) -> Result<Value, Failure> {
                         signal_hashes: &context.signal_hashes,
                         identity_attested: context.identity_attested,
                         user_presence_completed: context.user_presence_completed,
+                        require_session: context.session_id.as_deref() == Some("create"),
                     },
                 )?,
             )?)

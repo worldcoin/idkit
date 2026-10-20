@@ -261,6 +261,37 @@ for (const [kind, values] of Object.entries({
   }
 }
 
+for (const selection of [
+  { preset: { type: "ProofOfHuman" } },
+  { constraints: { type: "proof_of_human" } },
+])
+  add(`bound-session/compile/${Object.keys(selection)[0]}`, {
+    op: "compile",
+    config: { ...config, session_id: "create" },
+    selection,
+    request_id: REQUEST_ID,
+    now: NOW,
+  });
+const boundContext = { ...context, session_id: "create" };
+const boundResponse = { ...response, session_id: SESSION };
+for (const [name, value] of Object.entries({
+  bound: boundResponse,
+  missingSession: response,
+  legacy,
+  attested: { proof_response: boundResponse, identity_attested: true },
+  sessionOnly: {
+    ...boundResponse,
+    responses: [
+      { ...item, nullifier: null, session_nullifier: SESSION_NULLIFIER },
+    ],
+  },
+}))
+  add(`bound-session/response/${name}`, {
+    op: "response",
+    response: value,
+    context: boundContext,
+  });
+
 const responses = {
   bare: response,
   wrapped: {
