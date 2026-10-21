@@ -12,6 +12,7 @@ pub enum RequestConfig {
         package_name: String,
         package_version: String,
         action: String,
+        session_id: Option<String>,
         rp_context: RpContext,
         action_description: Option<String>,
         bridge_url: Option<String>,
@@ -62,6 +63,7 @@ impl RequestConfig {
             Self::Request {
                 app_id,
                 action,
+                session_id,
                 rp_context,
                 action_description,
                 bridge_url,
@@ -85,9 +87,12 @@ impl RequestConfig {
                     app_id,
                     package_name: package_name.clone(),
                     package_version: package_version.clone(),
-                    kind: crate::bridge::RequestKind::Uniqueness {
-                        action: action.clone(),
-                    },
+                    kind: crate::bridge::RequestKind::uniqueness(
+                        action,
+                        session_id.as_deref(),
+                        *allow_legacy_proofs,
+                    )
+                    .map_err(|error| error.to_string())?,
                     constraints,
                     rp_context: rp_context.clone(),
                     action_description: action_description.clone(),
@@ -221,7 +226,12 @@ impl RequestConfig {
             .unwrap_or(crate::VerificationLevel::Device);
         params.legacy_signal = bridge_params.legacy_signal.unwrap_or_default();
         params.identity_attributes = bridge_params.identity_attributes;
-        if let Some(v) = bridge_params.allow_legacy_proofs_override {
+        if matches!(
+            params.kind,
+            crate::bridge::RequestKind::UniquenessWithSession { .. }
+        ) {
+            params.allow_legacy_proofs = false;
+        } else if let Some(v) = bridge_params.allow_legacy_proofs_override {
             params.allow_legacy_proofs = v;
         }
         Ok(params)

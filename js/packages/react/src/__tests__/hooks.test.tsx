@@ -175,6 +175,7 @@ describe("request/session hooks", () => {
     expect(requestMock).toHaveBeenCalledWith({
       app_id: "app_test",
       action: "test-action",
+      session_id: undefined,
       rp_context: baseRpContext,
       action_description: undefined,
       bridge_url: undefined,
@@ -187,6 +188,39 @@ describe("request/session hooks", () => {
     expect(result.current.connectorURI).toBe("wc://request");
     expect(result.current.result).toEqual({ proof: "ok" });
   });
+
+  it.each([
+    ["request", requestMock, useIDKitRequest],
+    ["invite", requestWithInviteCodeMock, useIDKitInviteCodeRequest],
+  ] as const)(
+    "%s hook forwards session creation",
+    async (_, request, useRequest) => {
+      const response = { session_id: SESSION_ID_1 };
+      request.mockReturnValue({
+        preset: vi.fn(async () =>
+          makeRequest(async () => ({ type: "confirmed", result: response })),
+        ),
+      });
+      const { result } = renderHook(() =>
+        useRequest({
+          app_id: "app_test",
+          action: "signup",
+          session_id: "create",
+          rp_context: baseRpContext,
+          allow_legacy_proofs: false,
+          preset: { type: "SelfieCheck" },
+        }),
+      );
+
+      act(() => result.current.open());
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(request).toHaveBeenCalledWith(
+        expect.objectContaining({ action: "signup", session_id: "create" }),
+      );
+      expect(result.current.result).toEqual(response);
+    },
+  );
 
   it("session hook uses createSession when existing_session_id is absent", async () => {
     createSessionMock.mockReturnValue({
@@ -303,6 +337,7 @@ describe("request/session hooks", () => {
     expect(requestMock).toHaveBeenCalledWith({
       app_id: "app_test",
       action: "test-action",
+      session_id: undefined,
       rp_context: baseRpContext,
       action_description: undefined,
       bridge_url: undefined,

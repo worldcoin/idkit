@@ -183,6 +183,27 @@ func bridgeRequestPayloadFromConstraints() throws {
     #expect(proofRequest.credentialIdentifiers == ["passport", "mnc"])
 }
 
+@Test("uniqueness requests optionally create a session without legacy fallback")
+func uniquenessSessionPayload() throws {
+    for sessionId in [nil, "create"] as [String?] {
+        let config = IDKitRequestConfig(
+            appId: "app_staging_1234567890abcdef",
+            action: "test-action",
+            rpContext: try sampleRpContext(),
+            sessionId: sessionId
+        )
+        let payload = try IDKit.createBridgePayloadFromPresets(
+            config: config, preset: identityCheck(attributes: [.minimumAge(18)])
+        )
+        let proofRequest = try #require(payload.proofRequest)
+        #expect(payload.action == "test-action")
+        #expect(proofRequest.proofType == "uniqueness")
+        #expect(proofRequest.action == IDKit.hashSignal("test-action"))
+        #expect(proofRequest.sessionId == sessionId)
+        #expect(payload.allowLegacyProofs == (sessionId == nil))
+    }
+}
+
 @Test("Status mapping covers all canonical variants")
 func statusMapping() {
     let result = sampleResult()
