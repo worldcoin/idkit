@@ -774,7 +774,7 @@ pub struct IDKitResult {
     pub action_description: Option<String>,
 
     /// Opaque session identifier in protocol string form (`session_<hex>`)
-    /// (only present for session proofs)
+    /// (present for session proofs and uniqueness proofs that create a session)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
 
@@ -850,10 +850,10 @@ impl IDKitResult {
         }
     }
 
-    /// Returns true if this is a session result
+    /// Returns true for session-only results (without a uniqueness action).
     #[must_use]
     pub const fn is_session(&self) -> bool {
-        self.session_id.is_some()
+        self.session_id.is_some() && self.action.is_none()
     }
 }
 

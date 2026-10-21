@@ -83,10 +83,36 @@ pub enum ConnectUrlMode {
 pub enum RequestKind {
     /// Uniqueness proof
     Uniqueness { action: String },
+    /// Uniqueness proof that also creates a session.
+    UniquenessWithSession { action: String },
     /// Create a new session (returns `session_id` in response)
     CreateSession,
     /// Prove ownership of an existing session
     ProveSession { session_id: String },
+}
+
+#[cfg(any(feature = "ffi", feature = "wasm-bindings", feature = "conformance"))]
+impl RequestKind {
+    pub(crate) fn uniqueness(
+        action: &str,
+        session_id: Option<&str>,
+        allow_legacy_proofs: bool,
+    ) -> Result<Self> {
+        match session_id {
+            None => Ok(Self::Uniqueness {
+                action: action.to_owned(),
+            }),
+            Some("create") if !allow_legacy_proofs => Ok(Self::UniquenessWithSession {
+                action: action.to_owned(),
+            }),
+            Some("create") => Err(Error::InvalidConfiguration(
+                "Session-bound uniqueness cannot allow legacy proofs".to_string(),
+            )),
+            Some(_) => Err(Error::InvalidConfiguration(
+                "Uniqueness session_id must be create".to_string(),
+            )),
+        }
+    }
 }
 
 /// Bridge request payload sent to initialize a session
@@ -397,6 +423,7 @@ pub struct ProofResponseConversionContext<'a, S: std::hash::BuildHasher> {
     pub signal_hashes: &'a std::collections::HashMap<String, String, S>,
     pub identity_attested: Option<bool>,
     pub user_presence_completed: Option<bool>,
+    pub require_session: bool,
 }
 
 /// Converts a protocol `ProofResponse` to the public `IDKitResult` shape.
@@ -427,6 +454,22 @@ pub(crate) fn proof_response_with_claims_to_idkit_result<S: std::hash::BuildHash
         return Err(Error::AppError(AppError::from_code(error_code)));
     }
 
+    if context.require_session
+        && (context.action.is_none()
+            || proof_response
+                .inner
+                .session_id
+                .is_none_or(|id| id.commitment == FieldElement::ZERO)
+            || proof_response.inner.responses.is_empty()
+            || proof_response
+                .inner
+                .responses
+                .iter()
+                .any(|item| item.nullifier.is_none() || item.session_nullifier.is_some()))
+    {
+        return Err(Error::UnexpectedResponse);
+    }
+
     let responses: Vec<ResponseItem> = proof_response
         .inner
         .responses
@@ -450,7 +493,7 @@ pub(crate) fn proof_response_with_claims_to_idkit_result<S: std::hash::BuildHash
     let environment = context.environment.unwrap_or_default().to_string();
 
     if let Some(session_id) = proof_response.inner.session_id {
-        Ok(IDKitResult::new_session(
+        let mut result = IDKitResult::new_session(
             context.nonce,
             serde_json::to_value(session_id)?
                 .as_str()
@@ -464,7 +507,12 @@ pub(crate) fn proof_response_with_claims_to_idkit_result<S: std::hash::BuildHash
             responses,
             context.user_presence_completed,
             environment,
-        ))
+        );
+        if context.require_session {
+            result.action = context.action;
+            result.identity_attested = context.identity_attested;
+        }
+        Ok(result)
     } else {
         let mut result = IDKitResult::new(
             "4.0",
@@ -714,6 +762,8 @@ pub struct BridgeConnection {
     environment: Environment,
     /// Whether a successful response must prove user presence was completed.
     require_user_presence: bool,
+    /// Whether this uniqueness proof must also create a session.
+    require_session: bool,
     /// Decrypted request payload used to create this bridge request.
     request_payload: serde_json::Value,
     /// Latest decrypted bridge response payload captured during polling.
@@ -761,6 +811,7 @@ pub(crate) fn conformance_connection(
         return_to: context.return_to,
         environment: context.environment,
         require_user_presence: context.require_user_presence,
+        require_session: context.session_id.as_deref() == Some("create"),
         request_payload: serde_json::Value::Null,
         latest_bridge_payload: Mutex::new(None),
         invite_code: context.invite_code,
@@ -783,6 +834,7 @@ fn build_request_payload(
     build_request_payload_with_id(params, native, None)
 }
 
+#[allow(clippy::too_many_lines)]
 fn build_request_payload_with_id(
     params: &BridgeConnectionParams,
     native: bool,
@@ -797,12 +849,23 @@ fn build_request_payload_with_id(
     // protocol SessionId type directly instead of adapting the `session_<hex>`
     // string form at this bridge boundary.
     let (proof_type, action_fe, session_id_fe, action_str) = match &params.kind {
-        RequestKind::Uniqueness { action } => {
+        RequestKind::Uniqueness { action } | RequestKind::UniquenessWithSession { action } => {
+            let bind_session = matches!(params.kind, RequestKind::UniquenessWithSession { .. });
+            if bind_session && (params.allow_legacy_proofs || params.constraints.is_none()) {
+                return Err(Error::InvalidConfiguration(
+                    "Session-bound uniqueness requires World ID v4 without legacy fallback"
+                        .to_string(),
+                ));
+            }
             let fe = FieldElement::from_arbitrary_raw_bytes(action.as_bytes());
             (
                 ProofType::Uniqueness,
                 Some(fe),
-                SessionRef::None,
+                if bind_session {
+                    SessionRef::Create
+                } else {
+                    SessionRef::None
+                },
                 Some(action.clone()),
             )
         }
@@ -1048,7 +1111,9 @@ impl BridgeConnection {
 
         // Extract action from kind for result
         let action = match &params.kind {
-            RequestKind::Uniqueness { action } => Some(action.clone()),
+            RequestKind::Uniqueness { action } | RequestKind::UniquenessWithSession { action } => {
+                Some(action.clone())
+            }
             _ => None,
         };
 
@@ -1070,6 +1135,7 @@ impl BridgeConnection {
             return_to: params.return_to,
             environment: params.environment.unwrap_or_default(),
             require_user_presence: params.require_user_presence,
+            require_session: matches!(params.kind, RequestKind::UniquenessWithSession { .. }),
             request_payload,
             latest_bridge_payload: Mutex::new(None),
             invite_code: None,
@@ -1269,6 +1335,15 @@ impl BridgeConnection {
     pub(crate) fn handle_decrypted_response(&self, plaintext: &[u8]) -> Result<Status> {
         let bridge_response: BridgeResponse = serde_json::from_slice(plaintext)?;
 
+        if self.require_session
+            && matches!(
+                bridge_response,
+                BridgeResponse::MultiLegacyResponse { .. } | BridgeResponse::ResponseV1 { .. }
+            )
+        {
+            return Err(Error::UnexpectedResponse);
+        }
+
         match bridge_response {
             BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
             BridgeResponse::ResponseV2(response) => {
@@ -1395,6 +1470,7 @@ impl BridgeConnection {
                 user_presence_completed: self
                     .require_user_presence
                     .then_some(user_presence_completed),
+                require_session: self.require_session,
             },
         )?;
         result.integrity_bundle = integrity_bundle;
@@ -1560,7 +1636,9 @@ async fn try_create_invite_code_request(
     let code_expires_at = current_unix_seconds()? + INVITE_CODE_TTL_SECONDS;
 
     let action = match &params.kind {
-        RequestKind::Uniqueness { action } => Some(action.clone()),
+        RequestKind::Uniqueness { action } | RequestKind::UniquenessWithSession { action } => {
+            Some(action.clone())
+        }
         _ => None,
     };
 
@@ -1583,6 +1661,7 @@ async fn try_create_invite_code_request(
         return_to: params.return_to.clone(),
         environment: params.environment.unwrap_or_default(),
         require_user_presence: params.require_user_presence,
+        require_session: matches!(params.kind, RequestKind::UniquenessWithSession { .. }),
         request_payload,
         latest_bridge_payload: Mutex::new(None),
         invite_code: Some(code),
@@ -1904,6 +1983,8 @@ pub struct IDKitRequestConfig {
     pub environment: Option<Environment>,
     /// Optional connect URL mode (defaults to `Default`)
     pub connect_url_mode: Option<ConnectUrlMode>,
+    /// Set to "create" to bind a new session to this uniqueness proof (v4 only).
+    pub session_id: Option<String>,
 }
 
 /// Configuration for session requests (no action field, v4 only)
@@ -1976,9 +2057,11 @@ impl IDKitConfig {
                     app_id,
                     package_name: config.package_name.clone(),
                     package_version: config.package_version.clone(),
-                    kind: RequestKind::Uniqueness {
-                        action: config.action.clone(),
-                    },
+                    kind: RequestKind::uniqueness(
+                        &config.action,
+                        config.session_id.as_deref(),
+                        config.allow_legacy_proofs,
+                    )?,
                     constraints: Some(constraints),
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
@@ -2088,8 +2171,8 @@ impl IDKitConfig {
                     .map(|url| BridgeUrl::new(url, &app_id))
                     .transpose()?;
 
-                let allow_legacy_proofs =
-                    bridge_params
+                let allow_legacy_proofs = config.session_id.is_none()
+                    && bridge_params
                         .allow_legacy_proofs_override
                         .unwrap_or(match self {
                             Self::Request(config) => config.allow_legacy_proofs,
@@ -2100,9 +2183,11 @@ impl IDKitConfig {
                     app_id,
                     package_name: config.package_name.clone(),
                     package_version: config.package_version.clone(),
-                    kind: RequestKind::Uniqueness {
-                        action: config.action.clone(),
-                    },
+                    kind: RequestKind::uniqueness(
+                        &config.action,
+                        config.session_id.as_deref(),
+                        config.allow_legacy_proofs,
+                    )?,
                     constraints: bridge_params.constraints,
                     rp_context: (*config.rp_context).clone(),
                     action_description: config.action_description.clone(),
@@ -2786,6 +2871,7 @@ mod tests {
                 signal_hashes: &cached_signal_hashes.signal_hashes,
                 identity_attested: None,
                 user_presence_completed: None,
+                require_session: false,
             },
         )
         .unwrap();
@@ -3337,6 +3423,7 @@ mod tests {
                 signal_hashes: &signal_hashes,
                 identity_attested: None,
                 user_presence_completed: Some(true),
+                require_session: false,
             },
         )
         .unwrap();
@@ -3430,6 +3517,7 @@ mod tests {
                 signal_hashes: &signal_hashes,
                 identity_attested: None,
                 user_presence_completed: None,
+                require_session: false,
             },
         )
         .unwrap();
@@ -3530,6 +3618,7 @@ mod tests {
                 signal_hashes: &signal_hashes,
                 identity_attested: None,
                 user_presence_completed: None,
+                require_session: false,
             },
         )
         .unwrap();
@@ -3575,6 +3664,7 @@ mod tests {
                 signal_hashes: &signal_hashes,
                 identity_attested: None,
                 user_presence_completed: None,
+                require_session: false,
             },
         )
         .unwrap_err();
@@ -3613,6 +3703,7 @@ mod tests {
                 signal_hashes: &signal_hashes,
                 identity_attested: None,
                 user_presence_completed: None,
+                require_session: false,
             },
         )
         .unwrap();
@@ -3926,7 +4017,7 @@ mod tests {
 
     #[cfg(feature = "ffi")]
     #[test]
-    fn test_request_config_defaults_user_presence_requirement_to_false() {
+    fn test_request_config_defaults_and_session_validation() {
         let signature = "0x".to_string() + &"00".repeat(64) + "1b";
         let rp_context = RpContext::new(
             "rp_1234567890abcdef",
@@ -3936,7 +4027,7 @@ mod tests {
             &signature,
         )
         .unwrap();
-        let config = IDKitConfig::Request(IDKitRequestConfig {
+        let mut config = IDKitRequestConfig {
             app_id: "app_test".to_string(),
             package_name: "idkit_test".to_string(),
             package_version: "1.0.0".to_string(),
@@ -3950,15 +4041,28 @@ mod tests {
             return_to: None,
             environment: None,
             connect_url_mode: None,
-        });
+            session_id: None,
+        };
 
-        let params = config
+        let params = IDKitConfig::Request(config.clone())
             .to_params(ConstraintNode::Any { any: Vec::new() })
             .unwrap();
 
         assert!(!params.require_user_presence);
         assert_eq!(params.package_name.as_str(), "idkit_test");
         assert_eq!(params.package_version.as_str(), "1.0.0");
+
+        for (session_id, allow_legacy_proofs, preset) in [
+            ("existing-session", false, Preset::proof_of_human(None)),
+            ("create", true, Preset::proof_of_human(None)),
+            ("create", false, Preset::orb_legacy(None)),
+        ] {
+            config.session_id = Some(session_id.to_string());
+            config.allow_legacy_proofs = allow_legacy_proofs;
+            assert!(IDKitBuilder::from_request(config.clone())
+                .bridge_request_payload_from_preset(preset)
+                .is_err());
+        }
     }
 
     #[test]
@@ -4505,6 +4609,71 @@ mod tests {
         assert_eq!(native_v1_payload["signal"], expected);
     }
 
+    #[test]
+    fn test_bound_uniqueness_preserves_session_and_rejects_unbound_success() {
+        let mut connection = sample_connection(None);
+        connection.require_session = true;
+        let session_id = SessionId {
+            commitment: FieldElement::from(1u64),
+            ..SessionId::default()
+        };
+        let response = serde_json::json!({
+            "proof_response": {
+                "id": "bound-request", "version": 1, "session_id": session_id,
+                "responses": [{
+                    "identifier": "proof_of_human", "issuer_schema_id": 1,
+                    "proof": ZERO_PROOF, "nullifier": ZERO_NULLIFIER,
+                    "expires_at_min": 1_735_689_600,
+                }],
+            },
+            "identity_attested": true,
+        });
+        let parse = |value: &serde_json::Value| {
+            connection.handle_decrypted_response(&serde_json::to_vec(value).unwrap())
+        };
+        let Status::Confirmed(result) = parse(&response).unwrap() else {
+            panic!("expected bound uniqueness result");
+        };
+        assert_eq!(result.action.as_deref(), Some("test-action"));
+        assert_eq!(
+            serde_json::to_value(&result).unwrap()["session_id"],
+            serde_json::json!(session_id)
+        );
+        assert_eq!(result.identity_attested, Some(true));
+        assert!(matches!(result.responses[0], ResponseItem::V4 { .. }));
+        assert!(!result.is_session());
+
+        for invalid_session in [
+            serde_json::Value::Null,
+            serde_json::json!(SessionId::default()),
+        ] {
+            let mut invalid = response.clone();
+            invalid["proof_response"]["session_id"] = invalid_session;
+            assert!(matches!(parse(&invalid), Err(Error::UnexpectedResponse)));
+        }
+        let mut invalid = response;
+        invalid["proof_response"]["responses"][0]["session_nullifier"] =
+            serde_json::json!(world_id_primitives::SessionNullifier::default());
+        assert!(matches!(parse(&invalid), Err(Error::UnexpectedResponse)));
+        invalid["proof_response"]["responses"] = serde_json::json!([]);
+        assert!(matches!(parse(&invalid), Err(Error::UnexpectedResponse)));
+        invalid["proof_response"]["error"] = serde_json::json!("credential_unavailable");
+        assert!(matches!(
+            parse(&invalid),
+            Ok(Status::Failed(AppError::CredentialUnavailable))
+        ));
+
+        let legacy = serde_json::json!({
+            "proof": "0xproof", "merkle_root": "0xroot",
+            "nullifier_hash": "0xnull", "verification_level": "orb",
+        });
+        assert!(matches!(parse(&legacy), Err(Error::UnexpectedResponse)));
+        assert!(matches!(
+            parse(&serde_json::json!({"legacy_responses": [legacy]})),
+            Err(Error::UnexpectedResponse)
+        ));
+    }
+
     fn sample_connection(return_to: Option<String>) -> BridgeConnection {
         BridgeConnection {
             bridge_url: BridgeUrl::default(),
@@ -4525,6 +4694,7 @@ mod tests {
             return_to,
             environment: Environment::Production,
             require_user_presence: false,
+            require_session: false,
             request_payload: serde_json::json!({
                 "app_id": "app_test",
                 "action": "test-action",

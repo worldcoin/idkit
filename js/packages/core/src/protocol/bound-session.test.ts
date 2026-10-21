@@ -30,7 +30,6 @@ const options = { now: NOW, requestId: "request-id" };
 const selection = { preset: { type: "ProofOfHuman" as const } };
 const boundResponse = { ...response, session_id: SESSION };
 
-// This JS-only opt-in extends the unchanged Rust differential suite.
 describe("uniqueness with a newly bound session", () => {
   it.each([selection, { constraints: { type: "proof_of_human" as const } }])(
     "compiles action + session creation and disables even implicit preset fallback",

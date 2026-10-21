@@ -196,6 +196,27 @@ class IDKitTests {
     }
 
     @Test
+    fun `uniqueness requests optionally create a session without legacy fallback`() {
+        for (sessionId in listOf(null, "create")) {
+            val config = IDKitRequestConfig(
+                appId = "app_staging_1234567890abcdef",
+                action = "test-action",
+                rpContext = sampleRpContext(),
+                sessionId = sessionId,
+            )
+            val payload = IDKit.createBridgePayloadFromPresets(
+                config, identityCheck(attributes = listOf(IdentityAttribute.MinimumAge(18u))),
+            )
+            val proofRequest = payload.proofRequest!!
+            assertEquals("test-action", payload.action)
+            assertEquals("uniqueness", proofRequest.proofType)
+            assertEquals(IDKit.hashSignal("test-action"), proofRequest.action)
+            assertEquals(sessionId, proofRequest.sessionId)
+            assertEquals(sessionId == null, payload.allowLegacyProofs)
+        }
+    }
+
+    @Test
     fun `status mapping covers all canonical variants`() {
         val result = sampleResult()
 
