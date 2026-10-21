@@ -136,6 +136,7 @@ class IDKitTests {
         val proofRequest = payload.proofRequest!!
         assertEquals(1u, proofRequest.version)
         assertEquals("uniqueness", proofRequest.proofType)
+        assertNull(proofRequest.sessionId)
         assertEquals("rp_1234567890abcdef", proofRequest.rpId)
         assertEquals(1_700_000_000u, proofRequest.createdAt)
         assertEquals(1_700_003_600u, proofRequest.expiresAt)
@@ -197,13 +198,18 @@ class IDKitTests {
 
     @Test
     fun `uniqueness requests optionally create a session without legacy fallback`() {
-        for (sessionId in listOf(null, "create")) {
+        for ((sessionId, createSession, expectedSessionId) in listOf(
+            Triple(null, false, null), Triple(null, true, "create"),
+            Triple("create", false, "create"), Triple("create", true, "create"),
+        )) {
             val config = IDKitRequestConfig(
                 appId = "app_staging_1234567890abcdef",
                 action = "test-action",
                 rpContext = sampleRpContext(),
                 sessionId = sessionId,
+                createSession = createSession,
             )
+            assertEquals(expectedSessionId != null, config.copy().createSession)
             val payload = IDKit.createBridgePayloadFromPresets(
                 config, identityCheck(attributes = listOf(IdentityAttribute.MinimumAge(18u))),
             )
@@ -211,8 +217,8 @@ class IDKitTests {
             assertEquals("test-action", payload.action)
             assertEquals("uniqueness", proofRequest.proofType)
             assertEquals(IDKit.hashSignal("test-action"), proofRequest.action)
-            assertEquals(sessionId, proofRequest.sessionId)
-            assertEquals(sessionId == null, payload.allowLegacyProofs)
+            assertEquals(expectedSessionId, proofRequest.sessionId)
+            assertEquals(expectedSessionId == null, payload.allowLegacyProofs)
         }
     }
 

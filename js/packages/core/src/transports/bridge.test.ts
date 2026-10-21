@@ -161,9 +161,59 @@ describe("bridge raw JSON compatibility", () => {
 });
 
 describe("encrypted bridge lifecycle", () => {
-  it.each([false, true])(
-    "creates and validates a bound uniqueness proof over the encrypted bridge (invite=%s)",
-    async (invite) => {
+  it.each([IDKit.request, IDKit.requestWithInviteCode])(
+    "%s preserves ordinary uniqueness and rejects invalid session options",
+    async (request) => {
+      configureIDKitRuntime({
+        fetch: async (_url, init) =>
+          json({
+            request_id:
+              JSON.parse(init?.body as string).request_id ?? "request-id",
+          }),
+      });
+      for (const create_session of [undefined, false]) {
+        const result = await request({ ...config, create_session }).preset(
+          proofOfHuman(),
+        );
+        expect(result.getDebugReport().request_payload).toMatchObject({
+          proof_request: { proof_type: "uniqueness", session_id: null },
+        });
+      }
+      for (const create_session of ["true", 1, null]) {
+        expect(() =>
+          request({
+            ...config,
+            create_session,
+          } as unknown as IDKitRequestConfig),
+        ).toThrow("create_session must be a boolean");
+      }
+      for (const session_id of ["", SESSION, null]) {
+        await expect(
+          request({
+            ...config,
+            create_session: true,
+            session_id,
+          } as unknown as IDKitRequestConfig).preset(proofOfHuman()),
+        ).rejects.toThrow('Uniqueness session_id must be "create"');
+      }
+      await expect(
+        request({
+          ...config,
+          create_session: true,
+          allow_legacy_proofs: true,
+        }).preset(proofOfHuman()),
+      ).rejects.toThrow("allow_legacy_proofs: false");
+    },
+  );
+
+  it.each([
+    [false, { create_session: true }],
+    [true, { create_session: true }],
+    [false, { session_id: "create" as const }],
+    [true, { create_session: false, session_id: "create" as const }],
+  ] as const)(
+    "creates and validates a bound uniqueness proof over the encrypted bridge (invite=%s, options=%j)",
+    async (invite, sessionOptions) => {
       let pollBody: unknown = { status: "initialized" };
       configureIDKitRuntime({
         fetch: async (_url, init) => {
@@ -176,7 +226,7 @@ describe("encrypted bridge lifecycle", () => {
           return json(pollBody);
         },
       });
-      const boundConfig = { ...config, session_id: "create" as const };
+      const boundConfig = { ...config, ...sessionOptions };
       const request = await (invite
         ? IDKit.requestWithInviteCode(boundConfig).preset(proofOfHuman())
         : IDKit.request(boundConfig).constraints({ type: "proof_of_human" }));

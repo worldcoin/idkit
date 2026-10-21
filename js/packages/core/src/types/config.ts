@@ -40,7 +40,9 @@ export type IDKitRequestConfig = {
   app_id: `app_${string}`;
   /** Identifier for the action the user is performing. Should be left blank for [Sign in with Worldcoin](https://docs.world.org/id/sign-in). */
   action: AbiEncodedValue | string;
-  /** Create a session bound to this uniqueness proof. Requires allow_legacy_proofs: false. */
+  /** Create a session bound to this uniqueness proof. Defaults to false; requires allow_legacy_proofs: false. */
+  create_session?: boolean;
+  /** @deprecated Use create_session instead. When supplied, this alias still requests session creation. */
   session_id?: "create";
   /** RP context for protocol-level proof requests (required) */
   rp_context: RpContext;

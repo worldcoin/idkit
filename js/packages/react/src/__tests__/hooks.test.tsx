@@ -175,6 +175,7 @@ describe("request/session hooks", () => {
     expect(requestMock).toHaveBeenCalledWith({
       app_id: "app_test",
       action: "test-action",
+      create_session: undefined,
       session_id: undefined,
       rp_context: baseRpContext,
       action_description: undefined,
@@ -205,7 +206,7 @@ describe("request/session hooks", () => {
         useRequest({
           app_id: "app_test",
           action: "signup",
-          session_id: "create",
+          create_session: true,
           rp_context: baseRpContext,
           allow_legacy_proofs: false,
           preset: { type: "SelfieCheck" },
@@ -216,7 +217,7 @@ describe("request/session hooks", () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
       expect(request).toHaveBeenCalledWith(
-        expect.objectContaining({ action: "signup", session_id: "create" }),
+        expect.objectContaining({ action: "signup", create_session: true }),
       );
       expect(result.current.result).toEqual(response);
     },
@@ -337,6 +338,7 @@ describe("request/session hooks", () => {
     expect(requestMock).toHaveBeenCalledWith({
       app_id: "app_test",
       action: "test-action",
+      create_session: undefined,
       session_id: undefined,
       rp_context: baseRpContext,
       action_description: undefined,

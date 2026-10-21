@@ -129,6 +129,7 @@ func bridgeRequestPayloadIdentityCheck() throws {
     let proofRequest = try #require(payload.proofRequest)
     #expect(proofRequest.version == 1)
     #expect(proofRequest.proofType == "uniqueness")
+    #expect(proofRequest.sessionId == nil)
     #expect(proofRequest.rpId == "rp_1234567890abcdef")
     #expect(proofRequest.createdAt == 1_700_000_000)
     #expect(proofRequest.expiresAt == 1_700_003_600)
@@ -185,12 +186,16 @@ func bridgeRequestPayloadFromConstraints() throws {
 
 @Test("uniqueness requests optionally create a session without legacy fallback")
 func uniquenessSessionPayload() throws {
-    for sessionId in [nil, "create"] as [String?] {
+    for (sessionId, createSession, expectedSessionId) in [
+        (nil, false, nil), (nil, true, "create"),
+        ("create", false, "create"), ("create", true, "create")
+    ] as [(String?, Bool, String?)] {
         let config = IDKitRequestConfig(
             appId: "app_staging_1234567890abcdef",
             action: "test-action",
             rpContext: try sampleRpContext(),
-            sessionId: sessionId
+            sessionId: sessionId,
+            createSession: createSession
         )
         let payload = try IDKit.createBridgePayloadFromPresets(
             config: config, preset: identityCheck(attributes: [.minimumAge(18)])
@@ -199,8 +204,8 @@ func uniquenessSessionPayload() throws {
         #expect(payload.action == "test-action")
         #expect(proofRequest.proofType == "uniqueness")
         #expect(proofRequest.action == IDKit.hashSignal("test-action"))
-        #expect(proofRequest.sessionId == sessionId)
-        #expect(payload.allowLegacyProofs == (sessionId == nil))
+        #expect(proofRequest.sessionId == expectedSessionId)
+        #expect(payload.allowLegacyProofs == (expectedSessionId == nil))
     }
 }
 

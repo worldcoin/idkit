@@ -14,6 +14,7 @@ export function useIDKitInviteCodeRequest(
       const builder = IDKit.requestWithInviteCode({
         app_id: config.app_id,
         action: config.action,
+        create_session: config.create_session,
         session_id: config.session_id,
         rp_context: config.rp_context,
         action_description: config.action_description,

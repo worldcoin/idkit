@@ -5,7 +5,8 @@ import type { BuilderConfig } from "./native";
 import { createNativeRequest, getWorldAppVerifyVersion } from "./native";
 import { hashSignal } from "../lib/hashing";
 import { setDebug } from "../lib/debug";
-import { FIELD, SESSION, legacy, response } from "../conformance/cases";
+import { FIELD, SESSION, config, legacy, response } from "../conformance/cases";
+import { IDKit, proofOfHuman } from "../index";
 
 const baseConfig: BuilderConfig = {
   type: "request",
@@ -90,12 +91,17 @@ describe("native transport request lifecycle", () => {
   it.each(["bound", "missing-session", "legacy"])(
     "validates bound uniqueness through the native event channel (%s)",
     async (variant) => {
-      const req = createNativeRequest(
-        {},
-        { ...baseConfig, session_id: "create" },
-        {},
-        "",
-      );
+      (globalThis as any).window.WorldApp = {
+        supported_commands: [{ name: "verify", supported_versions: [2] }],
+      };
+      const req = await IDKit.request({
+        ...config,
+        app_id: "app_staging_test",
+        create_session: true,
+      }).preset(proofOfHuman());
+      expect(req.getDebugReport().request_payload).toMatchObject({
+        proof_request: { proof_type: "uniqueness", session_id: "create" },
+      });
       activeRequest = req;
       const completion = req.pollUntilCompletion({ timeout: 1000 });
       miniKitHandlers["miniapp-verify-action"]?.({

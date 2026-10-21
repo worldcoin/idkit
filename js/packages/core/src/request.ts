@@ -893,6 +893,19 @@ class IDKitInviteCodeBuilder {
 // Entry points
 // ─────────────────────────────────────────────────────────────────────────────
 
+function sessionCreationOption(
+  config: IDKitRequestConfig,
+): "create" | undefined {
+  if (
+    config.create_session !== undefined &&
+    typeof config.create_session !== "boolean"
+  ) {
+    throw new Error("create_session must be a boolean");
+  }
+  if (config.session_id !== undefined) return config.session_id;
+  return config.create_session ? "create" : undefined;
+}
+
 /**
  * Creates an IDKit verification request builder
  *
@@ -960,7 +973,7 @@ function createRequestForNamespace(
     package_name: options.package_name,
     package_version: options.package_version,
     action: String(config.action),
-    session_id: config.session_id,
+    session_id: sessionCreationOption(config),
     rp_context: config.rp_context,
     action_description: config.action_description,
     bridge_url: config.bridge_url,
@@ -1026,7 +1039,7 @@ function createRequestWithInviteCodeForNamespace(
     package_name: options.package_name,
     package_version: options.package_version,
     action: String(config.action),
-    session_id: config.session_id,
+    session_id: sessionCreationOption(config),
     rp_context: config.rp_context,
     action_description: config.action_description,
     bridge_url: config.bridge_url,

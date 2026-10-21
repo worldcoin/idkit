@@ -1957,7 +1957,7 @@ export function DemoClient(): ReactElement {
             app_id={APP_ID}
             // allow empty string action as input
             action={action ?? "test-action"}
-            session_id={shouldCreateSession ? "create" : undefined}
+            create_session={shouldCreateSession}
             rp_context={widgetRpContext}
             allow_legacy_proofs={shouldAllowLegacyProofs}
             require_user_presence={requireUserPresence}
@@ -1982,7 +1982,7 @@ export function DemoClient(): ReactElement {
             app_id={APP_ID}
             // allow empty string action as input
             action={action ?? "test-action"}
-            session_id={shouldCreateSession ? "create" : undefined}
+            create_session={shouldCreateSession}
             rp_context={widgetRpContext}
             allow_legacy_proofs={shouldAllowLegacyProofs}
             require_user_presence={requireUserPresence}

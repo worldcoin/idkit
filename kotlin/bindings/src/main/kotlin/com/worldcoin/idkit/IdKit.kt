@@ -58,9 +58,32 @@ data class IDKitRequestConfig(
     val returnTo: String? = null,
     val environment: Environment? = null,
     val connectUrlMode: ConnectUrlMode? = null,
-    /** Set to "create" to bind a new session to the uniqueness proof. */
+    /** Deprecated: use [createSession] instead. Only "create" is accepted. */
     val sessionId: String? = null,
 ) {
+    /** Whether the uniqueness proof creates a session. */
+    val createSession: Boolean get() = sessionId == "create"
+
+    constructor(
+        appId: String,
+        action: String,
+        rpContext: RpContext,
+        actionDescription: String? = null,
+        bridgeUrl: String? = null,
+        allowLegacyProofs: Boolean = false,
+        requireUserPresence: Boolean = false,
+        overrideConnectBaseUrl: String? = null,
+        returnTo: String? = null,
+        environment: Environment? = null,
+        connectUrlMode: ConnectUrlMode? = null,
+        sessionId: String? = null,
+        createSession: Boolean,
+    ) : this(
+        appId, action, rpContext, actionDescription, bridgeUrl, allowLegacyProofs,
+        requireUserPresence, overrideConnectBaseUrl, returnTo, environment, connectUrlMode,
+        sessionId ?: if (createSession) "create" else null,
+    )
+
     internal fun toNative(): NativeIDKitRequestConfig =
         NativeIDKitRequestConfig(
             appId = appId,

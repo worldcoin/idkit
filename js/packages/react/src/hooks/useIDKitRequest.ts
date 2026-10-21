@@ -13,6 +13,7 @@ export function useIDKitRequest(
     const builder = IDKit.request({
       app_id: config.app_id,
       action: config.action,
+      create_session: config.create_session,
       session_id: config.session_id,
       rp_context: config.rp_context,
       action_description: config.action_description,
