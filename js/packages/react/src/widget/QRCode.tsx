@@ -31,7 +31,9 @@ function QRCodeInner({ data, size = 200 }: QRCodeProps): ReactElement {
   const dots = useMemo(() => {
     const elements: ReactElement[] = [];
     const matrix = generateMatrix(data);
-    const cellSize = size / matrix.length;
+    const quietZoneModules = 4;
+    const cellSize = size / (matrix.length + quietZoneModules * 2);
+    const offset = quietZoneModules * cellSize;
     const qrList = [
       { x: 0, y: 0 },
       { x: 1, y: 0 },
@@ -39,8 +41,8 @@ function QRCodeInner({ data, size = 200 }: QRCodeProps): ReactElement {
     ];
 
     qrList.forEach(({ x, y }) => {
-      const x1 = (matrix.length - 7) * cellSize * x;
-      const y1 = (matrix.length - 7) * cellSize * y;
+      const x1 = offset + (matrix.length - 7) * cellSize * x;
+      const y1 = offset + (matrix.length - 7) * cellSize * y;
 
       for (let i = 0; i < 3; i++) {
         elements.push(
@@ -80,8 +82,8 @@ function QRCodeInner({ data, size = 200 }: QRCodeProps): ReactElement {
             fill="currentColor"
             r={cellSize / 2.2}
             key={`circle-${i}-${j}`}
-            cx={i * cellSize + cellSize / 2}
-            cy={j * cellSize + cellSize / 2}
+            cx={i * cellSize + cellSize / 2 + offset}
+            cy={j * cellSize + cellSize / 2 + offset}
             className="qr-dot"
           />,
         );

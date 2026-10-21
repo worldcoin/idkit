@@ -3,22 +3,24 @@ import type { SVGProps } from "react";
 export function LoadingIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
+      width="100%"
+      height="100%"
       viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
       {...props}
     >
       <circle
         cx="12"
         cy="12"
         r="10.75"
-        stroke="#191C20"
-        strokeOpacity=".16"
+        stroke="currentColor"
+        strokeOpacity="0.16"
         strokeWidth="2.5"
       />
       <path
-        fill="#191C20"
-        d="M17.28 2.633c.338-.6.127-1.368-.505-1.642A12 12 0 0 0 7.459.892c-.638.261-.864 1.024-.539 1.632.326.607 1.08.827 1.725.584a9.504 9.504 0 0 1 6.897.073c.64.257 1.399.053 1.737-.548Z"
+        d="M17.8921 1.54613C16.1312 0.553676 14.1482 0.0220795 12.1271 0.000672984C10.1059 -0.0207335 8.11211 0.468744 6.33065 1.42368L7.50987 3.62356C8.92079 2.86725 10.4999 2.47958 12.1007 2.49653C13.7014 2.51349 15.2719 2.93451 16.6665 3.72054L17.8921 1.54613Z"
+        fill="currentColor"
       />
     </svg>
   );

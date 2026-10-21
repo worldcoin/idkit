@@ -1,46 +1,115 @@
+.idkit-state-grid {
+  display: grid;
+  flex: 1;
+  grid-template:
+    "content" minmax(0, 1fr)
+    / minmax(0, 1fr);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.idkit-error-state {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.idkit-error-state .idkit-state-content {
+  flex: 1;
+  align-self: stretch;
+}
+
+.idkit-state-content {
+  display: flex;
+  grid-area: content;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  place-self: center;
+}
+
 .idkit-error-icon {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 56px;
+  height: 56px;
   margin-bottom: 24px;
 }
 
 .idkit-error-icon svg {
-  width: 96px;
-  height: 96px;
+  width: 56px;
+  height: 56px;
+}
+
+.idkit-error-icon .idkit-error-svg {
+  color: var(--idkit-foreground-disabled);
+}
+
+.idkit-warning-svg {
+  color: var(--idkit-warning);
 }
 
 .idkit-error-title {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 600;
   color: var(--idkit-text);
 }
 
+.idkit-error-state .idkit-instructions {
+  max-width: none;
+}
+
 .idkit-error-message {
-  margin: 8px auto 0;
+  margin: 0;
   max-width: 224px;
-  font-size: 16px;
-  color: var(--idkit-text-muted);
-  line-height: 1.4;
+  color: var(--idkit-foreground-secondary);
 }
 
 .idkit-retry-btn {
   display: inline-flex;
   align-items: center;
-  border-radius: 9999px;
-  border: 1.2px solid var(--idkit-border);
-  background: transparent;
-  padding: 12px 32px;
+  justify-content: center;
+  align-self: end;
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  border-radius: 24px;
+  background: var(--idkit-btn-bg);
+  padding: 12px 24px;
   font-family: var(--idkit-font);
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--idkit-text);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--idkit-btn-text);
   cursor: pointer;
-  transition: box-shadow 0.3s ease;
-  margin-top: 32px;
 }
 
-.idkit-retry-btn:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+@media (max-width: 1024px) {
+  .idkit-content:has(.idkit-error-state, .idkit-success-state) {
+    justify-content: flex-start;
+  }
+
+  .idkit-error-state,
+  .idkit-success-state {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+  }
+
+  .idkit-error-state .idkit-state-content,
+  .idkit-success-state .idkit-state-content {
+    flex: none;
+    width: 100%;
+    align-items: stretch;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .idkit-error-message,
+  .idkit-success-message {
+    max-width: none;
+  }
 }
