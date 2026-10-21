@@ -24,6 +24,8 @@ public struct IDKitRequestConfig {
     public let returnTo: String?
     public let environment: Environment?
     public let connectUrlMode: ConnectUrlMode?
+    /// Set to "create" to bind a new session to the uniqueness proof.
+    public let sessionId: String?
 
     public init(
         appId: String,
@@ -36,7 +38,8 @@ public struct IDKitRequestConfig {
         overrideConnectBaseUrl: String? = nil,
         returnTo: String? = nil,
         environment: Environment? = nil,
-        connectUrlMode: ConnectUrlMode? = nil
+        connectUrlMode: ConnectUrlMode? = nil,
+        sessionId: String? = nil
     ) {
         self.appId = appId
         self.action = action
@@ -49,6 +52,7 @@ public struct IDKitRequestConfig {
         self.returnTo = returnTo
         self.environment = environment
         self.connectUrlMode = connectUrlMode
+        self.sessionId = sessionId
     }
 
     fileprivate var native: IdKitRequestConfig {
@@ -65,7 +69,8 @@ public struct IDKitRequestConfig {
             overrideConnectBaseUrl: overrideConnectBaseUrl,
             returnTo: returnTo,
             environment: environment,
-            connectUrlMode: connectUrlMode
+            connectUrlMode: connectUrlMode,
+            sessionId: sessionId
         )
     }
 }

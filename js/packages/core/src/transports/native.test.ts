@@ -5,6 +5,7 @@ import type { BuilderConfig } from "./native";
 import { createNativeRequest, getWorldAppVerifyVersion } from "./native";
 import { hashSignal } from "../lib/hashing";
 import { setDebug } from "../lib/debug";
+import { FIELD, SESSION, legacy, response } from "../conformance/cases";
 
 const baseConfig: BuilderConfig = {
   type: "request",
@@ -68,6 +69,61 @@ describe("native transport request lifecycle", () => {
     vi.restoreAllMocks();
     delete (globalThis as any).window;
   });
+
+  it.each([false, true])(
+    "refuses to reuse an in-flight request with different session binding (bound first=%s)",
+    (boundFirst) => {
+      const bound = { ...baseConfig, session_id: "create" as const };
+      activeRequest = createNativeRequest(
+        {},
+        boundFirst ? bound : baseConfig,
+        {},
+        "",
+      );
+      expect(() =>
+        createNativeRequest({}, boundFirst ? baseConfig : bound, {}, ""),
+      ).toThrow("Cannot change session binding");
+      expect(activeRequest.isPending()).toBe(true);
+    },
+  );
+
+  it.each(["bound", "missing-session", "legacy"])(
+    "validates bound uniqueness through the native event channel (%s)",
+    async (variant) => {
+      const req = createNativeRequest(
+        {},
+        { ...baseConfig, session_id: "create" },
+        {},
+        "",
+      );
+      activeRequest = req;
+      const completion = req.pollUntilCompletion({ timeout: 1000 });
+      miniKitHandlers["miniapp-verify-action"]?.({
+        status: "success",
+        ...(variant === "legacy"
+          ? { protocol_version: "3.0", ...legacy }
+          : {
+              proof_response: {
+                ...response,
+                session_id: variant === "bound" ? SESSION : undefined,
+              },
+            }),
+      });
+      await expect(completion).resolves.toMatchObject(
+        variant === "bound"
+          ? {
+              success: true,
+              result: {
+                protocol_version: "4.0",
+                action: baseConfig.action,
+                session_id: SESSION,
+                responses: [{ nullifier: FIELD }],
+              },
+            }
+          : { success: false, error: IDKitErrorCodes.UnexpectedResponse },
+      );
+    },
+  );
 
   it("reuses the in-flight native request instead of cancelling it", async () => {
     const req1 = createNativeRequest({ payload: 1 }, baseConfig, {}, "");

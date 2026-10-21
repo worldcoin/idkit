@@ -169,6 +169,10 @@ export class BridgeRequest {
       {
         nonce: this.config.rp_context!.nonce,
         action: this.config.type === "request" ? this.config.action : undefined,
+        session_id:
+          this.config.type === "request" && this.config.session_id === "create"
+            ? "create"
+            : undefined,
         action_description: this.config.action_description,
         environment: this.compiled.payload.environment as
           | "production"

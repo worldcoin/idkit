@@ -58,6 +58,8 @@ data class IDKitRequestConfig(
     val returnTo: String? = null,
     val environment: Environment? = null,
     val connectUrlMode: ConnectUrlMode? = null,
+    /** Set to "create" to bind a new session to the uniqueness proof. */
+    val sessionId: String? = null,
 ) {
     internal fun toNative(): NativeIDKitRequestConfig =
         NativeIDKitRequestConfig(
@@ -74,6 +76,7 @@ data class IDKitRequestConfig(
             returnTo = returnTo,
             environment = environment,
             connectUrlMode = connectUrlMode,
+            sessionId = sessionId,
         )
 }
 
