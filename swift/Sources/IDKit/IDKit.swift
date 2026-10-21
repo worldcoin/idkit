@@ -124,7 +124,7 @@ public struct IDKitSessionConfig {
 
 /// Main entry point for IDKit Swift SDK.
 public enum IDKit {
-    public static let version = "4.1.0"
+    public static let version = "4.2.0"
 
     /// Creates a builder for uniqueness proof requests.
     public static func request(config: IDKitRequestConfig) -> IDKitBuilder {
