@@ -466,15 +466,15 @@ func presetHelpers() {
 //     #expect(json.contains("\"enumerate\""))
 // }
 
-@Test("App error reasons survive status mapping and completion")
-func appErrorReasonPropagation() async {
-    let status = IDKitRequest.mapStatus(.failed(error: .challengeFailed, reason: .faceChallengeMismatch))
-    #expect(status == .failed(.challengeFailed, reason: .faceChallengeMismatch))
+@Test("Optional app error reasons survive status mapping and completion", arguments: [nil, .unknown, .faceChallengeMismatch] as [ErrorReason?])
+func appErrorReasonPropagation(reason: ErrorReason?) async {
+    let status = IDKitRequest.mapStatus(.failed(error: .challengeFailed, reason: reason))
+    #expect(status == .failed(.challengeFailed, reason: reason))
     let request = IDKitRequest(
         connectorURL: URL(string: "https://world.org/verify?t=wld")!,
         requestID: UUID(),
         pollOnce: { status }
     )
     let completion = await request.pollUntilCompletion(options: .init(pollIntervalMs: 1, timeoutMs: 1_000))
-    #expect(completion == .failure(.challengeFailed, reason: .faceChallengeMismatch))
+    #expect(completion == .failure(.challengeFailed, reason: reason))
 }

@@ -3559,28 +3559,63 @@ mod tests {
                 reason: None
             }
         );
+        #[cfg(feature = "ffi")]
+        assert!(matches!(
+            StatusWrapper::from(status),
+            StatusWrapper::Failed {
+                error: AppError::ChallengeFailed,
+                reason: None,
+            }
+        ));
     }
 
     #[test]
     fn protocol_error_reasons_survive_raw_and_wrapped_responses() {
         let connection = sample_connection(None);
-        let response = serde_json::json!({
-            "id": "request", "version": 1, "responses": [],
-            "error": "challenge_failed", "reason": "face_selfie_timeout",
-        });
-        for payload in [
-            response.clone(),
-            serde_json::json!({"proof_response": response}),
+        for (detail, expected_reason) in [
+            (
+                serde_json::json!({"reason": "face_selfie_timeout"}),
+                Some(ErrorReason::FaceSelfieTimeout),
+            ),
+            (
+                serde_json::json!({"reason": "future_reason"}),
+                Some(ErrorReason::Unknown),
+            ),
+            (serde_json::json!({"reason": null}), None),
+            (serde_json::json!({}), None),
         ] {
-            assert_eq!(
-                connection
+            let mut response = serde_json::json!({
+                "id": "request", "version": 1, "responses": [],
+                "error": "challenge_failed",
+            });
+            response
+                .as_object_mut()
+                .unwrap()
+                .extend(detail.as_object().unwrap().clone());
+            for payload in [
+                response.clone(),
+                serde_json::json!({"proof_response": response}),
+            ] {
+                let status = connection
                     .handle_decrypted_response(&serde_json::to_vec(&payload).unwrap())
-                    .unwrap(),
-                Status::Failed {
-                    error: AppError::ChallengeFailed,
-                    reason: Some(ErrorReason::FaceSelfieTimeout),
+                    .unwrap();
+                assert_eq!(
+                    status,
+                    Status::Failed {
+                        error: AppError::ChallengeFailed,
+                        reason: expected_reason
+                    }
+                );
+                #[cfg(feature = "ffi")]
+                {
+                    let StatusWrapper::Failed { error, reason } = StatusWrapper::from(status)
+                    else {
+                        panic!("expected failed status");
+                    };
+                    assert_eq!(error, AppError::ChallengeFailed);
+                    assert_eq!(reason, expected_reason);
                 }
-            );
+            }
         }
     }
 

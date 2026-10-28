@@ -603,6 +603,7 @@ describe("native transport request lifecycle", () => {
     ["face_challenge_mismatch", "face_challenge_mismatch"],
     ["future_reason", "unknown"],
     [null, undefined],
+    [undefined, undefined],
   ])(
     "preserves native failure reason %s in completion and polling",
     async (wire, expected) => {
@@ -612,15 +613,15 @@ describe("native transport request lifecycle", () => {
       miniKitHandlers["miniapp-verify-action"]?.({
         status: "error",
         error_code: "challenge_failed",
-        reason: wire,
+        ...(wire === undefined ? {} : { reason: wire }),
       });
       const detail = expected === undefined ? {} : { reason: expected };
-      await expect(completionPromise).resolves.toEqual({
+      await expect(completionPromise).resolves.toStrictEqual({
         success: false,
         error: IDKitErrorCodes.ChallengeFailed,
         ...detail,
       });
-      await expect(req.pollOnce()).resolves.toEqual({
+      await expect(req.pollOnce()).resolves.toStrictEqual({
         type: "failed",
         error: IDKitErrorCodes.ChallengeFailed,
         ...detail,

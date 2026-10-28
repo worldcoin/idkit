@@ -54,14 +54,16 @@ class IDKitTests {
     }
 
     @Test
-    fun `app error reasons survive status mapping and completion`() = runBlocking {
-        val status = IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.CHALLENGE_FAILED, ErrorReason.FACE_CHALLENGE_MISMATCH))
-        assertEquals(IDKitStatus.Failed(IDKitErrorCode.CHALLENGE_FAILED, ErrorReason.FACE_CHALLENGE_MISMATCH), status)
-        val request = IDKitRequest.forTesting(
-            connectorURI = "https://world.org/verify?t=wld",
-            requestId = "7a6ff287-c95f-4330-b3de-9447f77ca3f9",
-        ) { status }
-        assertEquals(IDKitCompletionResult.Failure(IDKitErrorCode.CHALLENGE_FAILED, ErrorReason.FACE_CHALLENGE_MISMATCH), request.pollUntilCompletion())
+    fun `optional app error reasons survive status mapping and completion`() = runBlocking {
+        for (reason in listOf(null, ErrorReason.UNKNOWN, ErrorReason.FACE_CHALLENGE_MISMATCH)) {
+            val status = IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.CHALLENGE_FAILED, reason))
+            assertEquals(IDKitStatus.Failed(IDKitErrorCode.CHALLENGE_FAILED, reason), status)
+            val request = IDKitRequest.forTesting(
+                connectorURI = "https://world.org/verify?t=wld",
+                requestId = "7a6ff287-c95f-4330-b3de-9447f77ca3f9",
+            ) { status }
+            assertEquals(IDKitCompletionResult.Failure(IDKitErrorCode.CHALLENGE_FAILED, reason), request.pollUntilCompletion())
+        }
     }
 
     @Test

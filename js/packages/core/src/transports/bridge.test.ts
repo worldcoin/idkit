@@ -40,7 +40,7 @@ afterEach(() => {
 });
 
 describe("bridge raw JSON compatibility", () => {
-  it.each(["face_challenge_mismatch", "future_reason", undefined])(
+  it.each(["face_challenge_mismatch", "future_reason", undefined, null])(
     "preserves decoded reason %s through encrypted polling and completion",
     async (reason) => {
       let pollBody: unknown;
@@ -67,15 +67,17 @@ describe("bridge raw JSON compatibility", () => {
         },
       };
       const detail =
-        reason === undefined
+        reason == null
           ? {}
           : { reason: reason === "future_reason" ? "unknown" : reason };
-      expect(await request.pollOnce()).toEqual({
+      expect(await request.pollOnce()).toStrictEqual({
         type: "failed",
         error: "challenge_failed",
         ...detail,
       });
-      expect(await request.pollUntilCompletion({ pollInterval: 0 })).toEqual({
+      expect(
+        await request.pollUntilCompletion({ pollInterval: 0 }),
+      ).toStrictEqual({
         success: false,
         error: "challenge_failed",
         ...detail,
