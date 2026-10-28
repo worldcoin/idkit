@@ -47,7 +47,7 @@ func basicVerification() async throws {
     switch completion {
     case .success(let result):
         print("Verification successful. protocol_version=\(result.protocolVersion)")
-    case .failure(let error):
+    case .failure(let error, _):
         throw ExampleError.verificationFailed(error)
     }
 }

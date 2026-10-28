@@ -12,6 +12,7 @@ import type {
 import type {
   IDKitResult,
   IDKitDebugReport,
+  ErrorReason,
   ConstraintNode,
   CredentialType,
   CredentialRequestType,
@@ -57,12 +58,13 @@ export interface Status {
     | "failed";
   result?: IDKitResult;
   error?: IDKitErrorCodes;
+  reason?: ErrorReason;
 }
 
 /** Result from pollUntilCompletion() — discriminated union, never throws */
 export type IDKitCompletionResult =
   | { success: true; result: IDKitResult }
-  | { success: false; error: IDKitErrorCodes };
+  | { success: false; error: IDKitErrorCodes; reason?: ErrorReason };
 
 const SESSION_ID_PATTERN = /^session_[0-9a-fA-F]{128}$/;
 type RustBridgeDebugReport = DebugReportWithoutVersion;
@@ -200,6 +202,7 @@ async function pollUntilCompletionLoop(
         success: false,
         error:
           (status.error as IDKitErrorCodes) ?? IDKitErrorCodes.GenericError,
+        ...(status.reason === undefined ? {} : { reason: status.reason }),
       };
     }
 

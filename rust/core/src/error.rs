@@ -73,6 +73,10 @@ pub enum AppError {
     #[error("Verification rejected")]
     VerificationRejected,
 
+    /// A requested challenge failed; `reason` may provide more detail.
+    #[error("Challenge failed")]
+    ChallengeFailed,
+
     /// Credential unavailable
     #[error("Requested credential is not available")]
     CredentialUnavailable,
@@ -182,6 +186,7 @@ impl AppError {
         match code {
             "user_rejected" => Self::UserRejected,
             "verification_rejected" => Self::VerificationRejected,
+            "challenge_failed" => Self::ChallengeFailed,
             "credential_unavailable" => Self::CredentialUnavailable,
             "feature_unavailable" => Self::FeatureUnavailable,
             "world_id_4_not_available" => Self::WorldId4NotAvailable,
@@ -211,6 +216,61 @@ impl AppError {
             _ => Self::GenericError,
         }
     }
+}
+
+/// Optional application-level detail accompanying a bridge error code.
+/// Unknown strings remain valid responses and deserialize as `Unknown`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "ffi", derive(uniffi::Enum))]
+#[cfg_attr(feature = "conformance", derive(strum::EnumIter))]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorReason {
+    FaceChallengeQuality,
+    FaceChallengeMismatch,
+    FaceChallengeMissing,
+    FaceChallengeIntegrity,
+    FaceSelfieQuality,
+    FaceSelfieMismatch,
+    FaceSelfieTimeout,
+    SpoofDetected,
+    AgeBelowThreshold,
+    UsernameMismatch,
+    BiometricRejected,
+    UserCancelled,
+    ProofFailed,
+    CredentialUnavailable,
+    PcpMissing,
+    FaceAuthUnavailable,
+    FaceAuthFailed,
+    MetadataFailed,
+    NetworkError,
+    ServerRejected,
+    ClientError,
+    ProcessChallengeFailed,
+    // Older apps did not distinguish challenge-image and live-selfie failures.
+    FaceQuality,
+    FaceMismatch,
+    FaceAuthTimeout,
+    #[serde(other)]
+    Unknown,
+}
+
+// Serde enums also accept externally tagged objects. The bridge field is a
+// string, so reject non-string values while retaining the enum's unknown fallback.
+pub(crate) fn deserialize_error_reason<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<ErrorReason>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = <Option<String> as serde::Deserialize>::deserialize(deserializer)?;
+    value
+        .map(|value| {
+            <ErrorReason as serde::Deserialize>::deserialize(
+                serde::de::value::StringDeserializer::<D::Error>::new(value),
+            )
+        })
+        .transpose()
 }
 
 // UniFFI error type wrapper

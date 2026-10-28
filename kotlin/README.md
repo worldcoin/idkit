@@ -120,11 +120,16 @@ println("Connector URL: ${request.connectorURI}")
 
 when (val completion = request.pollUntilCompletion(IDKitPollOptions())) {
     is IDKitCompletionResult.Success -> println("Verified: ${completion.result.protocolVersion}")
-    is IDKitCompletionResult.Failure -> println("Failed: ${completion.error.rawValue}")
+    is IDKitCompletionResult.Failure -> println("Failed: ${completion.error.rawValue}, reason: ${completion.reason}")
 }
 ```
 
 `Environment.PRODUCTION`, `Environment.STAGING`, and `Environment.SANDBOX` each select the corresponding connect URL.
+
+`IDKitStatus.Failed` and `IDKitCompletionResult.Failure` expose an optional typed
+`reason: ErrorReason?`. Missing or null reasons are `null`; unrecognized strings
+become `ErrorReason.UNKNOWN`. `challenge_failed` is recognized as
+`IDKitErrorCode.CHALLENGE_FAILED`.
 
 For orb-or-device legacy verification, use:
 

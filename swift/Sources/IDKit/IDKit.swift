@@ -211,14 +211,14 @@ public enum IDKitStatus: Equatable {
     case waitingForConnection
     case awaitingConfirmation
     case confirmed(IDKitResult)
-    case failed(IDKitErrorCode)
+    case failed(IDKitErrorCode, reason: ErrorReason? = nil)
     case networkingError(IDKitErrorCode)
 }
 
 /// Result returned by `IDKitRequest.pollUntilCompletion(options:)`.
 public enum IDKitCompletionResult: Equatable {
     case success(IDKitResult)
-    case failure(IDKitErrorCode)
+    case failure(IDKitErrorCode, reason: ErrorReason? = nil)
 }
 
 /// Polling options for `pollUntilCompletion`.
@@ -239,6 +239,7 @@ public struct IDKitPollOptions: Equatable {
 public enum IDKitErrorCode: String, Equatable {
     case userRejected = "user_rejected"
     case verificationRejected = "verification_rejected"
+    case challengeFailed = "challenge_failed"
     case credentialUnavailable = "credential_unavailable"
     case featureUnavailable = "feature_unavailable"
     case worldId4NotAvailable = "world_id_4_not_available"
@@ -272,6 +273,8 @@ public enum IDKitErrorCode: String, Equatable {
             .userRejected
         case .verificationRejected:
             .verificationRejected
+        case .challengeFailed:
+            .challengeFailed
         case .credentialUnavailable:
             .credentialUnavailable
         case .featureUnavailable:
@@ -395,8 +398,8 @@ public final class IDKitRequest {
             .awaitingConfirmation
         case .confirmed(let result):
             .confirmed(result)
-        case .failed(let error):
-            .failed(IDKitErrorCode.from(appError: error))
+        case .failed(let error, let reason):
+            .failed(IDKitErrorCode.from(appError: error), reason: reason)
         case .networkingError(let error):
             .networkingError(IDKitErrorCode.from(appError: error))
         }
@@ -426,8 +429,8 @@ private func idkitPollUntilCompletion(
         switch status {
         case .confirmed(let result):
             return .success(result)
-        case .failed(let error):
-            return .failure(error)
+        case .failed(let error, let reason):
+            return .failure(error, reason: reason)
         case .waitingForConnection, .awaitingConfirmation, .networkingError:
             break
         }

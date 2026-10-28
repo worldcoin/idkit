@@ -599,6 +599,36 @@ describe("native transport request lifecycle", () => {
     }
   });
 
+  it.each([
+    ["face_challenge_mismatch", "face_challenge_mismatch"],
+    ["future_reason", "unknown"],
+    [null, undefined],
+    [undefined, undefined],
+  ])(
+    "preserves native failure reason %s in completion and polling",
+    async (wire, expected) => {
+      const req = createNativeRequest({}, baseConfig, {}, "");
+      activeRequest = req;
+      const completionPromise = req.pollUntilCompletion({ timeout: 1000 });
+      miniKitHandlers["miniapp-verify-action"]?.({
+        status: "error",
+        error_code: "challenge_failed",
+        ...(wire === undefined ? {} : { reason: wire }),
+      });
+      const detail = expected === undefined ? {} : { reason: expected };
+      await expect(completionPromise).resolves.toStrictEqual({
+        success: false,
+        error: IDKitErrorCodes.ChallengeFailed,
+        ...detail,
+      });
+      await expect(req.pollOnce()).resolves.toStrictEqual({
+        type: "failed",
+        error: IDKitErrorCodes.ChallengeFailed,
+        ...detail,
+      });
+    },
+  );
+
   it("allows creating a fresh request after timeout", async () => {
     vi.useFakeTimers();
 

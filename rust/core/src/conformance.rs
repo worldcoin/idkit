@@ -149,7 +149,13 @@ fn status_json(status: crate::Status) -> Value {
         crate::Status::WaitingForConnection => json!({"type":"waiting_for_connection"}),
         crate::Status::AwaitingConfirmation => json!({"type":"awaiting_confirmation"}),
         crate::Status::Confirmed(result) => json!({"type":"confirmed", "result":result}),
-        crate::Status::Failed(error) => json!({"type":"failed", "error":error}),
+        crate::Status::Failed { error, reason } => {
+            let mut value = json!({"type":"failed", "error":error});
+            if let Some(reason) = reason {
+                value["reason"] = json!(reason);
+            }
+            value
+        }
     }
 }
 
@@ -363,6 +369,7 @@ fn manifest() -> Result<Value, Failure> {
         "credentials":credentials,
         "presets":presets,
         "error_codes":crate::error::AppError::iter().collect::<Vec<_>>(),
+        "error_reasons":crate::error::ErrorReason::iter().collect::<Vec<_>>(),
         "environments":bridge::Environment::iter().collect::<Vec<_>>(),
         "document_types":crate::types::DocumentType::iter().collect::<Vec<_>>(),
         "integrity_signature_formats":crate::IntegritySignatureFormat::iter().collect::<Vec<_>>(),

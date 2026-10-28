@@ -80,7 +80,7 @@ export type {
 
 // Error codes
 export { IDKitErrorCodes } from "./types/result";
-export type { IDKitErrorCode } from "./types/result";
+export type { IDKitErrorCode, ErrorReason } from "./types/result";
 
 // Utilities
 export { isReactNative, isWeb, isNode } from "./lib/platform";

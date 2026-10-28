@@ -3,6 +3,7 @@ import type {
   CredentialType,
   DocumentType,
   IDKitErrorCode,
+  ErrorReason,
   IDKitRequestConfig,
   IDKitResult,
   IntegrityBundle,
@@ -47,6 +48,7 @@ interface NativeContract {
   credentials: Record<string, number>;
   document_types: readonly string[];
   error_codes: readonly string[];
+  error_reasons: readonly string[];
   integrity_signature_formats: readonly string[];
   environments: readonly string[];
   presets: readonly { type: string }[];
@@ -137,6 +139,7 @@ export type PublicContractChecks<Rust extends NativeContract> = [
       CredentialType,
       DocumentType,
       IDKitErrorCode,
+      ErrorReason,
       IntegritySignatureFormat,
       NonNullable<IDKitRequestConfig["environment"]>,
       Preset["type"],
@@ -145,6 +148,7 @@ export type PublicContractChecks<Rust extends NativeContract> = [
       keyof Rust["credentials"],
       Rust["document_types"][number],
       Rust["error_codes"][number],
+      Rust["error_reasons"][number],
       Rust["integrity_signature_formats"][number],
       Rust["environments"][number],
       Rust["presets"][number]["type"],

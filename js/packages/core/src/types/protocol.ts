@@ -233,6 +233,7 @@ export interface RpContext {
 export type IDKitErrorCode =
   | "user_rejected"
   | "verification_rejected"
+  | "challenge_failed"
   | "credential_unavailable"
   | "feature_unavailable"
   | "world_id_4_not_available"
@@ -258,12 +259,41 @@ export type IDKitErrorCode =
   | "identity_attributes_not_matched"
   | "generic_error";
 
+/** Optional detail accompanying an application error from World App. */
+export type ErrorReason =
+  | "face_challenge_quality"
+  | "face_challenge_mismatch"
+  | "face_challenge_missing"
+  | "face_challenge_integrity"
+  | "face_selfie_quality"
+  | "face_selfie_mismatch"
+  | "face_selfie_timeout"
+  | "spoof_detected"
+  | "age_below_threshold"
+  | "username_mismatch"
+  | "biometric_rejected"
+  | "user_cancelled"
+  | "proof_failed"
+  | "credential_unavailable"
+  | "pcp_missing"
+  | "face_auth_unavailable"
+  | "face_auth_failed"
+  | "metadata_failed"
+  | "network_error"
+  | "server_rejected"
+  | "client_error"
+  | "process_challenge_failed"
+  | "face_quality"
+  | "face_mismatch"
+  | "face_auth_timeout"
+  | "unknown";
+
 /** Status returned from pollForStatus() */
 export type Status =
   | { type: "waiting_for_connection" }
   | { type: "awaiting_confirmation" }
   | { type: "confirmed"; result: IDKitResult }
-  | { type: "failed"; error: IDKitErrorCode };
+  | { type: "failed"; error: IDKitErrorCode; reason?: ErrorReason };
 
 export type DocumentType = "passport" | "eid" | "mnc";
 

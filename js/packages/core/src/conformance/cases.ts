@@ -1,4 +1,5 @@
 /** Synthetic, deterministic protocol inputs. Never use real proof or biometric data here. */
+import { ERROR_REASONS } from "../protocol";
 import nullifierVectors from "../../../../../test-vectors/nullifier.json";
 import { encrypt, encodeBase64 } from "../lib/crypto";
 import { encodeUtf8 } from "../lib/encoding";
@@ -362,6 +363,11 @@ const responses = {
   newSessionWithUniqueness: { ...response, session_id: SESSION },
   protocolError: { ...response, error: "nullifier_replay" },
   unknownError: { error_code: "future_error" },
+  challengeFailure: {
+    error_code: "challenge_failed",
+    reason: "face_challenge_mismatch",
+  },
+  futureReason: { error_code: "challenge_failed", reason: "future_reason" },
   rejected: { error_code: "user_rejected" },
   nullPresence: { ...response, user_presence_completed: null },
   unknownFields: {
@@ -370,6 +376,37 @@ const responses = {
     responses: [{ ...item, future: 42 }],
   },
 };
+for (const reason of [
+  ...ERROR_REASONS,
+  "future_reason",
+  "",
+  null,
+  undefined,
+  42,
+  false,
+  [],
+  {},
+  { face_challenge_mismatch: null },
+]) {
+  for (const code of ["challenge_failed", "user_rejected", "future_error"]) {
+    for (const envelope of ["error_code", "raw_protocol", "wrapped_protocol"]) {
+      const detail = reason === undefined ? {} : { reason };
+      const protocol = { ...response, responses: [], error: code, ...detail };
+      const payload =
+        envelope === "error_code"
+          ? { error_code: code, ...detail }
+          : envelope === "raw_protocol"
+            ? protocol
+            : { proof_response: protocol };
+      add(`error-reason/${envelope}/${code}/${JSON.stringify(reason)}`, {
+        op: "response",
+        context,
+        response: payload,
+      });
+    }
+  }
+}
+
 for (const [name, value] of Object.entries(responses))
   for (const require_user_presence of [false, true]) {
     add(`response/${name}/${require_user_presence}`, {
@@ -530,6 +567,14 @@ const duplicateProof = rawProof.replace(
   '"proof":"earlier","proof":',
 );
 const rawResponses: Record<string, string> = {
+  duplicateReason:
+    '{"error_code":"challenge_failed","reason":"face_mismatch","reason":"unknown"}',
+  duplicateReasonLegacyFallback: `{"error_code":"challenge_failed","reason":"face_mismatch","reason":"unknown",${legacyFields}}`,
+  duplicateProtocolReason:
+    '{"id":"request","version":1,"responses":[],"error":"challenge_failed","reason":"face_mismatch","reason":"unknown"}',
+  duplicateWrappedProtocolReason:
+    '{"proof_response":{"id":"request","version":1,"responses":[],"error":"challenge_failed","reason":"face_mismatch","reason":"unknown"}}',
+
   duplicateError: '{"error_code":"user_rejected","error_code":"generic_error"}',
   duplicateErrorLegacyFallback: `{"error_code":"user_rejected","error_code":"generic_error",${legacyFields}}`,
   duplicateLegacyProof: `{${legacyFields},"proof":"last"}`,

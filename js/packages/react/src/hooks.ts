@@ -67,6 +67,7 @@ export type {
   ResponseItemSession,
   SelfieCheckResponseItemSession,
   IDKitErrorCode,
+  ErrorReason,
   ProofOfHumanPreset,
   PassportPreset,
   DocumentType,

@@ -40,6 +40,52 @@ afterEach(() => {
 });
 
 describe("bridge raw JSON compatibility", () => {
+  it.each(["face_challenge_mismatch", "future_reason", undefined, null])(
+    "preserves decoded reason %s through encrypted polling and completion",
+    async (reason) => {
+      let pollBody: unknown;
+      configureIDKitRuntime({
+        fetch: async (_url, init) =>
+          init?.method === "POST"
+            ? json({ request_id: "request-id" })
+            : json(pollBody),
+      });
+      const request = await IDKit.request(config).preset(orbLegacy());
+      const key = decodeBase64(
+        new URL(request.connectorURI).searchParams.get("k")!,
+      );
+      const iv = new Uint8Array(12).fill(3);
+      const plaintext = JSON.stringify({
+        error_code: "challenge_failed",
+        ...(reason === undefined ? {} : { reason }),
+      });
+      pollBody = {
+        status: "completed",
+        response: {
+          iv: encodeBase64(iv),
+          payload: encodeBase64(encrypt(key, iv, encodeUtf8(plaintext))),
+        },
+      };
+      const detail =
+        reason == null
+          ? {}
+          : { reason: reason === "future_reason" ? "unknown" : reason };
+      expect(await request.pollOnce()).toStrictEqual({
+        type: "failed",
+        error: "challenge_failed",
+        ...detail,
+      });
+      expect(
+        await request.pollUntilCompletion({ pollInterval: 0 }),
+      ).toStrictEqual({
+        success: false,
+        error: "challenge_failed",
+        ...detail,
+      });
+      expect(request.getDebugReport().response_payload).toBe(plaintext);
+    },
+  );
+
   it("keeps raw UTF-8 provenance for consumed strings and ignores extension bytes", async () => {
     const rawResponse = (body: Uint8Array) =>
       new Response(new Uint8Array(body).buffer);

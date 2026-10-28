@@ -54,6 +54,19 @@ class IDKitTests {
     }
 
     @Test
+    fun `optional app error reasons survive status mapping and completion`() = runBlocking {
+        for (reason in listOf(null, ErrorReason.UNKNOWN, ErrorReason.FACE_CHALLENGE_MISMATCH)) {
+            val status = IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.CHALLENGE_FAILED, reason))
+            assertEquals(IDKitStatus.Failed(IDKitErrorCode.CHALLENGE_FAILED, reason), status)
+            val request = IDKitRequest.forTesting(
+                connectorURI = "https://world.org/verify?t=wld",
+                requestId = "7a6ff287-c95f-4330-b3de-9447f77ca3f9",
+            ) { status }
+            assertEquals(IDKitCompletionResult.Failure(IDKitErrorCode.CHALLENGE_FAILED, reason), request.pollUntilCompletion())
+        }
+    }
+
+    @Test
     fun `IDKit entrypoints expose canonical builders`() {
         val requestConfig = IDKitRequestConfig(
             appId = "app_staging_1234567890abcdef",
@@ -234,51 +247,51 @@ class IDKitTests {
         )
         assertEquals(
             IDKitStatus.Failed(IDKitErrorCode.INVALID_NETWORK),
-            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.INVALID_NETWORK)),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.INVALID_NETWORK, null)),
         )
         assertEquals(
             IDKitStatus.Failed(IDKitErrorCode.FEATURE_UNAVAILABLE),
-            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.FEATURE_UNAVAILABLE)),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.FEATURE_UNAVAILABLE, null)),
         )
         assertEquals(
             IDKitStatus.Failed(IDKitErrorCode.USER_PRESENCE_FAILED),
-            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.USER_PRESENCE_FAILED)),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.USER_PRESENCE_FAILED, null)),
         )
         assertEquals(
             IDKitStatus.Failed(IDKitErrorCode.INVALID_RP_SIGNATURE),
-            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.INVALID_RP_SIGNATURE)),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.INVALID_RP_SIGNATURE, null)),
         )
         assertEquals(
             IDKitStatus.Failed(IDKitErrorCode.NULLIFIER_REPLAYED),
-            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.NULLIFIER_REPLAYED)),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.NULLIFIER_REPLAYED, null)),
         )
         assertEquals(
             IDKitStatus.Failed(IDKitErrorCode.DUPLICATE_NONCE),
-            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.DUPLICATE_NONCE)),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.DUPLICATE_NONCE, null)),
         )
         assertEquals(
             IDKitStatus.Failed(IDKitErrorCode.UNKNOWN_RP),
-            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.UNKNOWN_RP)),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.UNKNOWN_RP, null)),
         )
         assertEquals(
             IDKitStatus.Failed(IDKitErrorCode.INACTIVE_RP),
-            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.INACTIVE_RP)),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.INACTIVE_RP, null)),
         )
         assertEquals(
             IDKitStatus.Failed(IDKitErrorCode.TIMESTAMP_TOO_OLD),
-            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.TIMESTAMP_TOO_OLD)),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.TIMESTAMP_TOO_OLD, null)),
         )
         assertEquals(
             IDKitStatus.Failed(IDKitErrorCode.TIMESTAMP_TOO_FAR_IN_FUTURE),
-            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.TIMESTAMP_TOO_FAR_IN_FUTURE)),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.TIMESTAMP_TOO_FAR_IN_FUTURE, null)),
         )
         assertEquals(
             IDKitStatus.Failed(IDKitErrorCode.INVALID_TIMESTAMP),
-            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.INVALID_TIMESTAMP)),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.INVALID_TIMESTAMP, null)),
         )
         assertEquals(
             IDKitStatus.Failed(IDKitErrorCode.RP_SIGNATURE_EXPIRED),
-            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.RP_SIGNATURE_EXPIRED)),
+            IDKitRequest.mapStatus(StatusWrapper.Failed(AppError.RP_SIGNATURE_EXPIRED, null)),
         )
         assertEquals(
             IDKitStatus.NetworkingError(IDKitErrorCode.CONNECTION_FAILED),

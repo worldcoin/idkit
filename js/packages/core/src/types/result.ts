@@ -18,6 +18,7 @@ export type {
   // Status (includes both action and session confirmed)
   Status,
   IDKitErrorCode,
+  ErrorReason,
   // Shared types
   CredentialType,
   ConstraintNode,
@@ -58,6 +59,7 @@ export enum IDKitErrorCodes {
   // World App errors (from Rust AppError)
   UserRejected = "user_rejected",
   VerificationRejected = "verification_rejected",
+  ChallengeFailed = "challenge_failed",
   CredentialUnavailable = "credential_unavailable",
   FeatureUnavailable = "feature_unavailable",
   WorldId4NotAvailable = "world_id_4_not_available",

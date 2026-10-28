@@ -10,6 +10,8 @@ export type {
 } from "./request";
 export {
   APP_ERROR_CODES,
+  ERROR_REASONS,
+  appErrorReason,
   appErrorCode,
   bridgeResponseToResult,
   proofResponseToIDKitResult,

@@ -5,7 +5,11 @@ import {
   useState,
   type ReactElement,
 } from "react";
-import { IDKitErrorCodes, type IDKitDebugReport } from "@worldcoin/idkit-core";
+import {
+  IDKitErrorCodes,
+  type IDKitDebugReport,
+  type ErrorReason,
+} from "@worldcoin/idkit-core";
 import type { IDKitHookResult } from "../types";
 import { IDKitModal } from "./IDKitModal";
 import { WorldIDState } from "../components/States/WorldIDState";
@@ -44,6 +48,7 @@ export type IDKitWidgetBaseProps<TResult> = {
   onError?: (
     errorCode: IDKitErrorCodes,
     debugReport?: IDKitDebugReport,
+    reason?: ErrorReason,
   ) => MaybePromise<void>;
   autoClose?: boolean;
   language?: SupportedLanguage;
@@ -174,9 +179,13 @@ export function IDKitWidgetBase<TResult>({
     lastErrorCodeRef.current = effectiveErrorCode;
     // Only flow/bridge errors carry a debug report; host-app verify failures don't.
     const debugReport = flow.errorCode ? flow.getDebugReport() : undefined;
-    const errorResult = debugReport
-      ? onError?.(effectiveErrorCode, debugReport)
-      : onError?.(effectiveErrorCode);
+    const errorReason = flow.errorCode ? flow.errorReason : null;
+    const errorResult =
+      errorReason != null
+        ? onError?.(effectiveErrorCode, debugReport, errorReason)
+        : debugReport
+          ? onError?.(effectiveErrorCode, debugReport)
+          : onError?.(effectiveErrorCode);
     void Promise.resolve(errorResult).catch(() => {
       // Swallow host callback errors to keep widget flow stable.
     });

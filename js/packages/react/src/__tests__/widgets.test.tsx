@@ -70,6 +70,7 @@ function createFlow<TResult>(overrides: Partial<Record<string, unknown>> = {}) {
     connectorURI: null,
     result: null as TResult | null,
     errorCode: null as IDKitErrorCodes | null,
+    errorReason: null,
     getDebugReport: vi.fn(() => undefined),
     ...overrides,
   };
@@ -180,6 +181,24 @@ describe("widgets", () => {
       vi.advanceTimersByTime(2500);
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("passes the typed reason as the third error callback argument", async () => {
+    const flow = createFlow({
+      isError: true,
+      errorCode: IDKitErrorCodes.ChallengeFailed,
+      errorReason: "face_challenge_mismatch",
+    });
+    useIDKitRequestMock.mockReturnValue(flow);
+    const onError = vi.fn();
+    render(<IDKitRequestWidget {...createRequestProps({ onError })} />);
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith(
+        IDKitErrorCodes.ChallengeFailed,
+        undefined,
+        "face_challenge_mismatch",
+      ),
+    );
   });
 
   it("request widget calls onError for flow failures", async () => {

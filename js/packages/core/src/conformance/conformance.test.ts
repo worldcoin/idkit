@@ -17,7 +17,11 @@ import {
   classifyConformanceError,
   dispatch,
 } from "./dispatch";
-import { CREDENTIAL_SCHEMA_IDS, APP_ERROR_CODES } from "../protocol";
+import {
+  CREDENTIAL_SCHEMA_IDS,
+  APP_ERROR_CODES,
+  ERROR_REASONS,
+} from "../protocol";
 import type { Preset } from "../types/protocol";
 import { IDKitErrorCodes } from "../index";
 import {
@@ -196,6 +200,9 @@ describe.skipIf(!binary)("live native Rust conformance", () => {
     expect(CREDENTIAL_SCHEMA_IDS).toEqual(manifest.credentials);
     expect([...APP_ERROR_CODES].sort()).toEqual(
       [...manifest.error_codes].sort(),
+    );
+    expect([...ERROR_REASONS].sort()).toEqual(
+      [...manifest.error_reasons].sort(),
     );
     expect(Object.values(IDKitErrorCodes).sort()).toEqual(
       [
