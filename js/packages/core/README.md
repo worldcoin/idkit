@@ -204,7 +204,7 @@ const completion = await request.pollUntilCompletion({
 });
 
 if (!completion.success) {
-  console.error("Verification failed:", completion.error);
+  console.error("Verification failed:", completion.error, completion.reason);
   return;
 }
 
@@ -230,6 +230,32 @@ const response = await fetch(
 
 const { success } = await response.json();
 ```
+
+### Bridge error reasons
+
+Failed statuses from `pollOnce()` and failure results from `pollUntilCompletion()`
+include an optional `reason: ErrorReason`. It is decoded automatically; no separate
+parsing function is needed. The same metadata is available for mini-app failures.
+
+| Decrypted bridge error                                                 | Parsed `error`     | Parsed `reason`           |
+| ---------------------------------------------------------------------- | ------------------ | ------------------------- |
+| `{"error_code":"challenge_failed","reason":"face_challenge_mismatch"}` | `challenge_failed` | `face_challenge_mismatch` |
+| `{"error_code":"user_rejected","reason":"user_cancelled"}`             | `user_rejected`    | `user_cancelled`          |
+| `{"error_code":"challenge_failed","reason":"future_reason"}`           | `challenge_failed` | `unknown`                 |
+| `{"error_code":"future_error","reason":"network_error"}`               | `generic_error`    | `network_error`           |
+| `{"error_code":"challenge_failed"}` or `reason: null`                  | `challenge_failed` | omitted                   |
+
+Empty or unrecognized reason strings become `unknown`. Other non-null JSON types
+are malformed. Known legacy reasons such as `face_mismatch`, `face_quality`, and
+`face_auth_timeout` remain recognized. Unknown error codes still become
+`generic_error`, independently of the reason.
+
+For v4 protocol errors, `reason` sits alongside `error` in the raw proof response,
+or inside `proof_response` for a wrapped response. Successful proof results do
+not include an error reason. The debug report retains the original payload.
+
+React hooks expose this value as `errorReason`; widget callbacks receive it as
+the optional third argument, `onError(errorCode, debugReport, reason)`.
 
 ## Subpath Exports
 

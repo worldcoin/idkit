@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   IDKitErrorCodes,
+  type ErrorReason,
   isRetryableBridgeError,
   type RequestOptions,
   isInWorldApp as isInWorldAppCheck,
@@ -109,7 +110,10 @@ export function useIDKitFlow<TResult>(
     const timeout = configRef.current.polling?.timeout ?? 900_000;
     const deadline = Date.now() + timeout;
 
-    const setFailed = (errorCode: IDKitErrorCodes) => {
+    const setFailed = (
+      errorCode: IDKitErrorCodes,
+      errorReason: ErrorReason | null = null,
+    ) => {
       // Capture the report now, while `requestRef` is still populated — a later
       // reset/close must not be able to wipe it before the host reads it.
       // Guarded so debug-report capture can never destabilize error handling.
@@ -119,7 +123,11 @@ export function useIDKitFlow<TResult>(
         debugReportRef.current = undefined;
       }
       setState((prev) => {
-        if (prev.status === "failed" && prev.errorCode === errorCode) {
+        if (
+          prev.status === "failed" &&
+          prev.errorCode === errorCode &&
+          prev.errorReason === errorReason
+        ) {
           return prev;
         }
 
@@ -127,6 +135,7 @@ export function useIDKitFlow<TResult>(
           ...prev,
           status: "failed",
           errorCode,
+          errorReason,
         };
       });
     };
@@ -212,6 +221,7 @@ export function useIDKitFlow<TResult>(
               status: "confirmed",
               result: confirmedResult as TResult,
               errorCode: null,
+              errorReason: null,
             }));
             return;
           }
@@ -219,7 +229,10 @@ export function useIDKitFlow<TResult>(
           if (nextStatus.type === "failed") {
             if (isDebug())
               console.warn("[IDKit] Poll returned failed", nextStatus);
-            setFailed(nextStatus.error ?? IDKitErrorCodes.GenericError);
+            setFailed(
+              nextStatus.error ?? IDKitErrorCodes.GenericError,
+              nextStatus.reason ?? null,
+            );
             return;
           }
 
@@ -265,6 +278,7 @@ export function useIDKitFlow<TResult>(
     ...(mode === "invite" ? { codeExpiresAt: state.codeExpiresAt } : {}),
     result: state.result,
     errorCode: state.errorCode,
+    errorReason: state.errorReason,
     getDebugReport,
     isOpen: state.isOpen,
     isInWorldApp,

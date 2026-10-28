@@ -1,6 +1,7 @@
 import type {
   IDKitDebugReport,
   IDKitErrorCodes,
+  ErrorReason,
   Preset,
   ConstraintNode,
 } from "@worldcoin/idkit-core";
@@ -28,6 +29,7 @@ export type IDKitHookResult<TResult> = {
   connectorURI: string | null;
   result: TResult | null;
   errorCode: IDKitErrorCodes | null;
+  errorReason: ErrorReason | null;
   /** Reads the debug report for the active request, when debug mode is on. */
   getDebugReport: () => IDKitDebugReport | undefined;
   isOpen: boolean;

@@ -6,6 +6,7 @@ import {
 } from "../lib/bridge-json";
 import type {
   IDKitResult,
+  ErrorReason,
   IntegrityBundle,
   ProofResponseToIDKitResultOptions,
 } from "../types/protocol";
@@ -14,6 +15,7 @@ import { fieldElement, sessionId, unsignedInteger } from "./validation";
 export const APP_ERROR_CODES = [
   "user_rejected",
   "verification_rejected",
+  "challenge_failed",
   "credential_unavailable",
   "feature_unavailable",
   "world_id_4_not_available",
@@ -40,6 +42,43 @@ export const APP_ERROR_CODES = [
   "generic_error",
 ] as const;
 const APP_ERRORS = new Set<string>(APP_ERROR_CODES);
+
+export const ERROR_REASONS = [
+  "face_challenge_quality",
+  "face_challenge_mismatch",
+  "face_challenge_missing",
+  "face_challenge_integrity",
+  "face_selfie_quality",
+  "face_selfie_mismatch",
+  "face_selfie_timeout",
+  "spoof_detected",
+  "age_below_threshold",
+  "username_mismatch",
+  "biometric_rejected",
+  "user_cancelled",
+  "proof_failed",
+  "credential_unavailable",
+  "pcp_missing",
+  "face_auth_unavailable",
+  "face_auth_failed",
+  "metadata_failed",
+  "network_error",
+  "server_rejected",
+  "client_error",
+  "process_challenge_failed",
+  "face_quality",
+  "face_mismatch",
+  "face_auth_timeout",
+  "unknown",
+] as const;
+const KNOWN_ERROR_REASONS = new Set<string>(ERROR_REASONS);
+
+/** Internal wire decoder. Absence is distinct from an unrecognized string. */
+export function appErrorReason(value: unknown): ErrorReason | undefined {
+  if (value == null) return undefined;
+  const reason = string(value);
+  return KNOWN_ERROR_REASONS.has(reason) ? (reason as ErrorReason) : "unknown";
+}
 
 export function appErrorCode(value: string, protocol = true): string {
   if (value === "identity_attribute_mismatch")
@@ -128,6 +167,7 @@ interface ProtocolResponse {
   version: 1;
   session_id?: string;
   error?: string;
+  reason?: ErrorReason;
   responses: ProtocolItem[];
 }
 
@@ -198,6 +238,7 @@ function parseProtocolResponse(
       "version",
       "session_id",
       "error",
+      "reason",
       "responses",
     ]);
   if (response.version !== 1 || !Array.isArray(response.responses))
@@ -207,6 +248,7 @@ function parseProtocolResponse(
     version: 1,
     session_id: optionalSession(response.session_id),
     error: optionalString(response.error),
+    reason: appErrorReason(response.reason),
     responses: response.responses.map((item) =>
       parseProtocolItem(item, checkDuplicates),
     ),
@@ -333,7 +375,7 @@ export interface BridgeResponseContext extends ProofResponseToIDKitResultOptions
 }
 export type BridgeResponseStatus =
   | { type: "confirmed"; result: IDKitResult }
-  | { type: "failed"; error: string };
+  | { type: "failed"; error: string; reason?: ErrorReason };
 
 interface LegacyItem {
   proof: string;
@@ -398,7 +440,7 @@ function parseIntegrityBundle(value: unknown): IntegrityBundle | undefined {
 }
 
 type ParsedBridgeResponse =
-  | { kind: "error"; error: string }
+  | { kind: "error"; error: string; reason?: ErrorReason }
   | {
       kind: "protocol";
       response: ProtocolResponse;
@@ -420,8 +462,12 @@ function parseBridgeResponse(payload: unknown): ParsedBridgeResponse {
   // Rust uses an untagged enum: attempt each complete shape in declaration order.
   if (typeof value.error_code === "string") {
     try {
-      assertUniqueJsonFields(value, ["error_code"]);
-      return { kind: "error", error: appErrorCode(value.error_code, false) };
+      assertUniqueJsonFields(value, ["error_code", "reason"]);
+      return {
+        kind: "error",
+        error: appErrorCode(value.error_code, false),
+        reason: appErrorReason(value.reason),
+      };
     } catch {
       /* next enum variant */
     }
@@ -496,9 +542,20 @@ export function bridgeResponseToResult(
   context: BridgeResponseContext,
 ): BridgeResponseStatus {
   const parsed = parseBridgeResponse(payload);
-  if (parsed.kind === "error") return { type: "failed", error: parsed.error };
+  if (parsed.kind === "error")
+    return {
+      type: "failed",
+      error: parsed.error,
+      ...(parsed.reason === undefined ? {} : { reason: parsed.reason }),
+    };
   if (parsed.kind === "protocol" && parsed.response.error != null)
-    return { type: "failed", error: appErrorCode(parsed.response.error) };
+    return {
+      type: "failed",
+      error: appErrorCode(parsed.response.error),
+      ...(parsed.response.reason === undefined
+        ? {}
+        : { reason: parsed.response.reason }),
+    };
   if (context.session_id === "create" && parsed.kind !== "protocol")
     return unexpected();
   if (context.require_user_presence === true && !parsed.presence)

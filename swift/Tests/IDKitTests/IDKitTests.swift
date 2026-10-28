@@ -211,17 +211,17 @@ func statusMapping() {
     #expect(IDKitRequest.mapStatus(.waitingForConnection) == .waitingForConnection)
     #expect(IDKitRequest.mapStatus(.awaitingConfirmation) == .awaitingConfirmation)
     #expect(IDKitRequest.mapStatus(.confirmed(result: result)) == .confirmed(result))
-    #expect(IDKitRequest.mapStatus(.failed(error: .invalidNetwork)) == .failed(.invalidNetwork))
-    #expect(IDKitRequest.mapStatus(.failed(error: .userPresenceFailed)) == .failed(.userPresenceFailed))
-    #expect(IDKitRequest.mapStatus(.failed(error: .invalidRpSignature)) == .failed(.invalidRpSignature))
-    #expect(IDKitRequest.mapStatus(.failed(error: .nullifierReplayed)) == .failed(.nullifierReplayed))
-    #expect(IDKitRequest.mapStatus(.failed(error: .duplicateNonce)) == .failed(.duplicateNonce))
-    #expect(IDKitRequest.mapStatus(.failed(error: .unknownRp)) == .failed(.unknownRp))
-    #expect(IDKitRequest.mapStatus(.failed(error: .inactiveRp)) == .failed(.inactiveRp))
-    #expect(IDKitRequest.mapStatus(.failed(error: .timestampTooOld)) == .failed(.timestampTooOld))
-    #expect(IDKitRequest.mapStatus(.failed(error: .timestampTooFarInFuture)) == .failed(.timestampTooFarInFuture))
-    #expect(IDKitRequest.mapStatus(.failed(error: .invalidTimestamp)) == .failed(.invalidTimestamp))
-    #expect(IDKitRequest.mapStatus(.failed(error: .rpSignatureExpired)) == .failed(.rpSignatureExpired))
+    #expect(IDKitRequest.mapStatus(.failed(error: .invalidNetwork, reason: nil)) == .failed(.invalidNetwork))
+    #expect(IDKitRequest.mapStatus(.failed(error: .userPresenceFailed, reason: nil)) == .failed(.userPresenceFailed))
+    #expect(IDKitRequest.mapStatus(.failed(error: .invalidRpSignature, reason: nil)) == .failed(.invalidRpSignature))
+    #expect(IDKitRequest.mapStatus(.failed(error: .nullifierReplayed, reason: nil)) == .failed(.nullifierReplayed))
+    #expect(IDKitRequest.mapStatus(.failed(error: .duplicateNonce, reason: nil)) == .failed(.duplicateNonce))
+    #expect(IDKitRequest.mapStatus(.failed(error: .unknownRp, reason: nil)) == .failed(.unknownRp))
+    #expect(IDKitRequest.mapStatus(.failed(error: .inactiveRp, reason: nil)) == .failed(.inactiveRp))
+    #expect(IDKitRequest.mapStatus(.failed(error: .timestampTooOld, reason: nil)) == .failed(.timestampTooOld))
+    #expect(IDKitRequest.mapStatus(.failed(error: .timestampTooFarInFuture, reason: nil)) == .failed(.timestampTooFarInFuture))
+    #expect(IDKitRequest.mapStatus(.failed(error: .invalidTimestamp, reason: nil)) == .failed(.invalidTimestamp))
+    #expect(IDKitRequest.mapStatus(.failed(error: .rpSignatureExpired, reason: nil)) == .failed(.rpSignatureExpired))
     #expect(IDKitRequest.mapStatus(.networkingError(error: .connectionFailed)) == .networkingError(.connectionFailed))
 }
 
@@ -465,3 +465,16 @@ func presetHelpers() {
 //     let json = try constraint.toJson()
 //     #expect(json.contains("\"enumerate\""))
 // }
+
+@Test("App error reasons survive status mapping and completion")
+func appErrorReasonPropagation() async {
+    let status = IDKitRequest.mapStatus(.failed(error: .challengeFailed, reason: .faceChallengeMismatch))
+    #expect(status == .failed(.challengeFailed, reason: .faceChallengeMismatch))
+    let request = IDKitRequest(
+        connectorURL: URL(string: "https://world.org/verify?t=wld")!,
+        requestID: UUID(),
+        pollOnce: { status }
+    )
+    let completion = await request.pollUntilCompletion(options: .init(pollIntervalMs: 1, timeoutMs: 1_000))
+    #expect(completion == .failure(.challengeFailed, reason: .faceChallengeMismatch))
+}

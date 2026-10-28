@@ -45,6 +45,81 @@ const context = {
   legacy_signal_hash: "legacy",
 };
 
+describe("bridge application error reasons", () => {
+  it.each([
+    ["face_challenge_mismatch", "face_challenge_mismatch"],
+    ["face_selfie_timeout", "face_selfie_timeout"],
+    ["face_mismatch", "face_mismatch"],
+    ["future_reason", "unknown"],
+    ["", "unknown"],
+  ])("preserves or normalizes %s", (wire, expected) => {
+    for (const payload of [
+      { error_code: "challenge_failed", reason: wire },
+      {
+        id: "request",
+        version: 1,
+        responses: [],
+        error: "challenge_failed",
+        reason: wire,
+      },
+      {
+        proof_response: {
+          id: "request",
+          version: 1,
+          responses: [],
+          error: "challenge_failed",
+          reason: wire,
+        },
+      },
+    ]) {
+      expect(bridgeResponseToResult(payload, context)).toEqual({
+        type: "failed",
+        error: "challenge_failed",
+        reason: expected,
+      });
+    }
+  });
+  it.each([{}, { reason: null }])(
+    "keeps absent or null reasons absent",
+    (detail) => {
+      expect(
+        bridgeResponseToResult(
+          { error_code: "challenge_failed", ...detail },
+          context,
+        ),
+      ).toEqual({ type: "failed", error: "challenge_failed" });
+    },
+  );
+  it("does not attach reasons to successful proof results", () => {
+    expect(
+      bridgeResponseToResult(
+        { ...response, reason: "face_challenge_mismatch" },
+        context,
+      ),
+    ).toEqual(bridgeResponseToResult(response, context));
+  });
+  it("preserves a known reason even when the error code is unknown", () => {
+    expect(
+      bridgeResponseToResult(
+        { error_code: "future_error", reason: "user_cancelled" },
+        context,
+      ),
+    ).toEqual({
+      type: "failed",
+      error: "generic_error",
+      reason: "user_cancelled",
+    });
+  });
+  it.each([42, false, [], {}])("rejects malformed reason %j", (reason) => {
+    expect(() =>
+      bridgeResponseToResult(
+        { error_code: "challenge_failed", reason },
+        context,
+      ),
+    ).toThrow("unexpected_response");
+  });
+});
+
 describe("protocol request boundaries", () => {
   it("replaces unpaired UTF16 in emitted text and identity attributes", () => {
     const compiled = compileRequest(

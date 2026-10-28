@@ -110,6 +110,18 @@ let request = try IDKit
 
 See parity mapping: `swift/docs/API_PARITY_MATRIX.md`.
 
+Bridge failures carry an optional typed `ErrorReason`. Missing or null reasons
+are `nil`; unknown strings become `.unknown`. Match both associated values:
+
+```swift
+if case .failure(let code, let reason) = await request.pollUntilCompletion() {
+    print(code.rawValue, String(describing: reason))
+}
+```
+
+`IDKitStatus.failed` likewise carries `(IDKitErrorCode, reason: ErrorReason?)`.
+Existing constructors may omit the reason, but switch patterns must include it.
+
 ## Request item ergonomics
 
 ```swift

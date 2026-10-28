@@ -1,4 +1,8 @@
-import { IDKitErrorCodes, type RequestOptions } from "@worldcoin/idkit-core";
+import {
+  IDKitErrorCodes,
+  type ErrorReason,
+  type RequestOptions,
+} from "@worldcoin/idkit-core";
 
 type IDKitHookStatus =
   | "idle"
@@ -14,6 +18,7 @@ export type HookState<TResult> = {
   codeExpiresAt: number | null;
   result: TResult | null;
   errorCode: IDKitErrorCodes | null;
+  errorReason: ErrorReason | null;
 };
 
 export function createInitialHookState<TResult>(): HookState<TResult> {
@@ -24,6 +29,7 @@ export function createInitialHookState<TResult>(): HookState<TResult> {
     codeExpiresAt: null,
     result: null,
     errorCode: null,
+    errorReason: null,
   };
 }
 

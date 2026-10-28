@@ -401,8 +401,8 @@ final class SampleModel: ObservableObject {
                         }
                         return
 
-                    case .failed(let error):
-                        log("Proof completion failed: \(error.rawValue)")
+                    case .failed(let error, let reason):
+                        log("Proof completion failed: \(error.rawValue), reason: \(String(describing: reason))")
                         return
 
                     case .networkingError(let error):

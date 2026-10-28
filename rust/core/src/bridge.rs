@@ -4,7 +4,7 @@
 use crate::preset::Preset;
 use crate::{
     crypto::{base64_decode, base64_encode, decrypt, encrypt},
-    error::{AppError, Error, Result},
+    error::{AppError, Error, ErrorReason, Result},
     types::{
         AppId, BridgeResponseV1, BridgeUrl, CredentialType, IDKitResult, IdentityAttribute,
         IntegrityBundle, ResponseItem, RpContext, VerificationLevel,
@@ -357,6 +357,7 @@ impl ResponseItem {
 #[derive(Debug)]
 pub(crate) struct ProofResponseWithClaims {
     pub(crate) inner: ProofResponse,
+    reason: Option<ErrorReason>,
     claims_by_response: Vec<Option<Vec<FieldElement>>>,
 }
 
@@ -365,6 +366,7 @@ impl ProofResponseWithClaims {
         let claims_by_response = vec![None; inner.responses.len()];
         Self {
             inner,
+            reason: None,
             claims_by_response,
         }
     }
@@ -391,10 +393,18 @@ impl<'de> Deserialize<'de> for ProofResponseWithClaims {
             .into_iter()
             .map(|response| response.claims)
             .collect();
+        let reason = value
+            .get("reason")
+            .cloned()
+            .map(crate::error::deserialize_error_reason)
+            .transpose()
+            .map_err(serde::de::Error::custom)?
+            .flatten();
         let inner = serde_json::from_value(value).map_err(serde::de::Error::custom)?;
 
         Ok(Self {
             inner,
+            reason,
             claims_by_response,
         })
     }
@@ -537,7 +547,11 @@ pub(crate) fn proof_response_with_claims_to_idkit_result<S: std::hash::BuildHash
 #[serde(untagged)]
 enum BridgeResponse {
     /// Error response
-    Error { error_code: AppError },
+    Error {
+        error_code: AppError,
+        #[serde(default, deserialize_with = "crate::error::deserialize_error_reason")]
+        reason: Option<ErrorReason>,
+    },
 
     /// World ID 4.0 protocol response
     ResponseV2(BridgeResponseV2),
@@ -583,6 +597,9 @@ struct BridgeResponseV2 {
     /// Protocol-level proof response error
     #[serde(default)]
     error: Option<String>,
+    /// Optional application-level detail for a protocol error.
+    #[serde(default, deserialize_with = "crate::error::deserialize_error_reason")]
+    reason: Option<ErrorReason>,
     /// Per-credential proof responses
     responses: Vec<ResponseItemWithClaims>,
     /// Whether World App completed the requested user-presence check.
@@ -611,6 +628,7 @@ impl BridgeResponseV2 {
                 error: self.error,
                 responses,
             },
+            reason: self.reason,
             claims_by_response,
         }
     }
@@ -628,7 +646,10 @@ fn user_presence_failure_status(
     user_presence_completed: bool,
 ) -> Option<Status> {
     if require_user_presence && !user_presence_completed {
-        Some(Status::Failed(AppError::UserPresenceFailed))
+        Some(Status::Failed {
+            error: AppError::UserPresenceFailed,
+            reason: None,
+        })
     } else {
         None
     }
@@ -649,7 +670,10 @@ pub enum Status {
     Confirmed(IDKitResult),
 
     /// Request has failed
-    Failed(AppError),
+    Failed {
+        error: AppError,
+        reason: Option<ErrorReason>,
+    },
 }
 
 /// Parameters for creating a `BridgeConnection`
@@ -1289,7 +1313,10 @@ impl BridgeConnection {
         }
 
         if !response.status().is_success() {
-            return Ok(Status::Failed(AppError::ConnectionFailed));
+            return Ok(Status::Failed {
+                error: AppError::ConnectionFailed,
+                reason: None,
+            });
         }
 
         let poll_response: BridgePollResponse = response.json().await?;
@@ -1345,7 +1372,10 @@ impl BridgeConnection {
         }
 
         match bridge_response {
-            BridgeResponse::Error { error_code } => Ok(Status::Failed(error_code)),
+            BridgeResponse::Error { error_code, reason } => Ok(Status::Failed {
+                error: error_code,
+                reason,
+            }),
             BridgeResponse::ResponseV2(response) => {
                 let user_presence_completed = response.user_presence_completed;
                 self.handle_bridge_v2_response(
@@ -1449,7 +1479,10 @@ impl BridgeConnection {
     ) -> Result<Status> {
         // Protocol-level errors take precedence over user-presence enforcement.
         if let Some(error_code) = proof_response.inner.error.as_deref() {
-            return Ok(Status::Failed(AppError::from_code(error_code)));
+            return Ok(Status::Failed {
+                error: AppError::from_code(error_code),
+                reason: proof_response.reason,
+            });
         }
 
         if let Some(status) =
@@ -2527,7 +2560,10 @@ pub enum StatusWrapper {
     /// For session proofs, `IDKitResult.session_id` will be `Some(id)`
     Confirmed { result: IDKitResult },
     /// Request has failed
-    Failed { error: AppError },
+    Failed {
+        error: AppError,
+        reason: Option<ErrorReason>,
+    },
     /// Network/transport error — safe to retry
     NetworkingError { error: AppError },
 }
@@ -2539,7 +2575,7 @@ impl From<Status> for StatusWrapper {
             Status::WaitingForConnection => Self::WaitingForConnection,
             Status::AwaitingConfirmation => Self::AwaitingConfirmation,
             Status::Confirmed(result) => Self::Confirmed { result },
-            Status::Failed(app_error) => Self::Failed { error: app_error },
+            Status::Failed { error, reason } => Self::Failed { error, reason },
         }
     }
 }
@@ -2621,7 +2657,10 @@ impl IDKitRequestWrapper {
                 if is_networking_error(&err) {
                     StatusWrapper::NetworkingError { error: app_error }
                 } else {
-                    StatusWrapper::Failed { error: app_error }
+                    StatusWrapper::Failed {
+                        error: app_error,
+                        reason: None,
+                    }
                 }
             }
         }
@@ -2699,7 +2738,10 @@ impl IDKitInviteCodeRequest {
                 if is_networking_error(&err) {
                     StatusWrapper::NetworkingError { error: app_error }
                 } else {
-                    StatusWrapper::Failed { error: app_error }
+                    StatusWrapper::Failed {
+                        error: app_error,
+                        reason: None,
+                    }
                 }
             }
         }
@@ -3345,7 +3387,10 @@ mod tests {
     fn test_required_user_presence_fails_when_not_completed() {
         assert_eq!(
             user_presence_failure_status(true, false),
-            Some(Status::Failed(AppError::UserPresenceFailed))
+            Some(Status::Failed {
+                error: AppError::UserPresenceFailed,
+                reason: None
+            })
         );
         assert_eq!(user_presence_failure_status(true, true), None);
         assert_eq!(user_presence_failure_status(false, false), None);
@@ -3453,7 +3498,90 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(status, Status::Failed(AppError::InvalidRpSignature));
+        assert_eq!(
+            status,
+            Status::Failed {
+                error: AppError::InvalidRpSignature,
+                reason: None
+            }
+        );
+    }
+
+    #[test]
+    fn bridge_error_reasons_survive_decoding_and_ffi() {
+        let mut connection = sample_connection(None);
+        connection.require_user_presence = true;
+        for (code, expected_code) in [
+            ("challenge_failed", AppError::ChallengeFailed),
+            ("user_rejected", AppError::UserRejected),
+            ("future_error", AppError::GenericError),
+        ] {
+            for (wire_reason, expected_reason) in [
+                (
+                    Some("face_challenge_mismatch"),
+                    Some(ErrorReason::FaceChallengeMismatch),
+                ),
+                (Some("face_mismatch"), Some(ErrorReason::FaceMismatch)),
+                (Some("future_reason"), Some(ErrorReason::Unknown)),
+                (Some(""), Some(ErrorReason::Unknown)),
+                (None, None),
+            ] {
+                let mut response = serde_json::json!({"error_code": code});
+                if let Some(reason) = wire_reason {
+                    response["reason"] = serde_json::json!(reason);
+                }
+                let expected = Status::Failed {
+                    error: expected_code,
+                    reason: expected_reason,
+                };
+                let status = connection
+                    .handle_decrypted_response(&serde_json::to_vec(&response).unwrap())
+                    .unwrap();
+                assert_eq!(status, expected);
+                #[cfg(feature = "ffi")]
+                {
+                    let StatusWrapper::Failed { error, reason } = StatusWrapper::from(status)
+                    else {
+                        panic!("expected failed status");
+                    };
+                    assert_eq!(error, expected_code);
+                    assert_eq!(reason, expected_reason);
+                }
+            }
+        }
+        let status = connection
+            .handle_decrypted_response(br#"{"error_code":"challenge_failed","reason":null}"#)
+            .unwrap();
+        assert_eq!(
+            status,
+            Status::Failed {
+                error: AppError::ChallengeFailed,
+                reason: None
+            }
+        );
+    }
+
+    #[test]
+    fn protocol_error_reasons_survive_raw_and_wrapped_responses() {
+        let connection = sample_connection(None);
+        let response = serde_json::json!({
+            "id": "request", "version": 1, "responses": [],
+            "error": "challenge_failed", "reason": "face_selfie_timeout",
+        });
+        for payload in [
+            response.clone(),
+            serde_json::json!({"proof_response": response}),
+        ] {
+            assert_eq!(
+                connection
+                    .handle_decrypted_response(&serde_json::to_vec(&payload).unwrap())
+                    .unwrap(),
+                Status::Failed {
+                    error: AppError::ChallengeFailed,
+                    reason: Some(ErrorReason::FaceSelfieTimeout),
+                }
+            );
+        }
     }
 
     #[test]
@@ -3964,7 +4092,8 @@ mod tests {
         assert!(matches!(
             invalid_signature,
             BridgeResponse::Error {
-                error_code: AppError::InvalidRpSignature
+                error_code: AppError::InvalidRpSignature,
+                reason: None,
             }
         ));
 
@@ -3973,7 +4102,8 @@ mod tests {
         assert!(matches!(
             nullifier_replayed,
             BridgeResponse::Error {
-                error_code: AppError::NullifierReplayed
+                error_code: AppError::NullifierReplayed,
+                reason: None,
             }
         ));
         assert_eq!(
@@ -4009,7 +4139,7 @@ mod tests {
             let response: BridgeResponse =
                 serde_json::from_str(&format!(r#"{{"error_code": "{code}"}}"#)).unwrap();
             match response {
-                BridgeResponse::Error { error_code } => assert_eq!(error_code, expected),
+                BridgeResponse::Error { error_code, .. } => assert_eq!(error_code, expected),
                 other => panic!("Expected error response for {code}, got: {other:?}"),
             }
         }
@@ -4660,7 +4790,10 @@ mod tests {
         invalid["proof_response"]["error"] = serde_json::json!("credential_unavailable");
         assert!(matches!(
             parse(&invalid),
-            Ok(Status::Failed(AppError::CredentialUnavailable))
+            Ok(Status::Failed {
+                error: AppError::CredentialUnavailable,
+                reason: None
+            })
         ));
 
         let legacy = serde_json::json!({
@@ -4742,7 +4875,10 @@ mod tests {
             connection.bridge_url = serve_bridge_http_response(status, String::new());
             assert_eq!(
                 poll_once(&connection).unwrap(),
-                Status::Failed(AppError::ConnectionFailed)
+                Status::Failed {
+                    error: AppError::ConnectionFailed,
+                    reason: None
+                }
             );
         }
         for status in [

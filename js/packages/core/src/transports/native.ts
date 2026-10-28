@@ -29,6 +29,7 @@ import type {
 import { IDKitErrorCodes } from "../types/result";
 import type { IDKitResultV3, IntegrityBundle } from "../types/protocol";
 import {
+  appErrorReason,
   normalizeBuilderConfig,
   proofResponseToIDKitResult,
 } from "../protocol";
@@ -233,10 +234,19 @@ class NativeIDKitRequest implements IDKitRequest {
               "[IDKit] Native: received error response",
               responsePayload.error_code,
             );
-          this.complete({
-            success: false,
-            error: responsePayload.error_code ?? IDKitErrorCodes.GenericError,
-          });
+          try {
+            const reason = appErrorReason(responsePayload.reason);
+            this.complete({
+              success: false,
+              error: toNativeErrorCode(responsePayload.error_code),
+              ...(reason === undefined ? {} : { reason }),
+            });
+          } catch {
+            this.complete({
+              success: false,
+              error: IDKitErrorCodes.UnexpectedResponse,
+            });
+          }
           return;
         }
 
@@ -412,7 +422,13 @@ class NativeIDKitRequest implements IDKitRequest {
     if (completionResult.success === true) {
       return { type: "confirmed", result: completionResult.result };
     }
-    return { type: "failed", error: completionResult.error };
+    return {
+      type: "failed",
+      error: completionResult.error,
+      ...(completionResult.reason === undefined
+        ? {}
+        : { reason: completionResult.reason }),
+    };
   }
 
   async pollUntilCompletion(

@@ -36,7 +36,7 @@ pub use bridge::{IDKitBuilder, IDKitRequestConfig};
 pub use constraints::ConstraintNode;
 #[cfg(any(feature = "native-crypto", feature = "wasm-crypto"))]
 pub use crypto::CryptoKey;
-pub use error::{Error, Result};
+pub use error::{Error, ErrorReason, Result};
 pub use nullifier::Nullifier;
 pub use preset::Preset;
 pub use types::{

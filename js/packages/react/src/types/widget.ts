@@ -6,6 +6,7 @@ import type { IDKitSessionHookConfig } from "./session";
 import type {
   IDKitDebugReport,
   IDKitErrorCodes,
+  ErrorReason,
   IDKitResult,
   IDKitResultSession,
 } from "@worldcoin/idkit-core";
@@ -21,6 +22,7 @@ type WidgetSharedProps<TResult> = {
   onError?: (
     errorCode: IDKitErrorCodes,
     debugReport?: IDKitDebugReport,
+    reason?: ErrorReason,
   ) => MaybePromise<void>;
   autoClose?: boolean;
   language?: SupportedLanguage;

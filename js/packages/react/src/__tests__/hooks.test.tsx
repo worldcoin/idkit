@@ -18,6 +18,7 @@ const {
 } = vi.hoisted(() => {
   const idKitErrorCodes = {
     GenericError: "generic_error",
+    ChallengeFailed: "challenge_failed",
     ConnectionFailed: "connection_failed",
     Timeout: "timeout",
     Cancelled: "cancelled",
@@ -92,6 +93,34 @@ describe("request/session hooks", () => {
     requestWithInviteCodeMock.mockClear();
     createSessionMock.mockClear();
     proveSessionMock.mockClear();
+  });
+
+  it("preserves failure reasons and clears them on reset", async () => {
+    requestMock.mockReturnValue({
+      preset: vi.fn(async () =>
+        makeRequest(async () => ({
+          type: "failed",
+          error: IDKitErrorCodes.ChallengeFailed,
+          reason: "face_challenge_mismatch",
+        })),
+      ),
+    });
+    const { result } = renderHook(() =>
+      useIDKitRequest({
+        app_id: "app_test",
+        action: "test",
+        allow_legacy_proofs: false,
+        rp_context: baseRpContext,
+        preset: { type: "OrbLegacy" },
+      }),
+    );
+    act(() => result.current.open());
+    await waitFor(() =>
+      expect(result.current.errorReason).toBe("face_challenge_mismatch"),
+    );
+    expect(result.current.errorCode).toBe(IDKitErrorCodes.ChallengeFailed);
+    act(() => result.current.reset());
+    expect(result.current.errorReason).toBeNull();
   });
 
   it("creates a React namespace", () => {

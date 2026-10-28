@@ -31,6 +31,7 @@ import uniffi.idkit_core.idkitResultToJson as nativeIdkitResultToJson
 import uniffi.idkit_core.request as nativeRequest
 
 typealias IDKitResult = IdKitResult
+typealias ErrorReason = uniffi.idkit_core.ErrorReason
 typealias RpContext = uniffi.idkit_core.RpContext
 typealias Environment = uniffi.idkit_core.Environment
 typealias DocumentType = uniffi.idkit_core.DocumentType
@@ -110,6 +111,7 @@ class IDKitClientError(message: String) : IllegalArgumentException(message)
 enum class IDKitErrorCode(val rawValue: String) {
     USER_REJECTED("user_rejected"),
     VERIFICATION_REJECTED("verification_rejected"),
+    CHALLENGE_FAILED("challenge_failed"),
     CREDENTIAL_UNAVAILABLE("credential_unavailable"),
     FEATURE_UNAVAILABLE("feature_unavailable"),
     WORLD_ID_4_NOT_AVAILABLE("world_id_4_not_available"),
@@ -141,6 +143,7 @@ enum class IDKitErrorCode(val rawValue: String) {
         fun from(error: AppError): IDKitErrorCode = when (error) {
             AppError.USER_REJECTED -> USER_REJECTED
             AppError.VERIFICATION_REJECTED -> VERIFICATION_REJECTED
+            AppError.CHALLENGE_FAILED -> CHALLENGE_FAILED
             AppError.CREDENTIAL_UNAVAILABLE -> CREDENTIAL_UNAVAILABLE
             AppError.FEATURE_UNAVAILABLE -> FEATURE_UNAVAILABLE
             AppError.WORLD_ID4_NOT_AVAILABLE -> WORLD_ID_4_NOT_AVAILABLE
@@ -173,13 +176,13 @@ sealed interface IDKitStatus {
     data object WaitingForConnection : IDKitStatus
     data object AwaitingConfirmation : IDKitStatus
     data class Confirmed(val result: IDKitResult) : IDKitStatus
-    data class Failed(val error: IDKitErrorCode) : IDKitStatus
+    data class Failed(val error: IDKitErrorCode, val reason: ErrorReason? = null) : IDKitStatus
     data class NetworkingError(val error: IDKitErrorCode) : IDKitStatus
 }
 
 sealed interface IDKitCompletionResult {
     data class Success(val result: IDKitResult) : IDKitCompletionResult
-    data class Failure(val error: IDKitErrorCode) : IDKitCompletionResult
+    data class Failure(val error: IDKitErrorCode, val reason: ErrorReason? = null) : IDKitCompletionResult
 }
 
 data class IDKitPollOptions(
@@ -239,7 +242,7 @@ class IDKitRequest internal constructor(
 
                 when (val status = pollStatusOnce()) {
                     is IDKitStatus.Confirmed -> return IDKitCompletionResult.Success(status.result)
-                    is IDKitStatus.Failed -> return IDKitCompletionResult.Failure(status.error)
+                    is IDKitStatus.Failed -> return IDKitCompletionResult.Failure(status.error, status.reason)
                     is IDKitStatus.NetworkingError -> delay(pollIntervalMs.toLong())
                     IDKitStatus.AwaitingConfirmation,
                     IDKitStatus.WaitingForConnection -> delay(pollIntervalMs.toLong())
@@ -261,7 +264,7 @@ class IDKitRequest internal constructor(
             StatusWrapper.WaitingForConnection -> IDKitStatus.WaitingForConnection
             StatusWrapper.AwaitingConfirmation -> IDKitStatus.AwaitingConfirmation
             is StatusWrapper.Confirmed -> IDKitStatus.Confirmed(status.result)
-            is StatusWrapper.Failed -> IDKitStatus.Failed(IDKitErrorCode.from(status.error))
+            is StatusWrapper.Failed -> IDKitStatus.Failed(IDKitErrorCode.from(status.error), status.reason)
             is StatusWrapper.NetworkingError -> IDKitStatus.NetworkingError(IDKitErrorCode.from(status.error))
         }
     }
