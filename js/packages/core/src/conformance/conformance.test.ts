@@ -19,7 +19,7 @@ import {
 } from "./dispatch";
 import { CREDENTIAL_SCHEMA_IDS, APP_ERROR_CODES } from "../protocol";
 import type { Preset } from "../types/protocol";
-import { IDKitErrorCodes } from "../index";
+import { DEEP_FACE_FAILURE_REASONS, IDKitErrorCodes } from "../index";
 import {
   computeRpSignatureMessage,
   hashToField,
@@ -196,6 +196,9 @@ describe.skipIf(!binary)("live native Rust conformance", () => {
     expect(CREDENTIAL_SCHEMA_IDS).toEqual(manifest.credentials);
     expect([...APP_ERROR_CODES].sort()).toEqual(
       [...manifest.error_codes].sort(),
+    );
+    expect([...DEEP_FACE_FAILURE_REASONS].sort()).toEqual(
+      [...manifest.deep_face_failure_reasons].sort(),
     );
     expect(Object.values(IDKitErrorCodes).sort()).toEqual(
       [

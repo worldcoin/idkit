@@ -87,3 +87,41 @@ export enum IDKitErrorCodes {
   Timeout = "timeout",
   Cancelled = "cancelled",
 }
+
+/**
+ * Why a Deep Face challenge failed, sent by World App as the optional bridge
+ * `reason` next to `error_code`. Mirrors Rust's DeepFaceFailureReason.
+ */
+export const DEEP_FACE_FAILURE_REASONS = [
+  "face_challenge_quality",
+  "face_challenge_mismatch",
+  "face_challenge_missing",
+  "face_challenge_integrity",
+  "face_selfie_quality",
+  "face_selfie_mismatch",
+  "face_selfie_timeout",
+  "spoof_detected",
+  "age_below_threshold",
+  "username_mismatch",
+  "biometric_rejected",
+  "user_cancelled",
+  "proof_failed",
+  "credential_unavailable",
+  "pcp_missing",
+  "face_auth_unavailable",
+  "face_auth_failed",
+  "metadata_failed",
+  "network_error",
+  "server_rejected",
+  "client_error",
+  "unknown",
+] as const;
+
+export type DeepFaceFailureReason = (typeof DEEP_FACE_FAILURE_REASONS)[number];
+
+/** Parses a raw Deep Face bridge `reason`; unrecognized values become `unknown`. */
+export function deepFaceFailureReason(value: string): DeepFaceFailureReason {
+  return (DEEP_FACE_FAILURE_REASONS as readonly string[]).includes(value)
+    ? (value as DeepFaceFailureReason)
+    : "unknown";
+}

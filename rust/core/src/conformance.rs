@@ -363,6 +363,7 @@ fn manifest() -> Result<Value, Failure> {
         "credentials":credentials,
         "presets":presets,
         "error_codes":crate::error::AppError::iter().collect::<Vec<_>>(),
+        "deep_face_failure_reasons":crate::error::DeepFaceFailureReason::iter().collect::<Vec<_>>(),
         "environments":bridge::Environment::iter().collect::<Vec<_>>(),
         "document_types":crate::types::DocumentType::iter().collect::<Vec<_>>(),
         "integrity_signature_formats":crate::IntegritySignatureFormat::iter().collect::<Vec<_>>(),

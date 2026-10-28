@@ -19,6 +19,8 @@ import {
   identityCheck,
   isNode,
   IDKitErrorCodes,
+  DEEP_FACE_FAILURE_REASONS,
+  deepFaceFailureReason,
   signRequest,
   hashSignal,
 } from "../index";
@@ -360,6 +362,14 @@ describe("IDKitRequest API", () => {
 });
 
 describe("Enums", () => {
+  it("parses Deep Face failure reasons", () => {
+    for (const reason of DEEP_FACE_FAILURE_REASONS) {
+      expect(deepFaceFailureReason(reason)).toBe(reason);
+    }
+    expect(deepFaceFailureReason("process_challenge_failed")).toBe("unknown");
+    expect(deepFaceFailureReason("")).toBe("unknown");
+  });
+
   it("should export IDKitErrorCodes enum", () => {
     expect(IDKitErrorCodes.ConnectionFailed).toBe("connection_failed");
     expect(IDKitErrorCodes.VerificationRejected).toBe("verification_rejected");

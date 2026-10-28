@@ -1,6 +1,7 @@
 /** Compile-time checks instantiated with current Rust DTO samples by test:conformance. */
 import type {
   CredentialType,
+  DeepFaceFailureReason,
   DocumentType,
   IDKitErrorCode,
   IDKitRequestConfig,
@@ -47,6 +48,7 @@ interface NativeContract {
   credentials: Record<string, number>;
   document_types: readonly string[];
   error_codes: readonly string[];
+  deep_face_failure_reasons: readonly string[];
   integrity_signature_formats: readonly string[];
   environments: readonly string[];
   presets: readonly { type: string }[];
@@ -137,6 +139,7 @@ export type PublicContractChecks<Rust extends NativeContract> = [
       CredentialType,
       DocumentType,
       IDKitErrorCode,
+      DeepFaceFailureReason,
       IntegritySignatureFormat,
       NonNullable<IDKitRequestConfig["environment"]>,
       Preset["type"],
@@ -145,6 +148,7 @@ export type PublicContractChecks<Rust extends NativeContract> = [
       keyof Rust["credentials"],
       Rust["document_types"][number],
       Rust["error_codes"][number],
+      Rust["deep_face_failure_reasons"][number],
       Rust["integrity_signature_formats"][number],
       Rust["environments"][number],
       Rust["presets"][number]["type"],

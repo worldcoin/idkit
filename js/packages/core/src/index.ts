@@ -81,6 +81,11 @@ export type {
 // Error codes
 export { IDKitErrorCodes } from "./types/result";
 export type { IDKitErrorCode } from "./types/result";
+export {
+  DEEP_FACE_FAILURE_REASONS,
+  deepFaceFailureReason,
+} from "./types/result";
+export type { DeepFaceFailureReason } from "./types/result";
 
 // Utilities
 export { isReactNative, isWeb, isNode } from "./lib/platform";
