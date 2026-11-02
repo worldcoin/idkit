@@ -13,8 +13,11 @@ import {
 import type { IDKitHookResult } from "../types";
 import { IDKitModal } from "./IDKitModal";
 import { WorldIDState } from "../components/States/WorldIDState";
+import { WorldIDBadgeIcon } from "../components/Icons/WorldIDBadgeIcon";
+import { HumanBadgeIcon } from "../components/Icons/HumanBadgeIcon";
+import { useMedia } from "../hooks/useMedia";
 import { SuccessState } from "../components/States/SuccessState";
-import { ErrorState } from "../components/States/ErrorState";
+import { ErrorState, ErrorStateIcon } from "../components/States/ErrorState";
 import { HostAppVerificationState } from "../components/States/HostAppVerificationState";
 import { setLocalizationConfig } from "../lang";
 import type { SupportedLanguage } from "../lang/types";
@@ -66,6 +69,7 @@ export function IDKitWidgetBase<TResult>({
   language,
   showSimulatorCallout,
 }: IDKitWidgetBaseProps<TResult>): ReactElement | null {
+  const media = useMedia();
   const { open: openFlow, reset: resetFlow } = flow;
 
   const [hostVerifyResult, setHostVerifyResult] = useState<
@@ -220,7 +224,21 @@ export function IDKitWidgetBase<TResult>({
   const stage = getVisualStage(isSuccess, isError, isHostVerifying);
 
   return (
-    <IDKitModal open={open} onOpenChange={onOpenChange}>
+    <IDKitModal
+      open={open}
+      onOpenChange={onOpenChange}
+      headerContent={
+        media === "mobile" && stage !== "host_verification" ? (
+          <div className="idkit-worldid-icon idkit-screen-header-icon">
+            {stage === "worldid" && <WorldIDBadgeIcon />}
+            {stage === "success" && <HumanBadgeIcon />}
+            {stage === "error" && (
+              <ErrorStateIcon errorCode={effectiveErrorCode} />
+            )}
+          </div>
+        ) : undefined
+      }
+    >
       {stage === "worldid" && (
         <WorldIDState
           connectorURI={flow.connectorURI}

@@ -46,19 +46,14 @@
   animation: idkit-fade-in 0.2s ease-out;
 }
 
-@media (max-width: 1024px) {
-  .idkit-backdrop {
-    align-items: flex-end;
-    padding: 0;
-  }
-}
-
 /* Modal */
 .idkit-modal {
   position: relative;
+  box-sizing: border-box;
   width: 100%;
   max-width: 448px;
   min-height: 35rem;
+  padding: 32px;
   background: var(--idkit-bg);
   border-radius: 24px;
   box-shadow:
@@ -68,65 +63,86 @@
   color: var(--idkit-text);
   display: flex;
   flex-direction: column;
+  gap: 16px;
   overflow: hidden;
   animation: idkit-scale-in 0.25s ease-out;
 }
 
-@media (max-width: 1024px) {
-  .idkit-modal {
-    max-width: 100%;
-    min-height: auto;
-    max-height: 95vh;
-    border-radius: 24px 24px 0 0;
-    animation: idkit-slide-up 0.3s ease-out;
-  }
+/* Close button */
+.idkit-modal-header {
+  display: flex;
+  flex: 0 0 auto;
+  min-height: 44px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
 }
 
-/* Close button */
-.idkit-close {
-  position: absolute;
-  top: 24px;
-  right: 24px;
+.idkit-modal-header--close-left {
+  flex-direction: row-reverse;
+}
+
+.idkit-modal-header-content {
   display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.idkit-close {
+  display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 1.2px solid var(--idkit-border);
-  border-radius: 50%;
-  background: transparent;
-  color: var(--idkit-text);
+  width: 44px;
+  height: 44px;
   cursor: pointer;
   padding: 0;
-  z-index: 1;
-  transition: background 0.15s ease;
-}
-
-.idkit-close:hover {
-  background: var(--idkit-surface);
 }
 
 .idkit-close svg {
-  width: 16px;
-  height: 16px;
+  color: var(--idkit-text);
 }
 
 /* Content area */
+.idkit-modal-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .idkit-content {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 24px 24px 24px;
+  padding: 0;
   text-align: center;
 }
 
 /* Footer */
 .idkit-footer {
   border-top: 1px solid #f5f5f7;
-  padding: 28px 32px;
+  padding: 28px 0 0;
   text-align: center;
+}
+
+/* Keep spare height outside the QR content/footer stack. */
+.idkit-modal-body:has(.idkit-worldid-state) {
+  justify-content: center;
+  gap: 32px;
+}
+
+.idkit-content:has(.idkit-worldid-state) {
+  flex: none;
+}
+
+.idkit-modal-body:has(.idkit-worldid-state) > .idkit-footer {
+  padding-top: 32px;
 }
 
 :host(.dark) .idkit-footer {
@@ -134,7 +150,7 @@
 }
 
 .idkit-footer a {
-  color: var(--idkit-text-muted);
+  color: var(--idkit-foreground-secondary);
   font-size: 14px;
   text-decoration: none;
   transition: color 0.15s ease;
@@ -142,4 +158,69 @@
 
 .idkit-footer a:hover {
   color: var(--idkit-text);
+}
+
+/* Mobile sheets: 6px outside, 32px inside, asymmetric corners. */
+@media (max-width: 1024px) {
+  .idkit-backdrop {
+    box-sizing: border-box;
+    align-items: flex-end;
+    padding: max(6px, env(safe-area-inset-top))
+      max(6px, env(safe-area-inset-right)) 6px
+      max(6px, env(safe-area-inset-left));
+  }
+
+  .idkit-modal {
+    max-width: 100%;
+    min-height: 0;
+    max-height: calc(100dvh - max(6px, env(safe-area-inset-top)) - 6px);
+    padding-bottom: max(32px, calc(env(safe-area-inset-bottom) - 6px));
+    border-radius: 34px 34px 58px 58px;
+    animation: idkit-slide-up 0.3s ease-out;
+  }
+
+  .idkit-modal-body,
+  .idkit-modal-body:has(.idkit-worldid-state) {
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    gap: 24px;
+  }
+
+  .idkit-content,
+  .idkit-content:has(.idkit-worldid-state) {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    justify-content: safe center;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+  }
+
+  .idkit-content::-webkit-scrollbar {
+    display: none;
+  }
+
+  .idkit-error-state {
+    min-height: 0;
+    gap: 32px;
+  }
+
+  .idkit-error-state .idkit-state-content {
+    min-height: 0;
+    justify-content: safe center;
+  }
+
+  .idkit-retry-btn,
+  .idkit-deeplink-btn,
+  .idkit-qr-toggle-btn {
+    flex-shrink: 0;
+    min-height: 48px;
+  }
+
+  .idkit-footer,
+  .idkit-modal-body:has(.idkit-worldid-state) > .idkit-footer {
+    flex-shrink: 0;
+    padding-top: 16px;
+  }
 }

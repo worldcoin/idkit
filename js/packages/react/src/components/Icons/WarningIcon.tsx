@@ -3,56 +3,30 @@ import type { SVGProps } from "react";
 export function WarningIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      width="88"
-      height="88"
-      viewBox="0 0 88 88"
+      width="56"
+      height="56"
+      viewBox="0 0 56 56"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       {...props}
+      className={`idkit-warning-svg ${props.className ?? ""}`.trim()}
     >
-      <rect width="88" height="88" rx="44" fill="#FFAE00" />
-      <rect
-        opacity="0.2"
-        width="88"
-        height="88"
-        rx="44"
-        fill="url(#idkit_warning_radial)"
-      />
-      <rect
-        x="0.5"
-        y="0.5"
-        width="87"
-        height="87"
-        rx="43.5"
-        stroke="url(#idkit_warning_linear)"
-      />
-      <path
-        d="M64.1707 59.5415H22.8298L43.4998 22.3354L64.1707 59.5415ZM42.1208 51.3003L42.1218 54.0503H44.8992L44.8982 51.3003H42.1208ZM42.1248 46.7085H44.8748V36.6255H42.1248V46.7085Z"
-        fill="white"
-      />
+      <g clipPath="url(#clip0_4850_18553)">
+        <path
+          d="M28 31.4904V19.282M32.0908 9.84339L48.7665 39.8036C50.4978 42.9142 48.2488 46.7399 44.6889 46.7399H11.66C8.11715 46.7399 5.86641 42.9472 7.56382 39.8374L23.917 9.87713C25.6778 6.65123 30.3035 6.63214 32.0908 9.84339Z"
+          stroke="currentColor"
+          strokeWidth="4"
+          strokeMiterlimit="10"
+        />
+        <path
+          d="M27.9983 39.6766C29.5176 39.6766 30.7492 38.4448 30.7492 36.9252C30.7492 35.4057 29.5176 34.1738 27.9983 34.1738C26.4791 34.1738 25.2475 35.4057 25.2475 36.9252C25.2475 38.4448 26.4791 39.6766 27.9983 39.6766Z"
+          fill="currentColor"
+        />
+      </g>
       <defs>
-        <radialGradient
-          id="idkit_warning_radial"
-          cx="0"
-          cy="0"
-          r="1"
-          gradientUnits="userSpaceOnUse"
-          gradientTransform="translate(20 -1.6729e-06) rotate(63.4349) scale(98.387 97.9627)"
-        >
-          <stop stopColor="white" />
-          <stop offset="1" stopColor="white" stopOpacity="0" />
-        </radialGradient>
-        <linearGradient
-          id="idkit_warning_linear"
-          x1="44"
-          y1="0"
-          x2="44"
-          y2="88"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop stopColor="white" stopOpacity="0.3" />
-          <stop offset="1" stopColor="white" stopOpacity="0" />
-        </linearGradient>
+        <clipPath id="clip0_4850_18553">
+          <rect width="56" height="56" fill="white" />
+        </clipPath>
       </defs>
     </svg>
   );
