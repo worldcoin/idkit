@@ -32,9 +32,14 @@ let mode = "success";
 let pollReply;
 let pollId;
 let gets = [];
+const protectedIds = new Set();
 const server = createServer(async (req, res) => {
   if (req.method === "GET") {
     assert.equal(req.url, `/response/${pollId}`);
+    assert.equal(
+      req.headers.authorization,
+      protectedIds.has(pollId) ? "Bearer response-read-token" : undefined,
+    );
     gets.push(req.url);
     if (pollReply.disconnect) {
       req.socket.destroy();
@@ -51,6 +56,10 @@ const server = createServer(async (req, res) => {
   assert.equal(req.url, "/request");
   assert.equal(req.method, "POST");
   const body = JSON.parse(text);
+  if (body.request_id !== undefined)
+    assert.equal(body.require_token_to_read_response, true);
+  else
+    assert.equal(Object.hasOwn(body, "require_token_to_read_response"), false);
   posts.push(body);
   const status =
     mode === "conflict" || (mode === "retry" && posts.length === 1)
@@ -74,8 +83,31 @@ const server = createServer(async (req, res) => {
     );
     return;
   }
+  if (mode === "duplicate-token") {
+    const id = JSON.stringify(body.request_id);
+    const token = JSON.stringify("response-read-token");
+    res.end(
+      `{"request_id":${id},"response_read_token":${token},"response_read_token":${token}}`,
+    );
+    return;
+  }
+  if (status === 200 && body.request_id !== undefined)
+    protectedIds.add(body.request_id);
+  const token =
+    mode === "non-string-token"
+      ? 42
+      : mode === "surrogate-token"
+        ? "\ud800"
+        : mode === "empty-token"
+          ? ""
+          : "response-read-token";
   res.end(
     JSON.stringify({
+      ...(body.request_id !== undefined && mode !== "missing-token"
+        ? {
+            response_read_token: token,
+          }
+        : {}),
       request_id:
         mode === "wrong-id" ? "wrong" : (body.request_id ?? "bridge-request"),
     }),
@@ -255,12 +287,17 @@ const scenarios = [
     "wrong-id",
     "duplicate-id",
     "invalid-id-utf8",
+    "missing-token",
+    "empty-token",
+    "duplicate-token",
+    "non-string-token",
+    "surrogate-token",
   ].map((mode) => ({
     name: mode,
     mode,
     invite_code: mode !== "invalid-id-utf8",
     selection: { preset: { type: "OrbLegacy" } },
-    failure: true,
+    failure: !["missing-token", "empty-token"].includes(mode),
   })),
 ];
 try {
@@ -354,6 +391,11 @@ try {
       assert.deepEqual(b, js.value.debug_report.request_payload);
       assert.deepEqual(normalize(a), normalize(b), scenario.name);
       for (const value of [native.value, js.value]) {
+        assert.equal(
+          JSON.stringify(value).includes("response-read-token"),
+          false,
+          "credentials stay private",
+        );
         const query = new URL(value.connector_uri).searchParams;
         assert.equal(query.get("i"), value.request_id);
         assert.equal(query.get("b"), bridge_url);

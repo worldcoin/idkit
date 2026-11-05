@@ -40,7 +40,7 @@ assert.equal(globalThis.crypto, undefined, 'Node fallback must not mutate the gl
 const config = {app_id:'app_staging_test',action:'test',allow_legacy_proofs:false,rp_context:{rp_id:'rp_1234567890abcdef',nonce:'0x'+'00'.repeat(31)+'01',created_at:1,expires_at:2,signature:'0x'+'00'.repeat(64)+'1b'}};
 let postCount=0;
 core.configureIDKitRuntime({fetch:async (url,init)=>{
- if(init?.method === 'POST'){postCount++;const body=JSON.parse(init.body);assert.ok(body.iv && body.payload);return {ok:true,status:200,json:async()=>({request_id:body.request_id??'test-request'})};}
+ if(init?.method === 'POST'){postCount++;const body=JSON.parse(init.body);assert.ok(body.iv && body.payload);return {ok:true,status:200,json:async()=>({...(body.request_id === undefined ? {} : {response_read_token:"response-read-token"}),request_id:body.request_id??'test-request'})};}
  return {ok:true,status:200,json:async()=>({status:'initialized'})};
 }});
 const request=await core.IDKit.request(config).preset(core.proofOfHuman());
