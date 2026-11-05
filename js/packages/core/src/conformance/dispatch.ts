@@ -223,6 +223,7 @@ export function dispatch(input: Record<string, any>): unknown {
         { payload: {}, signal_hashes: {}, legacy_signal_hash: "" },
         hexToBytes(c.key_hex),
         c.request_id,
+        undefined, // URL-only fixture; no response polling.
         c.invite_code,
       ).connectUrl();
     }

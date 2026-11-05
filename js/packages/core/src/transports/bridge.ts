@@ -95,6 +95,7 @@ export class BridgeRequest {
     private compiled: ReturnType<typeof compileRequest>,
     private key: Uint8Array,
     private id: string,
+    private responseReadToken?: string,
     private code?: string,
     private expiry?: number,
   ) {}
@@ -143,13 +144,22 @@ export class BridgeRequest {
     return withRequestTimeout((signal) => this.poll(signal), options);
   }
 
+  private responseHeaders(): Record<string, string> {
+    return this.responseReadToken === undefined
+      ? {}
+      : { Authorization: `Bearer ${this.responseReadToken}` };
+  }
+
   private async poll(signal: AbortSignal): Promise<Status> {
     const response = await fetchBridge(
       endpoint(
         this.config.bridge_url ?? DEFAULT_BRIDGE,
         `/response/${this.id}`,
       ),
-      { signal },
+      {
+        signal,
+        headers: this.responseHeaders(),
+      },
     ).catch(() => {
       throw new RetryableBridgeError("Bridge poll could not connect");
     });
@@ -254,7 +264,12 @@ async function createBridgeRequestWithSignal(
         body: JSON.stringify({
           iv: encodeBase64(iv),
           payload: encodeBase64(payload),
-          ...(derived ? { request_id: derived.index } : {}),
+          ...(derived
+            ? {
+                request_id: derived.index,
+                require_token_to_read_response: true,
+              }
+            : {}),
         }),
       },
     );
@@ -278,6 +293,16 @@ async function createBridgeRequestWithSignal(
       typeof body.request_id !== "string"
     )
       throw new Error("unexpected_response");
+    let responseReadToken: string | undefined;
+    if (derived && "response_read_token" in body) {
+      const token = body.response_read_token;
+      if (token != null) {
+        if (typeof token !== "string") throw new Error("unexpected_response");
+        validateWireStrings(token);
+        responseReadToken = token;
+      }
+      assertUniqueJsonFields(body, ["response_read_token"]);
+    }
     assertUniqueJsonFields(body, ["request_id"]);
     validateWireStrings(Object.keys(body));
     validateWireStrings(body.request_id);
@@ -290,6 +315,7 @@ async function createBridgeRequestWithSignal(
       compiled,
       key,
       body.request_id,
+      responseReadToken,
       code,
       code ? Math.floor(Date.now() / 1000) + 900 : undefined,
     );
