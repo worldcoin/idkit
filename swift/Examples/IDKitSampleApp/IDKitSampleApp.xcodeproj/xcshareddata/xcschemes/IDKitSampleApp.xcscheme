@@ -10,8 +10,8 @@
          <ExecutionAction
             ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
             <ActionContent
-               title = "Check IDKit Dependencies"
-               scriptText = "REPO_ROOT=&quot;${SRCROOT}/../../..&quot;&#10;XCFRAMEWORK=&quot;${REPO_ROOT}/IDKitFFI.xcframework&quot;&#10;GENERATED=&quot;${REPO_ROOT}/swift/Sources/IDKit/Generated/idkit_core.swift&quot;&#10;&#10;if [ ! -d &quot;${XCFRAMEWORK}&quot; ] || [ ! -f &quot;${GENERATED}&quot; ]; then&#10;  echo &quot;error: IDKit native artifacts not found.&quot; &gt;&amp;2&#10;  echo &quot;error: Run the following from the repo root, then build again:&quot; &gt;&amp;2&#10;  echo &quot;error:   ./scripts/package-swift.sh&quot; &gt;&amp;2&#10;  exit 1&#10;fi&#10;">
+               title = "Build IDKit Dependencies"
+               scriptText = "REPO_ROOT=&quot;${SRCROOT}/../../..&quot;&#10;XCFRAMEWORK=&quot;${REPO_ROOT}/IDKitFFI.xcframework&quot;&#10;GENERATED=&quot;${REPO_ROOT}/swift/Sources/IDKit/Generated/idkit_core.swift&quot;&#10;RUST_SRC=&quot;${REPO_ROOT}/rust/core/src&quot;&#10;&#10;NEEDS_BUILD=0&#10;&#10;if [ ! -d &quot;${XCFRAMEWORK}&quot; ] || [ ! -f &quot;${GENERATED}&quot; ]; then&#10;  NEEDS_BUILD=1&#10;elif [ -n &quot;$(find &quot;${RUST_SRC}&quot; -newer &quot;${GENERATED}&quot; -name &apos;*.rs&apos; -print -quit)&quot; ]; then&#10;  NEEDS_BUILD=1&#10;fi&#10;&#10;if [ &quot;${NEEDS_BUILD}&quot; -eq 1 ]; then&#10;  echo &quot;note: IDKit native artifacts missing or stale — rebuilding...&quot;&#10;  &quot;${REPO_ROOT}/scripts/package-swift.sh&quot;&#10;fi&#10;">
                <EnvironmentBuildable>
                   <BuildableReference
                      BuildableIdentifier = "primary"
