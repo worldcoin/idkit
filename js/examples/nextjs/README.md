@@ -27,6 +27,10 @@ My Number Card, then choose how they combine:
 - `Enumerate`: every selected credential the account holds is included; at
   least one is required.
 
+Use the ↑ / ↓ buttons under `Credential order` to reorder selected credentials.
+New selections are appended to the end. The chosen order is used in the JSON
+preview, requests and sessions, and is preserved in shared configuration links.
+
 The request is built with IDKit's `any()`, `all()` and `enumerate()` helpers
 around `CredentialRequest(...)` (see `app/multi-constraints.ts`), and the exact
 constraint tree is previewed in the configuration panel before you start.
@@ -48,6 +52,9 @@ corepack pnpm -C js/examples/nextjs dev
 ```
 
 Open `http://localhost:4001`.
+
+After building the SDK packages and installing this example, run its credential
+ordering regression tests with `corepack pnpm -C js/examples/nextjs test` (Node 24).
 
 This example installs separately so Next.js tooling stays outside the SDK dependency
 graph. Its SDK dependencies link to the local packages; rebuild those packages
