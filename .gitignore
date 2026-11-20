@@ -37,6 +37,9 @@ build/
 .pnpm-store/
 .turbo/
 .next/
+.open-next/
+.wrangler/
+.dev.vars*
 .nuxt/
 
 # Swift
