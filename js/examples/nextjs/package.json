@@ -2,31 +2,44 @@
   "name": "idkit-nextjs-example",
   "private": true,
   "type": "module",
-  "engines": {
-    "node": "24.x"
-  },
   "scripts": {
     "dev": "next dev -p 4001",
     "build": "next build",
-    "start": "next start -p 4001"
+    "start": "next start -p 4001",
+    "build:cloudflare": "opennextjs-cloudflare build --config wrangler.jsonc",
+    "preview:cloudflare": "opennextjs-cloudflare preview --config wrangler.jsonc",
+    "deploy:cloudflare": "opennextjs-cloudflare deploy --config wrangler.jsonc",
+    "upload:cloudflare": "opennextjs-cloudflare upload --config wrangler.jsonc"
   },
   "dependencies": {
     "@worldcoin/idkit": "link:../../packages/react",
+    "@worldcoin/idkit-core": "link:../../packages/core",
     "@worldcoin/idkit-server": "link:../../packages/server",
-    "takis-minikit-js": "2.0.0-dev.1",
     "eruda": "^3.4.1",
     "i18n-iso-countries": "^7.14.0",
-    "next": "^15.5.24",
+    "next": "15.5.29",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "viem": "^2.47.2",
-    "@worldcoin/idkit-core": "link:../../packages/core"
+    "takis-minikit-js": "2.0.0-dev.1",
+    "viem": "^2.47.2"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "1.20.17",
+    "@types/node": "^20.19.30",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "typescript": "^5.9.3",
-    "@types/node": "^20.19.30"
+    "wrangler": "4.165.0"
   },
-  "packageManager": "pnpm@9.15.4"
+  "engines": {
+    "node": "24.x"
+  },
+  "packageManager": "pnpm@9.15.4",
+  "pnpm": {
+    "overrides": {
+      "postcss": "8.5.33",
+      "source-map-js": "1.2.4",
+      "glob": "14.0.6"
+    }
+  }
 }

@@ -1,0 +1,38 @@
+name: Cloudflare example configuration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - cf-worker-config.json
+      - .github/workflows/cloudflare-config.yml
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        default: plan
+        options: [plan, plan-and-apply]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-example-configuration
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    timeout-minutes: 15
+    if: github.ref == 'refs/heads/main'
+    runs-on:
+      group: arc-public-large-amd64-runner
+    environment: cloudflare-example
+    steps:
+      - uses: worldcoin/gh-actions-public/cf-worker-config@ddc98819e4f0b1d83ae632107b0e7d04059e53fa
+        with:
+          worker: idkit-example-dev
+          config: cf-worker-config.json
+          mode: ${{ inputs.mode || 'plan-and-apply' }}
+          cf_worker_config_ref: 64e8fb2bf907b7628465e21287cd1c53f1f5de32
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
