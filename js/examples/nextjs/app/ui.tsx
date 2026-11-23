@@ -1003,12 +1003,28 @@ export function DemoClient(): ReactElement {
     (credential: CredentialType, checked: boolean) => {
       setMultiCredentials((current) =>
         checked
-          ? MULTI_CREDENTIALS.filter(
-              (candidate) =>
-                candidate === credential || current.includes(candidate),
-            )
+          ? normalizeMultiCredentials([...current, credential], [])
           : current.filter((candidate) => candidate !== credential),
       );
+    },
+    [],
+  );
+
+  const moveMultiCredential = useCallback(
+    (credential: CredentialType, direction: -1 | 1) => {
+      setMultiCredentials((current) => {
+        const index = current.indexOf(credential);
+        const target = index + direction;
+        if (index < 0 || target < 0 || target >= current.length) {
+          return current;
+        }
+        const reordered = [...current];
+        [reordered[index], reordered[target]] = [
+          reordered[target],
+          reordered[index],
+        ];
+        return reordered;
+      });
     },
     [],
   );
@@ -1489,6 +1505,44 @@ export function DemoClient(): ReactElement {
                     ))}
                   </div>
                 </div>
+                {multiCredentials.length > 0 && (
+                  <div className="config-row config-row-top">
+                    <label id="cfgMultiOrderLabel">Credential order</label>
+                    <div className="credential-order">
+                      <ol aria-labelledby="cfgMultiOrderLabel">
+                        {multiCredentials.map((credential, index) => (
+                          <li key={credential}>
+                            <span>{MULTI_CREDENTIAL_TO_NAME[credential]}</span>
+                            <button
+                              type="button"
+                              className="secondary"
+                              aria-label={`Move ${MULTI_CREDENTIAL_TO_NAME[credential]} up`}
+                              disabled={index === 0}
+                              onClick={() =>
+                                moveMultiCredential(credential, -1)
+                              }
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              className="secondary"
+                              aria-label={`Move ${MULTI_CREDENTIAL_TO_NAME[credential]} down`}
+                              disabled={index === multiCredentials.length - 1}
+                              onClick={() => moveMultiCredential(credential, 1)}
+                            >
+                              ↓
+                            </button>
+                          </li>
+                        ))}
+                      </ol>
+                      <span className="config-note">
+                        Use ↑ / ↓ to change the order in the request JSON. Newly
+                        selected credentials are added last.
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <div className="config-row config-row-top">
                   <label id="cfgMultiPreviewLabel">Constraints preview</label>
                   {multiConstraintsPreview ? (

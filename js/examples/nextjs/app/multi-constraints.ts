@@ -11,8 +11,8 @@ import {
 export type MultiCombinator = "any" | "all" | "enumerate";
 
 /**
- * Credentials that can be combined. The order here is the order sent to
- * World App, which matters for `any` (earlier entries have higher priority).
+ * Credentials that can be combined, in the default display order.
+ * Requests preserve the order chosen by the user.
  */
 export const MULTI_CREDENTIALS: readonly CredentialType[] = [
   "proof_of_human",
@@ -51,7 +51,7 @@ export type MultiCredentialOptions = {
   genesis_issued_at_min?: number;
 };
 
-/** Keeps only known credentials, deduplicated, in canonical priority order. */
+/** Keeps only known credentials, deduplicated, preserving selection order. */
 export function normalizeMultiCredentials(
   value: unknown,
   fallback: readonly CredentialType[],
@@ -60,14 +60,9 @@ export function normalizeMultiCredentials(
     return [...fallback];
   }
 
-  return MULTI_CREDENTIALS.filter((credential) => value.includes(credential));
-}
-
-function selectedInPriorityOrder(
-  credentials: readonly CredentialType[],
-): CredentialType[] {
-  return MULTI_CREDENTIALS.filter((credential) =>
-    credentials.includes(credential),
+  return [...new Set(value)].filter(
+    (credential): credential is CredentialType =>
+      MULTI_CREDENTIALS.includes(credential as CredentialType),
   );
 }
 
@@ -83,7 +78,7 @@ export function buildMultiConstraints(
   credentials: readonly CredentialType[],
   options: MultiCredentialOptions = {},
 ): ConstraintNode {
-  const nodes = selectedInPriorityOrder(credentials).map((credential) =>
+  const nodes = normalizeMultiCredentials(credentials, []).map((credential) =>
     CredentialRequest(credential, options),
   );
 
@@ -106,7 +101,7 @@ export function describeMultiConstraints(
   combinator: MultiCombinator,
   credentials: readonly CredentialType[],
 ): string {
-  const names = selectedInPriorityOrder(credentials).map(
+  const names = normalizeMultiCredentials(credentials, []).map(
     (credential) => MULTI_CREDENTIAL_TO_NAME[credential],
   );
 

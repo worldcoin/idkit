@@ -535,3 +535,28 @@ pre {
     gap: 2px;
   }
 }
+
+.credential-order {
+  flex: 1;
+  min-width: 0;
+}
+
+.credential-order ol {
+  margin: 0 0 8px;
+  padding-left: 24px;
+}
+
+.credential-order li {
+  padding: 4px 0;
+}
+
+.credential-order li span {
+  display: inline-block;
+  width: 90px;
+  font-size: 14px;
+}
+
+.credential-order button {
+  margin-left: 6px;
+  padding: 6px 12px;
+}
