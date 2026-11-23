@@ -1,0 +1,28 @@
+{
+  "account_id": "ae97c44fcd31b9289a7455120d2698b2",
+  "repo": "worldcoin/idkit",
+  "provider_account_id": "60940476",
+  "repo_id": "1085362063",
+  "workers": {
+    "idkit-example-dev": {
+      "production_branch": "main",
+      "root_directory": ".",
+      "path_includes": ["*"],
+      "build_command": "corepack pnpm install --frozen-lockfile && corepack pnpm build && corepack pnpm -C js/examples/nextjs install --frozen-lockfile && corepack pnpm -C js/examples/nextjs build:cloudflare",
+      "deploy_command": "corepack pnpm -C js/examples/nextjs deploy:cloudflare",
+      "preview": {
+        "enabled": true,
+        "command": "corepack pnpm -C js/examples/nextjs upload:cloudflare",
+        "branch_includes": ["*"],
+        "branch_excludes": ["main"]
+      },
+      "build_vars": {
+        "NODE_VERSION": "24",
+        "SKIP_DEPENDENCY_INSTALL": "true",
+        "NEXT_PUBLIC_APP_ID": "app_d8bbd5341f16fb97a61e644b7e169c0e",
+        "NEXT_PUBLIC_RP_ID": "rp_7b4f23dd5fb2a826"
+      },
+      "runtime_secrets": ["RP_SIGNING_KEY"]
+    }
+  }
+}
