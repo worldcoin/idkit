@@ -3,13 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev -p 4001",
-    "build": "next build",
-    "start": "next start -p 4001",
     "build:cloudflare": "opennextjs-cloudflare build --config wrangler.jsonc",
     "preview:cloudflare": "opennextjs-cloudflare preview --config wrangler.jsonc",
     "deploy:cloudflare": "opennextjs-cloudflare deploy --config wrangler.jsonc",
-    "upload:cloudflare": "opennextjs-cloudflare upload --config wrangler.jsonc"
+    "upload:cloudflare": "opennextjs-cloudflare upload --config wrangler.jsonc",
+    "dev": "next dev -p 4001",
+    "build": "next build",
+    "test": "node --test test/*.test.mjs",
+    "start": "next start -p 4001"
   },
   "dependencies": {
     "@worldcoin/idkit": "link:../../packages/react",
