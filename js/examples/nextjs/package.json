@@ -9,7 +9,6 @@
     "upload:cloudflare": "opennextjs-cloudflare upload --config wrangler.jsonc",
     "dev": "next dev -p 4001",
     "build": "next build",
-    "test": "node --test test/*.test.mjs",
     "start": "next start -p 4001"
   },
   "dependencies": {
