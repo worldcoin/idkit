@@ -23,7 +23,8 @@ export type ConnectBaseUrlResult =
  *
  * Empty input means "no override" (the SDK picks the base from `environment`).
  * IDKit appends `?t=wld&i=...` to the value verbatim, so a query or fragment
- * would produce a broken connector URL and is rejected here.
+ * would produce a broken connector URL and is rejected here. For the same
+ * reason the value must already be in canonical form.
  */
 export function parseConnectBaseUrl(input: string): ConnectBaseUrlResult {
   const trimmed = input.trim();
@@ -53,7 +54,7 @@ export function parseConnectBaseUrl(input: string): ConnectBaseUrlResult {
   if (parsed.protocol !== "https:" && !isLocalHttp) {
     return {
       ok: false,
-      error: "Connect base URL must use https:// (http:// only for localhost).",
+      error: "Connect base URL must use https:// (http:// only for localhost or 127.0.0.1).",
     };
   }
   if (parsed.username !== "" || parsed.password !== "") {
@@ -67,6 +68,15 @@ export function parseConnectBaseUrl(input: string): ConnectBaseUrlResult {
       ok: false,
       error:
         "Connect base URL must not contain a query string or fragment; IDKit appends its own.",
+    };
+  }
+
+  // IDKit and the QR code use the typed string, not the parsed URL. Require
+  // the canonical spelling so both always agree on the host and path.
+  if (parsed.href !== trimmed && parsed.href !== `${trimmed}/`) {
+    return {
+      ok: false,
+      error: `Connect base URL must be written in its canonical form: ${parsed.href}`,
     };
   }
 

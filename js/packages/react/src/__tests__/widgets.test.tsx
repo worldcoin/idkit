@@ -157,13 +157,16 @@ describe("widgets", () => {
     useIDKitRequestMock.mockReturnValue(createFlow({ connectorURI }));
     useIDKitSessionMock.mockReturnValue(createFlow({ connectorURI }));
 
-    const { unmount } = render(
-      <IDKitRequestWidget {...createRequestProps()} />,
-    );
-    expect(
-      screen.queryByRole("link", { name: /open connector url/i }),
-    ).toBeNull();
-    unmount();
+    for (const widget of [
+      <IDKitRequestWidget key="request" {...createRequestProps()} />,
+      <IDKitSessionWidget key="session" {...createSessionProps()} />,
+    ]) {
+      const view = render(widget);
+      expect(
+        screen.queryByRole("link", { name: /open connector url/i }),
+      ).toBeNull();
+      view.unmount();
+    }
 
     for (const widget of [
       <IDKitRequestWidget

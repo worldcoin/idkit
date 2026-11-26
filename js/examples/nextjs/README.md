@@ -38,9 +38,10 @@ constraint tree is previewed in the configuration panel before you start.
 `Connect base URL` sets `override_connect_base_url`, the base of the connector
 link and QR code. Leave it empty to use the default for the selected
 environment, pick a preset (staging World App, staging web authenticator) or
-type any `https://` URL (`http://` is accepted for `localhost` only; a query
-string or fragment is rejected). IDKit applies the override in every
-environment. The value is preserved in shared configuration links, and the page
+type any `https://` URL in canonical form (`http://` is accepted for
+`localhost` and `127.0.0.1` only; a query string or fragment is rejected). IDKit applies the override in every
+environment. The value is preserved in shared configuration links; a link that
+carries an override opens with the configuration panel expanded, and the page
 shows the active override next to the verify button. On desktop, `Open Connector
 URL` below the QR code opens the connector link in the same browser.
 

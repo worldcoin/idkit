@@ -63,7 +63,7 @@ const STAGING_DEVPORTAL_BASE_URL = "https://staging-developer.worldcoin.org";
 const CONNECT_URL_OVERRIDE_TOOLTIP =
   "Base URL of the connector link and QR code, passed to IDKit as override_connect_base_url. " +
   "Leave empty to use the default for the selected environment. " +
-  "Must be an https:// URL (http:// only for localhost) without a query string.";
+  "Must be an https:// URL (http:// only for localhost or 127.0.0.1) without a query string.";
 const DEVPORTAL_URL_OVERRIDE_TOOLTIP =
   "Enable this to send proof verification requests to the staging Developer Portal instead of production.";
 const GENESIS_ISSUED_AT_MIN_TOOLTIP =
@@ -355,12 +355,13 @@ function normalizeSharedDemoState(value: unknown): SharedDemoState | null {
 
   const state: SharedDemoState = {
     action: coerceString(value.action, fallback.action, 200),
-    // An invalid value is kept so the panel shows the validation error
-    // instead of silently falling back to the environment default.
+    // An invalid value is kept so the page shows the validation error
+    // instead of silently falling back to the environment default. One
+    // character over the limit is enough to keep an over-long value invalid.
     connectBaseUrl: coerceString(
       value.connectBaseUrl,
       fallback.connectBaseUrl,
-      CONNECT_BASE_URL_MAX_LENGTH,
+      CONNECT_BASE_URL_MAX_LENGTH + 1,
     ),
     createSession: coerceBoolean(value.createSession, fallback.createSession),
     environment,
@@ -1143,7 +1144,9 @@ export function DemoClient(): ReactElement {
     applySharedState(sharedState);
     setManualShareUrl(null);
     setShareStatus(null);
-    setIsConfigExpanded(false);
+    // A link that redirects the connector URL keeps the panel open, so the
+    // override is in plain sight before a verification starts.
+    setIsConfigExpanded(sharedState.connectBaseUrl.trim() !== "");
   }, [applySharedState]);
 
   const startWidgetFlow = useCallback(async () => {
@@ -1156,7 +1159,7 @@ export function DemoClient(): ReactElement {
     setWasIdentityCheck(isIdentityCheck);
 
     if (connectBaseUrlError) {
-      // Already shown next to the verify buttons.
+      setIsConfigExpanded(true);
       return;
     }
 
@@ -1384,7 +1387,6 @@ export function DemoClient(): ReactElement {
             id="cfgConnectBaseUrl"
             value={connectBaseUrl}
             onChange={(e) => setConnectBaseUrl(e.target.value)}
-            maxLength={CONNECT_BASE_URL_MAX_LENGTH}
             placeholder="Default for environment"
             spellCheck={false}
             autoCapitalize="none"
@@ -1396,8 +1398,12 @@ export function DemoClient(): ReactElement {
           />
         </div>
         <div className="config-row">
-          <label>Connect base presets</label>
-          <div className="checkbox-group">
+          <label id="cfgConnectBasePresetsLabel">Connect base presets</label>
+          <div
+            className="checkbox-group"
+            role="group"
+            aria-labelledby="cfgConnectBasePresetsLabel"
+          >
             <button
               type="button"
               className="secondary"
@@ -2098,7 +2104,7 @@ export function DemoClient(): ReactElement {
       {isMultiCredential && !hasMultiCredentialSelection && (
         <p className="status">Select at least one credential.</p>
       )}
-      {connectBaseUrlError && (
+      {connectBaseUrlError && !isConfigExpanded && (
         <p className="status">Error: {connectBaseUrlError}</p>
       )}
       {overrideConnectBaseUrl && (
