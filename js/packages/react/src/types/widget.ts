@@ -28,11 +28,21 @@ type WidgetSharedProps<TResult> = {
   language?: SupportedLanguage;
 };
 
+type ConnectorLinkProps = {
+  /**
+   * Show the connector URL as a link below the desktop QR code, so the
+   * authenticator can be opened in the same browser. Defaults to false.
+   */
+  showConnectorLink?: boolean;
+};
+
 export type IDKitRequestWidgetProps = IDKitRequestHookConfig &
-  WidgetSharedProps<IDKitResult>;
+  WidgetSharedProps<IDKitResult> &
+  ConnectorLinkProps;
 
 export type IDKitInviteCodeRequestWidgetProps =
   IDKitInviteCodeRequestHookConfig & WidgetSharedProps<IDKitResult>;
 
 export type IDKitSessionWidgetProps = IDKitSessionHookConfig &
-  WidgetSharedProps<IDKitResultSession>;
+  WidgetSharedProps<IDKitResultSession> &
+  ConnectorLinkProps;

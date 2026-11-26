@@ -7,11 +7,13 @@ import { HumanBadgeIcon } from "../Icons/HumanBadgeIcon";
 type QRStateProps = {
   qrData: string | null;
   showSimulatorCallout?: boolean;
+  showConnectorLink?: boolean;
 };
 
 export function QRState({
   qrData,
   showSimulatorCallout,
+  showConnectorLink,
 }: QRStateProps): ReactElement {
   const [copiedLink, setCopiedLink] = useState(false);
   const [showMobileQR, setShowMobileQR] = useState(false);
@@ -111,6 +113,13 @@ export function QRState({
             )}
           </div>
         </div>
+        {showConnectorLink && qrData && (
+          <p className="idkit-connector-link">
+            <a href={qrData} target="_blank" rel="noopener noreferrer">
+              {__("Open Connector URL")}
+            </a>
+          </p>
+        )}
         {showSimulatorCallout && qrData && (
           <p className="idkit-simulator-callout">
             Testing in staging?{" "}
