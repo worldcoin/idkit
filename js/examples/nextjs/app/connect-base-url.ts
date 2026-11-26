@@ -54,7 +54,8 @@ export function parseConnectBaseUrl(input: string): ConnectBaseUrlResult {
   if (parsed.protocol !== "https:" && !isLocalHttp) {
     return {
       ok: false,
-      error: "Connect base URL must use https:// (http:// only for localhost or 127.0.0.1).",
+      error:
+        "Connect base URL must use https:// (http:// only for localhost or 127.0.0.1).",
     };
   }
   if (parsed.username !== "" || parsed.password !== "") {
