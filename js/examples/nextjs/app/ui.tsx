@@ -48,16 +48,22 @@ import {
   normalizeMultiCredentials,
   type MultiCombinator,
 } from "./multi-constraints";
+import {
+  CONNECT_BASE_URL_MAX_LENGTH,
+  CONNECT_BASE_URL_PRESETS,
+  parseConnectBaseUrl,
+} from "./connect-base-url";
 
 setDebug(true);
 countries.registerLocale(enLocale);
 
 const APP_ID = process.env.NEXT_PUBLIC_APP_ID as `app_${string}` | undefined;
 const RP_ID = process.env.NEXT_PUBLIC_RP_ID;
-const STAGING_CONNECT_BASE_URL = "https://staging.world.org/verify";
 const STAGING_DEVPORTAL_BASE_URL = "https://staging-developer.worldcoin.org";
 const CONNECT_URL_OVERRIDE_TOOLTIP =
-  "Enable this to change the deeplink base URL to the staging verify endpoint. Useful when testing with a Staging iOS World App build that supports this override.";
+  "Base URL of the connector link and QR code, passed to IDKit as override_connect_base_url. " +
+  "Leave empty to use the default for the selected environment. " +
+  "Must be an https:// URL (http:// only for localhost) without a query string.";
 const DEVPORTAL_URL_OVERRIDE_TOOLTIP =
   "Enable this to send proof verification requests to the staging Developer Portal instead of production.";
 const GENESIS_ISSUED_AT_MIN_TOOLTIP =
@@ -107,6 +113,7 @@ const DEFAULT_IDENTITY_ATTRIBUTES: IdentityAttributesConfig = {
 
 type SharedDemoState = {
   action: string;
+  connectBaseUrl: string;
   createSession: boolean;
   environment: "production" | "staging" | "sandbox";
   flowMode: FlowMode;
@@ -204,6 +211,7 @@ function cloneIdentityAttributes(
 function createDefaultSharedDemoState(): SharedDemoState {
   return {
     action: "test-action",
+    connectBaseUrl: "",
     createSession: false,
     environment: "production",
     flowMode: "request",
@@ -347,6 +355,13 @@ function normalizeSharedDemoState(value: unknown): SharedDemoState | null {
 
   const state: SharedDemoState = {
     action: coerceString(value.action, fallback.action, 200),
+    // An invalid value is kept so the panel shows the validation error
+    // instead of silently falling back to the environment default.
+    connectBaseUrl: coerceString(
+      value.connectBaseUrl,
+      fallback.connectBaseUrl,
+      CONNECT_BASE_URL_MAX_LENGTH,
+    ),
     createSession: coerceBoolean(value.createSession, fallback.createSession),
     environment,
     flowMode,
@@ -725,6 +740,7 @@ export function DemoClient(): ReactElement {
   const [environment, setEnvironment] = useState<
     "production" | "staging" | "sandbox"
   >("production");
+  const [connectBaseUrl, setConnectBaseUrl] = useState("");
   const [isConnectUrlTooltipOpen, setIsConnectUrlTooltipOpen] = useState(false);
   const [useStagingDevPortalUrl, setUseStagingDevPortalUrl] = useState(false);
   const [isDevPortalUrlTooltipOpen, setIsDevPortalUrlTooltipOpen] =
@@ -923,6 +939,16 @@ export function DemoClient(): ReactElement {
       ? describeMultiConstraints(multiCombinator, multiCredentials)
       : V4_CREDENTIAL_TO_NAME[sessionCredentialType];
 
+  const connectBaseUrlResult = useMemo(
+    () => parseConnectBaseUrl(connectBaseUrl),
+    [connectBaseUrl],
+  );
+  const overrideConnectBaseUrl = connectBaseUrlResult.ok
+    ? connectBaseUrlResult.url
+    : undefined;
+  const connectBaseUrlError = connectBaseUrlResult.ok
+    ? null
+    : connectBaseUrlResult.error;
   const overrideDevPortalBaseUrl =
     (environment === "staging" || environment === "sandbox") &&
     useStagingDevPortalUrl
@@ -938,6 +964,7 @@ export function DemoClient(): ReactElement {
   const createSharedState = useCallback(
     (): SharedDemoState => ({
       action,
+      connectBaseUrl,
       createSession: shouldCreateSession,
       environment,
       flowMode,
@@ -958,6 +985,7 @@ export function DemoClient(): ReactElement {
     }),
     [
       action,
+      connectBaseUrl,
       environment,
       flowMode,
       genesisDate,
@@ -980,6 +1008,7 @@ export function DemoClient(): ReactElement {
 
   const applySharedState = useCallback((state: SharedDemoState) => {
     setAction(state.action);
+    setConnectBaseUrl(state.connectBaseUrl);
     setCreateSession(state.createSession);
     setEnvironment(state.environment);
     setFlowMode(state.flowMode);
@@ -1126,6 +1155,11 @@ export function DemoClient(): ReactElement {
     setWidgetSessionResult(null);
     setWasIdentityCheck(isIdentityCheck);
 
+    if (connectBaseUrlError) {
+      // Already shown next to the verify buttons.
+      return;
+    }
+
     if (!canStartWidgetFlow) {
       setWidgetError(
         isIdentityCheck
@@ -1159,6 +1193,7 @@ export function DemoClient(): ReactElement {
   }, [
     action,
     canStartWidgetFlow,
+    connectBaseUrlError,
     flowMode,
     forceInvalidRpSignature,
     isIdentityCheck,
@@ -1313,6 +1348,87 @@ export function DemoClient(): ReactElement {
             <option value="sandbox">Sandbox</option>
           </select>
         </div>
+        <div className="config-row">
+          <label htmlFor="cfgConnectBaseUrl">Connect base URL</label>
+          <div
+            className="tooltip"
+            onMouseEnter={() => setIsConnectUrlTooltipOpen(true)}
+            onMouseLeave={() => setIsConnectUrlTooltipOpen(false)}
+          >
+            <button
+              type="button"
+              className="tooltip-trigger"
+              aria-label="Explain connect base URL"
+              aria-describedby={
+                isConnectUrlTooltipOpen ? "connect-base-url-tooltip" : undefined
+              }
+              aria-expanded={isConnectUrlTooltipOpen}
+              onFocus={() => setIsConnectUrlTooltipOpen(true)}
+              onBlur={() => setIsConnectUrlTooltipOpen(false)}
+              onClick={() => setIsConnectUrlTooltipOpen(true)}
+            >
+              ?
+            </button>
+            {isConnectUrlTooltipOpen && (
+              <span
+                id="connect-base-url-tooltip"
+                role="tooltip"
+                className="tooltip-content"
+              >
+                {CONNECT_URL_OVERRIDE_TOOLTIP}
+              </span>
+            )}
+          </div>
+          <input
+            type="text"
+            id="cfgConnectBaseUrl"
+            value={connectBaseUrl}
+            onChange={(e) => setConnectBaseUrl(e.target.value)}
+            maxLength={CONNECT_BASE_URL_MAX_LENGTH}
+            placeholder="Default for environment"
+            spellCheck={false}
+            autoCapitalize="none"
+            autoCorrect="off"
+            aria-invalid={connectBaseUrlError != null}
+            aria-describedby={
+              connectBaseUrlError ? "connect-base-url-error" : undefined
+            }
+          />
+        </div>
+        <div className="config-row">
+          <label>Connect base presets</label>
+          <div className="checkbox-group">
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setConnectBaseUrl("")}
+            >
+              Environment default
+            </button>
+            {CONNECT_BASE_URL_PRESETS.map((preset) => (
+              <button
+                key={preset.url}
+                type="button"
+                className="secondary"
+                title={preset.url}
+                onClick={() => setConnectBaseUrl(preset.url)}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {connectBaseUrlError && (
+          <div className="config-row">
+            <span
+              id="connect-base-url-error"
+              role="alert"
+              className="config-note config-error"
+            >
+              {connectBaseUrlError}
+            </span>
+          </div>
+        )}
         {!isSessionFlow && (
           <div className="config-row">
             <label htmlFor="cfgUseInviteCode">Use invite code</label>
@@ -1982,6 +2098,14 @@ export function DemoClient(): ReactElement {
       {isMultiCredential && !hasMultiCredentialSelection && (
         <p className="status">Select at least one credential.</p>
       )}
+      {connectBaseUrlError && (
+        <p className="status">Error: {connectBaseUrlError}</p>
+      )}
+      {overrideConnectBaseUrl && (
+        <p className="status">
+          Connector URL base overridden: <code>{overrideConnectBaseUrl}</code>
+        </p>
+      )}
       {widgetError && <p className="status">Error: {widgetError}</p>}
       {widgetDebugReportJson && (
         <details>
@@ -2027,6 +2151,7 @@ export function DemoClient(): ReactElement {
             }}
             onError={handleWidgetError}
             environment={environment}
+            override_connect_base_url={overrideConnectBaseUrl}
             return_to={effectiveReturnTo}
           />
         ) : (
@@ -2052,7 +2177,9 @@ export function DemoClient(): ReactElement {
             }}
             onError={handleWidgetError}
             environment={environment}
+            override_connect_base_url={overrideConnectBaseUrl}
             return_to={effectiveReturnTo}
+            showConnectorLink
           />
         ))}
 
@@ -2079,7 +2206,9 @@ export function DemoClient(): ReactElement {
           }}
           onError={handleWidgetError}
           environment={environment}
+          override_connect_base_url={overrideConnectBaseUrl}
           return_to={effectiveReturnTo}
+          showConnectorLink
         />
       )}
 

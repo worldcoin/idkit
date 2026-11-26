@@ -11,6 +11,7 @@ export function IDKitSessionWidget({
   onError,
   autoClose,
   language,
+  showConnectorLink,
   ...config
 }: IDKitSessionWidgetProps): ReactElement | null {
   if (typeof onSuccess !== "function") {
@@ -30,6 +31,7 @@ export function IDKitSessionWidget({
       autoClose={autoClose}
       language={language}
       showSimulatorCallout={config.environment === "staging"}
+      showConnectorLink={showConnectorLink}
     />
   );
 }

@@ -292,6 +292,11 @@ pre {
   overflow-wrap: anywhere;
 }
 
+.config-note.config-error {
+  color: var(--danger-color);
+  opacity: 1;
+}
+
 .checkbox-group {
   display: flex;
   flex: 1;

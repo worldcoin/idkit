@@ -11,6 +11,7 @@ export function IDKitRequestWidget({
   onError,
   autoClose,
   language,
+  showConnectorLink,
   ...config
 }: IDKitRequestWidgetProps): ReactElement | null {
   if (typeof onSuccess !== "function") {
@@ -30,6 +31,7 @@ export function IDKitRequestWidget({
       autoClose={autoClose}
       language={language}
       showSimulatorCallout={config.environment === "staging"}
+      showConnectorLink={showConnectorLink}
     />
   );
 }

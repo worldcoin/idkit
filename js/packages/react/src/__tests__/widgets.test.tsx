@@ -152,6 +152,45 @@ describe("widgets", () => {
     );
   });
 
+  it("request and session widgets render the connector link only when opted in, without passing the flag to the hooks", () => {
+    const connectorURI = "https://override.example/verify?t=wld&i=1&k=key";
+    useIDKitRequestMock.mockReturnValue(createFlow({ connectorURI }));
+    useIDKitSessionMock.mockReturnValue(createFlow({ connectorURI }));
+
+    const { unmount } = render(
+      <IDKitRequestWidget {...createRequestProps()} />,
+    );
+    expect(
+      screen.queryByRole("link", { name: /open connector url/i }),
+    ).toBeNull();
+    unmount();
+
+    for (const widget of [
+      <IDKitRequestWidget
+        key="request"
+        {...createRequestProps({ showConnectorLink: true })}
+      />,
+      <IDKitSessionWidget
+        key="session"
+        {...createSessionProps({ showConnectorLink: true })}
+      />,
+    ]) {
+      const view = render(widget);
+      expect(
+        screen
+          .getByRole("link", { name: /open connector url/i })
+          .getAttribute("href"),
+      ).toBe(connectorURI);
+      view.unmount();
+    }
+
+    for (const hook of [useIDKitRequestMock, useIDKitSessionMock]) {
+      for (const [config] of hook.mock.calls) {
+        expect(config).not.toHaveProperty("showConnectorLink");
+      }
+    }
+  });
+
   it("request widget calls onSuccess and auto-closes without handleVerify", async () => {
     vi.useFakeTimers();
 

@@ -53,6 +53,7 @@ export type IDKitWidgetBaseProps<TResult> = {
   autoClose?: boolean;
   language?: SupportedLanguage;
   showSimulatorCallout: boolean;
+  showConnectorLink?: boolean;
 };
 
 export function IDKitWidgetBase<TResult>({
@@ -65,6 +66,7 @@ export function IDKitWidgetBase<TResult>({
   autoClose = true,
   language,
   showSimulatorCallout,
+  showConnectorLink,
 }: IDKitWidgetBaseProps<TResult>): ReactElement | null {
   const { open: openFlow, reset: resetFlow } = flow;
 
@@ -226,6 +228,7 @@ export function IDKitWidgetBase<TResult>({
           connectorURI={flow.connectorURI}
           isAwaitingUserConfirmation={flow.isAwaitingUserConfirmation}
           showSimulatorCallout={showSimulatorCallout}
+          showConnectorLink={showConnectorLink}
         />
       )}
       {stage === "host_verification" && (

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { QRState } from "../components/States/QRState";
 
@@ -35,6 +35,26 @@ describe("QRState simulator callout", () => {
     expect(
       screen.queryByRole("link", { name: /use the simulator/i }),
     ).toBeNull();
+  });
+
+  it("shows the connector link below the desktop QR only when opted in", () => {
+    const { unmount } = render(<QRState qrData={qrData} />);
+    expect(
+      screen.queryByRole("link", { name: /open connector url/i }),
+    ).toBeNull();
+    unmount();
+
+    render(<QRState qrData={null} showConnectorLink={true} />);
+    expect(
+      screen.queryByRole("link", { name: /open connector url/i }),
+    ).toBeNull();
+    cleanup();
+
+    render(<QRState qrData={qrData} showConnectorLink={true} />);
+    const link = screen.getByRole("link", { name: /open connector url/i });
+    expect(link.getAttribute("href")).toBe(qrData);
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toBe("noopener noreferrer");
   });
 
   it("offers both app handoff and a QR fallback on smaller screens", () => {
