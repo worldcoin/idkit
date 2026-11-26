@@ -106,6 +106,11 @@ function WidgetExample() {
 }
 ```
 
+`IDKitRequestWidget` and `IDKitSessionWidget` accept `showConnectorLink`
+(default `false`). When set, the desktop view shows the connector URL as a link
+below the QR code, so the authenticator can be opened in the same browser. Use it
+for testing with a browser-based authenticator.
+
 ## Developing widget styles
 
 Edit the CSS files in `src/styles`. `widget.css` imports them in cascade order;

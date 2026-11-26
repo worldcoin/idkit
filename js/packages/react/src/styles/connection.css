@@ -156,7 +156,8 @@
   color: var(--idkit-text-secondary);
 }
 
-/* Simulator callout (staging only) */
+/* Simulator callout (staging only) and opt-in connector link */
+.idkit-connector-link,
 .idkit-simulator-callout {
   margin: 12px 0 0;
   font-size: 14px;
@@ -164,12 +165,14 @@
   text-align: center;
 }
 
+.idkit-connector-link a,
 .idkit-simulator-callout a {
   color: var(--idkit-text-muted);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
+.idkit-connector-link a:hover,
 .idkit-simulator-callout a:hover {
   color: var(--idkit-text);
 }

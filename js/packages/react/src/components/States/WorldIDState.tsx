@@ -9,12 +9,14 @@ type WorldIDStateProps = {
   connectorURI: string | null;
   isAwaitingUserConfirmation: boolean;
   showSimulatorCallout?: boolean;
+  showConnectorLink?: boolean;
 };
 
 export function WorldIDState({
   connectorURI,
   isAwaitingUserConfirmation,
   showSimulatorCallout,
+  showConnectorLink,
 }: WorldIDStateProps): ReactElement {
   const media = useMedia();
 
@@ -66,6 +68,7 @@ export function WorldIDState({
             <QRState
               qrData={connectorURI}
               showSimulatorCallout={showSimulatorCallout}
+              showConnectorLink={showConnectorLink}
             />
           </div>
         </div>
