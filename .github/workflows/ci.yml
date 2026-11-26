@@ -19,7 +19,7 @@ jobs:
 
       - name: Read rust-toolchain
         id: rust-version
-        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
+        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -85,7 +85,7 @@ jobs:
 
       - name: Read rust-toolchain
         id: rust-version
-        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
+        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -109,19 +109,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Match Xcode versions to the installed software listed in actions/runner-images:
+        # images/macos/macos-26-arm64-Readme.md and images/macos/xcode-27-arm64-Readme.md.
         include:
           - os: macos-26
-            xcode: "26.0.1"
-          - os: macos-26
-            xcode: "26.1.1"
-          - os: macos-26
-            xcode: "26.2"
-          - os: macos-26
             xcode: "26.3"
-          # - os: macos-26
-          #   xcode: "26.4"
-          # - os: macos-26
-          #   xcode: "26.5-beta"
+          - os: macos-26
+            xcode: "26.5"
+          - os: macos-26
+            xcode: "26.6"
+          - os: xcode-27
+            xcode: "27.0"
+          - os: xcode-27
+            xcode: "27.1"
+          - os: xcode-27
+            xcode: "27.2"
     permissions:
       contents: read
     steps:
@@ -135,7 +137,7 @@ jobs:
 
       - name: Read rust-toolchain
         id: rust-version
-        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
+        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -174,12 +176,12 @@ jobs:
             -scheme IDKitSampleApp 2>&1)
           echo "$DESTINATIONS"
           if echo "$DESTINATIONS" | grep -Eq 'iOS [0-9.]+ is not installed'; then
-            echo "has_destinations=false" >> $GITHUB_OUTPUT
+            echo "has_destinations=false" >> "$GITHUB_OUTPUT"
             echo "Required iOS platform is not installed — downloading it"
           elif echo "$DESTINATIONS" | grep -q "platform:iOS Simulator"; then
-            echo "has_destinations=true" >> $GITHUB_OUTPUT
+            echo "has_destinations=true" >> "$GITHUB_OUTPUT"
           else
-            echo "has_destinations=false" >> $GITHUB_OUTPUT
+            echo "has_destinations=false" >> "$GITHUB_OUTPUT"
             echo "No iOS Simulator destination is available — downloading the platform"
           fi
 
@@ -278,7 +280,7 @@ jobs:
 
       - name: Read rust-toolchain
         id: rust-version
-        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> $GITHUB_OUTPUT
+        run: echo "toolchain=$(yq '.toolchain.channel' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
