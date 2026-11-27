@@ -113,6 +113,7 @@ const DEFAULT_IDENTITY_ATTRIBUTES: IdentityAttributesConfig = {
 
 type SharedDemoState = {
   action: string;
+  allowUnattestedSelfieCheck: boolean;
   connectBaseUrl: string;
   createSession: boolean;
   environment: "production" | "staging" | "sandbox";
@@ -211,6 +212,7 @@ function cloneIdentityAttributes(
 function createDefaultSharedDemoState(): SharedDemoState {
   return {
     action: "test-action",
+    allowUnattestedSelfieCheck: false,
     connectBaseUrl: "",
     createSession: false,
     environment: "production",
@@ -393,6 +395,10 @@ function normalizeSharedDemoState(value: unknown): SharedDemoState | null {
     useStagingDevPortalUrl: coerceBoolean(
       value.useStagingDevPortalUrl,
       fallback.useStagingDevPortalUrl,
+    ),
+    allowUnattestedSelfieCheck: coerceBoolean(
+      value.allowUnattestedSelfieCheck,
+      fallback.allowUnattestedSelfieCheck,
     ),
     v4CredentialType,
     worldIdVersion,
@@ -693,7 +699,10 @@ async function fetchRpContext(
 
 async function verifyProof(
   payload: IDKitResult,
-  devPortalBaseUrl?: string,
+  options: {
+    devPortalBaseUrl?: string;
+    allowUnattestedSelfieCheck: boolean;
+  },
 ): Promise<unknown> {
   if (!RP_ID) {
     throw new Error("Missing NEXT_PUBLIC_RP_ID");
@@ -705,7 +714,8 @@ async function verifyProof(
     body: JSON.stringify({
       rp_id: RP_ID,
       devPortalPayload: payload,
-      devPortalBaseUrl,
+      devPortalBaseUrl: options.devPortalBaseUrl,
+      allowUnattestedSelfieCheck: options.allowUnattestedSelfieCheck,
     }),
   });
 
@@ -744,6 +754,8 @@ export function DemoClient(): ReactElement {
   const [connectBaseUrl, setConnectBaseUrl] = useState("");
   const [isConnectUrlTooltipOpen, setIsConnectUrlTooltipOpen] = useState(false);
   const [useStagingDevPortalUrl, setUseStagingDevPortalUrl] = useState(false);
+  const [allowUnattestedSelfieCheck, setAllowUnattestedSelfieCheck] =
+    useState(false);
   const [isDevPortalUrlTooltipOpen, setIsDevPortalUrlTooltipOpen] =
     useState(false);
   const [worldIdVersion, setWorldIdVersion] = useState<"3.0" | "4.0">("4.0");
@@ -955,6 +967,10 @@ export function DemoClient(): ReactElement {
     useStagingDevPortalUrl
       ? STAGING_DEVPORTAL_BASE_URL
       : undefined;
+  const verifyOptions = {
+    devPortalBaseUrl: overrideDevPortalBaseUrl,
+    allowUnattestedSelfieCheck,
+  };
   const effectiveReturnTo = useReturnTo
     ? returnTo.trim() || undefined
     : undefined;
@@ -965,6 +981,7 @@ export function DemoClient(): ReactElement {
   const createSharedState = useCallback(
     (): SharedDemoState => ({
       action,
+      allowUnattestedSelfieCheck,
       connectBaseUrl,
       createSession: shouldCreateSession,
       environment,
@@ -986,6 +1003,7 @@ export function DemoClient(): ReactElement {
     }),
     [
       action,
+      allowUnattestedSelfieCheck,
       connectBaseUrl,
       environment,
       flowMode,
@@ -1009,6 +1027,7 @@ export function DemoClient(): ReactElement {
 
   const applySharedState = useCallback((state: SharedDemoState) => {
     setAction(state.action);
+    setAllowUnattestedSelfieCheck(state.allowUnattestedSelfieCheck);
     setConnectBaseUrl(state.connectBaseUrl);
     setCreateSession(state.createSession);
     setEnvironment(state.environment);
@@ -2059,6 +2078,20 @@ export function DemoClient(): ReactElement {
           />
         </div>
         <div className="config-row">
+          <label htmlFor="cfgAllowUnattestedSelfieCheck">
+            Allow unattested Selfie Check
+          </label>
+          <input
+            type="checkbox"
+            id="cfgAllowUnattestedSelfieCheck"
+            checked={allowUnattestedSelfieCheck}
+            onChange={(e) => setAllowUnattestedSelfieCheck(e.target.checked)}
+          />
+          <span className="config-note">
+            Accept Selfie Check proofs without a World App integrity bundle
+          </span>
+        </div>
+        <div className="config-row">
           <label htmlFor="cfgForceInvalidRpSignature">
             Invalid RP signature
           </label>
@@ -2149,10 +2182,7 @@ export function DemoClient(): ReactElement {
             onSuccess={() => {}}
             handleVerify={async (result) => {
               setWidgetIdkitResult(result);
-              const verified = await verifyProof(
-                result,
-                overrideDevPortalBaseUrl,
-              );
+              const verified = await verifyProof(result, verifyOptions);
               setWidgetVerifyResult(verified);
             }}
             onError={handleWidgetError}
@@ -2175,10 +2205,7 @@ export function DemoClient(): ReactElement {
             onSuccess={() => {}}
             handleVerify={async (result) => {
               setWidgetIdkitResult(result);
-              const verified = await verifyProof(
-                result,
-                overrideDevPortalBaseUrl,
-              );
+              const verified = await verifyProof(result, verifyOptions);
               setWidgetVerifyResult(verified);
             }}
             onError={handleWidgetError}
@@ -2206,7 +2233,7 @@ export function DemoClient(): ReactElement {
             setWidgetSessionResult(result);
             const verified = await verifyProof(
               result as unknown as IDKitResult,
-              overrideDevPortalBaseUrl,
+              verifyOptions,
             );
             setWidgetVerifyResult(verified);
           }}

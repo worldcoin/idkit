@@ -9,6 +9,7 @@ export async function POST(request: Request): Promise<Response> {
       rp_id?: string;
       devPortalPayload?: IDKitResult;
       devPortalBaseUrl?: string;
+      allowUnattestedSelfieCheck?: boolean;
     };
 
     const baseUrl =
@@ -21,7 +22,14 @@ export async function POST(request: Request): Promise<Response> {
       headers: {
         "content-type": "application/json",
       },
-      body: JSON.stringify(body.devPortalPayload),
+      body: JSON.stringify({
+        ...body.devPortalPayload,
+        // Developer Portal otherwise rejects Selfie Check proofs that carry no
+        // World App integrity bundle, such as those from the web authenticator.
+        ...(body.allowUnattestedSelfieCheck
+          ? { allow_unattested_selfie_check: true }
+          : {}),
+      }),
     });
 
     const payload = await response.json();
