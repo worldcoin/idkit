@@ -47,7 +47,10 @@ describe("bridge raw JSON compatibility", () => {
       configureIDKitRuntime({
         fetch: async (_url, init) =>
           init?.method === "POST"
-            ? json({ request_id: "request-id" })
+            ? json({
+                response_read_token: "response-read-token",
+                request_id: "request-id",
+              })
             : json(pollBody),
       });
       const request = await IDKit.request(config).preset(orbLegacy());
@@ -103,7 +106,10 @@ describe("bridge raw JSON compatibility", () => {
       fetch: async (_url, init) =>
         rawResponse(
           init?.method === "POST"
-            ? bytes('{"request_id":"id","extension":"', '"}')
+            ? bytes(
+                '{"response_read_token":"response-read-token","request_id":"id","extension":"',
+                '"}',
+              )
             : bytes('{"status":"initialized","extension":"', '"}'),
         ),
     });
@@ -132,7 +138,7 @@ describe("bridge raw JSON compatibility", () => {
       fetch: async (_url, init) =>
         new Response(
           init?.method === "POST"
-            ? '{"request_id":"id","extension":1,"extension":2}'
+            ? '{"response_read_token":"response-read-token","request_id":"id","extension":1,"extension":2}'
             : raw,
         ),
     });
@@ -215,6 +221,7 @@ describe("encrypted bridge lifecycle", () => {
         fetch: async (_url, init) => {
           if (init?.method === "POST") {
             return json({
+              response_read_token: "response-read-token",
               request_id:
                 JSON.parse(init.body as string).request_id ?? "request-id",
             });
@@ -267,7 +274,10 @@ describe("encrypted bridge lifecycle", () => {
     const fetch = vi.fn(async (url: any, init?: RequestInit) => {
       if (init?.method === "POST") {
         posts.push(JSON.parse(init.body as string));
-        return json({ request_id: "request-id" });
+        return json({
+          response_read_token: "response-read-token",
+          request_id: "request-id",
+        });
       }
       return json(pollBody);
     });
@@ -349,7 +359,10 @@ describe("encrypted bridge lifecycle", () => {
         bodies.push(body);
         return bodies.length === 1
           ? json({}, 409)
-          : json({ request_id: body.request_id });
+          : json({
+              response_read_token: "response-read-token",
+              request_id: body.request_id,
+            });
       },
     });
     const request =
@@ -362,7 +375,13 @@ describe("encrypted bridge lifecycle", () => {
     expect(derived.index).toBe(request.requestId);
     expect(encodeBase64(derived.key)).toBe(query.get("k"));
     expect(request.expiresAt).toBe(1700000900);
-    configureIDKitRuntime({ fetch: async () => json({ request_id: "wrong" }) });
+    configureIDKitRuntime({
+      fetch: async () =>
+        json({
+          response_read_token: "response-read-token",
+          request_id: "wrong",
+        }),
+    });
     await expect(
       IDKit.requestWithInviteCode(config).preset(orbLegacy()),
     ).rejects.toThrow("mismatched request_id");
@@ -377,7 +396,12 @@ describe("encrypted bridge lifecycle", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
     configureIDKitRuntime({
       fetch: async (_url, init) =>
-        init?.method === "POST" ? json({ request_id: "id" }) : json({}, 404),
+        init?.method === "POST"
+          ? json({
+              response_read_token: "response-read-token",
+              request_id: "id",
+            })
+          : json({}, 404),
     });
     const request = await IDKit.request(config).preset(orbLegacy());
     expect(await request.pollOnce()).toEqual({
@@ -392,7 +416,13 @@ describe("encrypted bridge lifecycle", () => {
   });
 
   it("preserves unknown-environment fallback and Rust URL spelling", async () => {
-    configureIDKitRuntime({ fetch: async () => json({ request_id: "id" }) });
+    configureIDKitRuntime({
+      fetch: async () =>
+        json({
+          response_read_token: "response-read-token",
+          request_id: "id",
+        }),
+    });
     const request = await IDKit.request({
       ...config,
       environment: "future" as any,
@@ -414,6 +444,7 @@ describe("encrypted bridge lifecycle", () => {
       const fetch = vi.fn(async (_url: any, init?: RequestInit) =>
         init?.method === "POST"
           ? json({
+              response_read_token: "response-read-token",
               request_id: JSON.parse(init.body as string).request_id ?? "id",
             })
           : json({ status: "initialized" }),
@@ -444,6 +475,7 @@ describe("encrypted bridge lifecycle", () => {
       const fetch = vi.fn(async (_url: any, init?: RequestInit) =>
         init?.method === "POST"
           ? json({
+              response_read_token: "response-read-token",
               request_id: JSON.parse(init.body as string).request_id ?? "id",
             })
           : json({ status: "retrieved" }),
@@ -468,7 +500,13 @@ describe("encrypted bridge lifecycle", () => {
   );
 
   it("trims return URLs with Rust's Unicode whitespace rules", async () => {
-    configureIDKitRuntime({ fetch: async () => json({ request_id: "id" }) });
+    configureIDKitRuntime({
+      fetch: async () =>
+        json({
+          response_read_token: "response-read-token",
+          request_id: "id",
+        }),
+    });
     const nel = await IDKit.request({
       ...config,
       return_to: "\u0085callback://ok\u0085",
@@ -487,7 +525,11 @@ describe("encrypted bridge lifecycle", () => {
     let key: Uint8Array;
     configureIDKitRuntime({
       fetch: async (_url, init) => {
-        if (init?.method === "POST") return json({ request_id: "id" });
+        if (init?.method === "POST")
+          return json({
+            response_read_token: "response-read-token",
+            request_id: "id",
+          });
         const iv = new Uint8Array(12);
         return json({
           status: "completed",
@@ -539,7 +581,10 @@ describe("encrypted bridge lifecycle", () => {
           preset.signal = "after";
           return json({}, 409);
         }
-        return json({ request_id: body.request_id });
+        return json({
+          response_read_token: "response-read-token",
+          request_id: body.request_id,
+        });
       },
     });
     const request = await IDKit.requestWithInviteCode(config).preset(preset);
@@ -563,7 +608,12 @@ describe("encrypted bridge lifecycle", () => {
   it("rejects invalid Unicode in consumed outer strings while allowing ignored extension values", async () => {
     const ignored = { extension: "\ud800", nested: { "\ud800": "\ud800" } };
     configureIDKitRuntime({
-      fetch: async () => json({ request_id: "id", ...ignored }),
+      fetch: async () =>
+        json({
+          response_read_token: "response-read-token",
+          request_id: "id",
+          ...ignored,
+        }),
     });
     await expect(
       IDKit.request(config).preset(orbLegacy()),
@@ -617,6 +667,7 @@ for (const invite of [false, true])
       const fetch = vi.fn(async (_url: any, init?: RequestInit) => {
         if (init?.method === "POST")
           return json({
+            response_read_token: "response-read-token",
             request_id: JSON.parse(init.body as string).request_id ?? "id",
           });
         return poll(init!.signal!);
@@ -822,3 +873,162 @@ for (const invite of [false, true])
       expect(fetch).not.toHaveBeenCalled();
     });
   });
+
+describe("response-read credentials", () => {
+  it.each([false, true])(
+    "uses credentials only for client-provided IDs (invite=%s)",
+    async (invite) => {
+      const token = "opaque-read-token";
+      let key: Uint8Array;
+      let polls = 0;
+      const fetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
+        if (init?.method === "POST") {
+          const body = JSON.parse(init.body as string);
+          if (invite) expect(body.require_token_to_read_response).toBe(true);
+          else
+            expect(body).not.toHaveProperty("require_token_to_read_response");
+          expect(body).not.toHaveProperty("allow_existence_check");
+          return json({
+            request_id: body.request_id ?? "id",
+            ...(invite ? { response_read_token: token } : {}),
+          });
+        }
+        expect(new Headers(init?.headers).get("authorization")).toBe(
+          invite ? `Bearer ${token}` : null,
+        );
+        polls++;
+        if (polls < 3)
+          return json({ status: polls === 1 ? "initialized" : "retrieved" });
+        const iv = new Uint8Array(12);
+        return json({
+          status: "completed",
+          response: {
+            iv: encodeBase64(iv),
+            payload: encodeBase64(
+              encrypt(key, iv, encodeUtf8(JSON.stringify(legacy))),
+            ),
+          },
+        });
+      });
+      configureIDKitRuntime({ fetch });
+      const request = await (
+        invite ? IDKit.requestWithInviteCode(config) : IDKit.request(config)
+      ).preset(orbLegacy());
+      key = decodeBase64(new URL(request.connectorURI).searchParams.get("k")!);
+      expect(await request.pollOnce()).toEqual({
+        type: "waiting_for_connection",
+      });
+      expect(await request.pollOnce()).toEqual({
+        type: "awaiting_confirmation",
+      });
+      expect((await request.pollOnce()).type).toBe("confirmed");
+      expect(fetch).toHaveBeenCalledTimes(4);
+      expect(request.connectorURI).not.toContain(token);
+      expect(JSON.stringify(request.getDebugReport())).not.toContain(token);
+    },
+  );
+
+  it.each([undefined, null, ""])(
+    "accepts an optional response token: %s",
+    async (token) => {
+      const fetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
+        if (init?.method === "POST") {
+          const body = JSON.parse(init.body as string);
+          expect(body.require_token_to_read_response).toBe(true);
+          return json({
+            request_id: body.request_id,
+            response_read_token: token,
+          });
+        }
+        expect(new Headers(init?.headers).get("authorization")).toBe(
+          token == null ? null : "Bearer",
+        );
+        return json({ status: "initialized" });
+      });
+      configureIDKitRuntime({ fetch });
+      const request =
+        await IDKit.requestWithInviteCode(config).preset(orbLegacy());
+      expect(await request.pollOnce()).toEqual({
+        type: "waiting_for_connection",
+      });
+      expect(fetch).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each([42, true, {}, [], "\ud800", "\udfff"])(
+    "rejects invalid consumed response tokens: %j",
+    async (token) => {
+      const fetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
+        const body = JSON.parse(init!.body as string);
+        return json({
+          request_id: body.request_id,
+          response_read_token: token,
+        });
+      });
+      configureIDKitRuntime({ fetch });
+      await expect(
+        IDKit.requestWithInviteCode(config).preset(orbLegacy()),
+      ).rejects.toThrow("unexpected_response");
+      expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("rejects duplicate protected token fields", async () => {
+    const token = "response-read-token";
+    configureIDKitRuntime({
+      fetch: async (_url, init) => {
+        const body = JSON.parse(init!.body as string);
+        return new Response(
+          `{"request_id":"${body.request_id}","response_read_token":"${token}","response_read_token":"${token}"}`,
+        );
+      },
+    });
+    await expect(
+      IDKit.requestWithInviteCode(config).preset(orbLegacy()),
+    ).rejects.toThrow("unexpected_response");
+  });
+
+  it("does not authenticate server-generated IDs even if a token is returned", async () => {
+    const token = "response-read-token";
+    configureIDKitRuntime({
+      fetch: async (_url, init) => {
+        if (init?.method === "POST")
+          return json({ request_id: "id", response_read_token: token });
+        expect(new Headers(init?.headers).has("authorization")).toBe(false);
+        return json({ status: "initialized" });
+      },
+    });
+    const request = await IDKit.request(config).preset(orbLegacy());
+    await request.pollOnce();
+  });
+
+  it("uses only the successful creation's token after a collision", async () => {
+    const token = "retry-response-read-token";
+    let posts = 0;
+    configureIDKitRuntime({
+      fetch: async (_url, init) => {
+        if (init?.method === "POST") {
+          const body = JSON.parse(init.body as string);
+          expect(body.require_token_to_read_response).toBe(true);
+          posts++;
+          return posts === 1
+            ? json(
+                {
+                  response_read_token: "response-read-token",
+                },
+                409,
+              )
+            : json({ request_id: body.request_id, response_read_token: token });
+        }
+        expect(new Headers(init?.headers).get("authorization")).toBe(
+          `Bearer ${token}`,
+        );
+        return json({ status: "initialized" });
+      },
+    });
+    const request =
+      await IDKit.requestWithInviteCode(config).preset(orbLegacy());
+    await request.pollOnce();
+    expect(posts).toBe(2);
+  });
+});

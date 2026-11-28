@@ -92,7 +92,7 @@ async function main() {
         posts++;
         const body = JSON.parse(init.body);
         check(typeof body.iv === "string" && typeof body.payload === "string", "encrypted request envelope");
-        const response = {request_id:body.request_id ?? "hermes-request"};
+        const response = {...(body.request_id === undefined ? {} : {response_read_token:"response-read-token"}),request_id:body.request_id ?? "hermes-request"};
         return {ok:true,status:200,text:async()=>JSON.stringify(response),json:async()=>response};
       }
       return {ok:true,status:200,text:async()=>JSON.stringify({status:"initialized"}),json:async()=>({status:"initialized"})};

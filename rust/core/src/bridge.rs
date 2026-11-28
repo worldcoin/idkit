@@ -200,6 +200,8 @@ pub struct EncryptedPayload {
 /// bridge's UUID.
 #[derive(Debug, Serialize)]
 struct CreateRequestBody {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    require_token_to_read_response: Option<bool>,
     iv: String,
     payload: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -209,9 +211,11 @@ struct CreateRequestBody {
 /// Response from bridge when creating a request. `request_id` is now an
 /// opaque string — UUID v4 in URL/QR mode, hex-encoded HKDF output in code
 /// mode.
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 struct BridgeCreateResponse {
     request_id: String,
+    #[serde(default)]
+    response_read_token: Option<String>,
 }
 
 /// TTL applied to an invite-code request by the bridge (`EXPIRE_AFTER_SECONDS`
@@ -764,6 +768,7 @@ pub struct BridgeConnection {
     key: CryptoKey,
     key_bytes: Vec<u8>,
     request_id: String,
+    response_read_token: Option<String>,
     /// Application ID, kept on the struct so `connect_url()` can stamp it
     /// onto the connector URL as the `a` query param (consumed by the
     /// `world.org/verify` landing page in invite-code mode).
@@ -822,6 +827,7 @@ pub(crate) fn conformance_connection(
         key: CryptoKey::new(key, [0; 12]),
         key_bytes,
         request_id: context.request_id,
+        response_read_token: None,
         app_id: app_id.to_string(),
         client: reqwest::Client::new(),
         cached_signal_hashes: CachedSignalHashes {
@@ -1100,6 +1106,7 @@ impl BridgeConnection {
         let encrypted = encrypt(&key_bytes, &nonce_bytes, &payload_json)?;
 
         let body = CreateRequestBody {
+            require_token_to_read_response: None,
             iv: base64_encode(&nonce_bytes),
             payload: base64_encode(&encrypted),
             // URL/QR mode lets the bridge mint the request_id (UUID v4).
@@ -1149,6 +1156,7 @@ impl BridgeConnection {
             key,
             key_bytes: key_bytes.to_vec(),
             request_id: create_response.request_id,
+            response_read_token: None,
             app_id,
             client,
             cached_signal_hashes,
@@ -1282,25 +1290,23 @@ impl BridgeConnection {
 
     /// Polls the bridge for the current status (non-blocking)
     ///
-    /// `GET /response/:id` is unauthenticated for both URL/QR and invite-code
-    /// modes. The endpoint returns AES-GCM ciphertext keyed under a secret
-    /// (the URL fragment key in QR mode, or HKDF(code, "key") in code mode)
-    /// that never reaches the bridge — encryption is the security boundary,
-    /// not endpoint auth.
+    /// Client-provided request IDs use the response-read token when returned at
+    /// creation. Server-generated IDs use unauthenticated polling.
     ///
     /// # Errors
     ///
     /// Returns an error if the request fails or the response is invalid
     #[allow(clippy::too_many_lines)]
     pub async fn poll_for_status(&self) -> Result<Status> {
-        let response = self
-            .client
-            .get(
-                self.bridge_url
-                    .join(&format!("/response/{}", self.request_id))?,
-            )
-            .send()
-            .await?;
+        let request = self.client.get(
+            self.bridge_url
+                .join(&format!("/response/{}", self.request_id))?,
+        );
+        let request = match &self.response_read_token {
+            Some(token) => request.bearer_auth(token),
+            None => request,
+        };
+        let response = request.send().await?;
 
         let status = response.status();
         if status == reqwest::StatusCode::REQUEST_TIMEOUT
@@ -1607,6 +1613,7 @@ async fn try_create_invite_code_request(
     let encrypted = encrypt(&key_bytes, &nonce_bytes, &payload_json)?;
 
     let body = CreateRequestBody {
+        require_token_to_read_response: Some(true),
         iv: base64_encode(&nonce_bytes),
         payload: base64_encode(&encrypted),
         request_id: Some(request_id.clone()),
@@ -1684,6 +1691,7 @@ async fn try_create_invite_code_request(
         key,
         key_bytes: key_bytes.to_vec(),
         request_id,
+        response_read_token: echoed.response_read_token,
         app_id: params.app_id.as_str().to_string(),
         client,
         cached_signal_hashes,
@@ -4842,6 +4850,45 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn creation_accepts_an_optional_response_read_token() {
+        for token in [
+            None,
+            Some(serde_json::Value::Null),
+            Some(serde_json::json!("")),
+            Some(serde_json::json!("opaque-read-token")),
+        ] {
+            let mut body = serde_json::json!({"request_id":"id"});
+            if let Some(token) = token {
+                body["response_read_token"] = token;
+            }
+            let response: BridgeCreateResponse = serde_json::from_value(body.clone()).unwrap();
+            assert_eq!(
+                response.response_read_token.as_deref(),
+                body.get("response_read_token")
+                    .and_then(serde_json::Value::as_str)
+            );
+        }
+    }
+
+    #[test]
+    fn creation_only_requests_protection_with_a_client_provided_id() {
+        for supplied in [false, true] {
+            let body = CreateRequestBody {
+                require_token_to_read_response: supplied.then_some(true),
+                iv: "iv".into(),
+                payload: "ciphertext".into(),
+                request_id: supplied.then(|| "client-id".into()),
+            };
+            let json = serde_json::to_value(body).unwrap();
+            assert_eq!(
+                json.get("require_token_to_read_response"),
+                supplied.then_some(&serde_json::Value::Bool(true))
+            );
+            assert_eq!(json.get("request_id").is_some(), supplied);
+        }
+    }
+
     fn sample_connection(return_to: Option<String>) -> BridgeConnection {
         BridgeConnection {
             bridge_url: BridgeUrl::default(),
@@ -4849,6 +4896,7 @@ mod tests {
             key: crate::crypto::CryptoKey::new([0; 32], [0; 12]),
             key_bytes: vec![0; 32],
             request_id: "64e0ec6b-b4ca-47cc-8f70-504a95189e26".to_string(),
+            response_read_token: None,
             app_id: "app_test".to_string(),
             client: reqwest::Client::new(),
             cached_signal_hashes: CachedSignalHashes {

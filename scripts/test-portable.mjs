@@ -49,7 +49,7 @@ const fakeFetch = async (_url,init) => {
   if(init?.method === "POST") {
     const body = JSON.parse(init.body);
     check(typeof body.iv === "string" && typeof body.payload === "string", "encrypted POST");
-    return new Response(JSON.stringify({request_id:body.request_id ?? "test-request"}));
+    return new Response(JSON.stringify({...(body.request_id === undefined ? {} : {response_read_token:"response-read-token"}),request_id:body.request_id ?? "test-request"}));
   }
   return new Response(JSON.stringify({status:"initialized"}));
 };
