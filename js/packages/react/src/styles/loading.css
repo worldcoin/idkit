@@ -9,11 +9,22 @@
 }
 
 .idkit-spinner {
+  width: 24px;
+  height: 24px;
   animation: idkit-spin 1s linear infinite;
 }
 
 .idkit-spinner svg {
   display: block;
-  width: 24px;
-  height: 24px;
+  width: 100%;
+  height: 100%;
+}
+
+.idkit-host-app-verification .idkit-spinner {
+  width: 48px;
+  height: 48px;
+}
+
+.idkit-host-app-message {
+  color: var(--idkit-foreground-secondary);
 }

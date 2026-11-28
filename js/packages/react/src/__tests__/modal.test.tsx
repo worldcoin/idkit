@@ -17,7 +17,9 @@ describe("modal styles and lifecycle", () => {
       "@font-face",
       ":host(.dark)",
       ".idkit-modal",
-      ".idkit-heading",
+      ".headline-h2",
+      ".headline-h3",
+      ".body-b1",
       ".idkit-qr-container",
       ".idkit-error-message",
       "@media",
@@ -43,6 +45,15 @@ describe("modal styles and lifecycle", () => {
     expect(hosts()).toHaveLength(1);
     const host = hosts()[0];
     const root = host.shadowRoot!;
+    expect(
+      root.querySelector(".idkit-modal-header > .idkit-close"),
+    ).toBeTruthy();
+    expect(
+      root.querySelector(".idkit-modal-body > .idkit-content"),
+    ).toBeTruthy();
+    expect(
+      root.querySelector(".idkit-modal-body > .idkit-footer"),
+    ).toBeTruthy();
     const style = root.querySelector("style");
     expect(style?.textContent).toBe(WIDGET_STYLES);
     expect(document.head.querySelector("style")).toBeNull();

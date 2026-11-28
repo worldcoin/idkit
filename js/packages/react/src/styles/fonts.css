@@ -42,3 +42,12 @@
   font-style: normal;
   font-display: swap;
 }
+
+@font-face {
+  font-family: "World Pro MVP";
+  src: url("https://world-id-assets.com/fonts/WorldProMVPVF.woff2")
+    format("woff2");
+  font-weight: 300 800;
+  font-style: normal;
+  font-display: swap;
+}
